@@ -1,0 +1,99 @@
+.statsContainer {
+    margin-bottom: 2rem;
+}
+
+.statsGrid {
+    display: flex;
+    gap: 3rem;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+
+.statCard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.circularWrapper {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.circularProgress {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.progressCircle {
+    transition: stroke-dashoffset 0.6s ease;
+}
+
+.statValue {
+    position: relative;
+    text-align: center;
+    z-index: 1;
+}
+
+.number {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1;
+    margin-bottom: 0.25rem;
+}
+
+.label {
+    font-size: 0.625rem;
+    font-weight: 700;
+    color: #6b7280;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.totalsInfo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 9999px;
+    width: fit-content;
+    margin: 0 auto;
+}
+
+.totalsLabel {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #6b7280;
+    text-transform: uppercase;
+}
+
+.totalsValue {
+    font-size: 0.75rem;
+    color: #374151;
+}
+
+@media (max-width: 768px) {
+    .statsGrid {
+        gap: 2rem;
+    }
+
+    .circularWrapper {
+        width: 100px;
+        height: 100px;
+    }
+
+    .number {
+        font-size: 1.25rem;
+    }
+}

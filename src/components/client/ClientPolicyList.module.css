@@ -1,0 +1,154 @@
+.container {
+    background: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.header {
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 0.25rem;
+}
+
+.subtitle {
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.loading {
+    padding: 3rem;
+    text-align: center;
+    color: #6b7280;
+}
+
+.tableWrapper {
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.thead {
+    background-color: #f9fafb;
+}
+
+.th {
+    padding: 1rem 1.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: left;
+}
+
+.tr {
+    transition: background-color 0.15s;
+}
+
+.tr:hover {
+    background-color: #f9fafb;
+}
+
+.clickable {
+    cursor: pointer;
+}
+
+.td {
+    padding: 1.15rem 1.5rem;
+    color: #374151;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.policyNumber {
+    font-weight: 600;
+    color: #3b82f6;
+}
+
+.dicBadge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.dicNone {
+    background-color: #fee2e2;
+    color: #dc2626;
+}
+
+.dicActive {
+    background-color: #d1fae5;
+    color: #059669;
+}
+
+.statusBadge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+}
+
+.statusPendingReview {
+    background-color: #fef3c7;
+    color: #d97706;
+}
+
+.statusApproved {
+    background-color: #d1fae5;
+    color: #059669;
+}
+
+.statusRejected {
+    background-color: #fee2e2;
+    color: #dc2626;
+}
+
+.statusIncomplete {
+    background-color: #f3f4f6;
+    color: #6b7280;
+}
+
+.actionLink {
+    color: #3b82f6;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-decoration: none;
+}
+
+.actionLink:hover {
+    color: #2563eb;
+    text-decoration: underline;
+}
+
+.emptyState {
+    padding: 3rem;
+    text-align: center;
+    color: #9ca3af;
+}
+
+@media (max-width: 768px) {
+    .tableWrapper {
+        overflow-x: scroll;
+    }
+
+    .table {
+        min-width: 600px;
+    }
+}

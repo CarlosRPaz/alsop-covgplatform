@@ -1,0 +1,120 @@
+.container {
+    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+    border: 1px solid var(--border);
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.header h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--foreground);
+    letter-spacing: -0.02em;
+}
+
+.aiIcon {
+    color: var(--secondary);
+    /* Purple/Indigo usually implies AI */
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+}
+
+.section {
+    padding: 1.5rem;
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+}
+
+.sectionHeader {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.sectionHeader h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.list li {
+    font-size: 0.95rem;
+    line-height: 1.5;
+    position: relative;
+    padding-left: 1rem;
+}
+
+.list li::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    font-weight: bold;
+}
+
+/* Coverage Gaps - Warning/Red-Orange */
+.gaps {
+    background-color: rgba(239, 68, 68, 0.05);
+    /* Red tint */
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.gaps .sectionHeader {
+    color: #dc2626;
+    /* Red-600 */
+}
+
+.gaps .list li::before {
+    color: #dc2626;
+}
+
+/* Flags - Caution/Yellow-Amber */
+.flags {
+    background-color: rgba(245, 158, 11, 0.05);
+    /* Amber tint */
+    border-color: rgba(245, 158, 11, 0.2);
+}
+
+.flags .sectionHeader {
+    color: #d97706;
+    /* Amber-600 */
+}
+
+.flags .list li::before {
+    color: #d97706;
+}
+
+/* Suggestions - Growth/Green or Info/Blue */
+.suggestions {
+    background-color: rgba(59, 130, 246, 0.05);
+    /* Blue tint */
+    border-color: rgba(59, 130, 246, 0.2);
+}
+
+.suggestions .sectionHeader {
+    color: #2563eb;
+    /* Blue-600 */
+}
+
+.suggestions .list li::before {
+    color: #2563eb;
+}

@@ -1,0 +1,108 @@
+:root {
+  /* Layout Colors */
+  --background: #f9fafb;
+  /* Light gray background for main content */
+  --sidebar-bg: #1e293b;
+  /* Dark slate for sidebar */
+  --sidebar-fg: #94a3b8;
+  /* Sidebar text */
+  --sidebar-active-bg: #3b82f6;
+  /* Bright blue for active items */
+  --sidebar-active-fg: #ffffff;
+
+  --foreground: #0f172a;
+  /* Dark text for main content */
+
+  /* Primary Colors - Blue for main actions */
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --primary-foreground: #ffffff;
+
+  /* Accent Colors */
+  --accent-teal: #14b8a6;
+  --accent-indigo: #6366f1;
+  --accent-purple: #a855f7;
+
+  /* Secondary */
+  --secondary: #64748b;
+  --secondary-hover: #475569;
+  --secondary-foreground: #ffffff;
+
+  /* Surface Colors */
+  --card: #ffffff;
+  --card-border: rgba(0, 0, 0, 0);
+  /* Clean look, rely on shadow */
+  --card-foreground: #0f172a;
+  --card-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+
+  --input: #ffffff;
+  --input-border: #e5e7eb;
+  --border: #e5e7eb;
+
+  /* Utils */
+  --radius: 0.5rem;
+  /* Slightly boxier/cleaner */
+  --font-sans: 'Inter', system-ui, sans-serif;
+
+  /* Header specific */
+  --header-height: 64px;
+}
+
+$background: var(--background);
+$foreground: var(--foreground);
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: #0f172a;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+p {
+  color: #64748b;
+  line-height: 1.6;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+
+  &-track {
+    background: transparent;
+  }
+
+  &-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+
+    &:hover {
+      background: #94a3b8;
+    }
+  }
+}

@@ -1,0 +1,25 @@
+.card {
+    border-radius: var(--radius);
+    background: var(--card);
+    /* Use shadow instead of border for the white card look */
+    box-shadow: var(--card-shadow);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    /* Very subtle border */
+    color: var(--card-foreground);
+    padding: 1.5rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hoverable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Redefine glass for light mode or deprecate? */
+/* "Awesome Kit" usually is opaque white, not glass. */
+/* Keeping it just in case, but making it subtler. */
+.glass {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+}
