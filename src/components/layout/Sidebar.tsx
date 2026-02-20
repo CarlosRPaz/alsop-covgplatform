@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import styles from './Sidebar.module.scss';
+import { supabase } from '@/lib/supabaseClient';
 import {
     LayoutDashboard,
     FileText,
@@ -12,12 +13,21 @@ import {
     PieChart,
     Bell,
     ShieldCheck,
-    LogOut
+    LogOut,
+    UserCircle
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export function Sidebar() {
     const pathname = usePathname();
+    const router = useRouter();
+    const [userId, setUserId] = useState<string | null>(null);
+
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session?.user) setUserId(session.user.id);
+        });
+    }, []);
 
     const navItems = [
         { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -27,10 +37,16 @@ export function Sidebar() {
     ];
 
     const accountItems = [
+        ...(userId ? [{ label: 'My Profile', href: `/client/${userId}`, icon: UserCircle }] : []),
         { label: 'Users', href: '#', icon: Users },
         { label: 'Notifications', href: '#', icon: Bell },
         { label: 'Settings', href: '#', icon: Settings },
     ];
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        router.push('/');
+    };
 
     return (
         <aside className={styles.sidebar}>
@@ -55,23 +71,26 @@ export function Sidebar() {
                 })}
 
                 <div className={styles.sectionTitle} style={{ marginTop: '2rem' }}>Account</div>
-                {accountItems.map((item) => (
-                    <Link
-                        key={item.label}
-                        href={item.href}
-                        className={styles.navItem}
-                    >
-                        <item.icon />
-                        {item.label}
-                    </Link>
-                ))}
+                {accountItems.map((item) => {
+                    const isActive = pathname.startsWith(item.href) && item.href !== '#';
+                    return (
+                        <Link
+                            key={item.label}
+                            href={item.href}
+                            className={clsx(styles.navItem, isActive && styles.active)}
+                        >
+                            <item.icon />
+                            {item.label}
+                        </Link>
+                    );
+                })}
             </nav>
 
             <div className={styles.footer}>
-                <Link href="/" className={styles.navItem} style={{ paddingLeft: 0 }}>
+                <button onClick={handleLogout} className={styles.navItem} style={{ paddingLeft: 0, border: 'none', background: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
                     <LogOut />
                     Logout
-                </Link>
+                </button>
                 <div style={{ marginTop: '1rem' }}>
                     &copy; 2026 Alsop Inc
                 </div>

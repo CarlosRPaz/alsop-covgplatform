@@ -15,10 +15,10 @@ export function Footer() {
                     <div>
                         <div className={styles.logoWrapper}>
                             <FileText className={styles.logoIcon} />
-                            <span className={styles.logoText}>CFP Platform</span>
+                            <span className={styles.logoText}>Alsop Covg Platform</span>
                         </div>
                         <p className={styles.description}>
-                            Streamlining California Fair Plan declarations for insurance agents and brokers.
+                            Streamlining Alsop Covg Platform declarations for insurance agents and brokers.
                         </p>
                         <div className={styles.socialLinks}>
                             <a href="#" className={styles.socialLink}>
@@ -100,7 +100,7 @@ export function Footer() {
                             <li className={styles.contactItem}>
                                 <Mail className={styles.contactIcon} />
                                 <a href="mailto:support@cfpplatform.com" className={styles.contactLink}>
-                                    support@cfpplatform.com
+                                    support@alsopcovgplatform.com
                                 </a>
                             </li>
                             <li className={styles.contactItem}>

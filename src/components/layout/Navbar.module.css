@@ -75,6 +75,28 @@
     border-radius: 1px;
 }
 
+/* Nav Actions (Sign In + Get Started) */
+.navActions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.signInButton {
+    color: rgba(255, 255, 255, 0.85) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    background: transparent !important;
+    display: flex !important;
+    align-items: center !important;
+    transition: all 0.2s ease !important;
+}
+
+.signInButton:hover {
+    border-color: rgba(255, 255, 255, 0.4) !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    color: #ffffff !important;
+}
+
 .ctaButton {
     background: #f97316 !important;
     border: none !important;
@@ -86,6 +108,63 @@
     box-shadow: 0 6px 16px rgba(249, 115, 22, 0.4) !important;
 }
 
+/* Welcome Section (logged in) */
+.welcomeLink {
+    text-decoration: none;
+    transition: opacity 0.2s ease;
+}
+
+.welcomeLink:hover .welcomeSection {
+    border-color: rgba(59, 130, 246, 0.35);
+    background: rgba(59, 130, 246, 0.12);
+}
+
+.welcomeSection {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.375rem 0.75rem;
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.15);
+    border-radius: 0.5rem;
+}
+
+.welcomeIcon {
+    color: #60a5fa;
+}
+
+.welcomeText {
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.welcomeText strong {
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.signOutButton {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.375rem 0.75rem;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.5rem;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.signOutButton:hover {
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #fca5a5;
+    background: rgba(239, 68, 68, 0.06);
+}
+
 @media (max-width: 768px) {
     .navLinks {
         display: none;
@@ -93,5 +172,17 @@
 
     .container {
         padding: 0.75rem 1rem;
+    }
+
+    .signInButton {
+        display: none !important;
+    }
+
+    .welcomeText {
+        display: none;
+    }
+
+    .welcomeIcon {
+        display: none;
     }
 }

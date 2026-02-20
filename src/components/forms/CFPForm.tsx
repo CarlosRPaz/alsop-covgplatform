@@ -31,7 +31,7 @@ export function CFPForm() {
             <div className={styles.header}>
                 <h2 className={styles.title}>Submit for Coverage Review</h2>
                 <p className={styles.description}>
-                    Don't let gaps in your California Fair Plan coverage check leave you exposed.
+                    Don't let gaps in your insurance policy coverage leave you exposed.
                     Submit your current Declarations Page now for a comprehensive professional review.
                     We'll analyze your policy and identify missing coverage to ensure you're fully protected.
                 </p>

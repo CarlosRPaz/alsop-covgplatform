@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { fetchDeclarations } from '@/lib/api';
+import { fetchDeclarationsByClientId, Declaration } from '@/lib/api';
 import styles from './ClientPolicyList.module.css';
 
 interface ClientPolicyListProps {
@@ -11,15 +11,13 @@ interface ClientPolicyListProps {
 
 export function ClientPolicyList({ clientId }: ClientPolicyListProps) {
     const router = useRouter();
-    const [policies, setPolicies] = React.useState<any[]>([]);
+    const [policies, setPolicies] = React.useState<Declaration[]>([]);
     const [loading, setLoading] = React.useState(true);
 
     React.useEffect(() => {
         const loadPolicies = async () => {
             try {
-                const allPolicies = await fetchDeclarations();
-                // Filter policies for this client
-                const clientPolicies = allPolicies.filter(p => p.client_id === clientId);
+                const clientPolicies = await fetchDeclarationsByClientId(clientId);
                 setPolicies(clientPolicies);
             } catch (error) {
                 console.error('Error loading policies:', error);

@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/Button/Button';
 import { Plus } from 'lucide-react';
 
+
 const tabs = [
     { id: 'policy-table', label: 'POLICY TABLE' },
     { id: 'activity', label: 'ACTIVITY' },

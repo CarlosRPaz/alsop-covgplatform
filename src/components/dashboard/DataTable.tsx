@@ -4,27 +4,103 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/Card/Card';
 import styles from './DataTable.module.scss';
 import { clsx } from 'clsx';
-import { fetchDeclarations, Declaration } from '@/lib/api';
+import { fetchSupabaseDeclarations, Declaration } from '@/lib/api';
 import { ArrowUpDown, Search, ChevronDown, ChevronUp, Columns, ArrowUp, ArrowDown, EyeOff, X, Filter, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/Button/Button';
 import { useRouter } from 'next/navigation';
 
+// localStorage keys
+const LS_VISIBLE_COLUMNS = 'cfp_datatable_visibleColumns';
+const LS_COLUMN_ORDER = 'cfp_datatable_columnOrder';
+const LS_SELECTED_FLAGS = 'cfp_datatable_selectedFlags';
+
+// Helpers
+function loadFromStorage<T>(key: string, fallback: T): T {
+    if (typeof window === 'undefined') return fallback;
+    try {
+        const raw = localStorage.getItem(key);
+        if (raw === null) return fallback;
+        return JSON.parse(raw) as T;
+    } catch {
+        return fallback;
+    }
+}
+
+function saveToStorage(key: string, value: unknown) {
+    try {
+        localStorage.setItem(key, JSON.stringify(value));
+    } catch { /* quota exceeded – silently fail */ }
+}
+
 // Column definition type
 type ColumnDef = { key: keyof Declaration; label: string; width?: string };
 
-// Initial columns
+// All columns from parsed_cfpdecpage_data schema
 const INITIAL_COLUMNS: ColumnDef[] = [
+    // Policy Info
     { key: 'policy_number', label: 'Policy #' },
-    { key: 'insured_name', label: 'Insured Name' },
+    { key: 'date_issued', label: 'Date Issued' },
+    { key: 'policy_period_start', label: 'Period Start' },
+    { key: 'policy_period_end', label: 'Period End' },
+    // Insured Info
+    { key: 'insured_name', label: 'Insured Name', width: '200px' },
+    { key: 'secondary_insured_name', label: 'Secondary Insured' },
+    // Addresses
+    { key: 'mailing_address', label: 'Mailing Address', width: '250px' },
     { key: 'property_location', label: 'Property Location', width: '250px' },
-    { key: 'total_annual_premium', label: 'Premium' },
-    { key: 'renewal_date', label: 'Renewal' },
+    // Property Details
+    { key: 'year_built', label: 'Year Built' },
+    { key: 'occupancy', label: 'Occupancy' },
+    { key: 'number_of_units', label: 'Units' },
+    { key: 'construction_type', label: 'Construction' },
+    { key: 'deductible', label: 'Deductible' },
+    // Premium
+    { key: 'total_annual_premium', label: 'Annual Premium' },
+    // Coverage Limits
+    { key: 'limit_dwelling', label: 'Dwelling' },
+    { key: 'limit_other_structures', label: 'Other Structures' },
+    { key: 'limit_personal_property', label: 'Personal Property' },
+    { key: 'limit_fair_rental_value', label: 'Fair Rental Value' },
+    { key: 'limit_ordinance_or_law', label: 'Ordinance/Law' },
+    { key: 'limit_debris_removal', label: 'Debris Removal' },
+    { key: 'limit_extended_dwelling_coverage', label: 'Extended Dwelling' },
+    { key: 'limit_dwelling_replacement_cost', label: 'Dwelling Replace Cost' },
+    { key: 'limit_inflation_guard', label: 'Inflation Guard' },
+    { key: 'limit_personal_property_replacement_cost', label: 'PP Replace Cost' },
+    { key: 'limit_fences', label: 'Fences' },
+    { key: 'limit_permitted_incidental_occupancy', label: 'Incidental Occ.' },
+    { key: 'limit_plants_shrubs_trees', label: 'Plants/Shrubs/Trees' },
+    { key: 'limit_outdoor_radio_tv_equipment', label: 'Outdoor Radio/TV' },
+    { key: 'limit_awnings', label: 'Awnings' },
+    { key: 'limit_signs', label: 'Signs' },
+    // Wildfire
+    { key: 'wildfire_risk_score_l1', label: 'Wildfire L1' },
+    { key: 'wildfire_risk_score_l2', label: 'Wildfire L2' },
+    { key: 'wildfire_score_classification_l1', label: 'Wildfire Class L1' },
+    { key: 'wildfire_score_classification_l2', label: 'Wildfire Class L2' },
+    { key: 'wildfire_premium', label: 'Wildfire Premium' },
+    // Broker
+    { key: 'broker_name', label: 'Broker' },
+    { key: 'broker_address', label: 'Broker Address', width: '200px' },
+    { key: 'broker_phone_number', label: 'Broker Phone' },
+    // Mortgagees
+    { key: 'mortgagee_1_name', label: 'Mortgagee 1' },
+    { key: 'mortgagee_1_address', label: 'Mortgagee 1 Addr' },
+    { key: 'mortgagee_1_code', label: 'Mortgagee 1 Code' },
+    { key: 'mortgagee_2_name', label: 'Mortgagee 2' },
+    { key: 'mortgagee_2_address', label: 'Mortgagee 2 Addr' },
+    { key: 'mortgagee_2_code', label: 'Mortgagee 2 Code' },
+    // System
     { key: 'status', label: 'Status' },
     { key: 'flags', label: 'Flags' },
-    { key: 'mailing_address', label: 'Mailing Address' },
-    { key: 'broker_name', label: 'Broker' },
-    { key: 'limit_dwelling', label: 'Dwelling Limit' },
 ];
+
+// Default visible columns (key subset for initial view)
+const DEFAULT_VISIBLE_KEYS = new Set([
+    'policy_number', 'insured_name', 'property_location', 'mailing_address',
+    'total_annual_premium', 'year_built', 'occupancy', 'deductible',
+    'limit_dwelling', 'broker_name', 'wildfire_risk_score_l1', 'status', 'flags',
+]);
 
 // Column Header Popup Component
 interface ColumnPopupProps {
@@ -150,8 +226,13 @@ function ColumnPopup({
 export function DataTable() {
     const router = useRouter();
     const [data, setData] = useState<Declaration[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: keyof Declaration; direction: 'asc' | 'desc' } | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+
+    // Track whether localStorage preferences have been loaded
+    const [prefsLoaded, setPrefsLoaded] = useState(false);
 
     // Column Order State (for drag-and-drop reordering)
     const [columnOrder, setColumnOrder] = useState<ColumnDef[]>(INITIAL_COLUMNS);
@@ -159,13 +240,18 @@ export function DataTable() {
     const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
     // Column Visibility State
-    const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(INITIAL_COLUMNS.map(c => c.key)));
+    const [visibleColumns, setVisibleColumns] = useState<Set<string>>(DEFAULT_VISIBLE_KEYS);
     const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false);
 
     // Column Popup State
     const [activeColumnPopup, setActiveColumnPopup] = useState<string | null>(null);
     const [columnSearchQueries, setColumnSearchQueries] = useState<Record<string, string>>({});
     const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 });
+
+    // Refs for click-outside detection
+    const flagMenuRef = useRef<HTMLDivElement>(null);
+    const columnMenuRef = useRef<HTMLDivElement>(null);
+    const rowsPerPageMenuRef = useRef<HTMLDivElement>(null);
 
     // Flag Visibility State
     const [allFlags, setAllFlags] = useState<string[]>([]);
@@ -177,18 +263,91 @@ export function DataTable() {
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [isRowsPerPageMenuOpen, setIsRowsPerPageMenuOpen] = useState(false);
 
+    // --- Load preferences from localStorage on mount ---
     useEffect(() => {
-        fetchDeclarations().then(fetchedData => {
-            setData(fetchedData);
-            const flags = new Set<string>();
-            fetchedData.forEach(d => d.flags?.forEach(f => flags.add(f)));
-            setAllFlags(Array.from(flags).sort());
-        });
+        // Visible columns
+        const savedVisible = loadFromStorage<string[] | null>(LS_VISIBLE_COLUMNS, null);
+        if (savedVisible) setVisibleColumns(new Set(savedVisible));
+
+        // Column order (stored as key strings — rebuild ColumnDef from INITIAL_COLUMNS)
+        const savedOrder = loadFromStorage<string[] | null>(LS_COLUMN_ORDER, null);
+        if (savedOrder) {
+            const colMap = new Map(INITIAL_COLUMNS.map(c => [c.key, c]));
+            const restored: ColumnDef[] = [];
+            savedOrder.forEach(key => {
+                const col = colMap.get(key as keyof Declaration);
+                if (col) restored.push(col);
+            });
+            // Append any new columns that weren't in saved order
+            INITIAL_COLUMNS.forEach(c => {
+                if (!restored.find(r => r.key === c.key)) restored.push(c);
+            });
+            setColumnOrder(restored);
+        }
+
+        // Selected flags
+        const savedFlags = loadFromStorage<string[] | null>(LS_SELECTED_FLAGS, null);
+        if (savedFlags) setSelectedFlags(new Set(savedFlags));
+
+        setPrefsLoaded(true);
+    }, []);
+
+    // --- Save preferences to localStorage on change ---
+    useEffect(() => {
+        if (!prefsLoaded) return;
+        saveToStorage(LS_VISIBLE_COLUMNS, Array.from(visibleColumns));
+    }, [visibleColumns, prefsLoaded]);
+
+    useEffect(() => {
+        if (!prefsLoaded) return;
+        saveToStorage(LS_COLUMN_ORDER, columnOrder.map(c => c.key));
+    }, [columnOrder, prefsLoaded]);
+
+    useEffect(() => {
+        if (!prefsLoaded) return;
+        saveToStorage(LS_SELECTED_FLAGS, Array.from(selectedFlags));
+    }, [selectedFlags, prefsLoaded]);
+
+    useEffect(() => {
+        setLoading(true);
+        setError(null);
+        fetchSupabaseDeclarations()
+            .then(fetchedData => {
+                setData(fetchedData);
+                const flags = new Set<string>();
+                fetchedData.forEach(d => d.flags?.forEach(f => flags.add(f)));
+                setAllFlags(Array.from(flags).sort());
+                if (fetchedData.length === 0) {
+                    setError('No data returned from Supabase. Check connection and RLS policies.');
+                }
+            })
+            .catch(err => {
+                console.error('DataTable fetch error:', err);
+                setError(`Failed to fetch data: ${err.message}`);
+            })
+            .finally(() => setLoading(false));
     }, []);
 
     useEffect(() => {
         setCurrentPage(1);
     }, [searchQuery, selectedFlags, columnSearchQueries]);
+
+    // Click-outside handler for Status, Columns, and Rows-per-page menus
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (isFlagMenuOpen && flagMenuRef.current && !flagMenuRef.current.contains(e.target as Node)) {
+                setIsFlagMenuOpen(false);
+            }
+            if (isColumnMenuOpen && columnMenuRef.current && !columnMenuRef.current.contains(e.target as Node)) {
+                setIsColumnMenuOpen(false);
+            }
+            if (isRowsPerPageMenuOpen && rowsPerPageMenuRef.current && !rowsPerPageMenuRef.current.contains(e.target as Node)) {
+                setIsRowsPerPageMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isFlagMenuOpen, isColumnMenuOpen, isRowsPerPageMenuOpen]);
 
     const handleSort = (key: keyof Declaration, direction: 'asc' | 'desc' | null) => {
         if (direction === null) {
@@ -362,9 +521,9 @@ export function DataTable() {
                     )}
 
                     {/* Status/Flag Filter - Pill Button Style */}
-                    <div className="relative">
+                    <div className="relative" ref={flagMenuRef}>
                         <button
-                            onClick={() => setIsFlagMenuOpen(!isFlagMenuOpen)}
+                            onClick={() => setIsFlagMenuOpen(prev => !prev)}
                             className={clsx(
                                 styles.pillButton,
                                 selectedFlags.size > 0 && styles.pillButtonActive
@@ -406,9 +565,9 @@ export function DataTable() {
                     </div>
 
                     {/* Columns - Pill Button Style */}
-                    <div className="relative">
+                    <div className="relative" ref={columnMenuRef}>
                         <button
-                            onClick={() => setIsColumnMenuOpen(!isColumnMenuOpen)}
+                            onClick={() => setIsColumnMenuOpen(prev => !prev)}
                             className={styles.pillButton}
                         >
                             <Columns size={16} />
@@ -541,7 +700,25 @@ export function DataTable() {
                                     ))}
                                 </tr>
                             ))}
-                            {paginatedData.length === 0 && (
+                            {loading && (
+                                <tr>
+                                    <td colSpan={visibleColumns.size} className="p-8 text-center text-slate-500">
+                                        <div className="flex flex-col items-center gap-2">
+                                            <div className="animate-spin h-6 w-6 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                                            <span>Loading from Supabase...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                            {!loading && error && (
+                                <tr>
+                                    <td colSpan={visibleColumns.size} className="p-8 text-center">
+                                        <div className="text-red-500 font-medium">{error}</div>
+                                        <div className="text-xs text-slate-400 mt-1">Check browser console for details</div>
+                                    </td>
+                                </tr>
+                            )}
+                            {!loading && !error && paginatedData.length === 0 && (
                                 <tr>
                                     <td colSpan={visibleColumns.size} className="p-8 text-center text-slate-500">
                                         No results found
@@ -573,77 +750,67 @@ export function DataTable() {
             ))}
 
             {/* Pagination Controls */}
-            <div className="flex flex-col sm:flex-row items-center justify-between mt-4 gap-4">
-                <div className="relative">
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setIsRowsPerPageMenuOpen(!isRowsPerPageMenuOpen)}
-                        className="flex items-center gap-2 border border-slate-200"
-                    >
-                        <span className="text-slate-600 font-normal">Rows per page: <span className="font-semibold text-slate-900">{rowsPerPage}</span></span>
-                        <ChevronDown size={14} className="text-slate-500" />
-                    </Button>
-
-                    {isRowsPerPageMenuOpen && (
-                        <div className="absolute bottom-full left-0 mb-2 w-32 bg-white border border-slate-200 rounded-lg shadow-xl z-30 overflow-hidden">
-                            {[5, 10, 25, 50, 100].map(option => (
-                                <button
-                                    key={option}
-                                    onClick={() => {
-                                        setRowsPerPage(option);
-                                        setCurrentPage(1);
-                                        setIsRowsPerPageMenuOpen(false);
-                                    }}
-                                    className={clsx(
-                                        "w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors",
-                                        rowsPerPage === option ? "text-blue-600 font-semibold bg-blue-50" : "text-slate-700"
-                                    )}
-                                >
-                                    {option}
-                                </button>
-                            ))}
-                        </div>
-                    )}
+            <div className={styles.paginationBar}>
+                <div className={styles.paginationInfo}>
+                    Showing <strong>{sortedData.length === 0 ? 0 : startIndex + 1}</strong>–<strong>{Math.min(startIndex + rowsPerPage, sortedData.length)}</strong> of <strong>{sortedData.length}</strong> results
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500 mr-2">
+                <div className={styles.paginationControls}>
+                    <div className={styles.rowsPerPage} ref={rowsPerPageMenuRef}>
+                        <button
+                            className={styles.rowsPerPageButton}
+                            onClick={() => setIsRowsPerPageMenuOpen(prev => !prev)}
+                        >
+                            <span>{rowsPerPage} per page</span>
+                            <ChevronDown size={14} />
+                        </button>
+
+                        {isRowsPerPageMenuOpen && (
+                            <div className={styles.rowsPerPageMenu}>
+                                {[5, 10, 25, 50, 100].map(option => (
+                                    <button
+                                        key={option}
+                                        className={clsx(
+                                            styles.rowsPerPageOption,
+                                            rowsPerPage === option && styles.rowsPerPageOptionActive
+                                        )}
+                                        onClick={() => {
+                                            setRowsPerPage(option);
+                                            setCurrentPage(1);
+                                            setIsRowsPerPageMenuOpen(false);
+                                        }}
+                                    >
+                                        {option}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <span className={styles.pageIndicator}>
                         Page {currentPage} of {Math.max(1, totalPages)}
                     </span>
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={currentPage === 1}
-                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                        className="h-8 px-2"
-                    >
-                        Previous
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={currentPage >= totalPages}
-                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                        className="h-8 px-2"
-                    >
-                        Next
-                    </Button>
+
+                    <div className={styles.pageButtons}>
+                        <button
+                            className={styles.pageButton}
+                            disabled={currentPage === 1}
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        >
+                            Previous
+                        </button>
+                        <button
+                            className={styles.pageButton}
+                            disabled={currentPage >= totalPages}
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        >
+                            Next
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            {/* Click overlay to close menus */}
-            {(isColumnMenuOpen || isFlagMenuOpen || isRowsPerPageMenuOpen || activeColumnPopup) && (
-                <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => {
-                        setIsColumnMenuOpen(false);
-                        setIsFlagMenuOpen(false);
-                        setIsRowsPerPageMenuOpen(false);
-                        setActiveColumnPopup(null);
-                    }}
-                />
-            )}
+
         </div>
     );
 }

@@ -36,7 +36,7 @@ export function AIReport({ data }: AIReportProps) {
                         <h3>Specific Flags</h3>
                     </div>
                     <ul className={styles.list}>
-                        {data.flags.map((flag, index) => (
+                        {data.flagDetails.map((flag, index) => (
                             <li key={index}>{flag}</li>
                         ))}
                     </ul>

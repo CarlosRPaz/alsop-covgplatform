@@ -2,11 +2,11 @@ import { ClientInfo } from '@/components/client/ClientInfo';
 import { ClientPolicyList } from '@/components/client/ClientPolicyList';
 
 interface PageProps {
-    params: { id: string };
+    params: Promise<{ id: string }>;
 }
 
 export default async function ClientPage({ params }: PageProps) {
-    const { id } = params;
+    const { id } = await params;
 
     return (
         <main className="min-h-screen bg-gray-50 p-8">
