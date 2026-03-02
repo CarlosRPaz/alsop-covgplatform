@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Clock, Calendar } from 'lucide-react';
+import { FileText, Clock, Calendar, Flag } from 'lucide-react';
 import styles from './InfoCards.module.css';
 
 interface InfoCard {
@@ -11,7 +11,7 @@ interface InfoCard {
 
 const cards: InfoCard[] = [
     {
-        title: 'Policies Uploaded',
+        title: 'Policies',
         value: '1,248',
         icon: FileText,
         color: '#14b8a6', // Teal
@@ -27,6 +27,11 @@ const cards: InfoCard[] = [
         value: '28',
         icon: Calendar,
         color: '#3b82f6', // Blue
+    },{
+        title: 'High Severity Flags',
+        value: '113',
+        icon: Flag,
+        color: '#ef4444' // Red
     },
 ];
 

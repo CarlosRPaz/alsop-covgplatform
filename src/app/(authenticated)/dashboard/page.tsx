@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { InfoCards } from '@/components/dashboard/InfoCards';
 import { KPIStats } from '@/components/dashboard/KPIStats';
 import { DataTable } from '@/components/dashboard/DataTable';
@@ -10,7 +10,7 @@ import { HighSeverityTab } from '@/components/dashboard/HighSeverityTab';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button/Button';
-import { Plus } from 'lucide-react';
+import { Plus, Upload } from 'lucide-react';
 
 
 const tabs = [
@@ -21,6 +21,16 @@ const tabs = [
 
 export default function DashboardPage() {
     const [activeTab, setActiveTab] = useState('policy-table');
+    const csvInputRef = useRef<HTMLInputElement>(null);
+
+    const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        console.log('CSV file selected:', file.name);
+        // TODO: Parse CSV and upload to Supabase
+        // Reset input so the same file can be re-selected
+        e.target.value = '';
+    };
 
     const renderTabContent = () => {
         switch (activeTab) {
@@ -29,7 +39,24 @@ export default function DashboardPage() {
                     <section>
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-lg font-semibold text-slate-900">All Declarations</h2>
-                            <Button variant="ghost" size="sm">View All</Button>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="file"
+                                    accept=".csv"
+                                    ref={csvInputRef}
+                                    onChange={handleCSVUpload}
+                                    style={{ display: 'none' }}
+                                />
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => csvInputRef.current?.click()}
+                                >
+                                    <Upload size={16} style={{ marginRight: '0.4rem' }} />
+                                    Upload CSV
+                                </Button>
+                                <Button variant="ghost" size="sm">View All</Button>
+                            </div>
                         </div>
                         <DataTable />
                     </section>

@@ -9,8 +9,8 @@ import { Shield, LogIn, LogOut, User } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 
 const navLinks = [
-    { href: '/dashboard', label: 'Dashboard' },
-    { href: '/submit', label: 'Submit' },
+    { href: '/dashboard', label: 'Dashboard', authRequired: true },
+    { href: '/submit', label: 'Submit', authRequired: false },
 ];
 
 export function Navbar() {
@@ -89,15 +89,17 @@ export function Navbar() {
                 </Link>
 
                 <div className={styles.navLinks}>
-                    {navLinks.map((link) => (
-                        <Link
-                            key={link.href}
-                            href={link.href}
-                            className={`${styles.navLink} ${pathname === link.href ? styles.active : ''}`}
-                        >
-                            {link.label}
-                        </Link>
-                    ))}
+                    {navLinks
+                        .filter((link) => !link.authRequired || isLoggedIn)
+                        .map((link) => (
+                            <Link
+                                key={link.href}
+                                href={link.href}
+                                className={`${styles.navLink} ${pathname === link.href ? styles.active : ''}`}
+                            >
+                                {link.label}
+                            </Link>
+                        ))}
                 </div>
 
                 <div className={styles.navActions}>

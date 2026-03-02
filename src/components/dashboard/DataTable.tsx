@@ -252,6 +252,7 @@ export function DataTable() {
     const flagMenuRef = useRef<HTMLDivElement>(null);
     const columnMenuRef = useRef<HTMLDivElement>(null);
     const rowsPerPageMenuRef = useRef<HTMLDivElement>(null);
+    const rowsPerPageMenuTopRef = useRef<HTMLDivElement>(null);
 
     // Flag Visibility State
     const [allFlags, setAllFlags] = useState<string[]>([]);
@@ -341,7 +342,7 @@ export function DataTable() {
             if (isColumnMenuOpen && columnMenuRef.current && !columnMenuRef.current.contains(e.target as Node)) {
                 setIsColumnMenuOpen(false);
             }
-            if (isRowsPerPageMenuOpen && rowsPerPageMenuRef.current && !rowsPerPageMenuRef.current.contains(e.target as Node)) {
+            if (isRowsPerPageMenuOpen && rowsPerPageMenuRef.current && !rowsPerPageMenuRef.current.contains(e.target as Node) && rowsPerPageMenuTopRef.current && !rowsPerPageMenuTopRef.current.contains(e.target as Node)) {
                 setIsRowsPerPageMenuOpen(false);
             }
         };
@@ -622,6 +623,67 @@ export function DataTable() {
                                 ))}
                             </div>
                         )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Top Pagination Controls */}
+            <div className={styles.paginationBar}>
+                <div className={styles.paginationInfo}>
+                    Showing <strong>{sortedData.length === 0 ? 0 : startIndex + 1}</strong>–<strong>{Math.min(startIndex + rowsPerPage, sortedData.length)}</strong> of <strong>{sortedData.length}</strong> results
+                </div>
+
+                <div className={styles.paginationControls}>
+                    <div className={styles.rowsPerPage} ref={rowsPerPageMenuTopRef}>
+                        <button
+                            className={styles.rowsPerPageButton}
+                            onClick={() => setIsRowsPerPageMenuOpen(prev => !prev)}
+                        >
+                            <span>{rowsPerPage} per page</span>
+                            <ChevronDown size={14} />
+                        </button>
+
+                        {isRowsPerPageMenuOpen && (
+                            <div className={styles.rowsPerPageMenu}>
+                                {[5, 10, 25, 50, 100].map(option => (
+                                    <button
+                                        key={option}
+                                        className={clsx(
+                                            styles.rowsPerPageOption,
+                                            rowsPerPage === option && styles.rowsPerPageOptionActive
+                                        )}
+                                        onClick={() => {
+                                            setRowsPerPage(option);
+                                            setCurrentPage(1);
+                                            setIsRowsPerPageMenuOpen(false);
+                                        }}
+                                    >
+                                        {option}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <span className={styles.pageIndicator}>
+                        Page {currentPage} of {Math.max(1, totalPages)}
+                    </span>
+
+                    <div className={styles.pageButtons}>
+                        <button
+                            className={styles.pageButton}
+                            disabled={currentPage === 1}
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        >
+                            Previous
+                        </button>
+                        <button
+                            className={styles.pageButton}
+                            disabled={currentPage >= totalPages}
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        >
+                            Next
+                        </button>
                     </div>
                 </div>
             </div>
