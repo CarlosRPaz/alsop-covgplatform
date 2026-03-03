@@ -2,11 +2,11 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: var(--radius);
-    padding: 0.75rem 1.5rem;
+    border-radius: var(--radius-md);
+    padding: 0.625rem 1.25rem;
     font-weight: 500;
-    font-size: 0.95rem;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 0.875rem;
+    transition: all 150ms ease;
     cursor: pointer;
     border: none;
     background: transparent;
@@ -17,70 +17,70 @@
 }
 
 .sm {
-    padding: 0.5rem 1rem;
-    font-size: 0.875rem;
+    padding: 0.375rem 0.875rem;
+    font-size: 0.8125rem;
 }
 
 .md {
-    padding: 0.75rem 1.5rem;
-    font-size: 0.95rem;
+    padding: 0.625rem 1.25rem;
+    font-size: 0.875rem;
 }
 
 .lg {
-    padding: 1rem 2rem;
-    font-size: 1.125rem;
+    padding: 0.875rem 1.75rem;
+    font-size: 1rem;
 }
 
 .button:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: not-allowed;
     pointer-events: none;
 }
 
 .primary {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
-    color: var(--primary-foreground);
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    background: var(--accent-primary);
+    color: #fff;
 }
 
 .primary:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+    background: var(--accent-primary-hover);
 }
 
 .primary:active {
-    transform: translateY(1px);
+    background: var(--accent-primary);
 }
 
 .secondary {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: var(--foreground);
+    background: var(--bg-surface-raised);
+    border: 1px solid var(--border-default);
+    color: var(--text-mid);
 }
 
 .secondary:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--bg-surface-overlay);
+    color: var(--text-high);
 }
 
 .outline {
     background: transparent;
-    border: 1px solid var(--primary);
-    color: var(--primary);
+    border: 1px solid var(--border-default);
+    color: var(--text-mid);
 }
 
 .outline:hover {
-    background: rgba(99, 102, 241, 0.1);
+    border-color: rgba(59, 63, 240, 0.3);
+    color: var(--text-accent);
+    background: var(--accent-primary-muted);
 }
 
 .ghost {
     background: transparent;
-    color: var(--foreground);
+    color: var(--text-mid);
 }
 
 .ghost:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--bg-surface-raised);
+    color: var(--text-high);
 }
 
 .fullWidth {
@@ -88,17 +88,5 @@
 }
 
 .glow {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: radial-gradient(circle at center, rgba(255, 255, 255, 0.2) 0%, transparent 70%);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    pointer-events: none;
-}
-
-.button:hover .glow {
-    opacity: 1;
+    display: none;
 }

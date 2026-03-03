@@ -25,7 +25,7 @@ export default function AuthenticatedLayout({
                 console.log('[Auth] Fetching profile for user:', userId);
 
                 const { data, error, status, statusText } = await supabase
-                    .from('profiles')
+                    .from('accounts')
                     .select('role')
                     .eq('id', userId)
                     .single();

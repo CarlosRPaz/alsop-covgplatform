@@ -1,32 +1,32 @@
 .container {
-    background: white;
-    border-radius: 0.75rem;
-    padding: 2rem;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    background: var(--bg-surface);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    border: 1px solid var(--border-default);
 }
 
 .header {
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
     padding-bottom: 1rem;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--border-default);
 }
 
 .title {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-high);
     margin-bottom: 0.25rem;
 }
 
 .subtitle {
     font-size: 0.875rem;
-    color: #6b7280;
+    color: var(--text-muted);
 }
 
 .timeline {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1.25rem;
 }
 
 .activityItem {
@@ -39,15 +39,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 0.5rem;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: var(--radius-md);
     flex-shrink: 0;
 }
 
 .icon {
-    width: 1.25rem;
-    height: 1.25rem;
+    width: 1.125rem;
+    height: 1.125rem;
 }
 
 .content {
@@ -55,15 +55,15 @@
 }
 
 .activityTitle {
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     font-weight: 600;
-    color: #0f172a;
+    color: var(--text-high);
     margin-bottom: 0.25rem;
 }
 
 .description {
-    font-size: 0.875rem;
-    color: #6b7280;
+    font-size: 0.8125rem;
+    color: var(--text-mid);
     margin-bottom: 0.5rem;
 }
 
@@ -72,7 +72,7 @@
     align-items: center;
     gap: 0.5rem;
     font-size: 0.8125rem;
-    color: #9ca3af;
+    color: var(--text-muted);
 }
 
 .timestamp {
@@ -80,9 +80,9 @@
 }
 
 .separator {
-    color: #d1d5db;
+    color: var(--text-muted);
 }
 
 .user {
-    color: #6b7280;
+    color: var(--text-mid);
 }

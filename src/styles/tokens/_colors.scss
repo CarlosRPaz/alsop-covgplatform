@@ -1,0 +1,30 @@
+// ─── Color Tokens ───
+// Maps to CSS custom properties defined in theme.scss
+// Reference: /docs/UI_GUIDELINES.md
+
+// Background hierarchy (darkest → lightest)
+$bg-base: var(--bg-base);
+$bg-surface: var(--bg-surface);
+$bg-surface-raised: var(--bg-surface-raised);
+$bg-surface-overlay: var(--bg-surface-overlay);
+
+// Border
+$border-default: var(--border-default);
+$border-subtle: var(--border-subtle);
+
+// Accent
+$accent-primary: var(--accent-primary);
+$accent-primary-hover: var(--accent-primary-hover);
+$accent-primary-muted: var(--accent-primary-muted);
+
+// Text hierarchy
+$text-high: var(--text-high);
+$text-mid: var(--text-mid);
+$text-muted: var(--text-muted);
+$text-accent: var(--text-accent);
+
+// Status
+$status-success: var(--status-success);
+$status-warning: var(--status-warning);
+$status-error: var(--status-error);
+$status-info: var(--status-info);

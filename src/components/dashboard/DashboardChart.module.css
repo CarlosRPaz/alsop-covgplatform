@@ -18,13 +18,13 @@
 .mainTitle {
     font-size: 0.875rem;
     font-weight: 700;
-    color: #0f172a;
+    color: var(--text-high);
     margin-bottom: 0.25rem;
 }
 
 .subtitle {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--text-muted);
 }
 
 .chartLegend {
@@ -37,7 +37,7 @@
     align-items: center;
     gap: 0.5rem;
     font-size: 0.75rem;
-    color: #374151;
+    color: var(--text-mid);
 }
 
 .legendDot {
@@ -57,9 +57,9 @@
     flex-direction: column;
     justify-content: space-between;
     font-size: 0.625rem;
-    color: #9ca3af;
+    color: var(--text-muted);
     padding-right: 0.5rem;
-    border-right: 1px solid #e5e7eb;
+    border-right: 1px solid var(--border-default);
 }
 
 .chartContent {
@@ -91,7 +91,7 @@
     flex: 1;
     max-width: 12px;
     border-radius: 2px 2px 0 0;
-    transition: all 0.3s ease;
+    transition: opacity 150ms ease;
 }
 
 .bar:hover {
@@ -100,7 +100,7 @@
 
 .barLabel {
     font-size: 0.625rem;
-    color: #6b7280;
+    color: var(--text-muted);
     font-weight: 600;
     text-align: center;
 }
@@ -108,11 +108,11 @@
 .chartFooter {
     margin-top: 1rem;
     padding-top: 1rem;
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--border-default);
     text-align: center;
     font-size: 0.625rem;
     font-weight: 700;
-    color: #9ca3af;
+    color: var(--text-muted);
     letter-spacing: 0.05em;
 }
 

@@ -1,37 +1,36 @@
 .container {
-    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
-    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
 }
 
 .header {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
     padding-bottom: 1rem;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border-default);
 }
 
 .header h2 {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     font-weight: 700;
-    color: var(--foreground);
+    color: var(--text-high);
     letter-spacing: -0.02em;
 }
 
 .aiIcon {
-    color: var(--secondary);
-    /* Purple/Indigo usually implies AI */
+    color: var(--text-accent);
 }
 
 .grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 2rem;
+    gap: 1.5rem;
 }
 
 .section {
-    padding: 1.5rem;
+    padding: 1.25rem;
     border-radius: var(--radius-md);
     border: 1px solid transparent;
 }
@@ -44,7 +43,7 @@
 }
 
 .sectionHeader h3 {
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 600;
 }
 
@@ -54,14 +53,15 @@
     margin: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.625rem;
 }
 
 .list li {
-    font-size: 0.95rem;
+    font-size: 0.875rem;
     line-height: 1.5;
     position: relative;
     padding-left: 1rem;
+    color: var(--text-mid);
 }
 
 .list li::before {
@@ -71,50 +71,44 @@
     font-weight: bold;
 }
 
-/* Coverage Gaps - Warning/Red-Orange */
+/* Coverage Gaps */
 .gaps {
-    background-color: rgba(239, 68, 68, 0.05);
-    /* Red tint */
-    border-color: rgba(239, 68, 68, 0.2);
+    background-color: rgba(239, 68, 68, 0.06);
+    border-color: rgba(239, 68, 68, 0.15);
 }
 
 .gaps .sectionHeader {
-    color: #dc2626;
-    /* Red-600 */
+    color: var(--status-error);
 }
 
 .gaps .list li::before {
-    color: #dc2626;
+    color: var(--status-error);
 }
 
-/* Flags - Caution/Yellow-Amber */
+/* Flags */
 .flags {
-    background-color: rgba(245, 158, 11, 0.05);
-    /* Amber tint */
-    border-color: rgba(245, 158, 11, 0.2);
+    background-color: rgba(245, 158, 11, 0.06);
+    border-color: rgba(245, 158, 11, 0.15);
 }
 
 .flags .sectionHeader {
-    color: #d97706;
-    /* Amber-600 */
+    color: var(--status-warning);
 }
 
 .flags .list li::before {
-    color: #d97706;
+    color: var(--status-warning);
 }
 
-/* Suggestions - Growth/Green or Info/Blue */
+/* Suggestions */
 .suggestions {
-    background-color: rgba(59, 130, 246, 0.05);
-    /* Blue tint */
-    border-color: rgba(59, 130, 246, 0.2);
+    background-color: rgba(59, 130, 246, 0.06);
+    border-color: rgba(59, 130, 246, 0.15);
 }
 
 .suggestions .sectionHeader {
-    color: #2563eb;
-    /* Blue-600 */
+    color: var(--status-info);
 }
 
 .suggestions .list li::before {
-    color: #2563eb;
+    color: var(--status-info);
 }

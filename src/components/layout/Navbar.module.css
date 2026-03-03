@@ -4,15 +4,16 @@
     left: 0;
     right: 0;
     z-index: 100;
-    background: rgba(15, 23, 42, 0.85);
-    backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    height: var(--topbar-height);
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-default);
 }
 
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 0.75rem 2rem;
+    padding: 0 2rem;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -23,7 +24,7 @@
     align-items: center;
     gap: 0.5rem;
     text-decoration: none;
-    transition: opacity 0.2s ease;
+    transition: opacity 0.15s ease;
 }
 
 .logo:hover {
@@ -31,13 +32,13 @@
 }
 
 .logoIcon {
-    color: #3b82f6;
+    color: var(--accent-primary);
 }
 
 .logoText {
     font-size: 1.25rem;
     font-weight: 700;
-    color: #ffffff;
+    color: var(--text-high);
     letter-spacing: -0.02em;
 }
 
@@ -47,21 +48,21 @@
 }
 
 .navLink {
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-mid);
     text-decoration: none;
-    font-size: 0.95rem;
+    font-size: 0.875rem;
     font-weight: 500;
     padding: 0.5rem 0;
     position: relative;
-    transition: color 0.2s ease;
+    transition: color var(--transition-fast);
 }
 
 .navLink:hover {
-    color: #ffffff;
+    color: var(--text-high);
 }
 
 .navLink.active {
-    color: #ffffff;
+    color: var(--text-high);
 }
 
 .navLink.active::after {
@@ -71,11 +72,11 @@
     left: 0;
     right: 0;
     height: 2px;
-    background: #3b82f6;
+    background: var(--accent-primary);
     border-radius: 1px;
 }
 
-/* Nav Actions (Sign In + Get Started) */
+/* Nav Actions */
 .navActions {
     display: flex;
     align-items: center;
@@ -83,40 +84,39 @@
 }
 
 .signInButton {
-    color: rgba(255, 255, 255, 0.85) !important;
-    border-color: rgba(255, 255, 255, 0.2) !important;
+    color: var(--text-mid) !important;
+    border-color: var(--border-default) !important;
     background: transparent !important;
     display: flex !important;
     align-items: center !important;
-    transition: all 0.2s ease !important;
+    transition: all var(--transition-fast) !important;
 }
 
 .signInButton:hover {
-    border-color: rgba(255, 255, 255, 0.4) !important;
-    background: rgba(255, 255, 255, 0.05) !important;
-    color: #ffffff !important;
+    border-color: rgba(255, 255, 255, 0.15) !important;
+    background: var(--bg-surface-raised) !important;
+    color: var(--text-high) !important;
 }
 
 .ctaButton {
-    background: #f97316 !important;
+    background: var(--accent-primary) !important;
     border: none !important;
-    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3) !important;
+    color: #ffffff !important;
 }
 
 .ctaButton:hover {
-    background: #ea580c !important;
-    box-shadow: 0 6px 16px rgba(249, 115, 22, 0.4) !important;
+    background: var(--accent-primary-hover) !important;
 }
 
 /* Welcome Section (logged in) */
 .welcomeLink {
     text-decoration: none;
-    transition: opacity 0.2s ease;
+    transition: opacity var(--transition-fast);
 }
 
 .welcomeLink:hover .welcomeSection {
-    border-color: rgba(59, 130, 246, 0.35);
-    background: rgba(59, 130, 246, 0.12);
+    border-color: rgba(59, 63, 240, 0.25);
+    background: var(--accent-primary-muted);
 }
 
 .welcomeSection {
@@ -124,23 +124,23 @@
     align-items: center;
     gap: 0.4rem;
     padding: 0.375rem 0.75rem;
-    background: rgba(59, 130, 246, 0.08);
-    border: 1px solid rgba(59, 130, 246, 0.15);
-    border-radius: 0.5rem;
+    background: var(--accent-primary-muted);
+    border: 1px solid rgba(59, 63, 240, 0.15);
+    border-radius: var(--radius-md);
 }
 
 .welcomeIcon {
-    color: #60a5fa;
+    color: var(--text-accent);
 }
 
 .welcomeText {
-    color: rgba(255, 255, 255, 0.75);
+    color: var(--text-mid);
     font-size: 0.85rem;
     white-space: nowrap;
 }
 
 .welcomeText strong {
-    color: #ffffff;
+    color: var(--text-high);
     font-weight: 600;
 }
 
@@ -150,18 +150,18 @@
     gap: 0.4rem;
     padding: 0.375rem 0.75rem;
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 0.5rem;
-    color: rgba(255, 255, 255, 0.55);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    color: var(--text-muted);
     font-size: 0.85rem;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all var(--transition-fast);
 }
 
 .signOutButton:hover {
-    border-color: rgba(239, 68, 68, 0.4);
-    color: #fca5a5;
+    border-color: rgba(239, 68, 68, 0.3);
+    color: var(--status-error);
     background: rgba(239, 68, 68, 0.06);
 }
 
@@ -171,7 +171,7 @@
     }
 
     .container {
-        padding: 0.75rem 1rem;
+        padding: 0 1rem;
     }
 
     .signInButton {

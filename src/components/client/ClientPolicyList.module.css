@@ -1,31 +1,31 @@
 .container {
-    background: white;
-    border-radius: 0.75rem;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    background: var(--bg-surface);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-default);
     overflow: hidden;
 }
 
 .header {
-    padding: 1.5rem 2rem;
-    border-bottom: 1px solid #e5e7eb;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border-default);
 }
 
 .title {
-    font-size: 1.125rem;
-    font-weight: 700;
-    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-high);
     margin-bottom: 0.25rem;
 }
 
 .subtitle {
     font-size: 0.875rem;
-    color: #6b7280;
+    color: var(--text-muted);
 }
 
 .loading {
     padding: 3rem;
     text-align: center;
-    color: #6b7280;
+    color: var(--text-muted);
 }
 
 .tableWrapper {
@@ -39,25 +39,26 @@
 }
 
 .thead {
-    background-color: #f9fafb;
+    background-color: var(--bg-surface);
 }
 
 .th {
-    padding: 1rem 1.5rem;
+    padding: 0.625rem 1rem;
     font-size: 0.75rem;
-    font-weight: 700;
+    font-weight: 600;
     text-transform: uppercase;
-    color: #6b7280;
-    border-bottom: 1px solid #e5e7eb;
+    letter-spacing: 0.03em;
+    color: var(--text-mid);
+    border-bottom: 1px solid var(--border-default);
     text-align: left;
 }
 
 .tr {
-    transition: background-color 0.15s;
+    transition: background-color 150ms ease;
 }
 
 .tr:hover {
-    background-color: #f9fafb;
+    background-color: var(--bg-surface-raised);
 }
 
 .clickable {
@@ -65,82 +66,82 @@
 }
 
 .td {
-    padding: 1.15rem 1.5rem;
-    color: #374151;
-    border-bottom: 1px solid #f3f4f6;
+    padding: 0.5rem 1rem;
+    color: var(--text-high);
+    border-bottom: 1px solid var(--border-default);
 }
 
 .policyNumber {
     font-weight: 600;
-    color: #3b82f6;
+    color: var(--text-accent);
 }
 
 .dicBadge {
     display: inline-flex;
     align-items: center;
-    padding: 0.25rem 0.75rem;
-    border-radius: 9999px;
+    padding: 0.2rem 0.625rem;
+    border-radius: var(--radius-full);
     font-size: 0.8125rem;
     font-weight: 600;
 }
 
 .dicNone {
-    background-color: #fee2e2;
-    color: #dc2626;
+    background-color: rgba(239, 68, 68, 0.12);
+    color: var(--status-error);
 }
 
 .dicActive {
-    background-color: #d1fae5;
-    color: #059669;
+    background-color: rgba(34, 197, 94, 0.12);
+    color: var(--status-success);
 }
 
 .statusBadge {
     display: inline-flex;
     align-items: center;
-    padding: 0.25rem 0.75rem;
-    border-radius: 9999px;
+    padding: 0.2rem 0.625rem;
+    border-radius: var(--radius-full);
     font-size: 0.7rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0.025em;
     text-transform: uppercase;
 }
 
 .statusPendingReview {
-    background-color: #fef3c7;
-    color: #d97706;
+    background-color: rgba(245, 158, 11, 0.12);
+    color: var(--status-warning);
 }
 
 .statusApproved {
-    background-color: #d1fae5;
-    color: #059669;
+    background-color: rgba(34, 197, 94, 0.12);
+    color: var(--status-success);
 }
 
 .statusRejected {
-    background-color: #fee2e2;
-    color: #dc2626;
+    background-color: rgba(239, 68, 68, 0.12);
+    color: var(--status-error);
 }
 
 .statusIncomplete {
-    background-color: #f3f4f6;
-    color: #6b7280;
+    background-color: rgba(255, 255, 255, 0.04);
+    color: var(--text-muted);
 }
 
 .actionLink {
-    color: #3b82f6;
+    color: var(--text-accent);
     font-weight: 600;
     font-size: 0.875rem;
     text-decoration: none;
 }
 
 .actionLink:hover {
-    color: #2563eb;
+    color: var(--accent-primary-hover);
     text-decoration: underline;
 }
 
 .emptyState {
     padding: 3rem;
     text-align: center;
-    color: #9ca3af;
+    color: var(--text-muted);
 }
 
 @media (max-width: 768px) {

@@ -1,7 +1,7 @@
 .footer {
-    background-color: #0f172a;
-    color: #94a3b8;
-    border-top: 1px solid #1e293b;
+    background-color: var(--bg-surface);
+    color: var(--text-mid);
+    border-top: 1px solid var(--border-default);
 }
 
 .container {
@@ -39,18 +39,18 @@
 .logoIcon {
     width: 1.5rem;
     height: 1.5rem;
-    color: #3b82f6;
+    color: var(--accent-primary);
 }
 
 .logoText {
     font-size: 1.125rem;
     font-weight: 700;
-    color: #ffffff;
+    color: var(--text-high);
 }
 
 .description {
     font-size: 0.875rem;
-    color: #64748b;
+    color: var(--text-muted);
     margin-bottom: 1rem;
     line-height: 1.5;
 }
@@ -61,12 +61,12 @@
 }
 
 .socialLink {
-    color: #64748b;
-    transition: color 0.2s;
+    color: var(--text-muted);
+    transition: color var(--transition-fast);
 }
 
 .socialLink:hover {
-    color: #3b82f6;
+    color: var(--text-accent);
 }
 
 .socialIcon {
@@ -78,7 +78,7 @@
 .sectionTitle {
     font-size: 0.75rem;
     font-weight: 600;
-    color: #ffffff;
+    color: var(--text-high);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-bottom: 1rem;
@@ -95,13 +95,13 @@
 
 .link {
     font-size: 0.875rem;
-    color: #94a3b8;
+    color: var(--text-mid);
     text-decoration: none;
-    transition: color 0.2s;
+    transition: color var(--transition-fast);
 }
 
 .link:hover {
-    color: #ffffff;
+    color: var(--text-high);
 }
 
 /* Contact */
@@ -115,31 +115,31 @@
     width: 1rem;
     height: 1rem;
     margin-top: 0.125rem;
-    color: #3b82f6;
+    color: var(--accent-primary);
     flex-shrink: 0;
 }
 
 .contactText {
     font-size: 0.875rem;
-    color: #94a3b8;
+    color: var(--text-mid);
 }
 
 .contactLink {
     font-size: 0.875rem;
-    color: #94a3b8;
+    color: var(--text-mid);
     text-decoration: none;
-    transition: color 0.2s;
+    transition: color var(--transition-fast);
 }
 
 .contactLink:hover {
-    color: #ffffff;
+    color: var(--text-high);
 }
 
 /* Bottom Bar */
 .bottomBar {
     margin-top: 3rem;
     padding-top: 2rem;
-    border-top: 1px solid #1e293b;
+    border-top: 1px solid var(--border-default);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -155,7 +155,7 @@
 
 .copyright {
     font-size: 0.875rem;
-    color: #64748b;
+    color: var(--text-muted);
 }
 
 .legalLinks {
@@ -165,11 +165,11 @@
 
 .legalLink {
     font-size: 0.875rem;
-    color: #64748b;
+    color: var(--text-muted);
     text-decoration: none;
-    transition: color 0.2s;
+    transition: color var(--transition-fast);
 }
 
 .legalLink:hover {
-    color: #ffffff;
+    color: var(--text-high);
 }

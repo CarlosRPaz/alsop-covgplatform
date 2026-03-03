@@ -1,5 +1,5 @@
 .statsContainer {
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
 }
 
 .statsGrid {
@@ -45,15 +45,16 @@
 .number {
     font-size: 1.5rem;
     font-weight: 700;
-    color: #0f172a;
+    color: var(--text-high);
     line-height: 1;
     margin-bottom: 0.25rem;
+    font-variant-numeric: tabular-nums;
 }
 
 .label {
     font-size: 0.625rem;
     font-weight: 700;
-    color: #6b7280;
+    color: var(--text-muted);
     letter-spacing: 0.05em;
     text-transform: uppercase;
 }
@@ -63,10 +64,10 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 9999px;
+    padding: 0.625rem 1.25rem;
+    background: var(--bg-surface-raised);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-full);
     width: fit-content;
     margin: 0 auto;
 }
@@ -74,13 +75,14 @@
 .totalsLabel {
     font-size: 0.75rem;
     font-weight: 700;
-    color: #6b7280;
+    color: var(--text-muted);
     text-transform: uppercase;
 }
 
 .totalsValue {
     font-size: 0.75rem;
-    color: #374151;
+    color: var(--text-high);
+    font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 768px) {

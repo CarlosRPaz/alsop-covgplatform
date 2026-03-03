@@ -80,7 +80,7 @@ export default function SignInPage() {
                 if (signInError) {
                     setError(signInError.message);
                 } else {
-                    router.push('/dashboard');
+                    router.push('/');
                 }
             }
         } catch {

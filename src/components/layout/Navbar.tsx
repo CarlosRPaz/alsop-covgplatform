@@ -29,7 +29,7 @@ export function Navbar() {
 
                 // Try profile first, then user_metadata
                 const { data: profile } = await supabase
-                    .from('profiles')
+                    .from('accounts')
                     .select('first_name')
                     .eq('id', session.user.id)
                     .single();
@@ -55,7 +55,7 @@ export function Navbar() {
                 setUserId(session.user.id);
                 // Re-fetch name on auth change
                 supabase
-                    .from('profiles')
+                    .from('accounts')
                     .select('first_name')
                     .eq('id', session.user.id)
                     .single()

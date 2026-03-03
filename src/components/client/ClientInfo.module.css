@@ -1,5 +1,5 @@
 .container {
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
 }
 
 .header {
@@ -7,52 +7,52 @@
 }
 
 .backButton {
-    color: #6b7280;
+    color: var(--text-mid);
 }
 
 .card {
-    background: white;
-    border-radius: 0.75rem;
-    padding: 2rem;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    background: var(--bg-surface);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    border: 1px solid var(--border-default);
 }
 
 .cardHeader {
     display: flex;
     align-items: center;
     gap: 1.5rem;
-    padding-bottom: 1.5rem;
-    margin-bottom: 1.5rem;
-    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 1.25rem;
+    margin-bottom: 1.25rem;
+    border-bottom: 1px solid var(--border-default);
 }
 
 .iconWrapper {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 4rem;
-    height: 4rem;
-    border-radius: 0.75rem;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: var(--radius-lg);
+    background: var(--accent-primary);
     flex-shrink: 0;
 }
 
 .icon {
-    width: 2rem;
-    height: 2rem;
+    width: 1.75rem;
+    height: 1.75rem;
     color: white;
 }
 
 .title {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     font-weight: 700;
-    color: #0f172a;
+    color: var(--text-high);
     margin-bottom: 0.25rem;
 }
 
 .subtitle {
     font-size: 0.875rem;
-    color: #6b7280;
+    color: var(--text-muted);
 }
 
 .grid {
@@ -71,23 +71,23 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 0.5rem;
-    background-color: #f3f4f6;
-    color: #6b7280;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: var(--radius-md);
+    background-color: var(--bg-surface-raised);
+    color: var(--text-mid);
     flex-shrink: 0;
 }
 
 .infoIcon svg {
-    width: 1.25rem;
-    height: 1.25rem;
+    width: 1.125rem;
+    height: 1.125rem;
 }
 
 .infoLabel {
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
     font-weight: 500;
-    color: #9ca3af;
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-bottom: 0.25rem;
@@ -96,7 +96,7 @@
 .infoValue {
     font-size: 0.9375rem;
     font-weight: 600;
-    color: #0f172a;
+    color: var(--text-high);
 }
 
 @media (max-width: 768px) {

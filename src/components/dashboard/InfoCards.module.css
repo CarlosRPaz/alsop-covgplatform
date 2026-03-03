@@ -1,39 +1,38 @@
 .grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
 }
 
 .card {
     display: flex;
     align-items: center;
     gap: 1rem;
-    background: white;
-    padding: 1.5rem;
-    border-radius: 0.75rem;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    background: var(--bg-surface);
+    padding: 1.25rem;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-default);
+    transition: background 150ms ease;
 }
 
 .card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    background: var(--bg-surface-raised);
 }
 
 .iconWrapper {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 3.5rem;
-    height: 3.5rem;
-    border-radius: 0.75rem;
+    width: 3rem;
+    height: 3rem;
+    border-radius: var(--radius-lg);
     flex-shrink: 0;
 }
 
 .icon {
-    width: 1.75rem;
-    height: 1.75rem;
+    width: 1.5rem;
+    height: 1.5rem;
 }
 
 .content {
@@ -41,17 +40,20 @@
 }
 
 .title {
-    font-size: 0.875rem;
+    font-size: 0.8rem;
     font-weight: 500;
-    color: #6b7280;
+    color: var(--text-mid);
     margin-bottom: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
 }
 
 .value {
-    font-size: 1.875rem;
+    font-size: 1.75rem;
     font-weight: 700;
-    color: #0f172a;
+    color: var(--text-high);
     line-height: 1;
+    font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 768px) {
