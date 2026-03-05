@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { fetchDeclarationsByClientId, Declaration } from '@/lib/api';
+import { fetchPoliciesByClientId, DashboardPolicy } from '@/lib/api';
 import styles from './ClientPolicyList.module.css';
 
 interface ClientPolicyListProps {
@@ -11,13 +11,13 @@ interface ClientPolicyListProps {
 
 export function ClientPolicyList({ clientId }: ClientPolicyListProps) {
     const router = useRouter();
-    const [policies, setPolicies] = React.useState<Declaration[]>([]);
+    const [policies, setPolicies] = React.useState<DashboardPolicy[]>([]);
     const [loading, setLoading] = React.useState(true);
 
     React.useEffect(() => {
         const loadPolicies = async () => {
             try {
-                const clientPolicies = await fetchDeclarationsByClientId(clientId);
+                const clientPolicies = await fetchPoliciesByClientId(clientId);
                 setPolicies(clientPolicies);
             } catch (error) {
                 console.error('Error loading policies:', error);
@@ -46,7 +46,9 @@ export function ClientPolicyList({ clientId }: ClientPolicyListProps) {
                         <tr>
                             <th className={styles.th}>Policy Number</th>
                             <th className={styles.th}>Property Address</th>
-                            <th className={styles.th}>DIC Coverage</th>
+                            <th className={styles.th}>Effective Date</th>
+                            <th className={styles.th}>Expiration Date</th>
+                            <th className={styles.th}>Premium</th>
                             <th className={styles.th}>Status</th>
                         </tr>
                     </thead>
@@ -60,20 +62,13 @@ export function ClientPolicyList({ clientId }: ClientPolicyListProps) {
                                 <td className={styles.td}>
                                     <span className={styles.policyNumber}>{policy.policy_number}</span>
                                 </td>
-                                <td className={styles.td}>{policy.property_location}</td>
+                                <td className={styles.td}>{policy.property_address}</td>
+                                <td className={styles.td}>{policy.effective_date || '—'}</td>
+                                <td className={styles.td}>{policy.expiration_date || '—'}</td>
+                                <td className={styles.td}>{policy.annual_premium || '—'}</td>
                                 <td className={styles.td}>
-                                    <span
-                                        className={`${styles.dicBadge} ${policy.dic_company === 'None' || !policy.dic_company
-                                            ? styles.dicNone
-                                            : styles.dicActive
-                                            }`}
-                                    >
-                                        {policy.dic_company || 'None'}
-                                    </span>
-                                </td>
-                                <td className={styles.td}>
-                                    <span className={`${styles.statusBadge} ${styles[`status${policy.status.replace(/\s/g, '')}`]}`}>
-                                        {policy.status}
+                                    <span className={`${styles.statusBadge} ${styles[`status${(policy.status || 'unknown').replace(/\s/g, '')}`]}`}>
+                                        {policy.status || 'unknown'}
                                     </span>
                                 </td>
                             </tr>

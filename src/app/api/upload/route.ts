@@ -257,7 +257,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
         }
 
         // ---------------------------------------------------------------
-        // 7. Return success
+        // 7. TODO: Trigger dec page extraction + ingestion pipeline
+        //
+        // Once the PDF extraction/parsing step is built, call:
+        //   import { ingestDecPage } from '@/lib/ingest';
+        //   const extractedFields = await extractDecPage(storagePath);
+        //   await ingestDecPage(submissionId!, accountId, extractedFields);
+        //
+        // This will insert into dec_pages and create/link
+        // client, policy, and policy_term records.
+        // ---------------------------------------------------------------
+
+        // ---------------------------------------------------------------
+        // 8. Return success
         // ---------------------------------------------------------------
         const submittedBy = [account.first_name, account.last_name].filter(Boolean).join(' ') || account.email || 'User';
 

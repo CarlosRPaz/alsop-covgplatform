@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Mail, Phone, FileText, ArrowLeft, MapPin } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button/Button';
-import { fetchDeclarationsByClientId, Declaration } from '@/lib/api';
+import { getClientById, ClientRow } from '@/lib/api';
 import styles from './ClientInfo.module.css';
 
 interface ClientInfoProps {
@@ -13,14 +13,14 @@ interface ClientInfoProps {
 
 export function ClientInfo({ clientId }: ClientInfoProps) {
     const router = useRouter();
-    const [declarations, setDeclarations] = useState<Declaration[]>([]);
+    const [client, setClient] = useState<ClientRow | undefined>(undefined);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const load = async () => {
             try {
-                const results = await fetchDeclarationsByClientId(clientId);
-                setDeclarations(results);
+                const result = await getClientById(clientId);
+                setClient(result);
             } catch (error) {
                 console.error('Error loading client data:', error);
             } finally {
@@ -30,17 +30,10 @@ export function ClientInfo({ clientId }: ClientInfoProps) {
         load();
     }, [clientId]);
 
-    // Derive client info from the first declaration (primary policy)
-    const primary = declarations[0];
-
-    const clientName = primary
-        ? [primary.insured_name, primary.secondary_insured_name].filter(Boolean).join(' & ')
-        : 'Client Name';
-
-    const clientEmail = primary?.client_email || 'Not on file';
-    const clientPhone = primary?.client_phone || primary?.broker_phone_number || 'Not on file';
-    const mailingAddress = primary?.mailing_address || 'Address not available';
-    const policyCount = declarations.length;
+    const clientName = client?.named_insured || 'Client Name';
+    const clientEmail = client?.email || 'Not on file';
+    const clientPhone = client?.phone || 'Not on file';
+    const mailingAddress = client?.mailing_address_raw || 'Address not available';
 
     if (loading) {
         return (
@@ -116,8 +109,8 @@ export function ClientInfo({ clientId }: ClientInfoProps) {
                             <FileText />
                         </div>
                         <div>
-                            <div className={styles.infoLabel}>Total Policies</div>
-                            <div className={styles.infoValue}>{policyCount}</div>
+                            <div className={styles.infoLabel}>Client Type</div>
+                            <div className={styles.infoValue}>{client?.insured_type || 'person'}</div>
                         </div>
                     </div>
 

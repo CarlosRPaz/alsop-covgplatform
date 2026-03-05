@@ -10,9 +10,11 @@ import { getDeclarationById, fetchAIReport, Declaration, AIReportData } from '@/
 import { PolicyDashboard } from '@/components/policy/PolicyDashboard';
 import { AIReport } from '@/components/policy/AIReport';
 import { PolicyFiles } from '@/components/policy/PolicyFiles';
+import { PolicyFlags } from '@/components/policy/PolicyFlags';
 
 const policyTabs = [
     { id: 'review', label: 'POLICY REVIEW' },
+    { id: 'flags', label: 'FLAGS' },
     { id: 'files', label: 'FILES' },
 ];
 
@@ -56,6 +58,12 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                     <div className={styles.content}>
                         <PolicyDashboard declaration={declaration!} />
                         {aiReport && <AIReport data={aiReport} />}
+                    </div>
+                );
+            case 'flags':
+                return (
+                    <div className={styles.content}>
+                        <PolicyFlags policyId={id} />
                     </div>
                 );
             case 'files':

@@ -4,7 +4,7 @@ import { clsx } from 'clsx';
 import { Loader2 } from 'lucide-react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-    variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
+    variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'excel';
     size?: 'sm' | 'md' | 'lg';
     fullWidth?: boolean;
     isLoading?: boolean;

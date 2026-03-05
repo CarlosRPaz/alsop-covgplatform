@@ -37,9 +37,19 @@ export default function DashboardPage() {
             case 'policy-table':
                 return (
                     <section>
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-lg font-semibold text-slate-900">All Declarations</h2>
-                            <div className="flex items-center gap-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 mt-4">
+                            <h2 className="text-xl font-bold font-heading" style={{ color: 'var(--text-high)' }}>All Declarations</h2>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1rem' }}>
+                                <Link href="/submit">
+                                    <Button size="sm" variant="primary">
+                                        <Plus className="w-4 h-4 mr-1.5" />
+                                        New Declaration
+                                    </Button>
+                                </Link>
+                                <Button size="sm" variant="primary">
+                                    <Plus className="w-4 h-4 mr-1.5" />
+                                    New Account
+                                </Button>
                                 <input
                                     type="file"
                                     accept=".csv"
@@ -48,11 +58,11 @@ export default function DashboardPage() {
                                     style={{ display: 'none' }}
                                 />
                                 <Button
-                                    variant="outline"
+                                    variant="excel"
                                     size="sm"
                                     onClick={() => csvInputRef.current?.click()}
                                 >
-                                    <Upload size={16} style={{ marginRight: '0.4rem' }} />
+                                    <Upload className="w-4 h-4 mr-1.5" />
                                     Upload CSV
                                 </Button>
                                 <Button variant="ghost" size="sm">View All</Button>
@@ -78,14 +88,6 @@ export default function DashboardPage() {
                     <div>
                         <h1 className="text-2xl font-bold text-slate-900 mb-1">Agent Dashboard</h1>
                         <p className="text-sm text-slate-500">Overview of all CFP declarations and their status</p>
-                    </div>
-                    <div className="flex items-center gap-3" style={{ paddingTop: '.6rem' }}>
-                        <Link href="/submit">
-                            <Button size="md">
-                                <Plus className="w-8 h-8 mr-2" />
-                                New Declaration
-                            </Button>
-                        </Link>
                     </div>
                 </header>
 

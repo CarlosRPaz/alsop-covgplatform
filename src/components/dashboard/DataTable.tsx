@@ -4,8 +4,8 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/Card/Card';
 import styles from './DataTable.module.scss';
 import { clsx } from 'clsx';
-import { fetchSupabaseDeclarations, Declaration } from '@/lib/api';
-import { ArrowUpDown, Search, ChevronDown, ChevronUp, Columns, ArrowUp, ArrowDown, EyeOff, X, Filter, GripVertical } from 'lucide-react';
+import { fetchDashboardPolicies, DashboardPolicy } from '@/lib/api';
+import { ArrowUpDown, Search, ChevronDown, ChevronUp, Columns, ArrowUp, ArrowDown, EyeOff, X, Filter, GripVertical, Flag } from 'lucide-react';
 import { Button } from '@/components/ui/Button/Button';
 import { useRouter } from 'next/navigation';
 
@@ -33,73 +33,32 @@ function saveToStorage(key: string, value: unknown) {
 }
 
 // Column definition type
-type ColumnDef = { key: keyof Declaration; label: string; width?: string };
+type ColumnDef = { key: keyof DashboardPolicy; label: string; width?: string };
 
-// All columns from parsed_cfpdecpage_data schema
+// Policy-centric columns for the dashboard
 const INITIAL_COLUMNS: ColumnDef[] = [
     // Policy Info
     { key: 'policy_number', label: 'Policy #' },
-    { key: 'date_issued', label: 'Date Issued' },
-    { key: 'policy_period_start', label: 'Period Start' },
-    { key: 'policy_period_end', label: 'Period End' },
-    // Insured Info
-    { key: 'insured_name', label: 'Insured Name', width: '200px' },
-    { key: 'secondary_insured_name', label: 'Secondary Insured' },
+    // Client Info (joined)
+    { key: 'named_insured', label: 'Insured Name', width: '200px' },
     // Addresses
     { key: 'mailing_address', label: 'Mailing Address', width: '250px' },
-    { key: 'property_location', label: 'Property Location', width: '250px' },
-    // Property Details
-    { key: 'year_built', label: 'Year Built' },
-    { key: 'occupancy', label: 'Occupancy' },
-    { key: 'number_of_units', label: 'Units' },
-    { key: 'construction_type', label: 'Construction' },
-    { key: 'deductible', label: 'Deductible' },
-    // Premium
-    { key: 'total_annual_premium', label: 'Annual Premium' },
-    // Coverage Limits
-    { key: 'limit_dwelling', label: 'Dwelling' },
-    { key: 'limit_other_structures', label: 'Other Structures' },
-    { key: 'limit_personal_property', label: 'Personal Property' },
-    { key: 'limit_fair_rental_value', label: 'Fair Rental Value' },
-    { key: 'limit_ordinance_or_law', label: 'Ordinance/Law' },
-    { key: 'limit_debris_removal', label: 'Debris Removal' },
-    { key: 'limit_extended_dwelling_coverage', label: 'Extended Dwelling' },
-    { key: 'limit_dwelling_replacement_cost', label: 'Dwelling Replace Cost' },
-    { key: 'limit_inflation_guard', label: 'Inflation Guard' },
-    { key: 'limit_personal_property_replacement_cost', label: 'PP Replace Cost' },
-    { key: 'limit_fences', label: 'Fences' },
-    { key: 'limit_permitted_incidental_occupancy', label: 'Incidental Occ.' },
-    { key: 'limit_plants_shrubs_trees', label: 'Plants/Shrubs/Trees' },
-    { key: 'limit_outdoor_radio_tv_equipment', label: 'Outdoor Radio/TV' },
-    { key: 'limit_awnings', label: 'Awnings' },
-    { key: 'limit_signs', label: 'Signs' },
-    // Wildfire
-    { key: 'wildfire_risk_score_l1', label: 'Wildfire L1' },
-    { key: 'wildfire_risk_score_l2', label: 'Wildfire L2' },
-    { key: 'wildfire_score_classification_l1', label: 'Wildfire Class L1' },
-    { key: 'wildfire_score_classification_l2', label: 'Wildfire Class L2' },
-    { key: 'wildfire_premium', label: 'Wildfire Premium' },
-    // Broker
-    { key: 'broker_name', label: 'Broker' },
-    { key: 'broker_address', label: 'Broker Address', width: '200px' },
-    { key: 'broker_phone_number', label: 'Broker Phone' },
-    // Mortgagees
-    { key: 'mortgagee_1_name', label: 'Mortgagee 1' },
-    { key: 'mortgagee_1_address', label: 'Mortgagee 1 Addr' },
-    { key: 'mortgagee_1_code', label: 'Mortgagee 1 Code' },
-    { key: 'mortgagee_2_name', label: 'Mortgagee 2' },
-    { key: 'mortgagee_2_address', label: 'Mortgagee 2 Addr' },
-    { key: 'mortgagee_2_code', label: 'Mortgagee 2 Code' },
-    // System
+    { key: 'property_address', label: 'Property Address', width: '250px' },
+    // Current Term (joined)
+    { key: 'effective_date', label: 'Effective Date' },
+    { key: 'expiration_date', label: 'Expiration Date' },
+    { key: 'annual_premium', label: 'Annual Premium' },
+    // Policy metadata
+    { key: 'carrier_name', label: 'Carrier' },
     { key: 'status', label: 'Status' },
-    { key: 'flags', label: 'Flags' },
+    // Flags
+    { key: 'flag_count', label: 'Flags' },
 ];
 
 // Default visible columns (key subset for initial view)
 const DEFAULT_VISIBLE_KEYS = new Set([
-    'policy_number', 'insured_name', 'property_location', 'mailing_address',
-    'total_annual_premium', 'year_built', 'occupancy', 'deductible',
-    'limit_dwelling', 'broker_name', 'wildfire_risk_score_l1', 'status', 'flags',
+    'policy_number', 'named_insured', 'property_address', 'mailing_address',
+    'effective_date', 'expiration_date', 'annual_premium', 'status', 'flag_count',
 ]);
 
 // Column Header Popup Component
@@ -109,7 +68,7 @@ interface ColumnPopupProps {
     onClose: () => void;
     onSort: (direction: 'asc' | 'desc' | null) => void;
     onHide: () => void;
-    currentSort: { key: keyof Declaration; direction: 'asc' | 'desc' } | null;
+    currentSort: { key: keyof DashboardPolicy; direction: 'asc' | 'desc' } | null;
     columnSearch: string;
     onColumnSearch: (value: string) => void;
     position: { top: number; left: number };
@@ -225,10 +184,10 @@ function ColumnPopup({
 
 export function DataTable() {
     const router = useRouter();
-    const [data, setData] = useState<Declaration[]>([]);
+    const [data, setData] = useState<DashboardPolicy[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [sortConfig, setSortConfig] = useState<{ key: keyof Declaration; direction: 'asc' | 'desc' } | null>(null);
+    const [sortConfig, setSortConfig] = useState<{ key: keyof DashboardPolicy; direction: 'asc' | 'desc' } | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
     // Track whether localStorage preferences have been loaded
@@ -276,7 +235,7 @@ export function DataTable() {
             const colMap = new Map(INITIAL_COLUMNS.map(c => [c.key, c]));
             const restored: ColumnDef[] = [];
             savedOrder.forEach(key => {
-                const col = colMap.get(key as keyof Declaration);
+                const col = colMap.get(key as keyof DashboardPolicy);
                 if (col) restored.push(col);
             });
             // Append any new columns that weren't in saved order
@@ -312,14 +271,13 @@ export function DataTable() {
     useEffect(() => {
         setLoading(true);
         setError(null);
-        fetchSupabaseDeclarations()
+        fetchDashboardPolicies()
             .then(fetchedData => {
                 setData(fetchedData);
-                const flags = new Set<string>();
-                fetchedData.forEach(d => d.flags?.forEach(f => flags.add(f)));
-                setAllFlags(Array.from(flags).sort());
+                // No flags in policy-centric view
+                setAllFlags([]);
                 if (fetchedData.length === 0) {
-                    setError('No data returned from Supabase. Check connection and RLS policies.');
+                    setError('No policies found. Upload and process declarations to see data here.');
                 }
             })
             .catch(err => {
@@ -350,7 +308,7 @@ export function DataTable() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [isFlagMenuOpen, isColumnMenuOpen, isRowsPerPageMenuOpen]);
 
-    const handleSort = (key: keyof Declaration, direction: 'asc' | 'desc' | null) => {
+    const handleSort = (key: keyof DashboardPolicy, direction: 'asc' | 'desc' | null) => {
         if (direction === null) {
             setSortConfig(null);
         } else {
@@ -452,7 +410,7 @@ export function DataTable() {
             if (query) {
                 const lowerQuery = query.toLowerCase();
                 result = result.filter(item => {
-                    const val = item[columnKey as keyof Declaration];
+                    const val = item[columnKey as keyof DashboardPolicy];
                     if (Array.isArray(val)) {
                         return val.some(v => String(v).toLowerCase().includes(lowerQuery));
                     }
@@ -461,12 +419,7 @@ export function DataTable() {
             }
         });
 
-        if (selectedFlags.size > 0) {
-            result = result.filter(item => {
-                if (!item.flags || item.flags.length === 0) return false;
-                return item.flags.some(flag => selectedFlags.has(flag));
-            });
-        }
+        // Flags filtering removed — DashboardPolicy has no flags
 
         return result;
     }, [data, searchQuery, selectedFlags, columnSearchQueries]);
@@ -733,7 +686,7 @@ export function DataTable() {
                                 <tr
                                     key={row.id}
                                     className={`${styles.tr} cursor-pointer`}
-                                    onClick={() => router.push(`/client/${row.client_id || 'client-001'}`)}
+                                    onClick={() => router.push(`/policy/${row.id}`)}
                                 >
                                     {orderedVisibleColumns.map(col => (
                                         <td key={col.key} className={styles.td}>
@@ -742,21 +695,29 @@ export function DataTable() {
                                             ) : col.key === 'status' ? (
                                                 <span className={clsx(
                                                     styles.badge,
-                                                    row.status === 'Pending Review' && styles.badgePending,
-                                                    row.status === 'Approved' && styles.badgeApproved,
-                                                    row.status === 'Rejected' && styles.badgeRejected,
-                                                    row.status === 'Incomplete' && styles.badgeGray
+                                                    row.status === 'unknown' && styles.badgeGray,
+                                                    row.status === 'active' && styles.badgeApproved,
+                                                    row.status === 'expired' && styles.badgeRejected,
+                                                    row.status === 'pending' && styles.badgePending
                                                 )}>
                                                     {row.status}
                                                 </span>
-                                            ) : col.key === 'flags' ? (
-                                                <div className="flex flex-wrap gap-1">
-                                                    {row.flags && row.flags.map((flag, i) => (
-                                                        <span key={i} className={styles.flagBadge}>{flag}</span>
-                                                    ))}
-                                                </div>
+                                            ) : col.key === 'flag_count' ? (
+                                                row.flag_count > 0 ? (
+                                                    <span className={clsx(
+                                                        styles.flagCountBadge,
+                                                        row.highest_severity === 'critical' && styles.flagCritical,
+                                                        row.highest_severity === 'warning' && styles.flagWarning,
+                                                        row.highest_severity === 'info' && styles.flagInfo,
+                                                    )}>
+                                                        <Flag size={12} />
+                                                        {row.flag_count}
+                                                    </span>
+                                                ) : (
+                                                    <span className={styles.flagCountNone}>—</span>
+                                                )
                                             ) : (
-                                                row[col.key] as React.ReactNode
+                                                (row[col.key] ?? '') as React.ReactNode
                                             )}
                                         </td>
                                     ))}

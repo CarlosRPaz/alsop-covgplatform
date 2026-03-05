@@ -17,7 +17,7 @@
 }
 
 .sm {
-    padding: 0.375rem 0.875rem;
+    padding: 0.3rem 0.75rem;
     font-size: 0.8125rem;
 }
 
@@ -59,6 +59,22 @@
 .secondary:hover {
     background: var(--bg-surface-overlay);
     color: var(--text-high);
+}
+
+.excel {
+    background: #107c41;
+    /* Microsoft Excel Green */
+    color: #fff;
+    border: 1px solid #0e6e39;
+}
+
+.excel:hover {
+    background: #0e6e39;
+    /* Slightly darker green on hover */
+}
+
+.excel:active {
+    background: #0b592e;
 }
 
 .outline {
