@@ -25,8 +25,11 @@ from .jobs import (
     claim_next_job,
     complete_job,
     fail_job,
+    force_release_job,
     get_submission,
+    requeue_stale_jobs,
     update_submission_status,
+    MAX_ATTEMPTS,
 )
 from .extract.pdf_text import extract_text_from_bytes
 from .extract.fair_plan import parse_declaration
@@ -72,40 +75,50 @@ def download_pdf(storage_path: str) -> bytes:
 
 def process_job(job: dict) -> None:
     """
-    Full lifecycle for one ingestion job:
-      1. Look up submission
-      2. Set submission -> processing
-      3. Download PDF
-      4. Extract text
-      5. Upsert dec_pages
-      6. Mark job done + submission parsed
+    Full lifecycle for one ingestion job.
+
+    Uses try/except/finally to guarantee the job NEVER stays in 'processing':
+      - On success: job -> done, submission -> parsed
+      - On failure: job -> queued (with backoff) or failed, submission updated
+      - Finally: safety-net force_release_job if still processing
     """
     job_id = job["id"]
     submission_id = job["submission_id"]
     account_id = job["account_id"]
     attempts = job.get("attempts", 1)
-    max_attempts = job.get("max_attempts", 5)
+    max_attempts = job.get("max_attempts", MAX_ATTEMPTS)
+    current_step = "init"
 
-    logger.info("=== Processing job %s (submission=%s) ===", job_id, submission_id)
+    logger.info(">>> job_id=%s submission_id=%s attempts=%d/%d step=start",
+                job_id, submission_id, attempts, max_attempts)
 
     try:
         # 1. Fetch submission
+        current_step = "fetch_submission"
+        logger.info("job_id=%s step=%s", job_id, current_step)
         submission = get_submission(submission_id)
         if not submission:
             raise RuntimeError(f"Submission {submission_id} not found")
 
         # 2. Set submission -> processing
+        current_step = "set_submission_processing"
+        logger.info("job_id=%s step=%s", job_id, current_step)
         update_submission_status(submission_id, "processing")
 
         # 3. Determine storage path
+        current_step = "resolve_storage_path"
         storage_path = submission.get("storage_path") or submission.get("file_path")
         if not storage_path:
             raise RuntimeError(f"No storage_path or file_path on submission {submission_id}")
 
         # 4. Download PDF
+        current_step = "download_pdf"
+        logger.info("job_id=%s step=%s path=%s", job_id, current_step, storage_path)
         pdf_bytes = download_pdf(storage_path)
 
         # 5. Extract text
+        current_step = "extract_text"
+        logger.info("job_id=%s step=%s", job_id, current_step)
         extraction = extract_text_from_bytes(pdf_bytes)
         raw_text = extraction["raw_text"]
 
@@ -114,16 +127,20 @@ def process_job(job: dict) -> None:
             "raw_text_length": extraction["raw_text_length"],
             "pages": extraction["page_count"],
         }
-        
+
         # 6. Parse FAIR Plan declaration fields
+        current_step = "parse_declaration"
+        logger.info("job_id=%s step=%s", job_id, current_step)
         parsed_result = parse_declaration(raw_text)
         fair_plan_data = parsed_result["extracted_data"]
-        
+
         extracted_json["is_fair_plan"] = parsed_result["is_fair_plan"]
         if parsed_result["is_fair_plan"]:
             extracted_json["parser"] = "fairplan_v1"
 
         # 7. Upsert dec_pages
+        current_step = "upsert_dec_page"
+        logger.info("job_id=%s step=%s", job_id, current_step)
         dec_page_id = upsert_dec_page(
             submission_id=submission_id,
             account_id=account_id,
@@ -137,27 +154,34 @@ def process_job(job: dict) -> None:
             policy_period_start=fair_plan_data.get("policy_period_start"),
             policy_period_end=fair_plan_data.get("policy_period_end"),
         )
-        logger.info("Dec page upserted: %s", dec_page_id)
-        
+        logger.info("job_id=%s step=%s dec_page_id=%s", job_id, current_step, dec_page_id)
+
         # 8. Process Policy Lifecycle (Client, Policy, Policy Term)
         if parsed_result["is_fair_plan"]:
+            current_step = "process_lifecycle"
+            logger.info("job_id=%s step=%s", job_id, current_step)
             res_ids = process_lifecycle(account_id, fair_plan_data)
             policy_id = res_ids.get("policy_id")
             if policy_id:
                 # 9. Generate and resolve flags
+                current_step = "generate_flags"
+                logger.info("job_id=%s step=%s policy_id=%s", job_id, current_step, policy_id)
                 generate_and_resolve_flags(
-                    policy_id=policy_id, 
-                    dec_page_id=dec_page_id, 
-                    missing_fields=parsed_result["missing_fields"]
+                    policy_id=policy_id,
+                    dec_page_id=dec_page_id,
+                    missing_fields=parsed_result["missing_fields"],
                 )
 
         # 10. Mark job done
+        current_step = "complete_job"
+        logger.info("job_id=%s step=%s", job_id, current_step)
         complete_job(job_id)
 
         # 11. Mark submission parsed
+        current_step = "update_submission_parsed"
         update_submission_status(submission_id, "parsed")
 
-        logger.info("=== Job %s completed successfully ===", job_id)
+        logger.info("<<< job_id=%s submission_id=%s step=finished status=done", job_id, submission_id)
 
     except Exception as exc:
         error_msg = str(exc)
@@ -165,18 +189,34 @@ def process_job(job: dict) -> None:
             "traceback": traceback.format_exc(),
             "job_id": job_id,
             "submission_id": submission_id,
+            "step": current_step,
         }
-        logger.error("Job %s failed: %s", job_id, error_msg)
+        logger.error("job_id=%s step=%s error=%s", job_id, current_step, error_msg)
 
-        # Fail the job (requeue or permanent fail)
-        fail_job(job_id, error_msg, error_detail, attempts, max_attempts)
+        try:
+            # Fail the job (requeue with backoff, or permanent fail)
+            fail_job(job_id, error_msg, error_detail, attempts, max_attempts)
 
-        # Update submission status
-        update_submission_status(
-            submission_id, "failed",
-            error_message=error_msg,
-            error_detail=error_detail,
-        )
+            # Only mark submission as 'failed' if permanently failed
+            if attempts >= max_attempts:
+                update_submission_status(
+                    submission_id, "failed",
+                    error_message=error_msg,
+                    error_detail=error_detail,
+                )
+            else:
+                # Retryable — set submission back to 'queued' so UI shows retry pending
+                update_submission_status(submission_id, "queued")
+
+        except Exception as inner_exc:
+            logger.critical(
+                "job_id=%s step=error_handling FAILED to write error state: %s",
+                job_id, inner_exc,
+            )
+
+    finally:
+        # Safety-net: guarantee the job is NOT left in 'processing'
+        force_release_job(job_id, attempts, max_attempts)
 
 
 # ---------------------------------------------------------------------------
@@ -198,6 +238,13 @@ def run() -> None:
     except Exception as exc:
         logger.error("Failed to connect to Supabase: %s", exc)
         sys.exit(1)
+
+    # Requeue any stale processing jobs on startup
+    try:
+        requeued = requeue_stale_jobs()
+        logger.info("Requeued %d stale processing jobs on startup", requeued)
+    except Exception as exc:
+        logger.error("Failed to requeue stale jobs on startup: %s", exc)
 
     while True:
         try:

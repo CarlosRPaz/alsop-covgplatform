@@ -1,17 +1,19 @@
 """
 Job queue operations for ingestion_jobs table.
-Implements atomic claim, complete, and fail logic.
+Implements atomic claim, complete, fail, and safety-net release logic.
 """
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from .supabase_client import get_supabase
 
 logger = logging.getLogger("worker.jobs")
 
 WORKER_NAME = os.environ.get("WORKER_NAME", "worker-unknown")
+MAX_ATTEMPTS = int(os.environ.get("MAX_ATTEMPTS", "5"))
+STALE_MINUTES = int(os.environ.get("STALE_MINUTES", "10"))
 
 
 def claim_next_job() -> dict | None:
@@ -76,53 +78,154 @@ def claim_next_job() -> dict | None:
 
 
 def complete_job(job_id: str) -> None:
-    """Mark a job as done."""
+    """Mark a job as done and clear error fields."""
     sb = get_supabase()
     now_iso = datetime.now(timezone.utc).isoformat()
     sb.table("ingestion_jobs").update(
-        {"status": "done", "updated_at": now_iso}
+        {
+            "status": "done",
+            "last_error": None,
+            "last_error_detail": None,
+            "updated_at": now_iso,
+        }
     ).eq("id", job_id).execute()
     logger.info("Job %s marked as done", job_id)
 
 
 def fail_job(job_id: str, error_msg: str, error_detail: dict | None = None,
-             attempts: int = 0, max_attempts: int = 5) -> None:
+             attempts: int = 0, max_attempts: int | None = None) -> None:
     """
-    Handle job failure.
-    - If attempts < max_attempts: requeue with 5-min delay.
+    Handle job failure with exponential backoff.
+    - If attempts < max_attempts: requeue with exponential delay (capped at 60 min).
     - Otherwise: mark as failed permanently.
     """
+    if max_attempts is None:
+        max_attempts = MAX_ATTEMPTS
+
     sb = get_supabase()
     now_iso = datetime.now(timezone.utc).isoformat()
 
+    # Truncate error message to a safe DB length
+    safe_error = (error_msg or "")[:2000]
+
     if attempts < max_attempts:
-        # Requeue with backoff
-        from datetime import timedelta
-        run_after = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+        # Exponential backoff: 5, 10, 20, 40, 60(cap) minutes
+        delay_minutes = min(5 * (2 ** (attempts - 1)), 60)
+        run_after = (datetime.now(timezone.utc) + timedelta(minutes=delay_minutes)).isoformat()
         sb.table("ingestion_jobs").update(
             {
                 "status": "queued",
                 "locked_at": None,
                 "locked_by": None,
-                "last_error": error_msg,
+                "last_error": safe_error,
                 "last_error_detail": error_detail or {},
                 "run_after": run_after,
                 "updated_at": now_iso,
             }
         ).eq("id", job_id).execute()
-        logger.warning("Job %s requeued (attempt %d/%d): %s",
-                        job_id, attempts, max_attempts, error_msg)
+        logger.warning("Job %s requeued (attempt %d/%d, retry in %d min): %s",
+                        job_id, attempts, max_attempts, delay_minutes, safe_error)
     else:
         sb.table("ingestion_jobs").update(
             {
                 "status": "failed",
-                "last_error": error_msg,
+                "last_error": safe_error,
                 "last_error_detail": error_detail or {},
                 "updated_at": now_iso,
             }
         ).eq("id", job_id).execute()
         logger.error("Job %s permanently failed after %d attempts: %s",
-                      job_id, attempts, error_msg)
+                      job_id, attempts, safe_error)
+
+
+def force_release_job(job_id: str, attempts: int, max_attempts: int | None = None) -> None:
+    """
+    Safety-net: if a job is STILL in 'processing' after process_job's
+    try/except, force it back to 'queued' (or 'failed' if at max attempts).
+
+    Called from the finally block — must not raise.
+    """
+    if max_attempts is None:
+        max_attempts = MAX_ATTEMPTS
+
+    try:
+        sb = get_supabase()
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        # Only act if the job is still stuck in 'processing'
+        check = (
+            sb.table("ingestion_jobs")
+            .select("id, status")
+            .eq("id", job_id)
+            .eq("status", "processing")
+            .limit(1)
+            .execute()
+        )
+        if not check.data:
+            return  # Already moved to another status — nothing to do
+
+        if attempts >= max_attempts:
+            new_status = "failed"
+            run_after = now_iso
+        else:
+            new_status = "queued"
+            delay_minutes = min(5 * (2 ** (attempts - 1)), 60)
+            run_after = (datetime.now(timezone.utc) + timedelta(minutes=delay_minutes)).isoformat()
+
+        sb.table("ingestion_jobs").update(
+            {
+                "status": new_status,
+                "locked_at": None,
+                "locked_by": None,
+                "last_error": "force-released by safety-net (was still processing)",
+                "run_after": run_after,
+                "updated_at": now_iso,
+            }
+        ).eq("id", job_id).eq("status", "processing").execute()
+
+        logger.warning("Safety-net force-released job %s -> %s", job_id, new_status)
+
+    except Exception as inner_exc:
+        # Last resort — log and give up; at least we tried
+        logger.critical("force_release_job itself failed for %s: %s", job_id, inner_exc)
+
+
+def requeue_stale_jobs() -> int:
+    """
+    Requeue jobs stuck in 'processing' longer than STALE_MINUTES.
+    Preserves attempt count. Returns count of requeued jobs.
+    """
+    sb = get_supabase()
+    now = datetime.now(timezone.utc)
+    cutoff = (now - timedelta(minutes=STALE_MINUTES)).isoformat()
+
+    stale = (
+        sb.table("ingestion_jobs")
+        .select("id, submission_id, attempts, locked_at")
+        .eq("status", "processing")
+        .lt("locked_at", cutoff)
+        .execute()
+    )
+
+    if not stale.data:
+        return 0
+
+    now_iso = now.isoformat()
+    for row in stale.data:
+        sb.table("ingestion_jobs").update(
+            {
+                "status": "queued",
+                "locked_at": None,
+                "locked_by": None,
+                "run_after": now_iso,
+                "last_error": f"Requeued: was stuck in processing since {row.get('locked_at')}",
+                "updated_at": now_iso,
+            }
+        ).eq("id", row["id"]).eq("status", "processing").execute()
+        logger.warning("Requeued stale job %s (submission=%s, attempts=%d, locked_at=%s)",
+                        row["id"], row.get("submission_id"), row.get("attempts", 0), row.get("locked_at"))
+
+    return len(stale.data)
 
 
 def update_submission_status(submission_id: str, status: str,
@@ -132,7 +235,7 @@ def update_submission_status(submission_id: str, status: str,
     sb = get_supabase()
     payload: dict = {"status": status}
     if error_message is not None:
-        payload["error_message"] = error_message
+        payload["error_message"] = (error_message or "")[:2000]
     if error_detail is not None:
         payload["error_detail"] = error_detail
     sb.table("dec_page_submissions").update(payload).eq("id", submission_id).execute()
