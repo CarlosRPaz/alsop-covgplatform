@@ -36,7 +36,7 @@ def upsert_client(account_id: str, named_insured: str) -> str:
     existing = (
         sb.table("clients")
         .select("id")
-        .eq("account_id", account_id)
+        .eq("created_by_account_id", account_id)
         .eq("named_insured", named_insured)
         .limit(1)
         .execute()
@@ -50,7 +50,7 @@ def upsert_client(account_id: str, named_insured: str) -> str:
 
     # Insert
     payload = {
-        "account_id": account_id,
+        "created_by_account_id": account_id,
         "named_insured": named_insured,
     }
     result = sb.table("clients").insert(payload).execute()

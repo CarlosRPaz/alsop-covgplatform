@@ -154,6 +154,36 @@ def _extract_policy_number(text: str) -> str | None:
     return None
 
 
+def _looks_like_name(text: str) -> bool:
+    """Heuristic: does this text look like a person or company name?"""
+    if not text or len(text) < 2:
+        return False
+    # Too many words for a name (names rarely exceed 6 words)
+    words = text.split()
+    if len(words) > 8:
+        return False
+    # Reject if it contains legal / policy / exclusion keywords
+    reject_keywords = [
+        "CRIME", "ELEMENT", "INCREASING", "NECESSARY", "EXCLUSION",
+        "LIABILITY", "COVERAGE", "PREMIUM", "DEDUCTIBLE", "POLICY",
+        "ENDORSEMENT", "AMENDMENT", "CONDITION", "PROVISION",
+        "PURSUANT", "HEREIN", "THEREOF", "WHEREIN", "SHALL",
+        "SUBJECT TO", "IN THE EVENT", "APPLICABLE", "ACCORDANCE",
+    ]
+    upper = text.upper()
+    if any(kw in upper for kw in reject_keywords):
+        return False
+    # Reject if all lowercase (names are typically capitalized)
+    if text == text.lower() and not any(c.isupper() for c in text):
+        return False
+    # Reject if it looks like a sentence (contains common sentence words)
+    sentence_words = {"having", "which", "that", "with", "from", "shall", "must", "will", "does"}
+    lower_words = {w.lower() for w in words}
+    if len(lower_words & sentence_words) >= 2:
+        return False
+    return True
+
+
 def _extract_insured_name(text: str) -> tuple[str | None, str | None, str | None]:
     """
     Extract insured name, secondary name, and mailing address.
@@ -184,24 +214,25 @@ def _extract_insured_name(text: str) -> tuple[str | None, str | None, str | None
 
             for i, line in enumerate(lines):
                 # Skip header-like lines
-                if re.match(r'^(NAMED|INSURED|AND|MAILING|ADDRESS)', line, re.IGNORECASE):
+                if re.match(r'^(NAMED|INSURED|AND|MAILING|ADDRESS|SECTION|EXCLUSION|CONDITIONS)', line, re.IGNORECASE):
                     continue
-                # Skip lines that look like labels
-                if re.match(r'^(POLICY|PROPERTY|COVERAGE|PREMIUM|DEDUCTIBLE)', line, re.IGNORECASE):
+                # Skip lines that look like labels / legal text
+                if re.match(r'^(POLICY|PROPERTY|COVERAGE|PREMIUM|DEDUCTIBLE|THIS|THE|ANY|NO|IN\s+THE)', line, re.IGNORECASE):
                     break
 
                 # First non-address line = insured name
                 if insured_name is None:
                     # Names typically don't start with a digit
-                    if not re.match(r'^\d', line):
+                    if not re.match(r'^\d', line) and _looks_like_name(line):
                         insured_name = line
-                    else:
+                    elif re.match(r'^\d', line):
                         # It's an address, name wasn't found in expected position
                         address_lines.append(line)
+                    # else: skip (not a name, not an address)
                 elif secondary_name is None and not re.match(r'^\d', line) and i < 3:
                     # Second non-numeric line could be a co-insured
                     # Heuristic: if it looks like a name (no numbers, no commas with state)
-                    if not re.search(r',\s*[A-Z]{2}\s+\d{5}', line):
+                    if not re.search(r',\s*[A-Z]{2}\s+\d{5}', line) and _looks_like_name(line):
                         secondary_name = line
                     else:
                         address_lines.append(line)
@@ -213,6 +244,7 @@ def _extract_insured_name(text: str) -> tuple[str | None, str | None, str | None
                 return (insured_name, secondary_name, mailing_address)
 
     return (None, None, None)
+
 
 
 def _extract_property_location(text: str) -> str | None:
