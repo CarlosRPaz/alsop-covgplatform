@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { InfoCards } from '@/components/dashboard/InfoCards';
 import { KPIStats } from '@/components/dashboard/KPIStats';
 import { DataTable } from '@/components/dashboard/DataTable';
 import { DashboardChart } from '@/components/dashboard/DashboardChart';
 import { ActivityTab } from '@/components/dashboard/ActivityTab';
 import { HighSeverityTab } from '@/components/dashboard/HighSeverityTab';
+import { CSVUploadModal } from '@/components/dashboard/CSVUploadModal';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button/Button';
@@ -21,15 +22,11 @@ const tabs = [
 
 export default function DashboardPage() {
     const [activeTab, setActiveTab] = useState('policy-table');
-    const csvInputRef = useRef<HTMLInputElement>(null);
+    const [isCSVModalOpen, setIsCSVModalOpen] = useState(false);
 
-    const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        console.log('CSV file selected:', file.name);
+    const handleCSVUpload = (file: File) => {
+        console.log('CSV file selected:', file.name, file.size);
         // TODO: Parse CSV and upload to Supabase
-        // Reset input so the same file can be re-selected
-        e.target.value = '';
     };
 
     const renderTabContent = () => {
@@ -50,17 +47,10 @@ export default function DashboardPage() {
                                     <Plus className="w-4 h-4 mr-1.5" />
                                     New Account
                                 </Button>
-                                <input
-                                    type="file"
-                                    accept=".csv"
-                                    ref={csvInputRef}
-                                    onChange={handleCSVUpload}
-                                    style={{ display: 'none' }}
-                                />
                                 <Button
                                     variant="excel"
                                     size="sm"
-                                    onClick={() => csvInputRef.current?.click()}
+                                    onClick={() => setIsCSVModalOpen(true)}
                                 >
                                     <Upload className="w-4 h-4 mr-1.5" />
                                     Upload CSV
@@ -84,30 +74,42 @@ export default function DashboardPage() {
         <main className="min-h-screen bg-gray-50">
             <div className="mx-auto px-6 py-8">
                 {/* Header */}
-                <header className="flex flex-col md:flex-row md:items-center justify-between gap-3" style={{ marginTop: '1.5rem', marginBottom: '2.5rem' }}>
+                <header className="flex flex-col md:flex-row md:items-center justify-between gap-3" style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
                     <div>
                         <h1 className="text-2xl font-bold text-slate-900 mb-1">Agent Dashboard</h1>
                         <p className="text-sm text-slate-500">Overview of all CFP declarations and their status</p>
                     </div>
                 </header>
 
-                {/* Info Cards */}
-                <div style={{ marginTop: '2rem' }}>
-                    <InfoCards />
-                </div>
-
-                {/* Stats and Chart Section */}
-                <div className="mb-6">
-                    <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-6">
-                        {/* KPI Stats */}
-                        <div className="bg-white rounded-xl shadow-sm p-6">
+                {/* ═══ Overview Section: Left (Cards + Rings) | Right (Charts) ═══ */}
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '1.25rem',
+                    marginBottom: '1.5rem',
+                }}>
+                    {/* ── Left Column: Stat Cards + KPI Rings ── */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        <InfoCards />
+                        <div style={{
+                            background: 'var(--bg-surface)',
+                            borderRadius: 'var(--radius-lg)',
+                            border: '1px solid var(--border-default)',
+                            padding: '1rem',
+                        }}>
                             <KPIStats />
                         </div>
+                    </div>
 
-                        {/* Chart */}
-                        <div className="bg-white rounded-xl shadow-sm p-6 overflow-hidden">
-                            <DashboardChart />
-                        </div>
+                    {/* ── Right Column: Stacked Charts ── */}
+                    <div style={{
+                        background: 'var(--bg-surface)',
+                        borderRadius: 'var(--radius-lg)',
+                        border: '1px solid var(--border-default)',
+                        padding: '1.25rem',
+                        overflow: 'hidden',
+                    }}>
+                        <DashboardChart />
                     </div>
                 </div>
 
@@ -117,6 +119,13 @@ export default function DashboardPage() {
                 {/* Tab Content */}
                 {renderTabContent()}
             </div>
+
+            {/* CSV Upload Modal */}
+            <CSVUploadModal
+                isOpen={isCSVModalOpen}
+                onClose={() => setIsCSVModalOpen(false)}
+                onUpload={handleCSVUpload}
+            />
         </main>
     );
 }

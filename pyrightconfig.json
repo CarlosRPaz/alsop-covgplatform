@@ -1,11 +1,10 @@
 {
     "executionEnvironments": [
         {
-            "root": "worker"
+            "root": "worker",
+            "extraPaths": [
+                "src"
+            ]
         }
-    ],
-    "extraPaths": [
-        "worker/src",
-        "worker"
     ]
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Phone, FileText, ArrowLeft, MapPin } from 'lucide-react';
+import { User, Mail, Phone, FileText, ArrowLeft, MapPin, GitMerge } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button/Button';
 import { getClientById, ClientRow } from '@/lib/api';
@@ -81,6 +81,18 @@ export function ClientInfo({ clientId }: ClientInfoProps) {
                         <h1 className={styles.title}>{clientName}</h1>
                         <p className={styles.subtitle}>Client ID: {clientId}</p>
                     </div>
+                </div>
+
+                <div className={styles.actions}>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => { /* TODO: open merge modal */ }}
+                        className={styles.actionButton}
+                    >
+                        <GitMerge className="w-4 h-4" />
+                        Merge Client Profile
+                    </Button>
                 </div>
 
                 <div className={styles.grid}>

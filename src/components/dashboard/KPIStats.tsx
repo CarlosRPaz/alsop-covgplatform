@@ -14,7 +14,7 @@ const stats: KPI[] = [
     { label: 'PENDING', value: 912, total: 3154, color: '#a855f7' }, // Purple
 ];
 
-function CircularProgress({ percentage, color, size = 120 }: { percentage: number; color: string; size?: number }) {
+function CircularProgress({ percentage, color, size = 80 }: { percentage: number; color: string; size?: number }) {
     const radius = 45;
     const circumference = 2 * Math.PI * radius;
     const strokeDashoffset = circumference - (percentage / 100) * circumference;
@@ -28,7 +28,7 @@ function CircularProgress({ percentage, color, size = 120 }: { percentage: numbe
                 r={radius}
                 fill="none"
                 stroke="#e5e7eb"
-                strokeWidth="8"
+                strokeWidth="9"
             />
             {/* Progress circle */}
             <circle
@@ -37,7 +37,7 @@ function CircularProgress({ percentage, color, size = 120 }: { percentage: numbe
                 r={radius}
                 fill="none"
                 stroke={color}
-                strokeWidth="8"
+                strokeWidth="9"
                 strokeDasharray={circumference}
                 strokeDashoffset={strokeDashoffset}
                 strokeLinecap="round"
