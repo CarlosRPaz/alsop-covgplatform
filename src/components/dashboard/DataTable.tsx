@@ -692,6 +692,16 @@ export function DataTable() {
                                         <td key={col.key} className={styles.td}>
                                             {col.key === 'policy_number' ? (
                                                 <span className="font-medium text-blue-600">{row[col.key]}</span>
+                                            ) : col.key === 'named_insured' ? (
+                                                <span
+                                                    className={styles.clientLink}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        router.push(`/client/${row.client_id}`);
+                                                    }}
+                                                >
+                                                    {row.named_insured}
+                                                </span>
                                             ) : col.key === 'status' ? (
                                                 <span className={clsx(
                                                     styles.badge,

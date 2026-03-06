@@ -33,6 +33,13 @@
     display: flex;
     gap: 1rem;
     align-items: flex-start;
+    padding: 0.75rem;
+    border-radius: var(--radius-md);
+    transition: background-color 150ms ease;
+}
+
+.activityItem:hover {
+    background-color: var(--bg-surface-raised);
 }
 
 .iconWrapper {
@@ -59,12 +66,36 @@
     font-weight: 600;
     color: var(--text-high);
     margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.statusChip {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-full);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
 }
 
 .description {
     font-size: 0.8125rem;
     color: var(--text-mid);
     margin-bottom: 0.5rem;
+}
+
+.clickableLink {
+    color: #60a5fa;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 150ms ease;
+}
+
+.clickableLink:hover {
+    color: #93bbfd;
+    text-decoration: underline;
 }
 
 .meta {
@@ -85,4 +116,49 @@
 
 .user {
     color: var(--text-mid);
+}
+
+/* Loading state */
+.loadingState {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 3rem 1rem;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+.spinner {
+    width: 1.25rem;
+    height: 1.25rem;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Empty state */
+.emptyState {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 3rem 1rem;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+.emptyIcon {
+    width: 2rem;
+    height: 2rem;
+    opacity: 0.4;
 }

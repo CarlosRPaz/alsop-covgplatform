@@ -1,126 +1,155 @@
 'use client';
 
-import React from 'react';
-import { AlertTriangle, TrendingUp, Users, FileText } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { FileText, Upload, Loader2 } from 'lucide-react';
+import { fetchActivityFeed, ActivityFeedItem } from '@/lib/api';
 import styles from './ActivityTab.module.css';
 
-interface ActivityItem {
-    id: string;
-    type: 'upload' | 'review' | 'approval' | 'flag';
-    title: string;
-    description: string;
-    timestamp: string;
-    user: string;
+function formatTimeAgo(dateStr: string): string {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60_000);
+    const diffHr = Math.floor(diffMs / 3_600_000);
+    const diffDays = Math.floor(diffMs / 86_400_000);
+
+    if (diffMin < 1) return 'Just now';
+    if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`;
+    if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? '' : 's'} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+    return date.toLocaleDateString();
 }
 
-const sampleActivities: ActivityItem[] = [
-    {
-        id: '1',
-        type: 'upload',
-        title: 'New Policy Uploaded',
-        description: 'Policy HO-555013-13 uploaded by Sarah Martinez',
-        timestamp: '2 minutes ago',
-        user: 'Sarah Martinez',
-    },
-    {
-        id: '2',
-        type: 'review',
-        title: 'Policy Review Completed',
-        description: 'Review completed for Policy HO-983274-23',
-        timestamp: '15 minutes ago',
-        user: 'John Smith',
-    },
-    {
-        id: '3',
-        type: 'flag',
-        title: 'High Severity Flag Detected',
-        description: 'Wildfire Zone flag added to Policy HO-555005-05',
-        timestamp: '1 hour ago',
-        user: 'System',
-    },
-    {
-        id: '4',
-        type: 'approval',
-        title: 'Policy Approved',
-        description: 'Policy HO-555006-06 approved by David Chen',
-        timestamp: '2 hours ago',
-        user: 'David Chen',
-    },
-    {
-        id: '5',
-        type: 'upload',
-        title: 'Bulk Upload Completed',
-        description: '15 policies uploaded successfully',
-        timestamp: '3 hours ago',
-        user: 'Emily Rodriguez',
-    },
-    {
-        id: '6',
-        type: 'review',
-        title: 'Policy Review Started',
-        description: 'Review initiated for Policy HO-555007-07',
-        timestamp: '4 hours ago',
-        user: 'Michael Brown',
-    },
-];
-
-function getActivityIcon(type: ActivityItem['type']) {
-    switch (type) {
-        case 'upload':
-            return FileText;
-        case 'review':
-            return TrendingUp;
-        case 'approval':
-            return Users;
-        case 'flag':
-            return AlertTriangle;
+function getStatusLabel(status: string): string {
+    switch (status) {
+        case 'done': return 'Processed';
+        case 'queued': return 'Queued';
+        case 'processing': return 'Processing';
+        case 'failed': return 'Failed';
+        default: return status;
     }
 }
 
-function getActivityColor(type: ActivityItem['type']) {
-    switch (type) {
-        case 'upload':
-            return '#14b8a6'; // Teal
-        case 'review':
-            return '#3b82f6'; // Blue
-        case 'approval':
-            return '#10b981'; // Green
-        case 'flag':
-            return '#ef4444'; // Red
+function getStatusColor(status: string): string {
+    switch (status) {
+        case 'done': return '#10b981';     // Green
+        case 'queued': return '#f59e0b';   // Amber
+        case 'processing': return '#3b82f6'; // Blue
+        case 'failed': return '#ef4444';   // Red
+        default: return '#6b7280';
     }
 }
 
 export function ActivityTab() {
+    const router = useRouter();
+    const [activities, setActivities] = useState<ActivityFeedItem[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetchActivityFeed(30)
+            .then(setActivities)
+            .catch(err => console.error('Activity feed error:', err))
+            .finally(() => setLoading(false));
+    }, []);
+
     return (
         <div className={styles.container}>
             <div className={styles.header}>
                 <h2 className={styles.title}>Recent Activity</h2>
-                <p className={styles.subtitle}>Track all actions and updates across your policies</p>
+                <p className={styles.subtitle}>Declaration uploads and processing events</p>
             </div>
 
-            <div className={styles.timeline}>
-                {sampleActivities.map((activity) => {
-                    const Icon = getActivityIcon(activity.type);
-                    const color = getActivityColor(activity.type);
+            {loading ? (
+                <div className={styles.loadingState}>
+                    <Loader2 className={styles.spinner} />
+                    <span>Loading activity...</span>
+                </div>
+            ) : activities.length === 0 ? (
+                <div className={styles.emptyState}>
+                    <Upload className={styles.emptyIcon} />
+                    <p>No recent uploads. Submit a declaration to see activity here.</p>
+                </div>
+            ) : (
+                <div className={styles.timeline}>
+                    {activities.map((activity) => {
+                        const statusColor = getStatusColor(activity.status);
+                        const fileName = activity.file_path
+                            ? activity.file_path.split('/').pop() || 'Document'
+                            : 'Declaration';
 
-                    return (
-                        <div key={activity.id} className={styles.activityItem}>
-                            <div className={styles.iconWrapper} style={{ backgroundColor: `${color}15` }}>
-                                <Icon className={styles.icon} style={{ color }} />
-                            </div>
-                            <div className={styles.content}>
-                                <div className={styles.activityTitle}>{activity.title}</div>
-                                <div className={styles.description}>{activity.description}</div>
-                                <div className={styles.meta}>
-                                    <span className={styles.timestamp}>{activity.timestamp}</span>
-                                    <span className={styles.separator}>•</span>
-                                    <span className={styles.user}>{activity.user}</span>
+                        return (
+                            <div key={activity.id} className={styles.activityItem}>
+                                <div
+                                    className={styles.iconWrapper}
+                                    style={{ backgroundColor: `${statusColor}15` }}
+                                >
+                                    <FileText className={styles.icon} style={{ color: statusColor }} />
+                                </div>
+                                <div className={styles.content}>
+                                    <div className={styles.activityTitle}>
+                                        Declaration Uploaded
+                                        <span
+                                            className={styles.statusChip}
+                                            style={{
+                                                backgroundColor: `${statusColor}18`,
+                                                color: statusColor,
+                                            }}
+                                        >
+                                            {getStatusLabel(activity.status)}
+                                        </span>
+                                    </div>
+
+                                    <div className={styles.description}>
+                                        {activity.insured_name && (
+                                            <span
+                                                className={styles.clickableLink}
+                                                onClick={() =>
+                                                    activity.client_id &&
+                                                    router.push(`/client/${activity.client_id}`)
+                                                }
+                                            >
+                                                {activity.insured_name}
+                                            </span>
+                                        )}
+                                        {activity.insured_name && activity.policy_number && (
+                                            <span> · </span>
+                                        )}
+                                        {activity.policy_number && (
+                                            <>
+                                                {!activity.insured_name && ''}
+                                                <span>Policy </span>
+                                                <span
+                                                    className={styles.clickableLink}
+                                                    onClick={() =>
+                                                        activity.policy_id &&
+                                                        router.push(`/policy/${activity.policy_id}`)
+                                                    }
+                                                >
+                                                    {activity.policy_number}
+                                                </span>
+                                            </>
+                                        )}
+                                        {!activity.insured_name && !activity.policy_number && (
+                                            <span>{fileName}</span>
+                                        )}
+                                    </div>
+
+                                    <div className={styles.meta}>
+                                        <span className={styles.timestamp}>
+                                            {formatTimeAgo(activity.created_at)}
+                                        </span>
+                                        <span className={styles.separator}>•</span>
+                                        <span className={styles.user}>
+                                            Uploaded by {activity.uploaded_by}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    );
-                })}
-            </div>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 }

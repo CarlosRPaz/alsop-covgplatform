@@ -1,173 +1,183 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Upload, FileText, File, Trash2, Download, Eye } from 'lucide-react';
-import { Button } from '@/components/ui/Button/Button';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Upload, FileText, Loader2, Download, Eye, AlertCircle } from 'lucide-react';
+import {
+    fetchDecPageFilesByPolicyId,
+    getDecPageFileDownloadUrl,
+    DecPageFileInfo,
+} from '@/lib/api';
 import styles from './PolicyFiles.module.css';
-
-interface PolicyFile {
-    id: string;
-    name: string;
-    type: string;
-    category: string;
-    uploadedAt: string;
-    size: string;
-}
-
-const FILE_CATEGORIES = [
-    { id: 'dec-pages', label: 'Dec Pages', icon: FileText },
-    { id: 'ai-report', label: 'AI Report', icon: FileText },
-    { id: 'invoices', label: 'Invoices', icon: File },
-    { id: 'underwriting', label: 'Underwriting Notices', icon: FileText },
-    { id: 'pending-cancel', label: 'Pending Cancellation', icon: FileText },
-    { id: 'cancellation', label: 'Cancellation Notices', icon: FileText },
-];
-
-// Mock files data
-const mockFiles: PolicyFile[] = [
-    { id: '1', name: 'HO-983274-23_Dec_Page.pdf', type: 'PDF', category: 'dec-pages', uploadedAt: '2024-01-15', size: '245 KB' },
-    { id: '2', name: 'AI_Coverage_Analysis.pdf', type: 'PDF', category: 'ai-report', uploadedAt: '2024-01-16', size: '128 KB' },
-    { id: '3', name: 'Invoice_Q1_2024.pdf', type: 'PDF', category: 'invoices', uploadedAt: '2024-01-10', size: '56 KB' },
-];
 
 interface PolicyFilesProps {
     policyId: string;
 }
 
+function formatFileSize(bytes: number | null): string {
+    if (!bytes) return '—';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDate(dateStr: string): string {
+    try {
+        return new Date(dateStr).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        });
+    } catch {
+        return dateStr;
+    }
+}
+
+function getParseStatusBadge(status: string | null): { label: string; color: string } {
+    switch (status) {
+        case 'parsed': return { label: 'Parsed', color: '#10b981' };
+        case 'needs_review': return { label: 'Needs Review', color: '#f59e0b' };
+        case 'failed': return { label: 'Failed', color: '#ef4444' };
+        default: return { label: 'Processing', color: '#6b7280' };
+    }
+}
+
 export function PolicyFiles({ policyId }: PolicyFilesProps) {
-    const [files, setFiles] = useState<PolicyFile[]>(mockFiles);
-    const [selectedCategory, setSelectedCategory] = useState<string>('all');
-    const [isDragging, setIsDragging] = useState(false);
+    const [files, setFiles] = useState<DecPageFileInfo[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
-    const filteredFiles = selectedCategory === 'all'
-        ? files
-        : files.filter(f => f.category === selectedCategory);
+    useEffect(() => {
+        fetchDecPageFilesByPolicyId(policyId)
+            .then(setFiles)
+            .catch(err => console.error('Failed to fetch policy files:', err))
+            .finally(() => setLoading(false));
+    }, [policyId]);
 
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(true);
-    };
-
-    const handleDragLeave = () => {
-        setIsDragging(false);
-    };
-
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(false);
-        // Handle file drop
-        console.log('Files dropped:', e.dataTransfer.files);
-    };
-
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            console.log('Files selected:', e.target.files);
+    const handleDownload = useCallback(async (file: DecPageFileInfo) => {
+        if (!file.storage_path) return;
+        setDownloadingId(file.id);
+        try {
+            const url = await getDecPageFileDownloadUrl(file.storage_path);
+            if (url) {
+                window.open(url, '_blank');
+            }
+        } catch (err) {
+            console.error('Download failed:', err);
+        } finally {
+            setDownloadingId(null);
         }
-    };
+    }, []);
 
-    const getCategoryLabel = (categoryId: string) => {
-        return FILE_CATEGORIES.find(c => c.id === categoryId)?.label || categoryId;
-    };
+    const handlePreview = useCallback(async (file: DecPageFileInfo) => {
+        if (!file.storage_path) return;
+        setDownloadingId(file.id);
+        try {
+            const url = await getDecPageFileDownloadUrl(file.storage_path);
+            if (url) {
+                window.open(url, '_blank');
+            }
+        } catch (err) {
+            console.error('Preview failed:', err);
+        } finally {
+            setDownloadingId(null);
+        }
+    }, []);
+
+    if (loading) {
+        return (
+            <div className={styles.container}>
+                <div className={styles.loadingState}>
+                    <Loader2 className={styles.spinner} />
+                    <span>Loading files...</span>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className={styles.container}>
             {/* Upload Section */}
             <div className={styles.uploadSection}>
                 <h3 className={styles.sectionTitle}>Upload Files</h3>
-                <div
-                    className={`${styles.dropzone} ${isDragging ? styles.dropzoneActive : ''}`}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                >
+                <div className={styles.dropzone}>
                     <Upload className={styles.uploadIcon} />
                     <p className={styles.dropzoneText}>
-                        Drag and drop files here, or <label className={styles.browseLink}>
-                            browse
-                            <input
-                                type="file"
-                                multiple
-                                className={styles.fileInput}
-                                onChange={handleFileSelect}
-                            />
-                        </label>
+                        To upload declaration pages, use the{' '}
+                        <a href="/submit-declaration" className={styles.browseLink}>
+                            Submit Declaration
+                        </a>{' '}
+                        form.
                     </p>
-                    <p className={styles.dropzoneHint}>Supports PDF, DOC, DOCX, JPG, PNG (Max 10MB)</p>
-                </div>
-
-                {/* Category Selection for Upload */}
-                <div className={styles.categorySelect}>
-                    <label className={styles.selectLabel}>File Category:</label>
-                    <select className={styles.select}>
-                        {FILE_CATEGORIES.map(cat => (
-                            <option key={cat.id} value={cat.id}>{cat.label}</option>
-                        ))}
-                    </select>
+                    <p className={styles.dropzoneHint}>Submitted files will appear here once processed.</p>
                 </div>
             </div>
 
-            {/* File Categories */}
-            <div className={styles.categoriesSection}>
-                <h3 className={styles.sectionTitle}>File Categories</h3>
-                <div className={styles.categoryTabs}>
-                    <button
-                        className={`${styles.categoryTab} ${selectedCategory === 'all' ? styles.categoryTabActive : ''}`}
-                        onClick={() => setSelectedCategory('all')}
-                    >
-                        All Files
-                    </button>
-                    {FILE_CATEGORIES.map(cat => (
-                        <button
-                            key={cat.id}
-                            className={`${styles.categoryTab} ${selectedCategory === cat.id ? styles.categoryTabActive : ''}`}
-                            onClick={() => setSelectedCategory(cat.id)}
-                        >
-                            {cat.label}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* Files List */}
+            {/* Declaration Pages */}
             <div className={styles.filesSection}>
                 <h3 className={styles.sectionTitle}>
-                    {selectedCategory === 'all' ? 'All Files' : getCategoryLabel(selectedCategory)}
-                    <span className={styles.fileCount}>({filteredFiles.length})</span>
+                    Declaration Pages
+                    <span className={styles.fileCount}>({files.length})</span>
                 </h3>
 
-                {filteredFiles.length === 0 ? (
+                {files.length === 0 ? (
                     <div className={styles.emptyState}>
-                        <FileText className={styles.emptyIcon} />
-                        <p>No files uploaded in this category</p>
+                        <AlertCircle className={styles.emptyIcon} />
+                        <p>No declaration pages linked to this policy yet.</p>
+                        <p className={styles.emptyHint}>
+                            Upload a declaration via "Submit Declaration" and the worker will process and link it here.
+                        </p>
                     </div>
                 ) : (
                     <div className={styles.fileList}>
-                        {filteredFiles.map(file => (
-                            <div key={file.id} className={styles.fileItem}>
-                                <div className={styles.fileInfo}>
-                                    <FileText className={styles.fileIcon} />
-                                    <div>
-                                        <div className={styles.fileName}>{file.name}</div>
-                                        <div className={styles.fileMeta}>
-                                            <span className={styles.fileBadge}>{getCategoryLabel(file.category)}</span>
-                                            <span>{file.size}</span>
-                                            <span>{file.uploadedAt}</span>
+                        {files.map(file => {
+                            const parseStatus = getParseStatusBadge(file.parse_status);
+                            return (
+                                <div key={file.id} className={styles.fileItem}>
+                                    <div className={styles.fileInfo}>
+                                        <FileText className={styles.fileIcon} />
+                                        <div>
+                                            <div className={styles.fileName}>
+                                                {file.file_name || 'Declaration Page'}
+                                            </div>
+                                            <div className={styles.fileMeta}>
+                                                <span
+                                                    className={styles.statusBadge}
+                                                    style={{
+                                                        backgroundColor: `${parseStatus.color}18`,
+                                                        color: parseStatus.color,
+                                                    }}
+                                                >
+                                                    {parseStatus.label}
+                                                </span>
+                                                <span>{formatFileSize(file.file_size)}</span>
+                                                <span>{formatDate(file.uploaded_at)}</span>
+                                            </div>
                                         </div>
                                     </div>
+                                    <div className={styles.fileActions}>
+                                        <button
+                                            className={styles.iconButton}
+                                            title="Preview"
+                                            onClick={() => handlePreview(file)}
+                                            disabled={!file.storage_path || downloadingId === file.id}
+                                        >
+                                            {downloadingId === file.id
+                                                ? <Loader2 size={16} className={styles.spinnerSmall} />
+                                                : <Eye size={16} />
+                                            }
+                                        </button>
+                                        <button
+                                            className={styles.iconButton}
+                                            title="Download"
+                                            onClick={() => handleDownload(file)}
+                                            disabled={!file.storage_path || downloadingId === file.id}
+                                        >
+                                            <Download size={16} />
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className={styles.fileActions}>
-                                    <button className={styles.iconButton} title="Preview">
-                                        <Eye size={16} />
-                                    </button>
-                                    <button className={styles.iconButton} title="Download">
-                                        <Download size={16} />
-                                    </button>
-                                    <button className={`${styles.iconButton} ${styles.deleteButton}`} title="Delete">
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>

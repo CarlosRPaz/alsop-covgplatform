@@ -1,3 +1,6 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
 import { Declaration } from '@/lib/api';
 import styles from './PolicyDashboard.module.css';
 import { Card } from '../ui/Card/Card';
@@ -7,6 +10,8 @@ interface PolicyDashboardProps {
 }
 
 export function PolicyDashboard({ declaration }: PolicyDashboardProps) {
+    const router = useRouter();
+
     return (
         <div className={styles.container}>
             <h2 className={styles.sectionTitle}>Policy Overview</h2>
@@ -16,7 +21,12 @@ export function PolicyDashboard({ declaration }: PolicyDashboardProps) {
                     <h3>Insured Information</h3>
                     <div className={styles.field}>
                         <label>Insured Name:</label>
-                        <span>{declaration.insured_name}</span>
+                        <span
+                            style={{ color: '#60a5fa', cursor: 'pointer' }}
+                            onClick={() => declaration.client_id && router.push(`/client/${declaration.client_id}`)}
+                        >
+                            {declaration.insured_name}
+                        </span>
                     </div>
                     {declaration.secondary_insured_name && (
                         <div className={styles.field}>

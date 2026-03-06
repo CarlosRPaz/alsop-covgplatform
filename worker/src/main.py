@@ -148,11 +148,7 @@ def process_job(job: dict) -> None:
             extracted_json=extracted_json,
             missing_fields=parsed_result["missing_fields"],
             parse_status=parsed_result["parse_status"],
-            insured_name=fair_plan_data.get("insured_name"),
-            policy_number=fair_plan_data.get("policy_number"),
-            property_location=fair_plan_data.get("property_location"),
-            policy_period_start=fair_plan_data.get("policy_period_start"),
-            policy_period_end=fair_plan_data.get("policy_period_end"),
+            extracted_data=fair_plan_data,
         )
         logger.info("job_id=%s step=%s dec_page_id=%s", job_id, current_step, dec_page_id)
 
@@ -162,6 +158,26 @@ def process_job(job: dict) -> None:
             logger.info("job_id=%s step=%s", job_id, current_step)
             res_ids = process_lifecycle(account_id, fair_plan_data)
             policy_id = res_ids.get("policy_id")
+            client_id = res_ids.get("client_id")
+            policy_term_id = res_ids.get("policy_term_id")
+
+            # 8b. Link dec_pages row to policy/client/term
+            if policy_id or client_id:
+                current_step = "link_dec_page"
+                logger.info("job_id=%s step=%s dec_page_id=%s policy_id=%s client_id=%s",
+                            job_id, current_step, dec_page_id, policy_id, client_id)
+                link_payload = {}
+                if policy_id:
+                    link_payload["policy_id"] = policy_id
+                if client_id:
+                    link_payload["client_id"] = client_id
+                if policy_term_id:
+                    link_payload["policy_term_id"] = policy_term_id
+                
+                sb = get_supabase()
+                sb.table("dec_pages").update(link_payload).eq("id", dec_page_id).execute()
+                logger.info("job_id=%s step=%s linked dec_pages to policy/client", job_id, current_step)
+
             if policy_id:
                 # 9. Generate and resolve flags
                 current_step = "generate_flags"

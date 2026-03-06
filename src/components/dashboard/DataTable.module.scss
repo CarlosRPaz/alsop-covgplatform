@@ -78,6 +78,18 @@
     vertical-align: middle;
 }
 
+.clientLink {
+    color: #60a5fa;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 150ms ease;
+
+    &:hover {
+        color: #93bbfd;
+        text-decoration: underline;
+    }
+}
+
 .actionBtn {
     color: var(--text-accent);
     font-weight: 600;

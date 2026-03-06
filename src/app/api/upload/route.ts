@@ -257,16 +257,24 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
         }
 
         // ---------------------------------------------------------------
-        // 7. TODO: Trigger dec page extraction + ingestion pipeline
-        //
-        // Once the PDF extraction/parsing step is built, call:
-        //   import { ingestDecPage } from '@/lib/ingest';
-        //   const extractedFields = await extractDecPage(storagePath);
-        //   await ingestDecPage(submissionId!, accountId, extractedFields);
-        //
-        // This will insert into dec_pages and create/link
-        // client, policy, and policy_term records.
+        // 7. Create ingestion job for the worker to pick up
         // ---------------------------------------------------------------
+        const { error: jobError } = await supabaseAdmin
+            .from('ingestion_jobs')
+            .insert({
+                submission_id: submissionId!,
+                account_id: accountId,
+                status: 'queued',
+            });
+
+        if (jobError) {
+            logger.error('Upload', 'Failed to create ingestion job (non-fatal)', {
+                submissionId,
+                error: jobError.message,
+            });
+        } else {
+            logger.info('Upload', 'Ingestion job queued', { submissionId });
+        }
 
         // ---------------------------------------------------------------
         // 8. Return success

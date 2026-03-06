@@ -6,7 +6,7 @@ import styles from './page.module.css';
 import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
 import { ArrowLeft, Mail, FileDown, Download, X, Maximize2 } from 'lucide-react';
-import { getDeclarationById, fetchAIReport, Declaration, AIReportData } from '@/lib/api';
+import { getPolicyDetailById, mapPolicyDetailToDeclaration, generateAIReport, Declaration, AIReportData } from '@/lib/api';
 import { PolicyDashboard } from '@/components/policy/PolicyDashboard';
 import { AIReport } from '@/components/policy/AIReport';
 import { PolicyFiles } from '@/components/policy/PolicyFiles';
@@ -23,6 +23,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     // Unwrap params in Next.js 15
     const { id } = use(params);
 
+
     const [declaration, setDeclaration] = useState<Declaration | undefined>(undefined);
     const [aiReport, setAiReport] = useState<AIReportData | undefined>(undefined);
     const [loading, setLoading] = useState(true);
@@ -35,12 +36,12 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
         async function loadData() {
             setLoading(true);
             try {
-                const [decl, report] = await Promise.all([
-                    getDeclarationById(id),
-                    fetchAIReport(id)
-                ]);
-                setDeclaration(decl);
-                setAiReport(report);
+                const detail = await getPolicyDetailById(id);
+                if (detail) {
+                    const decl = mapPolicyDetailToDeclaration(detail);
+                    setDeclaration(decl);
+                    setAiReport(generateAIReport(decl));
+                }
             } catch (error) {
                 console.error("Failed to fetch policy data", error);
             } finally {
@@ -142,7 +143,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                 </Button>
                 <div>
                     <h1 className={styles.title}>Policy Review</h1>
-                    <div className={styles.subtitle}>Policy #{declaration.policy_number} • {declaration.insured_name}</div>
+                    <div className={styles.subtitle}>Policy #{declaration.policy_number} • <span style={{ color: '#60a5fa', cursor: 'pointer' }} onClick={() => declaration.client_id && router.push(`/client/${declaration.client_id}`)}>{declaration.insured_name}</span></div>
                     <div className={styles.actionRow} style={{ padding: '10px 0px 0px 0px', float: "right" }}>
                         <Button variant="outline" className={`${styles.actionButton} ${styles.outlineAction}`}>
                             <Mail size={16} />

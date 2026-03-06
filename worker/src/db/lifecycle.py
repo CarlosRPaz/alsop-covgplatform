@@ -204,10 +204,15 @@ def process_lifecycle(
 
     result_ids = {}
 
-    # Must have name AND policy_number to do lifecycle
-    if not insured_name or not policy_number:
-        logger.warning("Missing required fields for lifecycle upsert (needs name & policy num).")
+    # Must have at minimum a policy_number to do lifecycle
+    if not policy_number:
+        logger.warning("Missing policy_number — cannot run lifecycle upsert.")
         return result_ids
+
+    # Use a fallback for missing insured name so we still create the policy
+    if not insured_name:
+        insured_name = "Unknown Insured"
+        logger.warning("Missing insured_name, using fallback: '%s'", insured_name)
 
     # 1. Client
     try:

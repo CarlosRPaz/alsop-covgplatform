@@ -26,6 +26,8 @@ def upsert_dec_page(
     extracted_json: dict,
     missing_fields: list[str],
     parse_status: str,
+    extracted_data: dict | None = None,
+    # Legacy individual field args (still accepted for backward compat)
     insured_name: str | None = None,
     policy_number: str | None = None,
     property_location: str | None = None,
@@ -44,8 +46,13 @@ def upsert_dec_page(
     sb = get_supabase()
     now_iso = datetime.now(timezone.utc).isoformat()
 
-    # Normalize insured_name to title case
-    insured_name = _title_case(insured_name)
+    # Prefer extracted_data dict if provided, fall back to individual args
+    data = extracted_data or {}
+    insured_name = _title_case(data.get("insured_name") or insured_name)
+    policy_number = data.get("policy_number") or policy_number
+    property_location = data.get("property_location") or property_location
+    policy_period_start = data.get("policy_period_start") or policy_period_start
+    policy_period_end = data.get("policy_period_end") or policy_period_end
 
     payload = {
         "submission_id": submission_id,
@@ -55,14 +62,31 @@ def upsert_dec_page(
         "needs_review": (parse_status == "needs_review"),
         "missing_fields": missing_fields if missing_fields else [],
         "parse_status": parse_status,
+        # Core fields
         "insured_name": insured_name,
         "policy_number": policy_number,
         "property_location": property_location,
         "policy_period_start": policy_period_start,
         "policy_period_end": policy_period_end,
+        # Timestamps
         "extracted_at": now_iso,
         "updated_at": now_iso,
     }
+
+    # Add extended fields from extracted_data if present
+    extended_fields = [
+        "secondary_insured_name", "mailing_address",
+        "year_built", "construction_type", "occupancy", "number_of_units",
+        "deductible", "total_annual_premium",
+        "broker_name", "broker_address", "broker_phone_number",
+        # Coverage limits
+        "limit_dwelling", "limit_personal_property", "limit_other_structures",
+        "limit_loss_of_use", "limit_liability", "limit_medical",
+    ]
+    for field in extended_fields:
+        val = data.get(field)
+        if val is not None:
+            payload[field] = val
 
     result = (
         sb.table("dec_pages")
@@ -74,6 +98,6 @@ def upsert_dec_page(
         raise RuntimeError(f"Failed to upsert dec_pages row for submission {submission_id}")
 
     row_id = result.data[0]["id"]
-    logger.info("Upserted dec_pages row %s for submission %s (parse_status=%s)",
-                row_id, submission_id, parse_status)
+    logger.info("Upserted dec_pages row %s for submission %s (parse_status=%s, insured=%s, policy=%s)",
+                row_id, submission_id, parse_status, insured_name, policy_number)
     return row_id
