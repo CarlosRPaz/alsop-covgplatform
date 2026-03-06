@@ -75,13 +75,26 @@ def upsert_dec_page(
 
     # Add extended fields from extracted_data if present
     extended_fields = [
-        "secondary_insured_name", "mailing_address",
+        "secondary_insured_name", "mailing_address", "date_issued",
         "year_built", "construction_type", "occupancy", "number_of_units",
         "deductible", "total_annual_premium",
         "broker_name", "broker_address", "broker_phone_number",
         # Coverage limits
-        "limit_dwelling", "limit_personal_property", "limit_other_structures",
-        "limit_loss_of_use", "limit_liability", "limit_medical",
+        "limit_dwelling", "limit_other_structures", "limit_personal_property",
+        "limit_fair_rental_value", "limit_ordinance_or_law", "limit_debris_removal",
+        "limit_extended_dwelling_coverage", "limit_dwelling_replacement_cost",
+        "limit_inflation_guard", "limit_personal_property_replacement_cost",
+        "limit_fences", "limit_permitted_incidental_occupancy",
+        "limit_plants_shrubs_trees", "limit_outdoor_radio_tv_equipment",
+        "limit_awnings", "limit_signs",
+        "limit_actual_cash_value_coverage", "limit_replacement_cost_coverage",
+        "limit_building_code_upgrade_coverage",
+        # Checkboxes (boolean)
+        "cb_fire_lightning_smoke_damage", "cb_extended_coverages",
+        "cb_vandalism_malicious_mischief",
+        # Mortgagees
+        "mortgagee_1_name", "mortgagee_1_address", "mortgagee_1_code",
+        "mortgagee_2_name", "mortgagee_2_address", "mortgagee_2_code",
     ]
     for field in extended_fields:
         val = data.get(field)
