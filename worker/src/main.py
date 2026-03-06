@@ -33,6 +33,7 @@ from .jobs import (
 )
 from .extract.pdf_text import extract_text_from_bytes
 from .extract.fair_plan import parse_declaration
+from .extract.llm_extract import extract_with_llm
 from .db.dec_pages import upsert_dec_page
 from .db.lifecycle import process_lifecycle
 from .db.flags import generate_and_resolve_flags
@@ -128,15 +129,22 @@ def process_job(job: dict) -> None:
             "pages": extraction["page_count"],
         }
 
-        # 6. Parse FAIR Plan declaration fields
+        # 6. Parse declaration fields — try LLM first, fall back to regex
         current_step = "parse_declaration"
-        logger.info("job_id=%s step=%s", job_id, current_step)
-        parsed_result = parse_declaration(raw_text)
-        fair_plan_data = parsed_result["extracted_data"]
+        logger.info("job_id=%s step=%s (trying LLM first)", job_id, current_step)
 
+        parsed_result = extract_with_llm(raw_text)
+        if parsed_result:
+            extracted_json["parser"] = "llm_gpt4o_mini"
+            logger.info("job_id=%s step=%s LLM extraction succeeded", job_id, current_step)
+        else:
+            logger.info("job_id=%s step=%s LLM unavailable, falling back to regex", job_id, current_step)
+            parsed_result = parse_declaration(raw_text)
+            if parsed_result["is_fair_plan"]:
+                extracted_json["parser"] = "fairplan_regex_v1"
+
+        fair_plan_data = parsed_result["extracted_data"]
         extracted_json["is_fair_plan"] = parsed_result["is_fair_plan"]
-        if parsed_result["is_fair_plan"]:
-            extracted_json["parser"] = "fairplan_v1"
 
         # 7. Upsert dec_pages
         current_step = "upsert_dec_page"
