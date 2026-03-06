@@ -100,32 +100,49 @@ below to anchor your extraction — do NOT rely on line position alone.
 SECTION 1: INSURED NAME AND MAILING ADDRESS
 --------------------------------------------
 - Look for the section header "INSURED NAME AND MAILING ADDRESS".
-- Under that header, the FIRST LINE is the primary insured_name.
-- If a SECOND NAME appears on the next line (before the street address),
-  that is the secondary_insured_name.
-- The remaining lines (street + city/state/zip) form the mailing_address.
-  Combine them into a single string separated by ", ".
-- Example layout:
-    INSURED NAME AND MAILING ADDRESS
-    TROY HASKELL              <-- insured_name
-    TRACY HASKELL             <-- secondary_insured_name
-    897 LELAND PL             <-- mailing_address line 1
-    EL CAJON, CA 92019        <-- mailing_address line 2
-  Result: insured_name="TROY HASKELL", secondary_insured_name="TRACY HASKELL",
-          mailing_address="897 LELAND PL, EL CAJON, CA 92019"
-- If only ONE name appears before the street address, secondary_insured_name=null.
+- This section has TWO SIDE-BY-SIDE COLUMNS in the original PDF:
+    LEFT COLUMN: Insured name(s) + mailing address
+    RIGHT COLUMN: Property location (under separate "PROPERTY LOCATION" header)
+- CRITICAL: Because the PDF has two columns, the raw text often INTERLEAVES
+  them on the same line. You must mentally separate LEFT vs RIGHT content.
+  Example of how the raw text may appear:
+    INSURED NAME AND MAILING ADDRESS PROPERTY LOCATION
+    TROY HASKELL 42608 CEDAR AVE MAIN HOUSE
+    TRACY HASKELL BIG BEAR LAKE, CA 92315
+    897 LELAND PL
+    EL CAJON, CA 92019
+  In this example:
+    LEFT column (insured + mailing):
+      - TROY HASKELL (insured_name)
+      - TRACY HASKELL (secondary_insured_name)
+      - 897 LELAND PL, EL CAJON, CA 92019 (mailing_address)
+    RIGHT column (property location):
+      - 42608 CEDAR AVE MAIN HOUSE, BIG BEAR LAKE, CA 92315
+
+- RULES FOR EXTRACTING:
+  1. insured_name: The FIRST person name under the header (left side).
+  2. secondary_insured_name: If a SECOND person name appears on the next line
+     (before any street address), extract it. Otherwise null.
+  3. mailing_address: The street address + city/state/zip that belongs to the
+     LEFT column (the insured's mailing address). This is the address that
+     appears AFTER the name(s), on the LEFT side.
+     Combine into one string with ", " separator.
+  4. The mailing address and property location may be THE SAME or DIFFERENT.
+     Always extract both independently based on their column position.
 
 --------------------------------------------
 SECTION 2: PROPERTY LOCATION
 --------------------------------------------
-- Look for the label "PROPERTY LOCATION".
-- The lines immediately following that label form the property address.
-  Combine street + city/state/zip into a single string separated by ", ".
+- Look for the label "PROPERTY LOCATION" (appears as a RIGHT column header
+  next to "INSURED NAME AND MAILING ADDRESS").
+- The property location lines appear in the RIGHT column, which in the raw
+  text may be interleaved with the left column content.
+- Combine street + city/state/zip into a single string separated by ", ".
+- The property location is independent of the mailing address — they may
+  be identical or completely different addresses.
 - Example:
-    PROPERTY LOCATION
-    42608 CEDAR AVE MAIN HOUSE    <-- property_location line 1
-    BIG BEAR LAKE, CA 92315       <-- property_location line 2
-  Result: property_location="42608 CEDAR AVE MAIN HOUSE, BIG BEAR LAKE, CA 92315"
+    property_location="42608 CEDAR AVE MAIN HOUSE, BIG BEAR LAKE, CA 92315"
+  while mailing_address="897 LELAND PL, EL CAJON, CA 92019"
 
 --------------------------------------------
 SECTION 3: POLICY HEADER
