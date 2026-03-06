@@ -21,9 +21,14 @@ def normalize_address(address_str: str | None) -> str | None:
     return s
 
 
-def upsert_client(account_id: str, named_insured: str) -> str:
+def upsert_client(
+    account_id: str,
+    named_insured: str,
+    mailing_address: str | None = None,
+) -> str:
     """
-    Upsert a client purely by account_id and named_insured.
+    Upsert a client by account_id and named_insured.
+    Updates mailing_address if provided.
     Returns client.id
     """
     if not named_insured:
@@ -44,15 +49,21 @@ def upsert_client(account_id: str, named_insured: str) -> str:
 
     if existing.data:
         client_id = existing.data[0]["id"]
-        # Touch updated_at perhaps, or just return id
-        sb.table("clients").update({"updated_at": now_iso}).eq("id", client_id).execute()
+        update_payload: dict = {"updated_at": now_iso}
+        if mailing_address:
+            update_payload["mailing_address_raw"] = mailing_address
+            update_payload["mailing_address_norm"] = normalize_address(mailing_address)
+        sb.table("clients").update(update_payload).eq("id", client_id).execute()
         return client_id
 
     # Insert
-    payload = {
+    payload: dict = {
         "created_by_account_id": account_id,
         "named_insured": named_insured,
     }
+    if mailing_address:
+        payload["mailing_address_raw"] = mailing_address
+        payload["mailing_address_norm"] = normalize_address(mailing_address)
     result = sb.table("clients").insert(payload).execute()
     if not result.data:
         raise RuntimeError("Failed to insert client")
@@ -143,7 +154,13 @@ def _manage_is_current(sb, policy_id: str, new_term_id: str):
             sb.table("policy_terms").update({"is_current": False}).in_("id", chunk).execute()
 
 
-def upsert_policy_term(policy_id: str, effective_date: str | None, expiration_date: str | None) -> str:
+def upsert_policy_term(
+    policy_id: str,
+    effective_date: str | None,
+    expiration_date: str | None,
+    date_issued: str | None = None,
+    annual_premium: str | None = None,
+) -> str:
     """
     Upsert a policy_term by policy_id + dates.
     Sets is_current flags appropriately.
@@ -165,12 +182,24 @@ def upsert_policy_term(policy_id: str, effective_date: str | None, expiration_da
         
     existing = query.limit(1).execute()
 
-    payload = {
+    # Parse annual_premium string (e.g. "$ 1,006") to numeric
+    premium_numeric = None
+    if annual_premium:
+        try:
+            premium_numeric = float(annual_premium.replace("$", "").replace(",", "").strip())
+        except (ValueError, AttributeError):
+            logger.warning("Could not parse annual_premium '%s' to float", annual_premium)
+
+    payload: dict = {
         "policy_id": policy_id,
         "effective_date": effective_date,
         "expiration_date": expiration_date,
-        "updated_at": now_iso
+        "updated_at": now_iso,
     }
+    if date_issued:
+        payload["date_issued"] = date_issued
+    if premium_numeric is not None:
+        payload["annual_premium"] = premium_numeric
 
     if existing.data:
         term_id = existing.data[0]["id"]
@@ -199,8 +228,11 @@ def process_lifecycle(
         insured_name = insured_name.strip().title()
     policy_number = extracted_data.get("policy_number")
     property_location = extracted_data.get("property_location")
+    mailing_address = extracted_data.get("mailing_address")
     eff_date = extracted_data.get("policy_period_start")
     exp_date = extracted_data.get("policy_period_end")
+    date_issued = extracted_data.get("date_issued")
+    annual_premium = extracted_data.get("total_annual_premium")
 
     result_ids = {}
 
@@ -216,7 +248,7 @@ def process_lifecycle(
 
     # 1. Client
     try:
-        client_id = upsert_client(account_id, insured_name)
+        client_id = upsert_client(account_id, insured_name, mailing_address=mailing_address)
         result_ids["client_id"] = client_id
         
         # 2. Policy
@@ -224,7 +256,11 @@ def process_lifecycle(
         result_ids["policy_id"] = policy_id
         
         # 3. Term
-        term_id = upsert_policy_term(policy_id, eff_date, exp_date)
+        term_id = upsert_policy_term(
+            policy_id, eff_date, exp_date,
+            date_issued=date_issued,
+            annual_premium=annual_premium,
+        )
         result_ids["policy_term_id"] = term_id
         
         logger.info("Successfully processed lifecycle for policy %s", policy_number)

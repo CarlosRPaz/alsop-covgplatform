@@ -11,10 +11,12 @@ import { PolicyDashboard } from '@/components/policy/PolicyDashboard';
 import { AIReport } from '@/components/policy/AIReport';
 import { PolicyFiles } from '@/components/policy/PolicyFiles';
 import { PolicyFlags } from '@/components/policy/PolicyFlags';
+import { ActivityTimeline } from '@/components/shared/ActivityTimeline';
 
 const policyTabs = [
     { id: 'review', label: 'POLICY REVIEW' },
     { id: 'flags', label: 'FLAGS' },
+    { id: 'activity', label: 'ACTIVITY' },
     { id: 'files', label: 'FILES' },
 ];
 
@@ -65,6 +67,12 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                 return (
                     <div className={styles.content}>
                         <PolicyFlags policyId={id} />
+                    </div>
+                );
+            case 'activity':
+                return (
+                    <div className={styles.content}>
+                        <ActivityTimeline policyId={id} />
                     </div>
                 );
             case 'files':
