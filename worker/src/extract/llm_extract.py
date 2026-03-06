@@ -2,7 +2,8 @@
 LLM-powered declaration page field extraction using OpenAI GPT-4o-mini.
 
 Sends trimmed raw text to GPT-4o-mini with a structured prompt based on
-the CFP extraction ruleset. Returns JSON with all declaration fields.
+the CFP extraction ruleset derived from actual dec page layouts.
+Returns JSON with all declaration fields.
 Falls back to regex parser if the LLM call fails.
 
 Cost: ~$0.01-0.03 per dec page (4o-mini pricing).
@@ -88,66 +89,193 @@ FIELDS TO EXTRACT
 }
 
 ============================================
-EXTRACTION RULES
+EXTRACTION RULES BY SECTION
 ============================================
 
-1. INSURED NAMES
-   - Extract exactly as printed.
-   - If a secondary spouse/partner name appears on a separate line, extract as secondary_insured_name.
+IMPORTANT: The raw text you receive is extracted from a PDF. Columns may be
+interleaved and lines may wrap or split mid-word due to OCR. Use the LABELS
+below to anchor your extraction — do NOT rely on line position alone.
 
-2. MAILING ADDRESS
-   - Extract exactly the address associated with the insured's mailing information.
+--------------------------------------------
+SECTION 1: INSURED NAME AND MAILING ADDRESS
+--------------------------------------------
+- Look for the section header "INSURED NAME AND MAILING ADDRESS".
+- Under that header, the FIRST LINE is the primary insured_name.
+- If a SECOND NAME appears on the next line (before the street address),
+  that is the secondary_insured_name.
+- The remaining lines (street + city/state/zip) form the mailing_address.
+  Combine them into a single string separated by ", ".
+- Example layout:
+    INSURED NAME AND MAILING ADDRESS
+    TROY HASKELL              <-- insured_name
+    TRACY HASKELL             <-- secondary_insured_name
+    897 LELAND PL             <-- mailing_address line 1
+    EL CAJON, CA 92019        <-- mailing_address line 2
+  Result: insured_name="TROY HASKELL", secondary_insured_name="TRACY HASKELL",
+          mailing_address="897 LELAND PL, EL CAJON, CA 92019"
+- If only ONE name appears before the street address, secondary_insured_name=null.
 
-3. PROPERTY LOCATION
-   - Must match label: "PROPERTY LOCATION"
-   - Return formatting exactly as printed.
+--------------------------------------------
+SECTION 2: PROPERTY LOCATION
+--------------------------------------------
+- Look for the label "PROPERTY LOCATION".
+- The lines immediately following that label form the property address.
+  Combine street + city/state/zip into a single string separated by ", ".
+- Example:
+    PROPERTY LOCATION
+    42608 CEDAR AVE MAIN HOUSE    <-- property_location line 1
+    BIG BEAR LAKE, CA 92315       <-- property_location line 2
+  Result: property_location="42608 CEDAR AVE MAIN HOUSE, BIG BEAR LAKE, CA 92315"
 
-4. POLICY NUMBER
-   - CFP policy numbers often appear split (e.g. "CFP", middle digits, last 2 digits).
-   - Combine the full policy number exactly as printed.
+--------------------------------------------
+SECTION 3: POLICY HEADER
+--------------------------------------------
+- DATE ISSUED: Value appears to the RIGHT of the label "DATE ISSUED".
+  The source format is MM/DD/YYYY. Convert to YYYY-MM-DD for output.
+  Example: "DATE ISSUED 10/31/2025" → date_issued="2025-10-31"
 
-5. POLICY PERIOD & DATE ISSUED
-   - Extract exact dates in YYYY-MM-DD format. Do NOT infer.
+- POLICY NUMBER: Value appears to the RIGHT of the label "POLICY NUMBER".
+  CRITICAL: The policy number includes a base number AND a trailing 2-digit
+  suffix. You MUST include both parts.
+  Example: "POLICY NUMBER CFP 0101772837 01" → policy_number="CFP 0101772837 01"
+  Example: "POLICY NUMBER CFP 0100024057 05" → policy_number="CFP 0100024057 05"
 
-6. STRUCTURAL INFORMATION
-   - year_built: must be explicit 4-digit year.
-   - occupancy: return exactly the text that appears.
-   - construction_type: return exactly how CFP prints it.
-   - number_of_units: numeric or text exactly as printed.
-     - Must match label: "# OF UNITS"
+- POLICY PERIOD: Value appears to the RIGHT of the label "POLICY PERIOD".
+  Format is "MM/DD/YYYY To MM/DD/YYYY". Extract both dates and convert
+  each to YYYY-MM-DD.
+  Example: "POLICY PERIOD 01/12/2026 To 01/12/2027"
+    → policy_period_start="2026-01-12", policy_period_end="2027-01-12"
 
-7. COVERAGES, LIMITS, PERILS AND PREMIUMS
-   - Extract the dollar amount or string EXACTLY as printed.
-     Example: "$250,000", "Included", "N/A", "$0", "Not Covered".
-   - If no limit exists, return null.
-   - Coverage fields with specific label matching:
-     - limit_actual_cash_value_coverage must match label: "ACTUAL CASH VALUE COVERAGE"
-     - limit_replacement_cost_coverage must match label: "REPLACEMENT COST COVERAGE"
-     - limit_building_code_upgrade_coverage must match label: "BUILDING CODE UPGRADE COVERAGE"
+--------------------------------------------
+SECTION 4: RATING INFORMATION
+--------------------------------------------
+- Look for the section header "RATING INFORMATION".
+- Below that header is a table row with columns:
+    YEAR BUILT | OCCUPANCY | # OF UNITS | CONSTRUCTION TYPE | DEDUCTIBLE
+- The VALUES are on the line(s) directly below these column headers.
+- IMPORTANT: OCR may split or merge values across lines. Common issues:
+    - "SEASONALOW" + "NER" on next line = "SEASONAL OWNER" → occupancy="SEASONAL OWNER"
+    - "OW" + "NER" = "OWNER" → occupancy="OWNER"
+  Reconstruct the correct word if it is clearly split by OCR.
+- year_built: Must be an explicit 4-digit year (e.g., "2005", "1968").
+- occupancy: Return the full occupancy text (e.g., "OWNER", "TENANT", "SEASONAL OWNER").
+- number_of_units: Numeric value (e.g., "1", "2").
+- construction_type: Return exactly as printed (e.g., "FRAME", "MASONRY").
+- deductible: Dollar amount exactly as printed (e.g., "$2,500").
 
-8. CHECKBOXES
-   - Determine true/false from actual checkmarks.
-     Acceptable indicators: X, checkmark symbols, filled boxes.
-   - false if unchecked or unclear.
+--------------------------------------------
+SECTION 5: COVERAGES, LIMITS, PERILS AND PREMIUMS
+--------------------------------------------
+- Look for the section header "COVERAGES, LIMITS, PERILS AND PREMIUMS".
 
-9. MORTGAGEES
-   - Extract up to two: name, address, code.
-   - If only one exists, leave second mortgagee fields null.
+LEFT SIDE — SELECTED COVERAGES AND LIMITS:
+- This is a table with columns: checkbox | coverage name | dollar amount or "INCLUDED".
+- Extract the LIMIT value (dollar amount or "INCLUDED") for each coverage.
+- Map coverages to fields using these label matches:
+    "A - Dwelling" or "A – Dwelling"                    → limit_dwelling
+    "B - Other Structures" or "B – Other Structures"    → limit_other_structures
+    "C - Personal Property" or "C – Personal Property"  → limit_personal_property
+    "D - Fair Rental Value" or "D – Fair Rental Value"   → limit_fair_rental_value
+    "Ordinance or Law"                                   → limit_ordinance_or_law
+    "Debris Removal"                                     → limit_debris_removal
+    "Extended Dwelling Coverage"                         → limit_extended_dwelling_coverage
+    "Dwelling Replacement Cost"                          → limit_dwelling_replacement_cost
+    "Inflation Guard"                                    → limit_inflation_guard
+    "Personal Property Replacement Cost"                 → limit_personal_property_replacement_cost
+    "Fences"                                             → limit_fences
+    "Permitted Incidental Occupancy"                     → limit_permitted_incidental_occupancy
+    "Plants, Shrubs and Trees"                           → limit_plants_shrubs_trees
+    "Outdoor Radio and TV Equipment"                     → limit_outdoor_radio_tv_equipment
+    "Awnings"                                            → limit_awnings
+    "Signs"                                              → limit_signs
+    "Actual Cash Value Coverage"                         → limit_actual_cash_value_coverage
+    "Replacement Cost Coverage"                          → limit_replacement_cost_coverage
+    "Building Code Upgrade Coverage"                     → limit_building_code_upgrade_coverage
 
-10. GENERAL RULES
-    - Preserve exact formatting of: dates, addresses, dollar amounts, policy numbers, coverage descriptions.
-    - Never infer missing values.
-    - Return null for anything not explicitly shown."""
+- Format: Keep dollar amounts with $ and commas exactly as printed.
+  Examples: "$ 626,329", "$ 0", "INCLUDED", "$ 5,000"
+
+RIGHT SIDE — PERILS INSURED AGAINST (checkbox fields):
+- There are 3 perils with checkboxes. Determine true/false from checkmarks.
+    "Fire or Lightning" / "Fire or Lightning, Internal Explosion and Smoke Damage"
+      → cb_fire_lightning_smoke_damage (true if checked)
+    "Extended Coverages" / "Extended Coverage"
+      → cb_extended_coverages (true if checked)
+    "Vandalism or Malicious Mischief"
+      → cb_vandalism_malicious_mischief (true if checked)
+- Acceptable check indicators: X, ✓, ✔, filled boxes, or any mark in the checkbox.
+- false if unchecked, empty, or unclear.
+
+RIGHT SIDE — TOTAL ANNUAL PREMIUM:
+- Look for the label "Total Annual Premium" in the right-side box.
+- Extract the dollar amount to its right.
+  Example: "Total Annual Premium $ 1,006" → total_annual_premium="$ 1,006"
+
+--------------------------------------------
+SECTION 6: YOUR INSURANCE BROKER
+--------------------------------------------
+- Look for the label "YOUR INSURANCE BROKER".
+- Line 1 after the label: broker_name (e.g., "JOHN ALSOP INS. AGENCY")
+- Lines 2-3: broker_address — combine street + city/state/zip with ", ".
+  Example: "4701 ARROW HWY, STE. A" + "MONTCLAIR, CA 91763"
+    → broker_address="4701 ARROW HWY, STE. A, MONTCLAIR, CA 91763"
+- Last line: broker_phone_number — extract ONLY the phone number digits
+  and formatting. Do NOT include the text "PHONE NUMBER".
+  Example: "PHONE NUMBER (909) 626-5000" → broker_phone_number="(909) 626-5000"
+
+--------------------------------------------
+SECTION 7: MORTGAGEE/LOSS PAYEES
+--------------------------------------------
+- Look for the section header "MORTGAGEE/LOSS PAYEES".
+- There are two columns: "1ST MORTGAGEE" and "2ND MORTGAGEE".
+
+For EACH mortgagee (if present):
+  - mortgagee_N_name: First line(s) under the column header (the entity name).
+    May include suffixes like "ISAOA ATIMA" — include the full name as printed.
+  - mortgagee_N_address: The address lines (street + city/state/zip),
+    combined with ", ".
+  - mortgagee_N_code: The LAST LINE of that mortgagee's block is a numeric code.
+    Example: "3000450181"
+
+- If a mortgagee column is empty or has no data, return null for all 3 fields.
+- Example:
+    1ST MORTGAGEE                    2ND MORTGAGEE
+    NEW AMERICAN FUNDING, LLC.       (empty)
+    ISAOA ATIMA
+    PO BOX 5071
+    Troy, MI 48007
+    3000450181
+  Result:
+    mortgagee_1_name="NEW AMERICAN FUNDING, LLC. ISAOA ATIMA"
+    mortgagee_1_address="PO BOX 5071, Troy, MI 48007"
+    mortgagee_1_code="3000450181"
+    mortgagee_2_name=null
+    mortgagee_2_address=null
+    mortgagee_2_code=null
+
+============================================
+GENERAL RULES
+============================================
+
+1. Preserve exact formatting of dollar amounts (keep $ and commas).
+2. Convert ALL dates to YYYY-MM-DD format for output.
+3. Never infer missing values — return null.
+4. If OCR has clearly split a word across lines, reconstruct it
+   (e.g., "SEASONALOW" + "NER" = "SEASONAL OWNER").
+5. The raw text may have interleaved columns from the PDF layout.
+   Always use SECTION HEADERS and FIELD LABELS as anchors.
+6. Policy number MUST include the trailing 2-digit suffix.
+7. For addresses, combine multi-line addresses with ", " separator.
+
+============================================
+NOW PARSE THE TEXT BELOW AND RETURN ONLY VALID JSON:
+============================================"""
 
 
 def _build_user_prompt(raw_text: str) -> str:
     """Build the user prompt with trimmed text."""
     trimmed = raw_text[:MAX_TEXT_CHARS]
-    return f"""NOW PARSE THE TEXT BELOW AND RETURN ONLY VALID JSON:
-
-============================================
-{trimmed}
-============================================"""
+    return trimmed
 
 
 def extract_with_llm(raw_text: str) -> dict | None:
@@ -155,12 +283,12 @@ def extract_with_llm(raw_text: str) -> dict | None:
     Extract declaration fields from raw text using OpenAI GPT-4o-mini.
 
     Returns a dict:
-    {{
+    {
         "is_fair_plan": bool,
         "extracted_data": dict,
         "missing_fields": list[str],
         "parse_status": str  # "parsed" | "needs_review"
-    }}
+    }
 
     Returns None if the LLM call fails (caller should fall back to regex).
     """
@@ -172,16 +300,18 @@ def extract_with_llm(raw_text: str) -> dict | None:
     try:
         client = OpenAI(api_key=api_key)
 
+        trimmed_text = raw_text[:MAX_TEXT_CHARS]
+
         logger.info(
             "Sending %d chars to GPT-4o-mini for extraction",
-            min(len(raw_text), MAX_TEXT_CHARS),
+            len(trimmed_text),
         )
 
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": _build_user_prompt(raw_text)},
+                {"role": "user", "content": trimmed_text},
             ],
             temperature=0.0,
             max_tokens=2000,
@@ -203,7 +333,7 @@ def extract_with_llm(raw_text: str) -> dict | None:
                 extracted[key] = None
 
         # Determine if it's a FAIR Plan doc from the text
-        upper_text = raw_text[:MAX_TEXT_CHARS].upper()
+        upper_text = trimmed_text.upper()
         is_fair_plan = (
             "FAIR PLAN" in upper_text
             or "CALIFORNIA FAIR PLAN" in upper_text
