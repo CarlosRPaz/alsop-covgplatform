@@ -1625,6 +1625,9 @@ export async function approveDecPage(decPageId: string, policyId: string): Promi
                 occupancy: dp.occupancy || undefined,
                 number_of_units: dp.number_of_units || undefined,
                 construction_type: dp.construction_type || undefined,
+                cb_fire_lightning_smoke_damage: dp.cb_fire_lightning_smoke_damage === true,
+                cb_extended_coverages: dp.cb_extended_coverages === true,
+                cb_vandalism_malicious_mischief: dp.cb_vandalism_malicious_mischief === true,
                 annual_premium: dp.total_annual_premium
                     ? parseFloat(dp.total_annual_premium.replace(/[$,]/g, '').trim()) || undefined
                     : undefined,
