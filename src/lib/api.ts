@@ -715,7 +715,10 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
                     year_built,
                     occupancy,
                     number_of_units,
-                    construction_type
+                    construction_type,
+                    cb_fire_lightning_smoke_damage,
+                    cb_extended_coverages,
+                    cb_vandalism_malicious_mischief
                 )
             `)
             .eq('id', policyId)
@@ -783,9 +786,9 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
             limit_building_code_upgrade_coverage: undefined,
             limit_extended_replacement_cost_coverage: undefined,
             limit_guaranteed_replacement_cost_coverage: undefined,
-            cb_fire_lightning_smoke_damage: false,
-            cb_extended_coverages: false,
-            cb_vandalism_malicious_mischief: false,
+            cb_fire_lightning_smoke_damage: currentTerm?.cb_fire_lightning_smoke_damage || false,
+            cb_extended_coverages: currentTerm?.cb_extended_coverages || false,
+            cb_vandalism_malicious_mischief: currentTerm?.cb_vandalism_malicious_mischief || false,
             broker_name: currentTerm?.broker_name || undefined,
             broker_address: currentTerm?.broker_address || undefined,
             broker_phone_number: currentTerm?.broker_phone || undefined,

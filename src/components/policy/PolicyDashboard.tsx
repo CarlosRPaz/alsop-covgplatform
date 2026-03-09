@@ -179,6 +179,29 @@ export function PolicyDashboard({ declaration }: PolicyDashboardProps) {
                     </div>
                 </Card>
 
+                {/* Perils Insured Against */}
+                <Card className={styles.card}>
+                    <h3>Perils Insured Against</h3>
+                    <div className={styles.field}>
+                        <label>Fire, Lightning &amp; Smoke Damage:</label>
+                        <span style={{ color: declaration.cb_fire_lightning_smoke_damage ? '#34d399' : '#6b7280' }}>
+                            {declaration.cb_fire_lightning_smoke_damage ? '✓ Included' : '✗ Not Included'}
+                        </span>
+                    </div>
+                    <div className={styles.field}>
+                        <label>Extended Coverages:</label>
+                        <span style={{ color: declaration.cb_extended_coverages ? '#34d399' : '#6b7280' }}>
+                            {declaration.cb_extended_coverages ? '✓ Included' : '✗ Not Included'}
+                        </span>
+                    </div>
+                    <div className={styles.field}>
+                        <label>Vandalism &amp; Malicious Mischief:</label>
+                        <span style={{ color: declaration.cb_vandalism_malicious_mischief ? '#34d399' : '#6b7280' }}>
+                            {declaration.cb_vandalism_malicious_mischief ? '✓ Included' : '✗ Not Included'}
+                        </span>
+                    </div>
+                </Card>
+
                 {/* Mortgagee Info */}
                 {(declaration.mortgagee_1_name || declaration.mortgagee_2_name) && (
                     <Card className={styles.card}>
