@@ -1,5 +1,8 @@
-import React from 'react';
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import { FileText, Clock, Calendar, Flag } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 import styles from './InfoCards.module.css';
 
 interface InfoCard {
@@ -9,33 +12,62 @@ interface InfoCard {
     color: string;
 }
 
-const cards: InfoCard[] = [
-    {
-        title: 'Policies',
-        value: '1,248',
-        icon: FileText,
-        color: '#14b8a6', // Teal
-    },
-    {
-        title: 'Policies Pending Review',
-        value: '45',
-        icon: Clock,
-        color: '#f59e0b', // Amber
-    },
-    {
-        title: 'Renewals This Week',
-        value: '28',
-        icon: Calendar,
-        color: '#3b82f6', // Blue
-    },{
-        title: 'High Severity Flags',
-        value: '113',
-        icon: Flag,
-        color: '#ef4444' // Red
-    },
-];
-
 export function InfoCards() {
+    const [cards, setCards] = useState<InfoCard[]>([
+        { title: 'Policies', value: '—', icon: FileText, color: '#14b8a6' },
+        { title: 'Policies Pending Review', value: '—', icon: Clock, color: '#f59e0b' },
+        { title: 'Renewals This Week', value: '—', icon: Calendar, color: '#3b82f6' },
+        { title: 'High Severity Flags', value: '—', icon: Flag, color: '#ef4444' },
+    ]);
+
+    useEffect(() => {
+        const load = async () => {
+            try {
+                // Total policies count
+                const { count: totalPolicies } = await supabase
+                    .from('policies')
+                    .select('*', { count: 'exact', head: true });
+
+                // Policies pending review (status = 'pending_review' or 'unknown')
+                const { count: pendingReview } = await supabase
+                    .from('policies')
+                    .select('*', { count: 'exact', head: true })
+                    .in('status', ['pending_review', 'unknown']);
+
+                // Renewals this week: policy_terms with expiration_date within next 7 days
+                const today = new Date();
+                const weekFromNow = new Date(today);
+                weekFromNow.setDate(weekFromNow.getDate() + 7);
+                const todayStr = today.toISOString().split('T')[0];
+                const weekStr = weekFromNow.toISOString().split('T')[0];
+
+                const { count: renewalsThisWeek } = await supabase
+                    .from('policy_terms')
+                    .select('*', { count: 'exact', head: true })
+                    .gte('expiration_date', todayStr)
+                    .lte('expiration_date', weekStr);
+
+                // High severity flags (unresolved critical + warning)
+                const { count: highSeverity } = await supabase
+                    .from('policy_flags')
+                    .select('*', { count: 'exact', head: true })
+                    .in('severity', ['critical', 'warning'])
+                    .is('resolved_at', null);
+
+                setCards([
+                    { title: 'Policies', value: (totalPolicies ?? 0).toLocaleString(), icon: FileText, color: '#14b8a6' },
+                    { title: 'Policies Pending Review', value: (pendingReview ?? 0).toLocaleString(), icon: Clock, color: '#f59e0b' },
+                    { title: 'Renewals This Week', value: (renewalsThisWeek ?? 0).toLocaleString(), icon: Calendar, color: '#3b82f6' },
+                    { title: 'High Severity Flags', value: (highSeverity ?? 0).toLocaleString(), icon: Flag, color: '#ef4444' },
+                ]);
+            } catch (error) {
+                console.error('Error loading dashboard stats:', error);
+            }
+        };
+
+        load();
+    }, []);
+
     return (
         <div className={styles.grid}>
             {cards.map((card, index) => {

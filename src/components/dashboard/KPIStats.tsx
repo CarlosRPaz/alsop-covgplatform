@@ -1,4 +1,7 @@
-import React from 'react';
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 import styles from './KPIStats.module.scss';
 
 interface KPI {
@@ -7,12 +10,6 @@ interface KPI {
     total: number;
     color: string;
 }
-
-const stats: KPI[] = [
-    { label: 'DECLARATIONS', value: 3154, total: 5000, color: '#14b8a6' }, // Teal
-    { label: 'APPROVED', value: 1546, total: 3154, color: '#3b82f6' }, // Blue
-    { label: 'PENDING', value: 912, total: 3154, color: '#a855f7' }, // Purple
-];
 
 function CircularProgress({ percentage, color, size = 80 }: { percentage: number; color: string; size?: number }) {
     const radius = 45;
@@ -49,11 +46,57 @@ function CircularProgress({ percentage, color, size = 80 }: { percentage: number
 }
 
 export function KPIStats() {
+    const [stats, setStats] = useState<KPI[]>([
+        { label: 'DECLARATIONS', value: 0, total: 1, color: '#14b8a6' },
+        { label: 'PARSED', value: 0, total: 1, color: '#3b82f6' },
+        { label: 'PENDING', value: 0, total: 1, color: '#a855f7' },
+    ]);
+    const [totalLabel, setTotalLabel] = useState('Loading...');
+
+    useEffect(() => {
+        const load = async () => {
+            try {
+                // Total dec pages
+                const { count: totalDecs } = await supabase
+                    .from('dec_pages')
+                    .select('*', { count: 'exact', head: true });
+
+                // Parsed (complete) dec pages
+                const { count: parsedDecs } = await supabase
+                    .from('dec_pages')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('parse_status', 'complete');
+
+                // Pending/processing dec pages
+                const { count: pendingDecs } = await supabase
+                    .from('dec_pages')
+                    .select('*', { count: 'exact', head: true })
+                    .in('parse_status', ['pending', 'processing', 'partial']);
+
+                const total = totalDecs ?? 0;
+                const parsed = parsedDecs ?? 0;
+                const pending = pendingDecs ?? 0;
+
+                setStats([
+                    { label: 'DECLARATIONS', value: total, total: Math.max(total, 1), color: '#14b8a6' },
+                    { label: 'PARSED', value: parsed, total: Math.max(total, 1), color: '#3b82f6' },
+                    { label: 'PENDING', value: pending, total: Math.max(total, 1), color: '#a855f7' },
+                ]);
+                setTotalLabel(`${total.toLocaleString()} total declarations`);
+            } catch (error) {
+                console.error('Error loading KPI stats:', error);
+                setTotalLabel('Error loading data');
+            }
+        };
+
+        load();
+    }, []);
+
     return (
         <div className={styles.statsContainer}>
             <div className={styles.statsGrid}>
                 {stats.map((stat, index) => {
-                    const percentage = Math.round((stat.value / stat.total) * 100);
+                    const percentage = stat.total > 0 ? Math.round((stat.value / stat.total) * 100) : 0;
 
                     return (
                         <div key={index} className={styles.statCard}>
@@ -70,7 +113,7 @@ export function KPIStats() {
             </div>
             <div className={styles.totalsInfo}>
                 <span className={styles.totalsLabel}>TOTALS</span>
-                <span className={styles.totalsValue}>Out of 5,231 views</span>
+                <span className={styles.totalsValue}>{totalLabel}</span>
             </div>
         </div>
     );
