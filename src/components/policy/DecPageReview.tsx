@@ -39,6 +39,15 @@ export function DecPageReview({ policyId, onApproved }: DecPageReviewProps) {
     useEffect(() => { load(); }, [load]);
 
     const handleApprove = async (decPageId: string) => {
+        const confirmed = window.confirm(
+            'Approving this dec page will:\n\n' +
+            '• Overwrite the current policy term with this dec page\'s coverage data (limits, premiums, perils, broker info, etc.)\n' +
+            '• Mark any previously approved dec page as "Superseded"\n' +
+            '• This becomes the source of truth for the Policy Review tab\n\n' +
+            'Continue?'
+        );
+        if (!confirmed) return;
+
         setApproving(decPageId);
         try {
             const ok = await approveDecPage(decPageId, policyId);
