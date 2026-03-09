@@ -73,9 +73,9 @@ FIELDS TO EXTRACT
     "limit_actual_cash_value_coverage": "",
     "limit_replacement_cost_coverage": "",
     "limit_building_code_upgrade_coverage": "",
-    "cb_fire_lightning_smoke_damage": false,
-    "cb_extended_coverages": false,
-    "cb_vandalism_malicious_mischief": false,
+    "cb_fire_lightning_smoke_damage": "",
+    "cb_extended_coverages": "",
+    "cb_vandalism_malicious_mischief": "",
     "total_annual_premium": "",
     "broker_name": "",
     "broker_address": "",
@@ -212,16 +212,17 @@ LEFT SIDE — SELECTED COVERAGES AND LIMITS:
 - Format: Keep dollar amounts with $ and commas exactly as printed.
   Examples: "$ 626,329", "$ 0", "INCLUDED", "$ 5,000"
 
-RIGHT SIDE — PERILS INSURED AGAINST (checkbox fields):
-- There are 3 perils with checkboxes. Determine true/false from checkmarks.
+RIGHT SIDE — PERILS INSURED AGAINST (premium amounts):
+- There are 3 perils listed. Each peril has a PREMIUM dollar amount to its right.
+- Extract the PREMIUM dollar amount (not a boolean).
     "Fire or Lightning" / "Fire or Lightning, Internal Explosion and Smoke Damage"
-      → cb_fire_lightning_smoke_damage (true if checked)
+      → cb_fire_lightning_smoke_damage (the premium amount, e.g. "$ 876")
     "Extended Coverages" / "Extended Coverage"
-      → cb_extended_coverages (true if checked)
+      → cb_extended_coverages (the premium amount, e.g. "$ 37")
     "Vandalism or Malicious Mischief"
-      → cb_vandalism_malicious_mischief (true if checked)
-- Acceptable check indicators: X, ✓, ✔, filled boxes, or any mark in the checkbox.
-- false if unchecked, empty, or unclear.
+      → cb_vandalism_malicious_mischief (the premium amount, e.g. "$ 34")
+- Format: Keep dollar amounts with $ exactly as printed (e.g. "$ 876").
+- If the peril has no premium or is not present, return empty string "".
 
 RIGHT SIDE — TOTAL ANNUAL PREMIUM:
 - Look for the label "Total Annual Premium" in the right-side box.
