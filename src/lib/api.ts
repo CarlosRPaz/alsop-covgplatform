@@ -658,8 +658,9 @@ export interface PolicyDetail {
 }
 
 /**
- * Fetch a single policy by ID with client, terms, and latest dec_page data.
+ * Fetch a single policy by ID with client and current term (which now contains coverage data).
  * Used by the policy review page.
+ * Coverage is read from policy_terms (curated/approved) — NOT from raw dec_pages.
  */
 export async function getPolicyDetailById(policyId: string): Promise<PolicyDetail | undefined> {
     try {
@@ -687,9 +688,35 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
                     expiration_date,
                     date_issued,
                     annual_premium,
-                    is_current
-                ),
-                dec_pages (*)
+                    is_current,
+                    source_dec_page_id,
+                    approved_at,
+                    deductible,
+                    limit_dwelling,
+                    limit_other_structures,
+                    limit_personal_property,
+                    limit_fair_rental_value,
+                    limit_ordinance_or_law,
+                    limit_debris_removal,
+                    limit_extended_dwelling_coverage,
+                    limit_dwelling_replacement_cost,
+                    limit_inflation_guard,
+                    limit_personal_property_replacement_cost,
+                    broker_name,
+                    broker_address,
+                    broker_phone,
+                    mortgagee_1_name,
+                    mortgagee_1_address,
+                    mortgagee_1_code,
+                    mortgagee_2_name,
+                    mortgagee_2_address,
+                    mortgagee_2_code,
+                    property_location,
+                    year_built,
+                    occupancy,
+                    number_of_units,
+                    construction_type
+                )
             `)
             .eq('id', policyId)
             .single();
@@ -704,14 +731,9 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const row = data as any;
         const client = row.clients;
-        const terms: Array<{ id: string; effective_date?: string; expiration_date?: string; date_issued?: string; annual_premium?: number; is_current?: boolean }> = row.policy_terms || [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const terms: any[] = row.policy_terms || [];
         const currentTerm = terms.find(t => t.is_current === true) || terms[0] || null;
-        // dec_pages is an array (one policy can have multiple dec pages); use the most recent
-        const decPages = row.dec_pages || [];
-        const latestDec = decPages.length > 0
-            ? decPages.sort((a: { created_at?: string }, b: { created_at?: string }) =>
-                (b.created_at || '').localeCompare(a.created_at || ''))[0]
-            : null;
 
         return {
             id: row.id,
@@ -722,7 +744,7 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
             created_at: row.created_at,
             client_id: row.client_id,
             named_insured: client?.named_insured || 'Unknown',
-            secondary_insured_name: latestDec?.secondary_insured_name || undefined,
+            secondary_insured_name: undefined,
             client_email: client?.email || undefined,
             client_phone: client?.phone || undefined,
             mailing_address: client?.mailing_address_raw || undefined,
@@ -733,46 +755,47 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
             annual_premium: currentTerm?.annual_premium != null
                 ? `$${Number(currentTerm.annual_premium).toLocaleString()}`
                 : undefined,
-            dec_page_id: latestDec?.id || undefined,
-            year_built: latestDec?.year_built ? parseInt(latestDec.year_built, 10) : undefined,
-            occupancy: latestDec?.occupancy || undefined,
-            number_of_units: latestDec?.number_of_units ? parseInt(latestDec.number_of_units, 10) : undefined,
-            construction_type: latestDec?.construction_type || undefined,
-            deductible: latestDec?.deductible || undefined,
-            limit_dwelling: latestDec?.limit_dwelling || undefined,
-            limit_other_structures: latestDec?.limit_other_structures || undefined,
-            limit_personal_property: latestDec?.limit_personal_property || undefined,
-            limit_fair_rental_value: latestDec?.limit_fair_rental_value || undefined,
-            limit_ordinance_or_law: latestDec?.limit_ordinance_or_law || undefined,
-            limit_debris_removal: latestDec?.limit_debris_removal || undefined,
-            limit_extended_dwelling_coverage: latestDec?.limit_extended_dwelling_coverage || undefined,
-            limit_dwelling_replacement_cost: latestDec?.limit_dwelling_replacement_cost || undefined,
-            limit_inflation_guard: latestDec?.limit_inflation_guard || undefined,
-            limit_personal_property_replacement_cost: latestDec?.limit_personal_property_replacement_cost || undefined,
-            limit_fences: latestDec?.limit_fences || undefined,
-            limit_permitted_incidental_occupancy: latestDec?.limit_permitted_incidental_occupancy || undefined,
-            limit_plants_shrubs_trees: latestDec?.limit_plants_shrubs_trees || undefined,
-            limit_outdoor_radio_tv_equipment: latestDec?.limit_outdoor_radio_tv_equipment || undefined,
-            limit_awnings: latestDec?.limit_awnings || undefined,
-            limit_signs: latestDec?.limit_signs || undefined,
-            limit_actual_cash_value_coverage: latestDec?.limit_actual_cash_value_coverage || undefined,
-            limit_replacement_cost_coverage: latestDec?.limit_replacement_cost_coverage || undefined,
-            limit_building_code_upgrade_coverage: latestDec?.limit_building_code_upgrade_coverage || undefined,
-            limit_extended_replacement_cost_coverage: latestDec?.limit_extended_replacement_cost_coverage || undefined,
-            limit_guaranteed_replacement_cost_coverage: latestDec?.limit_guaranteed_replacement_cost_coverage || undefined,
-            cb_fire_lightning_smoke_damage: latestDec?.cb_fire_lightning_smoke_damage || false,
-            cb_extended_coverages: latestDec?.cb_extended_coverages || false,
-            cb_vandalism_malicious_mischief: latestDec?.cb_vandalism_malicious_mischief || false,
-            broker_name: latestDec?.broker_name || undefined,
-            broker_address: latestDec?.broker_address || undefined,
-            broker_phone_number: latestDec?.broker_phone_number || undefined,
-            mortgagee_1_name: latestDec?.mortgagee_1_name || undefined,
-            mortgagee_1_address: latestDec?.mortgagee_1_address || undefined,
-            mortgagee_1_code: latestDec?.mortgagee_1_code || undefined,
-            mortgagee_2_name: latestDec?.mortgagee_2_name || undefined,
-            mortgagee_2_address: latestDec?.mortgagee_2_address || undefined,
-            mortgagee_2_code: latestDec?.mortgagee_2_code || undefined,
-            dic_company: latestDec?.dic_company || undefined,
+            // Coverage — now from policy_terms (approved data)
+            dec_page_id: currentTerm?.source_dec_page_id || undefined,
+            year_built: currentTerm?.year_built ? parseInt(currentTerm.year_built, 10) : undefined,
+            occupancy: currentTerm?.occupancy || undefined,
+            number_of_units: currentTerm?.number_of_units ? parseInt(currentTerm.number_of_units, 10) : undefined,
+            construction_type: currentTerm?.construction_type || undefined,
+            deductible: currentTerm?.deductible || undefined,
+            limit_dwelling: currentTerm?.limit_dwelling || undefined,
+            limit_other_structures: currentTerm?.limit_other_structures || undefined,
+            limit_personal_property: currentTerm?.limit_personal_property || undefined,
+            limit_fair_rental_value: currentTerm?.limit_fair_rental_value || undefined,
+            limit_ordinance_or_law: currentTerm?.limit_ordinance_or_law || undefined,
+            limit_debris_removal: currentTerm?.limit_debris_removal || undefined,
+            limit_extended_dwelling_coverage: currentTerm?.limit_extended_dwelling_coverage || undefined,
+            limit_dwelling_replacement_cost: currentTerm?.limit_dwelling_replacement_cost || undefined,
+            limit_inflation_guard: currentTerm?.limit_inflation_guard || undefined,
+            limit_personal_property_replacement_cost: currentTerm?.limit_personal_property_replacement_cost || undefined,
+            limit_fences: undefined,
+            limit_permitted_incidental_occupancy: undefined,
+            limit_plants_shrubs_trees: undefined,
+            limit_outdoor_radio_tv_equipment: undefined,
+            limit_awnings: undefined,
+            limit_signs: undefined,
+            limit_actual_cash_value_coverage: undefined,
+            limit_replacement_cost_coverage: undefined,
+            limit_building_code_upgrade_coverage: undefined,
+            limit_extended_replacement_cost_coverage: undefined,
+            limit_guaranteed_replacement_cost_coverage: undefined,
+            cb_fire_lightning_smoke_damage: false,
+            cb_extended_coverages: false,
+            cb_vandalism_malicious_mischief: false,
+            broker_name: currentTerm?.broker_name || undefined,
+            broker_address: currentTerm?.broker_address || undefined,
+            broker_phone_number: currentTerm?.broker_phone || undefined,
+            mortgagee_1_name: currentTerm?.mortgagee_1_name || undefined,
+            mortgagee_1_address: currentTerm?.mortgagee_1_address || undefined,
+            mortgagee_1_code: currentTerm?.mortgagee_1_code || undefined,
+            mortgagee_2_name: currentTerm?.mortgagee_2_name || undefined,
+            mortgagee_2_address: currentTerm?.mortgagee_2_address || undefined,
+            mortgagee_2_code: currentTerm?.mortgagee_2_code || undefined,
+            dic_company: undefined,
         };
     } catch (err) {
         logger.error('API', `Unexpected error fetching policy detail ${policyId}`, {
@@ -1475,5 +1498,159 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
             error: err instanceof Error ? err.message : String(err),
         });
         return [];
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Dec Page Review & Approval
+// ---------------------------------------------------------------------------
+
+export interface DecPageSummary {
+    id: string;
+    created_at: string;
+    policy_number?: string;
+    insured_name?: string;
+    review_status: string;
+    parse_status?: string;
+    // Key coverage fields for comparison
+    limit_dwelling?: string;
+    limit_other_structures?: string;
+    limit_personal_property?: string;
+    deductible?: string;
+    broker_name?: string;
+    total_annual_premium?: string;
+    policy_period_start?: string;
+    policy_period_end?: string;
+}
+
+/**
+ * Fetch all dec pages for a given policy, ordered most recent first.
+ */
+export async function fetchDecPagesForPolicy(policyId: string): Promise<DecPageSummary[]> {
+    try {
+        const { data, error } = await supabase
+            .from('dec_pages')
+            .select(`
+                id, created_at, policy_number, insured_name, review_status, parse_status,
+                limit_dwelling, limit_other_structures, limit_personal_property,
+                deductible, broker_name, total_annual_premium,
+                policy_period_start, policy_period_end
+            `)
+            .eq('policy_id', policyId)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            logger.error('API', 'Error fetching dec pages for policy', { message: error.message });
+            return [];
+        }
+        return (data || []) as DecPageSummary[];
+    } catch (err) {
+        logger.error('API', 'Unexpected error', { error: String(err) });
+        return [];
+    }
+}
+
+/**
+ * Approve a dec page: copy its coverage data into the current policy_term.
+ * Supersedes any previously approved dec pages for the same policy.
+ */
+export async function approveDecPage(decPageId: string, policyId: string): Promise<boolean> {
+    try {
+        // 1. Fetch full dec page data
+        const { data: dp, error: dpErr } = await supabase
+            .from('dec_pages')
+            .select('*')
+            .eq('id', decPageId)
+            .single();
+
+        if (dpErr || !dp) {
+            logger.error('API', 'Cannot fetch dec page for approval', { message: dpErr?.message });
+            return false;
+        }
+
+        // 2. Find the current policy_term for this policy
+        const { data: terms, error: termErr } = await supabase
+            .from('policy_terms')
+            .select('id')
+            .eq('policy_id', policyId)
+            .eq('is_current', true)
+            .limit(1);
+
+        if (termErr || !terms?.length) {
+            logger.error('API', 'No current term found for policy', { policyId });
+            return false;
+        }
+
+        const termId = terms[0].id;
+        const now = new Date().toISOString();
+
+        // 3. Get current user for approved_by
+        const { data: { user } } = await supabase.auth.getUser();
+
+        // 4. Promote dec page data → policy_term
+        const { error: updateErr } = await supabase
+            .from('policy_terms')
+            .update({
+                source_dec_page_id: decPageId,
+                approved_at: now,
+                approved_by: user?.id || null,
+                effective_date: dp.policy_period_start || undefined,
+                expiration_date: dp.policy_period_end || undefined,
+                date_issued: dp.date_issued || undefined,
+                deductible: dp.deductible || undefined,
+                limit_dwelling: dp.limit_dwelling || undefined,
+                limit_other_structures: dp.limit_other_structures || undefined,
+                limit_personal_property: dp.limit_personal_property || undefined,
+                limit_fair_rental_value: dp.limit_fair_rental_value || undefined,
+                limit_ordinance_or_law: dp.limit_ordinance_or_law || undefined,
+                limit_debris_removal: dp.limit_debris_removal || undefined,
+                limit_extended_dwelling_coverage: dp.limit_extended_dwelling_coverage || undefined,
+                limit_dwelling_replacement_cost: dp.limit_dwelling_replacement_cost || undefined,
+                limit_inflation_guard: dp.limit_inflation_guard || undefined,
+                limit_personal_property_replacement_cost: dp.limit_personal_property_replacement_cost || undefined,
+                broker_name: dp.broker_name || undefined,
+                broker_address: dp.broker_address || undefined,
+                broker_phone: dp.broker_phone_number || undefined,
+                mortgagee_1_name: dp.mortgagee_1_name || undefined,
+                mortgagee_1_address: dp.mortgagee_1_address || undefined,
+                mortgagee_1_code: dp.mortgagee_1_code || undefined,
+                mortgagee_2_name: dp.mortgagee_2_name || undefined,
+                mortgagee_2_address: dp.mortgagee_2_address || undefined,
+                mortgagee_2_code: dp.mortgagee_2_code || undefined,
+                property_location: dp.property_location || undefined,
+                year_built: dp.year_built || undefined,
+                occupancy: dp.occupancy || undefined,
+                number_of_units: dp.number_of_units || undefined,
+                construction_type: dp.construction_type || undefined,
+                annual_premium: dp.total_annual_premium
+                    ? parseFloat(dp.total_annual_premium.replace(/[$,]/g, '').trim()) || undefined
+                    : undefined,
+                updated_at: now,
+            })
+            .eq('id', termId);
+
+        if (updateErr) {
+            logger.error('API', 'Error promoting dec page to term', { message: updateErr.message });
+            return false;
+        }
+
+        // 5. Mark this dec page as approved, supersede others
+        await supabase
+            .from('dec_pages')
+            .update({ review_status: 'superseded' })
+            .eq('policy_id', policyId)
+            .eq('review_status', 'approved')
+            .neq('id', decPageId);
+
+        await supabase
+            .from('dec_pages')
+            .update({ review_status: 'approved' })
+            .eq('id', decPageId);
+
+        logger.info('API', `Dec page ${decPageId} approved for policy ${policyId}`);
+        return true;
+    } catch (err) {
+        logger.error('API', 'Error in approveDecPage', { error: String(err) });
+        return false;
     }
 }

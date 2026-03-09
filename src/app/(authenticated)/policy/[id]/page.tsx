@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import styles from './page.module.css';
 import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
-import { ArrowLeft, Mail, FileDown, Download, X, Maximize2 } from 'lucide-react';
+import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check } from 'lucide-react';
 import { getPolicyDetailById, mapPolicyDetailToDeclaration, generateAIReport, Declaration, AIReportData } from '@/lib/api';
 import { PolicyDashboard } from '@/components/policy/PolicyDashboard';
 import { AIReport } from '@/components/policy/AIReport';
@@ -13,6 +13,7 @@ import { PolicyFiles } from '@/components/policy/PolicyFiles';
 import { PolicyFlags } from '@/components/policy/PolicyFlags';
 import { ActivityTimeline } from '@/components/shared/ActivityTimeline';
 import { NotesPanel } from '@/components/shared/NotesPanel';
+import { DecPageReview } from '@/components/policy/DecPageReview';
 
 const policyTabs = [
     { id: 'review', label: 'POLICY REVIEW' },
@@ -33,6 +34,15 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('review');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [copied, setCopied] = useState(false);
+
+    const copyPolicyNumber = () => {
+        if (declaration?.policy_number) {
+            navigator.clipboard.writeText(declaration.policy_number);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
+    };
 
     useEffect(() => {
         if (!id) return;
@@ -90,7 +100,18 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             case 'files':
                 return (
                     <div className={styles.content}>
-                        <PolicyFiles policyId={id} />
+                        <DecPageReview policyId={id} onApproved={() => {
+                            // Reload policy data after approval
+                            getPolicyDetailById(id).then(detail => {
+                                if (detail) {
+                                    setDeclaration(mapPolicyDetailToDeclaration(detail));
+                                    setAiReport(generateAIReport(mapPolicyDetailToDeclaration(detail)));
+                                }
+                            });
+                        }} />
+                        <div style={{ marginTop: '1.5rem' }}>
+                            <PolicyFiles policyId={id} />
+                        </div>
                     </div>
                 );
             default:
@@ -163,7 +184,38 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                 </Button>
                 <div>
                     <h1 className={styles.title}>Policy Review</h1>
-                    <div className={styles.subtitle}>Policy #{declaration.policy_number} • <span style={{ color: '#60a5fa', cursor: 'pointer' }} onClick={() => declaration.client_id && router.push(`/client/${declaration.client_id}`)}>{declaration.insured_name}</span></div>
+                    <div
+                        className={styles.subtitle}
+                        onClick={copyPolicyNumber}
+                        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                        title="Click to copy policy number"
+                    >
+                        <span>Policy #{declaration.policy_number}</span>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); copyPolicyNumber(); }}
+                            style={{
+                                background: 'none',
+                                border: '1px solid #475569',
+                                borderRadius: '6px',
+                                padding: '0.15rem 0.35rem',
+                                color: copied ? '#34d399' : '#6b7280',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                transition: 'color 0.15s, border-color 0.15s',
+                            }}
+                        >
+                            {copied ? <Check size={13} /> : <Copy size={13} />}
+                        </button>
+                    </div>
+                    <div style={{ marginTop: '0.2rem' }}>
+                        <span
+                            style={{ color: '#60a5fa', cursor: 'pointer', fontSize: '0.9rem' }}
+                            onClick={() => declaration.client_id && router.push(`/client/${declaration.client_id}`)}
+                        >
+                            {declaration.insured_name}
+                        </span>
+                    </div>
                     <div className={styles.actionRow} style={{ padding: '10px 0px 0px 0px', float: "right" }}>
                         <Button variant="outline" className={`${styles.actionButton} ${styles.outlineAction}`}>
                             <Mail size={16} />

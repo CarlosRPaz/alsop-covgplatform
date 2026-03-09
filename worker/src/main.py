@@ -164,7 +164,7 @@ def process_job(job: dict) -> None:
         if parsed_result["is_fair_plan"]:
             current_step = "process_lifecycle"
             logger.info("job_id=%s step=%s", job_id, current_step)
-            res_ids = process_lifecycle(account_id, fair_plan_data)
+            res_ids = process_lifecycle(account_id, fair_plan_data, dec_page_id=dec_page_id)
             policy_id = res_ids.get("policy_id")
             client_id = res_ids.get("client_id")
             policy_term_id = res_ids.get("policy_term_id")

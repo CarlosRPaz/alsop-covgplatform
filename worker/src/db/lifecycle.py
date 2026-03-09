@@ -160,9 +160,12 @@ def upsert_policy_term(
     expiration_date: str | None,
     date_issued: str | None = None,
     annual_premium: str | None = None,
+    coverage_data: dict | None = None,
+    source_dec_page_id: str | None = None,
 ) -> str:
     """
     Upsert a policy_term by policy_id + dates.
+    Promotes coverage/broker/mortgagee data from the dec page.
     Sets is_current flags appropriately.
     """
     sb = get_supabase()
@@ -174,12 +177,12 @@ def upsert_policy_term(
         query = query.eq("effective_date", effective_date)
     else:
         query = query.is_("effective_date", "null")
-        
+
     if expiration_date:
         query = query.eq("expiration_date", expiration_date)
     else:
         query = query.is_("expiration_date", "null")
-        
+
     existing = query.limit(1).execute()
 
     # Parse annual_premium string (e.g. "$ 1,006") to numeric
@@ -201,6 +204,29 @@ def upsert_policy_term(
     if premium_numeric is not None:
         payload["annual_premium"] = premium_numeric
 
+    # Promote coverage/broker/mortgagee data from dec page
+    if coverage_data:
+        coverage_fields = [
+            "deductible", "limit_dwelling", "limit_other_structures",
+            "limit_personal_property", "limit_fair_rental_value",
+            "limit_ordinance_or_law", "limit_debris_removal",
+            "limit_extended_dwelling_coverage", "limit_dwelling_replacement_cost",
+            "limit_inflation_guard", "limit_personal_property_replacement_cost",
+            "broker_name", "broker_address", "broker_phone",
+            "mortgagee_1_name", "mortgagee_1_address", "mortgagee_1_code",
+            "mortgagee_2_name", "mortgagee_2_address", "mortgagee_2_code",
+            "property_location", "year_built", "occupancy",
+            "number_of_units", "construction_type",
+        ]
+        for field in coverage_fields:
+            val = coverage_data.get(field)
+            if val:
+                payload[field] = val
+
+    if source_dec_page_id:
+        payload["source_dec_page_id"] = source_dec_page_id
+        payload["approved_at"] = now_iso  # Auto-approve on first parse
+
     if existing.data:
         term_id = existing.data[0]["id"]
         sb.table("policy_terms").update(payload).eq("id", term_id).execute()
@@ -217,10 +243,12 @@ def upsert_policy_term(
 
 def process_lifecycle(
     account_id: str,
-    extracted_data: dict
+    extracted_data: dict,
+    dec_page_id: str | None = None,
 ) -> dict:
     """
     Processes the lifecycle inserts/updates from the parsed dictionary.
+    Promotes all coverage/broker/mortgagee data to policy_terms.
     Returns a mapping of the generated IDs.
     """
     insured_name = extracted_data.get("insured_name")
@@ -233,6 +261,30 @@ def process_lifecycle(
     exp_date = extracted_data.get("policy_period_end")
     date_issued = extracted_data.get("date_issued")
     annual_premium = extracted_data.get("total_annual_premium")
+
+    # Build coverage data dict to promote to policy_terms
+    coverage_data = {}
+    coverage_keys = [
+        "deductible", "limit_dwelling", "limit_other_structures",
+        "limit_personal_property", "limit_fair_rental_value",
+        "limit_ordinance_or_law", "limit_debris_removal",
+        "limit_extended_dwelling_coverage", "limit_dwelling_replacement_cost",
+        "limit_inflation_guard", "limit_personal_property_replacement_cost",
+        "broker_name", "broker_address",
+        "mortgagee_1_name", "mortgagee_1_address", "mortgagee_1_code",
+        "mortgagee_2_name", "mortgagee_2_address", "mortgagee_2_code",
+        "property_location", "year_built", "occupancy",
+        "number_of_units", "construction_type",
+    ]
+    for key in coverage_keys:
+        val = extracted_data.get(key)
+        if val:
+            coverage_data[key] = val
+
+    # Map broker_phone_number -> broker_phone (column name difference)
+    broker_phone = extracted_data.get("broker_phone_number")
+    if broker_phone:
+        coverage_data["broker_phone"] = broker_phone
 
     result_ids = {}
 
@@ -250,21 +302,33 @@ def process_lifecycle(
     try:
         client_id = upsert_client(account_id, insured_name, mailing_address=mailing_address)
         result_ids["client_id"] = client_id
-        
+
         # 2. Policy
         policy_id = upsert_policy(client_id, account_id, policy_number, property_location)
         result_ids["policy_id"] = policy_id
-        
-        # 3. Term
+
+        # 3. Term (with promoted coverage data)
         term_id = upsert_policy_term(
             policy_id, eff_date, exp_date,
             date_issued=date_issued,
             annual_premium=annual_premium,
+            coverage_data=coverage_data,
+            source_dec_page_id=dec_page_id,
         )
         result_ids["policy_term_id"] = term_id
-        
+
+        # 4. Mark dec page as auto-approved
+        if dec_page_id:
+            try:
+                sb = get_supabase()
+                sb.table("dec_pages").update({
+                    "review_status": "approved",
+                }).eq("id", dec_page_id).execute()
+            except Exception as e:
+                logger.warning("Could not set dec page review_status: %s", e)
+
         logger.info("Successfully processed lifecycle for policy %s", policy_number)
-        
+
     except Exception as e:
         logger.error("Error during lifecycle upsert: %s", e)
         raise e
