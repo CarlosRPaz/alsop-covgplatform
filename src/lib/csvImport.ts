@@ -1,4 +1,7 @@
-'use client';
+/**
+ * CSV Import — shared types and client-side fetch helpers.
+ * NOTE: No 'use client' — this module is used by both server API routes and client components.
+ */
 
 /**
  * CSV Import — shared types and client-side fetch helpers.
@@ -36,6 +39,8 @@ export const HEADER_ALIASES: Record<string, string> = {
     'status': 'carrier_status',
     'policy activity': 'policy_activity',
     'policyactivity': 'policy_activity',
+    'policy active': 'policy_activity',
+    'policyactive': 'policy_activity',
     'policy_activity': 'policy_activity',
     // Premium / Payment
     'premium': 'annual_premium',

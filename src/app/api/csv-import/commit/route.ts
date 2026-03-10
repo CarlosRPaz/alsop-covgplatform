@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
                         .single();
 
                     if (clientErr || !newClient) {
-                        errors.push(`Row ${row.row_index + 2}: Failed to create client`);
+                        errors.push(`Row ${row.row_index + 2}: Failed to create client - ${clientErr?.message}`);
                         skipped++;
                         continue;
                     }
@@ -117,19 +117,20 @@ export async function POST(request: NextRequest) {
                     clientId = newClient.id;
 
                     // Create new policy
+                    const policyInsert: Record<string, unknown> = {
+                        created_by_account_id: user.id,
+                        client_id: clientId,
+                        policy_number: row.policy_number,
+                    };
+
                     const { data: newPolicy, error: policyErr } = await supabaseAdmin
                         .from('policies')
-                        .insert({
-                            created_by_account_id: user.id,
-                            client_id: clientId,
-                            policy_number: row.policy_number,
-                            status: row.policy_activity || row.carrier_status || 'active',
-                        })
+                        .insert(policyInsert)
                         .select('id')
                         .single();
 
                     if (policyErr || !newPolicy) {
-                        errors.push(`Row ${row.row_index + 2}: Failed to create policy`);
+                        errors.push(`Row ${row.row_index + 2}: Failed to create policy - ${policyErr?.message}`);
                         skipped++;
                         continue;
                     }
@@ -193,35 +194,37 @@ export async function POST(request: NextRequest) {
                         .insert({ ...termPayload, created_at: now });
                 }
 
-                // Create notes for DIC Notes
+                // Create notes for DIC Notes (non-fatal)
                 if (row.dic_notes) {
-                    await supabaseAdmin.from('notes').insert({
+                    const { error: dicNoteErr } = await supabaseAdmin.from('notes').insert({
                         author_user_id: user.id,
                         client_id: clientId,
                         policy_id: policyId,
                         body: `[DIC] ${row.dic_notes}`,
                         meta: { tag: 'DIC', source: 'csv_import', batch_id: batchId },
                     });
+                    if (dicNoteErr) logger.warn('CSVImport', 'DIC note insert failed (non-fatal)', { error: dicNoteErr.message });
                 }
 
-                // Create notes for Notes / Reason / Activity
+                // Create notes for Notes / Reason / Activity (non-fatal)
                 const legacyParts: string[] = [];
                 if (row.notes_text) legacyParts.push(`Notes: ${row.notes_text}`);
                 if (row.reason) legacyParts.push(`Reason: ${row.reason}`);
                 if (row.activity) legacyParts.push(`Activity: ${row.activity}`);
 
                 if (legacyParts.length > 0) {
-                    await supabaseAdmin.from('notes').insert({
+                    const { error: legacyNoteErr } = await supabaseAdmin.from('notes').insert({
                         author_user_id: user.id,
                         client_id: clientId,
                         policy_id: policyId,
                         body: `[Legacy Import]\n${legacyParts.join('\n')}`,
                         meta: { tag: 'legacy', source: 'csv_import', batch_id: batchId },
                     });
+                    if (legacyNoteErr) logger.warn('CSVImport', 'Legacy note insert failed (non-fatal)', { error: legacyNoteErr.message });
                 }
 
-                // Activity event
-                await supabaseAdmin.from('activity_events').insert({
+                // Activity event (non-fatal)
+                const { error: activityErr } = await supabaseAdmin.from('activity_events').insert({
                     actor_user_id: user.id,
                     event_type: 'import.row',
                     title: 'Policy imported from CSV',
@@ -230,6 +233,7 @@ export async function POST(request: NextRequest) {
                     client_id: clientId,
                     meta: { batch_id: batchId, row_index: row.row_index },
                 });
+                if (activityErr) logger.warn('CSVImport', 'Activity event insert failed (non-fatal)', { error: activityErr.message });
 
                 // Mark row as imported
                 await supabaseAdmin
@@ -265,7 +269,8 @@ export async function POST(request: NextRequest) {
         });
 
     } catch (err) {
-        logger.error('CSVImport', 'Commit error', { error: String(err) });
-        return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error('CSVImport', 'Commit error', { error: errMsg, stack: err instanceof Error ? err.stack : undefined });
+        return NextResponse.json({ success: false, error: `Import failed: ${errMsg}` }, { status: 500 });
     }
 }

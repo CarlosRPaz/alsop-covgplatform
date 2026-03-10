@@ -56,8 +56,14 @@ function parseCSVText(text: string): string[][] {
 
 /** Normalise header → field name using alias map */
 function resolveHeader(raw: string): string | null {
-    const key = raw.toLowerCase().trim();
-    return HEADER_ALIASES[key] || null;
+    // Strip BOM, zero-width chars, and other invisible unicode
+    const cleaned = raw.replace(/[\uFEFF\u200B\u200C\u200D\u00A0]/g, '');
+    const key = cleaned.toLowerCase().trim();
+    if (HEADER_ALIASES[key]) return HEADER_ALIASES[key];
+    // Also try with all spaces removed (handles "PolicyNo" vs "Policy No")
+    const noSpaces = key.replace(/\s+/g, '');
+    if (HEADER_ALIASES[noSpaces]) return HEADER_ALIASES[noSpaces];
+    return null;
 }
 
 /** Try to parse date in various formats → YYYY-MM-DD or null */
@@ -129,8 +135,17 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: false, error: 'No file provided' }, { status: 400 });
         }
 
-        const text = await file.text();
-        const csvRows = parseCSVText(text);
+        const rawText = await file.text();
+
+        // Strip BOM from start of file (Google Sheets exports add this)
+        let csvText = rawText;
+        if (csvText.charCodeAt(0) === 0xFEFF) {
+            csvText = csvText.slice(1);
+        }
+        // Also strip any other BOM-like chars throughout
+        csvText = csvText.replace(/[\uFEFF\u200B\u200C\u200D]/g, '');
+
+        const csvRows = parseCSVText(csvText);
 
         if (csvRows.length < 2) {
             return NextResponse.json({ success: false, error: 'CSV is empty or has no data rows' }, { status: 400 });
@@ -138,8 +153,24 @@ export async function POST(request: NextRequest) {
 
         // 3. Map headers
         const rawHeaders = csvRows[0];
+
+        // Debug: log raw headers with char codes to catch invisible characters
+        logger.info('CSVImport', 'Raw headers', {
+            headers: rawHeaders,
+            charCodes: rawHeaders.map(h => Array.from(h).map(c => c.charCodeAt(0))),
+            aliasMapSize: Object.keys(HEADER_ALIASES).length,
+            aliasMapSample: Object.keys(HEADER_ALIASES).slice(0, 5),
+            testLookup: HEADER_ALIASES['policy no'],
+        });
+
         const headerMap: (string | null)[] = rawHeaders.map(h => resolveHeader(h));
         const unmappedHeaders = rawHeaders.filter((h, i) => !headerMap[i]);
+
+        logger.info('CSVImport', 'Header mapping result', {
+            mapped: rawHeaders.map((h, i) => `"${h}" → ${headerMap[i] || '???'}`),
+            unmapped: unmappedHeaders,
+            resolvedCount: headerMap.filter(Boolean).length,
+        });
 
         if (unmappedHeaders.length > 0) {
             logger.warn('CSVImport', 'Unmapped headers', { unmappedHeaders });
@@ -151,13 +182,13 @@ export async function POST(request: NextRequest) {
         if (!hasPolicy) {
             return NextResponse.json({
                 success: false,
-                error: 'CSV is missing a "Policy No" / "Policy Number" column.',
+                error: `CSV is missing a "Policy No" / "Policy Number" column. Found headers: [${rawHeaders.join(', ')}]`,
             }, { status: 400 });
         }
         if (!hasInsured) {
             return NextResponse.json({
                 success: false,
-                error: 'CSV is missing an "Insured Name" column.',
+                error: `CSV is missing an "Insured Name" column. Found headers: [${rawHeaders.join(', ')}]`,
             }, { status: 400 });
         }
 
@@ -299,8 +330,8 @@ export async function POST(request: NextRequest) {
             .single();
 
         if (batchErr || !batch) {
-            logger.error('CSVImport', 'Failed to create batch', { error: batchErr?.message });
-            return NextResponse.json({ success: false, error: 'Failed to create import batch' }, { status: 500 });
+            logger.error('CSVImport', 'Failed to create batch', { error: batchErr?.message, code: batchErr?.code, details: batchErr?.details });
+            return NextResponse.json({ success: false, error: `Failed to create import batch: ${batchErr?.message || 'unknown'}` }, { status: 500 });
         }
 
         const batchId = batch.id;
@@ -310,7 +341,7 @@ export async function POST(request: NextRequest) {
         for (let i = 0; i < importRows.length; i += CHUNK_SIZE) {
             const chunk = importRows.slice(i, i + CHUNK_SIZE).map(row => ({
                 batch_id: batchId,
-                row_index: row.row_index,
+                row_number: row.row_index + 2,
                 status: row.status as string,
                 errors: row.errors,
                 raw_data: row.raw,
@@ -340,7 +371,11 @@ export async function POST(request: NextRequest) {
                 .insert(chunk);
 
             if (rowErr) {
-                logger.error('CSVImport', 'Failed to insert rows', { error: rowErr.message, chunk: i });
+                logger.error('CSVImport', 'Failed to insert rows', { error: rowErr.message, code: rowErr.code, details: rowErr.details, chunk: i });
+                return NextResponse.json({
+                    success: false,
+                    error: `Failed to save import rows to database: ${rowErr.message}`,
+                }, { status: 500 });
             }
         }
 

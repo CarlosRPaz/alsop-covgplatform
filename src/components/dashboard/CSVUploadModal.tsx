@@ -1,14 +1,14 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Modal } from '@/components/ui/Modal/Modal';
 import { Button } from '@/components/ui/Button/Button';
 import {
     Upload, FileSpreadsheet, X, CheckCircle2, AlertCircle,
-    AlertTriangle, Copy, Loader2, ArrowLeft,
+    AlertTriangle, Copy, ArrowLeft,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
-import { parseCSVFile, commitImport, ParseResult, ImportRow, ImportStats } from '@/lib/csvImport';
+import { parseCSVFile, commitImport, ParseResult, ImportRow } from '@/lib/csvImport';
 import styles from './CSVUploadModal.module.scss';
 
 interface CSVUploadModalProps {
@@ -19,6 +19,24 @@ interface CSVUploadModalProps {
 
 type Step = 'select' | 'parsing' | 'preview' | 'importing' | 'done';
 
+const PARSE_PHASES = [
+    'Reading CSV file…',
+    'Mapping column headers…',
+    'Validating dates & premiums…',
+    'Detecting duplicates…',
+    'Checking existing policies…',
+    'Saving preview data…',
+];
+
+const IMPORT_PHASES = [
+    'Preparing import…',
+    'Creating clients & policies…',
+    'Upserting policy terms…',
+    'Generating notes…',
+    'Recording activity events…',
+    'Finalizing batch…',
+];
+
 export function CSVUploadModal({ isOpen, onClose, onImportComplete }: CSVUploadModalProps) {
     const [step, setStep] = useState<Step>('select');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -27,7 +45,34 @@ export function CSVUploadModal({ isOpen, onClose, onImportComplete }: CSVUploadM
     const [commitResult, setCommitResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [expandedSection, setExpandedSection] = useState<string | null>('valid');
+    const [progressPhase, setProgressPhase] = useState(0);
+    const [elapsed, setElapsed] = useState(0);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Cycle through progress phases and count elapsed time
+    useEffect(() => {
+        if (step !== 'parsing' && step !== 'importing') {
+            setProgressPhase(0);
+            setElapsed(0);
+            return;
+        }
+        setProgressPhase(0);
+        setElapsed(0);
+
+        const phases = step === 'parsing' ? PARSE_PHASES : IMPORT_PHASES;
+        const phaseInterval = setInterval(() => {
+            setProgressPhase(p => (p + 1) % phases.length);
+        }, 2200);
+
+        const elapsedInterval = setInterval(() => {
+            setElapsed(e => e + 1);
+        }, 1000);
+
+        return () => {
+            clearInterval(phaseInterval);
+            clearInterval(elapsedInterval);
+        };
+    }, [step]);
 
     const resetState = useCallback(() => {
         setStep('select');
@@ -120,7 +165,8 @@ export function CSVUploadModal({ isOpen, onClose, onImportComplete }: CSVUploadM
             const result = await commitImport(parseResult.batch_id, session.access_token);
 
             if (!result.success) {
-                setError('Import failed. Check rows and try again.');
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                setError((result as any).error || 'Import failed. Check rows and try again.');
                 setStep('preview');
                 return;
             }
@@ -128,8 +174,8 @@ export function CSVUploadModal({ isOpen, onClose, onImportComplete }: CSVUploadM
             setCommitResult(result);
             setStep('done');
             onImportComplete?.();
-        } catch {
-            setError('Import failed. Please try again.');
+        } catch (e) {
+            setError(`Import failed: ${e instanceof Error ? e.message : String(e)}`);
             setStep('preview');
         }
     };
@@ -297,12 +343,13 @@ export function CSVUploadModal({ isOpen, onClose, onImportComplete }: CSVUploadM
 
             {/* ─── STEP: Parsing ─── */}
             {step === 'parsing' && (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2rem', gap: '1rem' }}>
-                    <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', color: 'var(--text-accent)' }} />
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-mid)' }}>
-                        Parsing {selectedFile?.name}…
-                    </span>
-                </div>
+                <ProgressPanel
+                    title={`Parsing ${selectedFile?.name || 'CSV'}…`}
+                    phases={PARSE_PHASES}
+                    currentPhase={progressPhase}
+                    elapsed={elapsed}
+                    accentColor="#22c55e"
+                />
             )}
 
             {/* ─── STEP: Preview ─── */}
@@ -370,12 +417,13 @@ export function CSVUploadModal({ isOpen, onClose, onImportComplete }: CSVUploadM
 
             {/* ─── STEP: Importing ─── */}
             {step === 'importing' && (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2rem', gap: '1rem' }}>
-                    <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', color: 'var(--text-accent)' }} />
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-mid)' }}>
-                        Importing {parseResult?.stats.valid} rows…
-                    </span>
-                </div>
+                <ProgressPanel
+                    title={`Importing ${parseResult?.stats.valid || ''} rows…`}
+                    phases={IMPORT_PHASES}
+                    currentPhase={progressPhase}
+                    elapsed={elapsed}
+                    accentColor="#3b82f6"
+                />
             )}
 
             {/* ─── STEP: Done ─── */}
@@ -439,3 +487,119 @@ const tdStyle: React.CSSProperties = {
     textOverflow: 'ellipsis',
     maxWidth: '160px',
 };
+
+// ─── Progress Panel (for Parsing & Importing steps) ───
+
+function ProgressPanel({
+    title,
+    phases,
+    currentPhase,
+    elapsed,
+    accentColor,
+}: {
+    title: string;
+    phases: string[];
+    currentPhase: number;
+    elapsed: number;
+    accentColor: string;
+}) {
+    const formatTime = (s: number) => {
+        const m = Math.floor(s / 60);
+        const sec = s % 60;
+        return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+    };
+
+    return (
+        <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            padding: '2rem 1.5rem', gap: '1.25rem',
+        }}>
+            {/* Inline keyframes */}
+            <style>{`
+                @keyframes csv-progress-bar {
+                    0% { transform: translateX(-100%); }
+                    100% { transform: translateX(300%); }
+                }
+                @keyframes csv-pulse {
+                    0%, 100% { transform: scale(1); opacity: 0.6; }
+                    50% { transform: scale(1.3); opacity: 1; }
+                }
+                @keyframes csv-fade-in {
+                    from { opacity: 0; transform: translateY(4px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+            `}</style>
+
+            {/* Title */}
+            <span style={{
+                fontSize: '1rem', fontWeight: 700, color: 'var(--text-high)',
+                letterSpacing: '-0.01em',
+            }}>
+                {title}
+            </span>
+
+            {/* Animated progress bar */}
+            <div style={{
+                width: '100%', height: '4px',
+                background: 'var(--bg-surface)', borderRadius: '4px',
+                overflow: 'hidden', position: 'relative',
+            }}>
+                <div style={{
+                    position: 'absolute', top: 0, left: 0,
+                    width: '33%', height: '100%',
+                    background: `linear-gradient(90deg, transparent, ${accentColor}, transparent)`,
+                    borderRadius: '4px',
+                    animation: 'csv-progress-bar 1.4s ease-in-out infinite',
+                }} />
+            </div>
+
+            {/* Step pipeline dots */}
+            <div style={{
+                display: 'flex', alignItems: 'center', gap: '0.5rem',
+            }}>
+                {phases.map((_, i) => {
+                    const isActive = i === currentPhase;
+                    const isPast = i < currentPhase;
+                    return (
+                        <div
+                            key={i}
+                            style={{
+                                width: isActive ? '10px' : '6px',
+                                height: isActive ? '10px' : '6px',
+                                borderRadius: '50%',
+                                background: isPast
+                                    ? accentColor
+                                    : isActive
+                                        ? accentColor
+                                        : 'var(--border-default)',
+                                opacity: isPast ? 0.4 : 1,
+                                transition: 'all 0.3s ease',
+                                animation: isActive ? 'csv-pulse 1.2s ease-in-out infinite' : 'none',
+                            }}
+                        />
+                    );
+                })}
+            </div>
+
+            {/* Current phase text */}
+            <span
+                key={currentPhase}
+                style={{
+                    fontSize: '0.8125rem', color: 'var(--text-mid)',
+                    animation: 'csv-fade-in 0.3s ease-out',
+                    minHeight: '1.25rem',
+                }}
+            >
+                {phases[currentPhase]}
+            </span>
+
+            {/* Elapsed time */}
+            <span style={{
+                fontSize: '0.6875rem', color: 'var(--text-muted)',
+                fontVariantNumeric: 'tabular-nums',
+            }}>
+                Elapsed: {formatTime(elapsed)}
+            </span>
+        </div>
+    );
+}
