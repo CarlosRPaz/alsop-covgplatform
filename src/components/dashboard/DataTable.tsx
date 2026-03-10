@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/Card/Card';
 import styles from './DataTable.module.scss';
 import { clsx } from 'clsx';
 import { fetchDashboardPolicies, DashboardPolicy } from '@/lib/api';
-import { ArrowUpDown, Search, ChevronDown, ChevronUp, Columns, ArrowUp, ArrowDown, EyeOff, X, Filter, GripVertical, Flag } from 'lucide-react';
+import { ArrowUpDown, Search, ChevronDown, ChevronUp, Columns, ArrowUp, ArrowDown, EyeOff, X, Filter, GripVertical, Flag, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button/Button';
 import { useRouter } from 'next/navigation';
 
@@ -626,6 +626,14 @@ export function DataTable() {
                         <button
                             className={styles.pageButton}
                             disabled={currentPage === 1}
+                            onClick={() => setCurrentPage(1)}
+                            title="First page"
+                        >
+                            <ChevronsLeft size={16} />
+                        </button>
+                        <button
+                            className={styles.pageButton}
+                            disabled={currentPage === 1}
                             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                         >
                             Previous
@@ -636,6 +644,14 @@ export function DataTable() {
                             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                         >
                             Next
+                        </button>
+                        <button
+                            className={styles.pageButton}
+                            disabled={currentPage >= totalPages}
+                            onClick={() => setCurrentPage(totalPages)}
+                            title="Last page"
+                        >
+                            <ChevronsRight size={16} />
                         </button>
                     </div>
                 </div>
@@ -828,6 +844,14 @@ export function DataTable() {
                         <button
                             className={styles.pageButton}
                             disabled={currentPage === 1}
+                            onClick={() => setCurrentPage(1)}
+                            title="First page"
+                        >
+                            <ChevronsLeft size={16} />
+                        </button>
+                        <button
+                            className={styles.pageButton}
+                            disabled={currentPage === 1}
                             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                         >
                             Previous
@@ -838,6 +862,14 @@ export function DataTable() {
                             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                         >
                             Next
+                        </button>
+                        <button
+                            className={styles.pageButton}
+                            disabled={currentPage >= totalPages}
+                            onClick={() => setCurrentPage(totalPages)}
+                            title="Last page"
+                        >
+                            <ChevronsRight size={16} />
                         </button>
                     </div>
                 </div>
