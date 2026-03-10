@@ -1,0 +1,271 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/supabaseClient';
+import { createClient } from '@supabase/supabase-js';
+import { env } from '@/lib/env';
+import { logger } from '@/lib/logger';
+
+// ---------------------------------------------------------------------------
+// POST /api/csv-import/commit
+// ---------------------------------------------------------------------------
+
+export async function POST(request: NextRequest) {
+    try {
+        const supabaseAdmin = getSupabaseAdmin();
+
+        // 1. Auth
+        const authHeader = request.headers.get('Authorization');
+        if (!authHeader?.startsWith('Bearer ')) {
+            return NextResponse.json({ success: false, error: 'AUTH_REQUIRED' }, { status: 401 });
+        }
+
+        const token = authHeader.slice(7);
+        const userClient = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+            global: { headers: { Authorization: `Bearer ${token}` } },
+        });
+        const { data: { user }, error: authError } = await userClient.auth.getUser(token);
+        if (authError || !user) {
+            return NextResponse.json({ success: false, error: 'AUTH_INVALID' }, { status: 401 });
+        }
+
+        // 2. Get batch ID
+        const body = await request.json();
+        const batchId = body.batchId;
+        if (!batchId) {
+            return NextResponse.json({ success: false, error: 'Missing batchId' }, { status: 400 });
+        }
+
+        // 3. Load batch
+        const { data: batch, error: batchErr } = await supabaseAdmin
+            .from('policy_import_batches')
+            .select('*')
+            .eq('id', batchId)
+            .single();
+
+        if (batchErr || !batch) {
+            return NextResponse.json({ success: false, error: 'Batch not found' }, { status: 404 });
+        }
+
+        if (batch.status === 'completed') {
+            return NextResponse.json({ success: false, error: 'Batch already imported' }, { status: 400 });
+        }
+
+        // 4. Load valid rows
+        const { data: rows, error: rowErr } = await supabaseAdmin
+            .from('policy_import_rows')
+            .select('*')
+            .eq('batch_id', batchId)
+            .eq('status', 'valid')
+            .order('row_index', { ascending: true });
+
+        if (rowErr) {
+            logger.error('CSVImport', 'Failed to load rows', { error: rowErr.message });
+            return NextResponse.json({ success: false, error: 'Failed to load rows' }, { status: 500 });
+        }
+
+        if (!rows || rows.length === 0) {
+            return NextResponse.json({ success: false, error: 'No valid rows to import' }, { status: 400 });
+        }
+
+        // 5. Cache existing policies by policy_number
+        const policyNumbers = [...new Set(rows.map(r => r.policy_number))];
+        const { data: existingPolicies } = await supabaseAdmin
+            .from('policies')
+            .select('id, policy_number, client_id')
+            .in('policy_number', policyNumbers);
+
+        const policyMap = new Map<string, { id: string; client_id: string }>();
+        if (existingPolicies) {
+            for (const p of existingPolicies) {
+                policyMap.set(p.policy_number, { id: p.id, client_id: p.client_id });
+            }
+        }
+
+        let imported = 0;
+        let skipped = 0;
+        const errors: string[] = [];
+        const now = new Date().toISOString();
+
+        // 6. Process each row
+        for (const row of rows) {
+            try {
+                let policyId: string;
+                let clientId: string;
+
+                const existing = policyMap.get(row.policy_number);
+
+                if (existing) {
+                    // Policy exists → use existing client + policy
+                    policyId = existing.id;
+                    clientId = existing.client_id;
+                } else {
+                    // Create new client
+                    const { data: newClient, error: clientErr } = await supabaseAdmin
+                        .from('clients')
+                        .insert({
+                            created_by_account_id: user.id,
+                            named_insured: row.insured_name,
+                        })
+                        .select('id')
+                        .single();
+
+                    if (clientErr || !newClient) {
+                        errors.push(`Row ${row.row_index + 2}: Failed to create client`);
+                        skipped++;
+                        continue;
+                    }
+
+                    clientId = newClient.id;
+
+                    // Create new policy
+                    const { data: newPolicy, error: policyErr } = await supabaseAdmin
+                        .from('policies')
+                        .insert({
+                            created_by_account_id: user.id,
+                            client_id: clientId,
+                            policy_number: row.policy_number,
+                            status: row.policy_activity || row.carrier_status || 'active',
+                        })
+                        .select('id')
+                        .single();
+
+                    if (policyErr || !newPolicy) {
+                        errors.push(`Row ${row.row_index + 2}: Failed to create policy`);
+                        skipped++;
+                        continue;
+                    }
+
+                    policyId = newPolicy.id;
+                    // Cache for subsequent rows with same policy number
+                    policyMap.set(row.policy_number, { id: policyId, client_id: clientId });
+                }
+
+                // Upsert policy_term by policy_id + effective_date + expiration_date
+                // Check if term exists
+                let termQuery = supabaseAdmin
+                    .from('policy_terms')
+                    .select('id')
+                    .eq('policy_id', policyId);
+
+                if (row.effective_date) {
+                    termQuery = termQuery.eq('effective_date', row.effective_date);
+                }
+                if (row.expiration_date) {
+                    termQuery = termQuery.eq('expiration_date', row.expiration_date);
+                }
+
+                const { data: existingTerms } = await termQuery.limit(1);
+
+                const termPayload = {
+                    policy_id: policyId,
+                    effective_date: row.effective_date || null,
+                    expiration_date: row.expiration_date || null,
+                    annual_premium: row.annual_premium || null,
+                    is_current: true,
+                    carrier_status: row.carrier_status || null,
+                    policy_activity: row.policy_activity || null,
+                    payment_status: row.payment_status || null,
+                    payment_plan: row.payment_plan || null,
+                    cancellation_reason: row.cancellation_reason || null,
+                    dic_exists: row.dic_exists || false,
+                    sold_by: row.sold_by || null,
+                    office: row.office || null,
+                    import_batch_id: batchId,
+                    updated_at: now,
+                };
+
+                if (existingTerms && existingTerms.length > 0) {
+                    // Update existing term
+                    await supabaseAdmin
+                        .from('policy_terms')
+                        .update(termPayload)
+                        .eq('id', existingTerms[0].id);
+                } else {
+                    // Mark existing terms as not current
+                    await supabaseAdmin
+                        .from('policy_terms')
+                        .update({ is_current: false })
+                        .eq('policy_id', policyId)
+                        .eq('is_current', true);
+
+                    // Insert new term
+                    await supabaseAdmin
+                        .from('policy_terms')
+                        .insert({ ...termPayload, created_at: now });
+                }
+
+                // Create notes for DIC Notes
+                if (row.dic_notes) {
+                    await supabaseAdmin.from('notes').insert({
+                        author_user_id: user.id,
+                        client_id: clientId,
+                        policy_id: policyId,
+                        body: `[DIC] ${row.dic_notes}`,
+                        meta: { tag: 'DIC', source: 'csv_import', batch_id: batchId },
+                    });
+                }
+
+                // Create notes for Notes / Reason / Activity
+                const legacyParts: string[] = [];
+                if (row.notes_text) legacyParts.push(`Notes: ${row.notes_text}`);
+                if (row.reason) legacyParts.push(`Reason: ${row.reason}`);
+                if (row.activity) legacyParts.push(`Activity: ${row.activity}`);
+
+                if (legacyParts.length > 0) {
+                    await supabaseAdmin.from('notes').insert({
+                        author_user_id: user.id,
+                        client_id: clientId,
+                        policy_id: policyId,
+                        body: `[Legacy Import]\n${legacyParts.join('\n')}`,
+                        meta: { tag: 'legacy', source: 'csv_import', batch_id: batchId },
+                    });
+                }
+
+                // Activity event
+                await supabaseAdmin.from('activity_events').insert({
+                    actor_user_id: user.id,
+                    event_type: 'import.row',
+                    title: 'Policy imported from CSV',
+                    detail: `Policy #${row.policy_number} — ${row.insured_name}`,
+                    policy_id: policyId,
+                    client_id: clientId,
+                    meta: { batch_id: batchId, row_index: row.row_index },
+                });
+
+                // Mark row as imported
+                await supabaseAdmin
+                    .from('policy_import_rows')
+                    .update({ status: 'imported' })
+                    .eq('id', row.id);
+
+                imported++;
+            } catch (rowError) {
+                const msg = rowError instanceof Error ? rowError.message : String(rowError);
+                errors.push(`Row ${row.row_index + 2}: ${msg}`);
+                skipped++;
+            }
+        }
+
+        // 7. Mark batch completed
+        await supabaseAdmin
+            .from('policy_import_batches')
+            .update({
+                status: 'completed',
+                imported_count: imported,
+                updated_at: now,
+            })
+            .eq('id', batchId);
+
+        logger.info('CSVImport', 'Commit complete', { batchId, imported, skipped, errorCount: errors.length });
+
+        return NextResponse.json({
+            success: true,
+            imported,
+            skipped,
+            errors,
+        });
+
+    } catch (err) {
+        logger.error('CSVImport', 'Commit error', { error: String(err) });
+        return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    }
+}

@@ -24,10 +24,7 @@ export default function DashboardPage() {
     const [activeTab, setActiveTab] = useState('policy-table');
     const [isCSVModalOpen, setIsCSVModalOpen] = useState(false);
 
-    const handleCSVUpload = (file: File) => {
-        console.log('CSV file selected:', file.name, file.size);
-        // TODO: Parse CSV and upload to Supabase
-    };
+
 
     const renderTabContent = () => {
         switch (activeTab) {
@@ -124,7 +121,6 @@ export default function DashboardPage() {
             <CSVUploadModal
                 isOpen={isCSVModalOpen}
                 onClose={() => setIsCSVModalOpen(false)}
-                onUpload={handleCSVUpload}
             />
         </main>
     );
