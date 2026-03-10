@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FileText, Clock, Calendar, Flag, Users } from 'lucide-react';
+import { FileText, Clock, Calendar, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import styles from './InfoCards.module.css';
 
@@ -18,7 +18,6 @@ export function InfoCards() {
         { title: 'Clients', value: '—', icon: Users, color: '#8b5cf6' },
         { title: 'Policies Pending Review', value: '—', icon: Clock, color: '#f59e0b' },
         { title: 'Renewals This Week', value: '—', icon: Calendar, color: '#3b82f6' },
-        { title: 'High Severity Flags', value: '—', icon: Flag, color: '#ef4444' },
     ]);
 
     useEffect(() => {
@@ -53,19 +52,11 @@ export function InfoCards() {
                     .gte('expiration_date', todayStr)
                     .lte('expiration_date', weekStr);
 
-                // High severity flags (unresolved critical + warning)
-                const { count: highSeverity } = await supabase
-                    .from('policy_flags')
-                    .select('*', { count: 'exact', head: true })
-                    .in('severity', ['critical', 'warning'])
-                    .is('resolved_at', null);
-
                 setCards([
                     { title: 'Policies', value: (totalPolicies ?? 0).toLocaleString(), icon: FileText, color: '#14b8a6' },
                     { title: 'Clients', value: (totalClients ?? 0).toLocaleString(), icon: Users, color: '#8b5cf6' },
                     { title: 'Policies Pending Review', value: (pendingReview ?? 0).toLocaleString(), icon: Clock, color: '#f59e0b' },
                     { title: 'Renewals This Week', value: (renewalsThisWeek ?? 0).toLocaleString(), icon: Calendar, color: '#3b82f6' },
-                    { title: 'High Severity Flags', value: (highSeverity ?? 0).toLocaleString(), icon: Flag, color: '#ef4444' },
                 ]);
             } catch (error) {
                 console.error('Error loading dashboard stats:', error);

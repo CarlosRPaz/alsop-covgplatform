@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import styles from './KPIStats.module.scss';
-import { FileUp, Loader2, CheckCircle, TrendingUp, AlertCircle, Clock } from 'lucide-react';
+import { Flag, ShieldAlert, CalendarClock, ArrowRight, AlertTriangle, Search } from 'lucide-react';
 
 interface MetricCardProps {
     title: string;
@@ -16,7 +16,7 @@ interface MetricCardProps {
 
 function MetricCard({ title, value, sublabel, icon: Icon, color, subIcon: SubIcon }: MetricCardProps) {
     return (
-        <div className={styles.statCard}>
+        <div className={styles.statCard} style={{ cursor: 'pointer' }}>
             <div className={styles.decoration} style={{ color: color }} />
             <div className={styles.iconWrapper} style={{ backgroundColor: `${color}15`, color: color }}>
                 <Icon size={20} />
@@ -37,49 +37,49 @@ function MetricCard({ title, value, sublabel, icon: Icon, color, subIcon: SubIco
 
 export function KPIStats() {
     const [stats, setStats] = useState({
-        totalUploads: 0,
-        pendingProcessing: 0,
-        successRate: 0,
+        highFlags: 0,
+        missingDic: 0,
+        expiringSoon: 0,
         loading: true
     });
 
     useEffect(() => {
         const load = async () => {
             try {
-                // 1. Total uploads (all dec pages)
-                const { count: totalDecs } = await supabase
-                    .from('dec_pages')
-                    .select('*', { count: 'exact', head: true });
-
-                const total = totalDecs ?? 0;
-
-                // 2. Pending processing (pending, processing, partial)
-                const { count: pendingDecs } = await supabase
-                    .from('dec_pages')
+                // 1. High Severity Flags (unresolved critical + warning)
+                const { count: flagsCount } = await supabase
+                    .from('policy_flags')
                     .select('*', { count: 'exact', head: true })
-                    .in('parse_status', ['pending', 'processing', 'partial']);
+                    .in('severity', ['critical', 'warning'])
+                    .is('resolved_at', null);
 
-                const pending = pendingDecs ?? 0;
-
-                // 3. Success rate (policies successfully linked to dec pages)
-                // Since this might be complex to join properly to get a true 1:1, 
-                // we can look at dec pages that are 'complete'
-                const { count: completedDecs } = await supabase
-                    .from('dec_pages')
+                // 2. Missing DIC (Active term, no DIC)
+                const today = new Date().toISOString().split('T')[0];
+                const { count: dicCount } = await supabase
+                    .from('policy_terms')
                     .select('*', { count: 'exact', head: true })
-                    .eq('parse_status', 'complete');
+                    .eq('dic_exists', false)
+                    .gte('expiration_date', today);
 
-                const completed = completedDecs ?? 0;
-                const successRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+                // 3. Expiring Soon (Next 30 Days)
+                const thirtyDays = new Date();
+                thirtyDays.setDate(thirtyDays.getDate() + 30);
+                const thirtyDaysStr = thirtyDays.toISOString().split('T')[0];
+
+                const { count: expiringCount } = await supabase
+                    .from('policy_terms')
+                    .select('*', { count: 'exact', head: true })
+                    .gte('expiration_date', today)
+                    .lte('expiration_date', thirtyDaysStr);
 
                 setStats({
-                    totalUploads: total,
-                    pendingProcessing: pending,
-                    successRate: successRate,
+                    highFlags: flagsCount ?? 0,
+                    missingDic: dicCount ?? 0,
+                    expiringSoon: expiringCount ?? 0,
                     loading: false
                 });
             } catch (error) {
-                console.error('Error loading KPI stats:', error);
+                console.error('Error loading operational KPI stats:', error);
                 setStats(s => ({ ...s, loading: false }));
             }
         };
@@ -106,28 +106,28 @@ export function KPIStats() {
     return (
         <div className={styles.statsGrid}>
             <MetricCard
-                title="Total Uploads"
-                value={stats.totalUploads.toLocaleString()}
-                sublabel="Lifetime declarations"
-                icon={FileUp}
-                color="#6366f1" // Indigo
-                subIcon={TrendingUp}
+                title="High Severity Flags"
+                value={stats.highFlags.toLocaleString()}
+                sublabel={stats.highFlags > 0 ? "Immediate attention required" : "All clear"}
+                icon={Flag}
+                color={stats.highFlags > 0 ? "#ef4444" : "#10b981"} // Red or Emerald
+                subIcon={stats.highFlags > 0 ? AlertTriangle : ArrowRight}
             />
             <MetricCard
-                title="Parsing Queue"
-                value={stats.pendingProcessing.toLocaleString()}
-                sublabel={stats.pendingProcessing > 0 ? "Worker actively processing" : "All files processed"}
-                icon={Loader2}
-                color={stats.pendingProcessing > 0 ? "#f59e0b" : "#10b981"} // Amber or Emerald
-                subIcon={stats.pendingProcessing > 0 ? Clock : CheckCircle}
+                title="Missing DIC Coverage"
+                value={stats.missingDic.toLocaleString()}
+                sublabel="Current terms missing DIC"
+                icon={ShieldAlert}
+                color={stats.missingDic > 0 ? "#8b5cf6" : "#64748b"} // Purple or Slate
+                subIcon={Search}
             />
             <MetricCard
-                title="Success Rate"
-                value={`${stats.successRate}%`}
-                sublabel={stats.successRate < 90 && stats.totalUploads > 0 ? "Review failed parses" : "High accuracy"}
-                icon={CheckCircle}
-                color={stats.successRate < 90 && stats.totalUploads > 0 ? "#ef4444" : "#14b8a6"} // Red or Teal
-                subIcon={stats.successRate < 90 && stats.totalUploads > 0 ? AlertCircle : TrendingUp}
+                title="Expiring Soon"
+                value={stats.expiringSoon.toLocaleString()}
+                sublabel="Renewals inside 30 days"
+                icon={CalendarClock}
+                color="#3b82f6" // Blue
+                subIcon={ArrowRight}
             />
         </div>
     );
