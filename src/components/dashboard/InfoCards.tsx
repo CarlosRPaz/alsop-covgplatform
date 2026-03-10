@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FileText, Clock, Calendar, Users } from 'lucide-react';
+import { FileText, Clock, Calendar, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import styles from './InfoCards.module.css';
 
@@ -14,8 +14,8 @@ interface InfoCard {
 
 export function InfoCards() {
     const [cards, setCards] = useState<InfoCard[]>([
-        { title: 'Policies', value: '—', icon: FileText, color: '#14b8a6' },
-        { title: 'Clients', value: '—', icon: Users, color: '#8b5cf6' },
+        { title: 'Active Policies', value: '—', icon: FileText, color: '#14b8a6' },
+        { title: 'Missing Premium Data', value: '—', icon: AlertCircle, color: '#f43f5e' }, // Rose
         { title: 'Policies Pending Review', value: '—', icon: Clock, color: '#f59e0b' },
         { title: 'Renewals This Week', value: '—', icon: Calendar, color: '#3b82f6' },
     ]);
@@ -23,15 +23,18 @@ export function InfoCards() {
     useEffect(() => {
         const load = async () => {
             try {
-                // Total policies count
-                const { count: totalPolicies } = await supabase
+                // Active policies count
+                const { count: activePolicies } = await supabase
                     .from('policies')
-                    .select('*', { count: 'exact', head: true });
+                    .select('*', { count: 'exact', head: true })
+                    .eq('status', 'active');
 
-                // Total clients count
-                const { count: totalClients } = await supabase
-                    .from('clients')
-                    .select('*', { count: 'exact', head: true });
+                // Missing Premium Data (is_current = true and premium is null or 0)
+                const { count: missingPremium } = await supabase
+                    .from('policy_terms')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('is_current', true)
+                    .or('annual_premium.is.null,annual_premium.eq.0');
 
                 // Policies pending review (status = 'pending_review' or 'unknown')
                 const { count: pendingReview } = await supabase
@@ -53,8 +56,8 @@ export function InfoCards() {
                     .lte('expiration_date', weekStr);
 
                 setCards([
-                    { title: 'Policies', value: (totalPolicies ?? 0).toLocaleString(), icon: FileText, color: '#14b8a6' },
-                    { title: 'Clients', value: (totalClients ?? 0).toLocaleString(), icon: Users, color: '#8b5cf6' },
+                    { title: 'Active Policies', value: (activePolicies ?? 0).toLocaleString(), icon: FileText, color: '#14b8a6' },
+                    { title: 'Missing Premium Data', value: (missingPremium ?? 0).toLocaleString(), icon: AlertCircle, color: '#f43f5e' },
                     { title: 'Policies Pending Review', value: (pendingReview ?? 0).toLocaleString(), icon: Clock, color: '#f59e0b' },
                     { title: 'Renewals This Week', value: (renewalsThisWeek ?? 0).toLocaleString(), icon: Calendar, color: '#3b82f6' },
                 ]);

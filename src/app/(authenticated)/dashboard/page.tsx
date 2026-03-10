@@ -36,12 +36,12 @@ export default function DashboardPage() {
                             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1rem' }}>
                                 <Link href="/submit">
                                     <Button size="sm" variant="primary">
-                                        <Plus className="w-3.5 h-3.5 mr-1.5" />
+                                        <Plus className="w-3 h-3 mr-1.5" />
                                         New Declaration
                                     </Button>
                                 </Link>
                                 <Button size="sm" variant="primary">
-                                    <Plus className="w-4 h-4 mr-1.5" />
+                                    <Plus className="w-3 h-3 mr-1.5" />
                                     New Account
                                 </Button>
                                 <Button
@@ -49,7 +49,7 @@ export default function DashboardPage() {
                                     size="sm"
                                     onClick={() => setIsCSVModalOpen(true)}
                                 >
-                                    <Upload className="w-3.5 h-3.5 mr-1.5" />
+                                    <Upload className="w-3 h-3 mr-1.5" />
                                     Upload CSV
                                 </Button>
                                 <Button variant="ghost" size="sm">View All</Button>
