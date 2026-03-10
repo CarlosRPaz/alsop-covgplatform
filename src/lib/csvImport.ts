@@ -11,18 +11,23 @@
 export const HEADER_ALIASES: Record<string, string> = {
     // Policy number
     'policy no': 'policy_number',
+    'policyno': 'policy_number',
     'policy number': 'policy_number',
+    'policynumber': 'policy_number',
     'policy #': 'policy_number',
     'policy_no': 'policy_number',
     // Insured
     'insured name': 'insured_name',
+    'insuredname': 'insured_name',
     'named insured': 'insured_name',
     'insured_name': 'insured_name',
     // Dates
     'eff date': 'effective_date',
+    'effdate': 'effective_date',
     'effective date': 'effective_date',
     'eff_date': 'effective_date',
     'exp date': 'expiration_date',
+    'expdate': 'expiration_date',
     'expiration date': 'expiration_date',
     'exp_date': 'expiration_date',
     // Line of business
@@ -30,23 +35,29 @@ export const HEADER_ALIASES: Record<string, string> = {
     // Status / Activity
     'status': 'carrier_status',
     'policy activity': 'policy_activity',
+    'policyactivity': 'policy_activity',
     'policy_activity': 'policy_activity',
     // Premium / Payment
     'premium': 'annual_premium',
     'annual premium': 'annual_premium',
     'paid': 'payment_status',
     'payment plan': 'payment_plan',
+    'paymentplan': 'payment_plan',
     'payment_plan': 'payment_plan',
     'cancellation reason': 'cancellation_reason',
+    'cancellationreason': 'cancellation_reason',
     'cancellation_reason': 'cancellation_reason',
     // Notes
     'notes': 'notes',
     'dic notes': 'dic_notes',
+    'dicnotes': 'dic_notes',
     'dic_notes': 'dic_notes',
     // Misc
     'dic exists': 'dic_exists',
+    'dicexists': 'dic_exists',
     'dic_exists': 'dic_exists',
     'sold by': 'sold_by',
+    'soldby': 'sold_by',
     'sold_by': 'sold_by',
     'office': 'office',
     'reason': 'reason',
