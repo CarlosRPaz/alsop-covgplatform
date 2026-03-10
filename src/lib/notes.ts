@@ -246,7 +246,7 @@ export async function fetchActivityEvents(opts: {
     try {
         let query = supabase
             .from('activity_events')
-            .select('*, accounts:actor_user_id(first_name)')
+            .select('*')
             .order('created_at', { ascending: false })
             .limit(opts.limit || 50);
 
@@ -263,14 +263,27 @@ export async function fetchActivityEvents(opts: {
             return [];
         }
 
-        // Flatten the joined account name onto each row
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const rows = (data || []).map((row: any) => ({
-            ...row,
-            actor_name: row.accounts?.first_name || null,
-            accounts: undefined,
-        }));
-        return rows as ActivityEventRow[];
+        const events = (data || []) as ActivityEventRow[];
+
+        // Batch-lookup actor names from accounts
+        const actorIds = [...new Set(events.map(e => e.actor_user_id).filter(Boolean))] as string[];
+        if (actorIds.length > 0) {
+            const { data: accounts } = await supabase
+                .from('accounts')
+                .select('id, first_name')
+                .in('id', actorIds);
+
+            if (accounts) {
+                const nameMap = new Map(accounts.map(a => [a.id, a.first_name]));
+                for (const e of events) {
+                    if (e.actor_user_id) {
+                        e.actor_name = nameMap.get(e.actor_user_id) || null;
+                    }
+                }
+            }
+        }
+
+        return events;
     } catch (err) {
         logger.error('Activity', 'Unexpected error', { error: String(err) });
         return [];

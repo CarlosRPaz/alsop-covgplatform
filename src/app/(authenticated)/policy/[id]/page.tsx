@@ -2,6 +2,7 @@
 
 import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import styles from './page.module.css';
 import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
@@ -148,10 +149,12 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     if (!declaration) {
         return (
             <div className={styles.container}>
-                <Button variant="outline" onClick={() => router.back()} className={styles.backButton}>
-                    <ArrowLeft size={16} style={{ marginRight: '8px' }} />
-                    Back to Dashboard
-                </Button>
+                <Link href="/dashboard">
+                    <Button variant="outline" className={styles.backButton}>
+                        <ArrowLeft size={16} style={{ marginRight: '8px' }} />
+                        Back to Dashboard
+                    </Button>
+                </Link>
                 <div style={{ marginTop: '2rem' }}>Policy not found for ID: {id}</div>
             </div>
         );
@@ -200,10 +203,12 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             )}
 
             <div className={styles.header}>
-                <Button variant="outline" onClick={() => router.back()} className={styles.backButton}>
-                    <ArrowLeft size={16} style={{ marginRight: '8px' }} />
-                    Back to Dashboard
-                </Button>
+                <Link href="/dashboard">
+                    <Button variant="outline" className={styles.backButton}>
+                        <ArrowLeft size={16} style={{ marginRight: '8px' }} />
+                        Back to Dashboard
+                    </Button>
+                </Link>
                 <div>
                     <h1 className={styles.title}>Policy Review</h1>
                     <div

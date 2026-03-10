@@ -10,7 +10,9 @@ import {
     FileText,
     Settings,
     LogOut,
-    UserCircle
+    UserCircle,
+    Shield,
+    Home
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -26,6 +28,7 @@ export function Sidebar() {
     }, []);
 
     const navItems = [
+        { label: 'Home', href: '/', icon: Home },
         { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
         { label: 'Submit Declaration', href: '/submit', icon: FileText },
     ];
@@ -42,9 +45,10 @@ export function Sidebar() {
 
     return (
         <aside className={styles.sidebar}>
-            <div className={styles.brand}>
-                <span>A</span> Alsop CFP Review
-            </div>
+            <Link href="/" className={styles.brand} style={{ textDecoration: 'none', color: 'inherit' }}>
+                <Shield size={22} style={{ color: '#3b82f6' }} />
+                Gap Guard
+            </Link>
 
             <nav className={styles.nav}>
                 <div className={styles.sectionTitle}>Main Menu</div>
