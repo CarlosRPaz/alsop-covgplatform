@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     FileText, RefreshCw, UserPlus, Clock, MessageSquare,
-    Pin, Archive, Pencil
+    Pin, Archive, Pencil, Upload
 } from 'lucide-react';
 import styles from './ActivityTimeline.module.css';
 import { fetchActivityEvents, ActivityEventRow } from '@/lib/notes';
@@ -25,6 +25,8 @@ const EVENT_CONFIG: Record<string, { icon: React.ReactNode; css: string }> = {
     'term.created': { icon: <RefreshCw size={16} />, css: 'term_renewal' },
     'policy.created': { icon: <FileText size={16} />, css: 'policy_created' },
     'client.created': { icon: <UserPlus size={16} />, css: 'client_created' },
+    'import.row': { icon: <Upload size={16} />, css: 'dec_upload' },
+    'import.csv': { icon: <Upload size={16} />, css: 'dec_upload' },
 };
 
 export function ActivityTimeline({ clientId, policyId }: ActivityTimelineProps) {
@@ -90,7 +92,14 @@ export function ActivityTimeline({ clientId, policyId }: ActivityTimelineProps) 
                                     {e.title || e.event_type}
                                 </div>
                                 {e.detail && <div className={styles.eventDetail}>{e.detail}</div>}
-                                <div className={styles.eventTime}>{formatTime(e.created_at)}</div>
+                                <div className={styles.eventTime}>
+                                    {e.actor_name && (
+                                        <span style={{ color: 'var(--text-mid)', fontWeight: 500, marginRight: '0.375rem' }}>
+                                            {e.actor_name}
+                                        </span>
+                                    )}
+                                    {formatTime(e.created_at)}
+                                </div>
                             </div>
                         </div>
                     );

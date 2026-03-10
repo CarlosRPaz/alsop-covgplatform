@@ -120,7 +120,29 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     };
 
     if (loading) {
-        return <div className={styles.container}>Loading policy data...</div>;
+        return (
+            <div className={styles.skeletonContainer}>
+                <div className={styles.skeletonBanner} />
+                <div className={styles.skeletonHeader}>
+                    <div className={`${styles.skeletonLine} ${styles.wide}`} />
+                    <div className={`${styles.skeletonLine} ${styles.medium}`} />
+                    <div className={`${styles.skeletonLine} ${styles.narrow}`} />
+                </div>
+                <div className={styles.skeletonCards}>
+                    <div className={styles.skeletonCard} />
+                    <div className={styles.skeletonCard} />
+                    <div className={styles.skeletonCard} />
+                </div>
+                <div className={styles.skeletonTabs}>
+                    <div className={styles.skeletonTab} />
+                    <div className={styles.skeletonTab} />
+                    <div className={styles.skeletonTab} />
+                    <div className={styles.skeletonTab} />
+                    <div className={styles.skeletonTab} />
+                </div>
+                <div className={styles.skeletonContent} />
+            </div>
+        );
     }
 
     if (!declaration) {
@@ -190,7 +212,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                         style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                         title="Click to copy policy number"
                     >
-                        <span>Policy #{declaration.policy_number}</span>
+                        <span style={{ color: '#60a5fa', fontWeight: 600 }}>Policy #{declaration.policy_number}</span>
                         <button
                             onClick={(e) => { e.stopPropagation(); copyPolicyNumber(); }}
                             style={{
@@ -208,9 +230,20 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                             {copied ? <Check size={13} /> : <Copy size={13} />}
                         </button>
                     </div>
-                    <div style={{ marginTop: '0.2rem' }}>
+                    <div style={{ marginTop: '0.35rem' }}>
                         <span
-                            style={{ color: '#60a5fa', cursor: 'pointer', fontSize: '0.9rem' }}
+                            style={{
+                                color: '#60a5fa',
+                                cursor: 'pointer',
+                                fontSize: '1.15rem',
+                                fontWeight: 700,
+                                letterSpacing: '-0.01em',
+                                lineHeight: 1.3,
+                                borderBottom: '2px solid transparent',
+                                transition: 'border-color 0.15s ease',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#60a5fa')}
+                            onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'transparent')}
                             onClick={() => declaration.client_id && router.push(`/client/${declaration.client_id}`)}
                         >
                             {declaration.insured_name}

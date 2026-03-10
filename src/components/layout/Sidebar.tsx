@@ -9,10 +9,6 @@ import {
     LayoutDashboard,
     FileText,
     Settings,
-    Users,
-    PieChart,
-    Bell,
-    ShieldCheck,
     LogOut,
     UserCircle
 } from 'lucide-react';
@@ -32,14 +28,10 @@ export function Sidebar() {
     const navItems = [
         { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
         { label: 'Submit Declaration', href: '/submit', icon: FileText },
-        { label: 'Coverage Review', href: '#', icon: ShieldCheck },
-        { label: 'Analytics', href: '#', icon: PieChart },
     ];
 
     const accountItems = [
         ...(userId ? [{ label: 'My Profile', href: `/client/${userId}`, icon: UserCircle }] : []),
-        { label: 'Users', href: '#', icon: Users },
-        { label: 'Notifications', href: '#', icon: Bell },
         { label: 'Settings', href: '#', icon: Settings },
     ];
 

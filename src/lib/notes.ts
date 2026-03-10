@@ -30,6 +30,7 @@ export interface ActivityEventRow {
     submission_id: string | null;
     dec_page_id: string | null;
     meta: Record<string, unknown>;
+    actor_name?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -245,7 +246,7 @@ export async function fetchActivityEvents(opts: {
     try {
         let query = supabase
             .from('activity_events')
-            .select('*')
+            .select('*, accounts:actor_user_id(first_name)')
             .order('created_at', { ascending: false })
             .limit(opts.limit || 50);
 
@@ -261,7 +262,15 @@ export async function fetchActivityEvents(opts: {
             logger.error('Activity', 'Error fetching activity events', { message: error.message });
             return [];
         }
-        return (data || []) as ActivityEventRow[];
+
+        // Flatten the joined account name onto each row
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rows = (data || []).map((row: any) => ({
+            ...row,
+            actor_name: row.accounts?.first_name || null,
+            accounts: undefined,
+        }));
+        return rows as ActivityEventRow[];
     } catch (err) {
         logger.error('Activity', 'Unexpected error', { error: String(err) });
         return [];

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FileText, Clock, Calendar, Flag } from 'lucide-react';
+import { FileText, Clock, Calendar, Flag, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import styles from './InfoCards.module.css';
 
@@ -15,6 +15,7 @@ interface InfoCard {
 export function InfoCards() {
     const [cards, setCards] = useState<InfoCard[]>([
         { title: 'Policies', value: '—', icon: FileText, color: '#14b8a6' },
+        { title: 'Clients', value: '—', icon: Users, color: '#8b5cf6' },
         { title: 'Policies Pending Review', value: '—', icon: Clock, color: '#f59e0b' },
         { title: 'Renewals This Week', value: '—', icon: Calendar, color: '#3b82f6' },
         { title: 'High Severity Flags', value: '—', icon: Flag, color: '#ef4444' },
@@ -26,6 +27,11 @@ export function InfoCards() {
                 // Total policies count
                 const { count: totalPolicies } = await supabase
                     .from('policies')
+                    .select('*', { count: 'exact', head: true });
+
+                // Total clients count
+                const { count: totalClients } = await supabase
+                    .from('clients')
                     .select('*', { count: 'exact', head: true });
 
                 // Policies pending review (status = 'pending_review' or 'unknown')
@@ -56,6 +62,7 @@ export function InfoCards() {
 
                 setCards([
                     { title: 'Policies', value: (totalPolicies ?? 0).toLocaleString(), icon: FileText, color: '#14b8a6' },
+                    { title: 'Clients', value: (totalClients ?? 0).toLocaleString(), icon: Users, color: '#8b5cf6' },
                     { title: 'Policies Pending Review', value: (pendingReview ?? 0).toLocaleString(), icon: Clock, color: '#f59e0b' },
                     { title: 'Renewals This Week', value: (renewalsThisWeek ?? 0).toLocaleString(), icon: Calendar, color: '#3b82f6' },
                     { title: 'High Severity Flags', value: (highSeverity ?? 0).toLocaleString(), icon: Flag, color: '#ef4444' },
