@@ -1278,35 +1278,28 @@ export async function resolveFlag(flagId: string, actorAccountId?: string): Prom
             .eq('id', flagId);
 
         if (error) {
-            // Fallback: old schema (no status / updated_at columns)
-            if (error.message?.includes('schema cache') || error.message?.includes('column')) {
-                const oldUpdate: Record<string, unknown> = { resolved_at: now };
-                if (actorAccountId) oldUpdate.resolved_by_account_id = actorAccountId;
+            // Fallback: old schema — any error from new schema triggers fallback
+            const oldUpdate: Record<string, unknown> = { resolved_at: now };
+            if (actorAccountId) oldUpdate.resolved_by_account_id = actorAccountId;
 
-                const { error: oldErr } = await supabase
-                    .from('policy_flags')
-                    .update(oldUpdate)
-                    .eq('id', flagId);
+            const { error: oldErr } = await supabase
+                .from('policy_flags')
+                .update(oldUpdate)
+                .eq('id', flagId);
 
-                if (oldErr) {
-                    logger.error('API', 'Error resolving flag (old schema)', { flagId, message: oldErr.message });
-                    return false;
-                }
-            } else {
-                logger.error('API', 'Error resolving flag', { flagId, message: error.message });
+            if (oldErr) {
+                logger.error('API', 'Error resolving flag', { flagId, message: oldErr.message });
                 return false;
             }
         }
 
-        // Append flag event (best-effort)
-        try {
-            await supabase.from('flag_events').insert({
-                flag_id: flagId,
-                event_type: 'resolved',
-                actor_account_id: actorAccountId || null,
-                note: 'Resolved by staff',
-            });
-        } catch { /* flag_events table may not exist */ }
+        // Append flag event (best-effort, ignore errors)
+        await supabase.from('flag_events').insert({
+            flag_id: flagId,
+            event_type: 'resolved',
+            actor_account_id: actorAccountId || null,
+            note: 'Resolved by staff',
+        }).then(() => { });
 
         return true;
     } catch (err) {
@@ -1344,35 +1337,28 @@ export async function dismissFlag(
             .eq('id', flagId);
 
         if (error) {
-            // Fallback: old schema — use resolved_at as dismiss proxy
-            if (error.message?.includes('schema cache') || error.message?.includes('column')) {
-                const oldUpdate: Record<string, unknown> = { resolved_at: now };
-                if (actorAccountId) oldUpdate.resolved_by_account_id = actorAccountId;
+            // Fallback: old schema — any error triggers fallback, use resolved_at as proxy
+            const oldUpdate: Record<string, unknown> = { resolved_at: now };
+            if (actorAccountId) oldUpdate.resolved_by_account_id = actorAccountId;
 
-                const { error: oldErr } = await supabase
-                    .from('policy_flags')
-                    .update(oldUpdate)
-                    .eq('id', flagId);
+            const { error: oldErr } = await supabase
+                .from('policy_flags')
+                .update(oldUpdate)
+                .eq('id', flagId);
 
-                if (oldErr) {
-                    logger.error('API', 'Error dismissing flag (old schema)', { flagId, message: oldErr.message });
-                    return false;
-                }
-            } else {
-                logger.error('API', 'Error dismissing flag', { flagId, message: error.message });
+            if (oldErr) {
+                logger.error('API', 'Error dismissing flag', { flagId, message: oldErr.message });
                 return false;
             }
         }
 
-        // Append flag event (best-effort)
-        try {
-            await supabase.from('flag_events').insert({
-                flag_id: flagId,
-                event_type: 'dismissed',
-                actor_account_id: actorAccountId || null,
-                note: reason || 'Dismissed by staff',
-            });
-        } catch { /* flag_events table may not exist */ }
+        // Append flag event (best-effort, ignore errors)
+        await supabase.from('flag_events').insert({
+            flag_id: flagId,
+            event_type: 'dismissed',
+            actor_account_id: actorAccountId || null,
+            note: reason || 'Dismissed by staff',
+        }).then(() => { });
 
         return true;
     } catch (err) {
@@ -1401,29 +1387,23 @@ export async function unresolveFlag(flagId: string): Promise<boolean> {
 
         if (error) {
             // Fallback: old schema
-            if (error.message?.includes('schema cache') || error.message?.includes('column')) {
-                const { error: oldErr } = await supabase
-                    .from('policy_flags')
-                    .update({ resolved_at: null, resolved_by_account_id: null })
-                    .eq('id', flagId);
+            const { error: oldErr } = await supabase
+                .from('policy_flags')
+                .update({ resolved_at: null, resolved_by_account_id: null })
+                .eq('id', flagId);
 
-                if (oldErr) {
-                    logger.error('API', 'Error unresolving flag (old schema)', { flagId, message: oldErr.message });
-                    return false;
-                }
-            } else {
-                logger.error('API', 'Error unresolving flag', { flagId, message: error.message });
+            if (oldErr) {
+                logger.error('API', 'Error unresolving flag', { flagId, message: oldErr.message });
                 return false;
             }
         }
 
-        try {
-            await supabase.from('flag_events').insert({
-                flag_id: flagId,
-                event_type: 'reopened',
-                note: 'Reopened by staff',
-            });
-        } catch { /* flag_events table may not exist */ }
+        // Best-effort event logging
+        await supabase.from('flag_events').insert({
+            flag_id: flagId,
+            event_type: 'reopened',
+            note: 'Reopened by staff',
+        }).then(() => { });
 
         return true;
     } catch (err) {
