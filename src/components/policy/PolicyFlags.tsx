@@ -262,8 +262,10 @@ function FlagSection({
     loading: string | null;
 }) {
     const [showInactive, setShowInactive] = useState(false);
-    const active = flags.filter(f => f.status === 'open');
-    const inactive = flags.filter(f => f.status !== 'open');
+    // Treat null/undefined status as 'open' (old schema compatibility)
+    const isOpen = (f: PolicyFlagRow) => !f.status || f.status === 'open';
+    const active = flags.filter(isOpen);
+    const inactive = flags.filter(f => !isOpen(f));
 
     if (flags.length === 0) return null;
 
@@ -362,9 +364,10 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
     const policyOnlyFlags = policyFlags.filter(f => !f.policy_term_id);
     const termFlags = policyFlags.filter(f => !!f.policy_term_id);
 
-    // Total open counts
-    const totalOpen = [...policyFlags, ...clientFlags].filter(f => f.status === 'open').length;
-    const criticalCount = [...policyFlags, ...clientFlags].filter(f => f.status === 'open' && (f.severity === 'critical' || f.severity === 'high')).length;
+    // Total open counts — treat null/missing status as 'open' (old schema)
+    const isOpen = (f: PolicyFlagRow) => !f.status || f.status === 'open';
+    const totalOpen = [...policyFlags, ...clientFlags].filter(isOpen).length;
+    const criticalCount = [...policyFlags, ...clientFlags].filter(f => isOpen(f) && (f.severity === 'critical' || f.severity === 'high')).length;
 
     const handleResolve = async (flagId: string) => {
         setActionLoading(flagId);

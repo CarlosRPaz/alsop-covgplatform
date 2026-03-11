@@ -1196,8 +1196,9 @@ export async function fetchFlagsByPolicyId(policyId: string): Promise<PolicyFlag
 
         return (data as PolicyFlagRow[]).sort((a, b) => {
             const statusOrder: Record<string, number> = { open: 0, dismissed: 1, resolved: 2 };
-            const aStat = statusOrder[a.status] ?? 0;
-            const bStat = statusOrder[b.status] ?? 0;
+            // Treat null/undefined status as 'open' (old schema compatibility)
+            const aStat = statusOrder[a.status || 'open'] ?? 0;
+            const bStat = statusOrder[b.status || 'open'] ?? 0;
             if (aStat !== bStat) return aStat - bStat;
             return (SEVERITY_ORDER[b.severity] || 0) - (SEVERITY_ORDER[a.severity] || 0);
         });
