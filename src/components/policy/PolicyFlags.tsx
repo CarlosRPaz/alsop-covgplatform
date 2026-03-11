@@ -36,6 +36,8 @@ import {
     Zap,
     RefreshCw,
     Loader,
+    Filter,
+    Search,
 } from 'lucide-react';
 import styles from './PolicyFlags.module.scss';
 
@@ -353,10 +355,54 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
     const policyOnlyFlags = policyFlags.filter(f => !f.policy_term_id);
     const termFlags = policyFlags.filter(f => !!f.policy_term_id);
 
+    // ── Filter state ──
+    const [severityFilter, setSeverityFilter] = useState<string>('all');
+    const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
+    const [showCodeDropdown, setShowCodeDropdown] = useState(false);
+    const [codeSearch, setCodeSearch] = useState('');
+
+    // Collect all unique codes from all flags
+    const allFlags = [...policyFlags, ...clientFlags];
+    const uniqueCodes = Array.from(new Set(allFlags.map(f => f.code).filter(Boolean))).sort();
+
+    // Apply filters
+    const applyFilters = (flags: PolicyFlagRow[]): PolicyFlagRow[] => {
+        let result = flags;
+        if (severityFilter !== 'all') {
+            result = result.filter(f => f.severity === severityFilter);
+        }
+        if (selectedCodes.size > 0) {
+            result = result.filter(f => selectedCodes.has(f.code));
+        }
+        return result;
+    };
+
+    const filteredPolicyOnlyFlags = applyFilters(policyOnlyFlags);
+    const filteredTermFlags = applyFilters(termFlags);
+    const filteredClientFlags = applyFilters(clientFlags);
+    const hasActiveFilters = severityFilter !== 'all' || selectedCodes.size > 0;
+    const filteredCodes = codeSearch
+        ? uniqueCodes.filter(c => c.toLowerCase().includes(codeSearch.toLowerCase()))
+        : uniqueCodes;
+
+    const toggleCode = (code: string) => {
+        setSelectedCodes(prev => {
+            const next = new Set(prev);
+            if (next.has(code)) next.delete(code);
+            else next.add(code);
+            return next;
+        });
+    };
+
+    const clearFilters = () => {
+        setSeverityFilter('all');
+        setSelectedCodes(new Set());
+    };
+
     // Total open counts — treat null/missing status as 'open' (old schema)
     const isOpen = (f: PolicyFlagRow) => !f.status || f.status === 'open';
-    const totalOpen = [...policyFlags, ...clientFlags].filter(isOpen).length;
-    const criticalCount = [...policyFlags, ...clientFlags].filter(f => isOpen(f) && (f.severity === 'critical' || f.severity === 'high')).length;
+    const totalOpen = allFlags.filter(isOpen).length;
+    const criticalCount = allFlags.filter(f => isOpen(f) && (f.severity === 'critical' || f.severity === 'high')).length;
 
     const handleResolve = async (flagId: string) => {
         setActionLoading(flagId);
@@ -473,6 +519,75 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
                 </div>
             )}
 
+            {/* ── Filter Bar ── */}
+            {allFlags.length > 0 && (
+                <div className={styles.filterBar}>
+                    {/* Severity chips */}
+                    <div className={styles.filterGroup}>
+                        {['all', 'critical', 'high', 'warning', 'info'].map(sev => (
+                            <button
+                                key={sev}
+                                className={`${styles.filterChip} ${severityFilter === sev ? styles.filterChipActive : ''} ${sev !== 'all' ? styles[`filterChip_${sev}`] || '' : ''}`}
+                                onClick={() => setSeverityFilter(sev)}
+                            >
+                                {sev === 'all' ? 'All' : sev.charAt(0).toUpperCase() + sev.slice(1)}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Code multi-select */}
+                    <div className={styles.filterCodeWrap}>
+                        <button
+                            className={`${styles.filterCodeBtn} ${selectedCodes.size > 0 ? styles.filterCodeBtnActive : ''}`}
+                            onClick={() => setShowCodeDropdown(prev => !prev)}
+                        >
+                            <Filter size={13} />
+                            Flag type
+                            {selectedCodes.size > 0 && (
+                                <span className={styles.filterCodeCount}>{selectedCodes.size}</span>
+                            )}
+                            <ChevronDown size={12} />
+                        </button>
+                        {showCodeDropdown && (
+                            <div className={styles.filterCodeDropdown}>
+                                <div className={styles.filterCodeSearch}>
+                                    <Search size={12} />
+                                    <input
+                                        type="text"
+                                        placeholder="Search flags..."
+                                        value={codeSearch}
+                                        onChange={e => setCodeSearch(e.target.value)}
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className={styles.filterCodeList}>
+                                    {filteredCodes.map(code => (
+                                        <label key={code} className={styles.filterCodeItem}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedCodes.has(code)}
+                                                onChange={() => toggleCode(code)}
+                                            />
+                                            <span>{code.replace(/_/g, ' ')}</span>
+                                        </label>
+                                    ))}
+                                    {filteredCodes.length === 0 && (
+                                        <div className={styles.filterCodeEmpty}>No matching flags</div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Clear all filters */}
+                    {hasActiveFilters && (
+                        <button className={styles.filterClearBtn} onClick={clearFilters}>
+                            <X size={12} /> Clear filters
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* Manual flag form */}
             {showAddForm && (
                 <div className={styles.addFormCard}>
@@ -561,7 +676,7 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
             <FlagSection
                 title="Policy Flags"
                 icon={<Shield size={16} />}
-                flags={policyOnlyFlags}
+                flags={filteredPolicyOnlyFlags}
                 onResolve={handleResolve}
                 onDismiss={handleDismiss}
                 onUnresolve={handleUnresolve}
@@ -571,7 +686,7 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
             <FlagSection
                 title="Current Term Flags"
                 icon={<Flag size={16} />}
-                flags={termFlags}
+                flags={filteredTermFlags}
                 onResolve={handleResolve}
                 onDismiss={handleDismiss}
                 onUnresolve={handleUnresolve}
@@ -581,7 +696,7 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
             <FlagSection
                 title="Client Flags"
                 icon={<User size={16} />}
-                flags={clientFlags}
+                flags={filteredClientFlags}
                 onResolve={handleResolve}
                 onDismiss={handleDismiss}
                 onUnresolve={handleUnresolve}

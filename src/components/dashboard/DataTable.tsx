@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/Card/Card';
 import styles from './DataTable.module.scss';
 import { clsx } from 'clsx';
 import { fetchDashboardPolicies, DashboardPolicy } from '@/lib/api';
-import { ArrowUpDown, Search, ChevronDown, ChevronUp, Columns, ArrowUp, ArrowDown, EyeOff, X, Filter, GripVertical, Flag, ChevronFirst, ChevronLast } from 'lucide-react';
+import { ArrowUpDown, Search, ChevronDown, ChevronUp, Columns, ArrowUp, ArrowDown, EyeOff, X, GripVertical, Flag, ChevronFirst, ChevronLast } from 'lucide-react';
 import { Button } from '@/components/ui/Button/Button';
 import { useRouter } from 'next/navigation';
 
@@ -213,10 +213,12 @@ export function DataTable() {
     const rowsPerPageMenuRef = useRef<HTMLDivElement>(null);
     const rowsPerPageMenuTopRef = useRef<HTMLDivElement>(null);
 
-    // Flag Visibility State
+    // Flag Filtering State
     const [allFlags, setAllFlags] = useState<string[]>([]);
     const [selectedFlags, setSelectedFlags] = useState<Set<string>>(new Set());
     const [isFlagMenuOpen, setIsFlagMenuOpen] = useState(false);
+    const [flagSeverityFilter, setFlagSeverityFilter] = useState<string>('all');
+    const [flagSearch, setFlagSearch] = useState('');
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -274,8 +276,12 @@ export function DataTable() {
         fetchDashboardPolicies()
             .then(fetchedData => {
                 setData(fetchedData);
-                // No flags in policy-centric view
-                setAllFlags([]);
+                // Extract unique flag codes from all policies
+                const codes = new Set<string>();
+                fetchedData.forEach(p => {
+                    if (p.flags) p.flags.forEach(f => codes.add(f.code));
+                });
+                setAllFlags(Array.from(codes).sort());
                 if (fetchedData.length === 0) {
                     setError('No policies found. Upload and process declarations to see data here.');
                 }
@@ -419,10 +425,22 @@ export function DataTable() {
             }
         });
 
-        // Flags filtering removed — DashboardPolicy has no flags
+        // Flag severity filter
+        if (flagSeverityFilter !== 'all') {
+            result = result.filter(item =>
+                item.flags?.some(f => f.severity === flagSeverityFilter)
+            );
+        }
+
+        // Flag code filter (multi-select, stackable)
+        if (selectedFlags.size > 0) {
+            result = result.filter(item =>
+                item.flags?.some(f => selectedFlags.has(f.code))
+            );
+        }
 
         return result;
-    }, [data, searchQuery, selectedFlags, columnSearchQueries]);
+    }, [data, searchQuery, selectedFlags, flagSeverityFilter, columnSearchQueries]);
 
     const sortedData = useMemo(() => {
         if (!sortConfig) return filteredData;
@@ -480,13 +498,13 @@ export function DataTable() {
                             onClick={() => setIsFlagMenuOpen(prev => !prev)}
                             className={clsx(
                                 styles.pillButton,
-                                selectedFlags.size > 0 && styles.pillButtonActive
+                                (selectedFlags.size > 0 || flagSeverityFilter !== 'all') && styles.pillButtonActive
                             )}
                         >
-                            <Filter size={16} />
-                            <span>Status</span>
-                            {selectedFlags.size > 0 && (
-                                <span className={styles.pillBadge}>{selectedFlags.size}</span>
+                            <Flag size={16} />
+                            <span>Flags</span>
+                            {(selectedFlags.size > 0 || flagSeverityFilter !== 'all') && (
+                                <span className={styles.pillBadge}>{selectedFlags.size + (flagSeverityFilter !== 'all' ? 1 : 0)}</span>
                             )}
                             <ChevronDown size={14} />
                         </button>
@@ -494,26 +512,88 @@ export function DataTable() {
                         {isFlagMenuOpen && (
                             <div className={styles.dropdownMenu}>
                                 <div className={styles.dropdownHeader}>
-                                    <span>Filter by Status/Flags</span>
-                                    {selectedFlags.size > 0 && (
-                                        <button onClick={() => setSelectedFlags(new Set())} className={styles.clearLink}>
-                                            clear
+                                    <span>Filter by Flags</span>
+                                    {(selectedFlags.size > 0 || flagSeverityFilter !== 'all') && (
+                                        <button onClick={() => { setSelectedFlags(new Set()); setFlagSeverityFilter('all'); }} className={styles.clearLink}>
+                                            clear all
                                         </button>
                                     )}
                                 </div>
-                                {allFlags.length === 0 && (
+
+                                {/* Severity radio chips */}
+                                <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                    <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.35rem', letterSpacing: '0.04em' }}>Severity</div>
+                                    <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
+                                        {['all', 'critical', 'high', 'warning', 'info'].map(sev => (
+                                            <button
+                                                key={sev}
+                                                onClick={() => setFlagSeverityFilter(sev)}
+                                                style={{
+                                                    padding: '2px 8px',
+                                                    border: 'none',
+                                                    borderRadius: '4px',
+                                                    fontSize: '0.7rem',
+                                                    fontWeight: 600,
+                                                    cursor: 'pointer',
+                                                    textTransform: 'capitalize',
+                                                    background: flagSeverityFilter === sev
+                                                        ? sev === 'critical' ? 'rgba(239,68,68,0.15)'
+                                                            : sev === 'high' ? 'rgba(249,115,22,0.15)'
+                                                                : sev === 'warning' ? 'rgba(234,179,8,0.15)'
+                                                                    : sev === 'info' ? 'rgba(59,130,246,0.15)'
+                                                                        : 'rgba(59,130,246,0.15)'
+                                                        : 'transparent',
+                                                    color: flagSeverityFilter === sev
+                                                        ? sev === 'critical' ? '#f87171'
+                                                            : sev === 'high' ? '#fb923c'
+                                                                : sev === 'warning' ? '#facc15'
+                                                                    : sev === 'info' ? '#60a5fa'
+                                                                        : '#60a5fa'
+                                                        : '#64748b',
+                                                }}
+                                            >
+                                                {sev === 'all' ? 'All' : sev}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Flag code search */}
+                                <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                    <input
+                                        type="text"
+                                        placeholder="Search flag types..."
+                                        value={flagSearch}
+                                        onChange={e => setFlagSearch(e.target.value)}
+                                        style={{
+                                            width: '100%',
+                                            background: 'rgba(255,255,255,0.04)',
+                                            border: '1px solid rgba(255,255,255,0.08)',
+                                            borderRadius: '4px',
+                                            padding: '4px 8px',
+                                            fontSize: '0.75rem',
+                                            color: '#e2e8f0',
+                                            outline: 'none',
+                                        }}
+                                    />
+                                </div>
+
+                                {/* Flag code checkboxes */}
+                                {allFlags.filter(f => !flagSearch || f.toLowerCase().includes(flagSearch.toLowerCase())).length === 0 && (
                                     <div className={styles.dropdownEmpty}>No flags found</div>
                                 )}
-                                {allFlags.map(flag => (
-                                    <label key={flag} className={styles.dropdownItem}>
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedFlags.has(flag)}
-                                            onChange={() => toggleFlag(flag)}
-                                        />
-                                        <span>{flag}</span>
-                                    </label>
-                                ))}
+                                {allFlags
+                                    .filter(f => !flagSearch || f.toLowerCase().includes(flagSearch.toLowerCase()))
+                                    .map(flag => (
+                                        <label key={flag} className={styles.dropdownItem}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedFlags.has(flag)}
+                                                onChange={() => toggleFlag(flag)}
+                                            />
+                                            <span style={{ textTransform: 'capitalize' }}>{flag.replace(/_/g, ' ').toLowerCase()}</span>
+                                        </label>
+                                    ))}
                             </div>
                         )}
                     </div>

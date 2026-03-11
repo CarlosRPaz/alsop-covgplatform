@@ -113,6 +113,223 @@
     margin-bottom: 0.75rem;
 }
 
+/* ── Filter Bar ─────────────────────────────────────────────── */
+
+.filterBar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.filterGroup {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    padding: 2px;
+}
+
+.filterChip {
+    padding: 3px 10px;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-size: 0.7rem;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 120ms ease;
+    text-transform: capitalize;
+
+    &:hover {
+        color: #94a3b8;
+        background: rgba(255, 255, 255, 0.04);
+    }
+}
+
+.filterChipActive {
+    background: rgba(59, 130, 246, 0.15) !important;
+    color: #60a5fa !important;
+}
+
+// Severity-specific active colors
+.filterChip_critical.filterChipActive {
+    background: rgba(239, 68, 68, 0.15) !important;
+    color: #f87171 !important;
+}
+
+.filterChip_high.filterChipActive {
+    background: rgba(249, 115, 22, 0.15) !important;
+    color: #fb923c !important;
+}
+
+.filterChip_warning.filterChipActive {
+    background: rgba(234, 179, 8, 0.15) !important;
+    color: #facc15 !important;
+}
+
+.filterChip_info.filterChipActive {
+    background: rgba(59, 130, 246, 0.15) !important;
+    color: #60a5fa !important;
+}
+
+/* Code multi-select dropdown */
+.filterCodeWrap {
+    position: relative;
+}
+
+.filterCodeBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    color: #64748b;
+    font-size: 0.7rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 120ms ease;
+
+    &:hover {
+        border-color: rgba(255, 255, 255, 0.12);
+        color: #94a3b8;
+    }
+}
+
+.filterCodeBtnActive {
+    border-color: rgba(59, 130, 246, 0.3);
+    background: rgba(59, 130, 246, 0.08);
+    color: #60a5fa;
+}
+
+.filterCodeCount {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    background: var(--accent-primary);
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 700;
+    border-radius: 999px;
+}
+
+.filterCodeDropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    width: 240px;
+    background: var(--bg-surface-overlay, #1e1e2e);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.4);
+    z-index: 50;
+    overflow: hidden;
+    animation: filterFadeIn 100ms ease-out;
+}
+
+@keyframes filterFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.filterCodeSearch {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    color: #64748b;
+
+    input {
+        flex: 1;
+        border: none;
+        background: transparent;
+        color: #e2e8f0;
+        font-size: 0.75rem;
+        outline: none;
+
+        &::placeholder {
+            color: #475569;
+        }
+    }
+}
+
+.filterCodeList {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.filterCodeItem {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 100ms ease;
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.04);
+    }
+
+    input[type="checkbox"] {
+        width: 14px;
+        height: 14px;
+        accent-color: var(--accent-primary, #3b82f6);
+        border-radius: 3px;
+    }
+
+    span {
+        font-size: 0.7rem;
+        color: #94a3b8;
+        font-weight: 500;
+        text-transform: capitalize;
+    }
+}
+
+.filterCodeEmpty {
+    padding: 12px;
+    text-align: center;
+    font-size: 0.7rem;
+    color: #475569;
+}
+
+.filterClearBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px 8px;
+    background: transparent;
+    border: none;
+    color: #64748b;
+    font-size: 0.65rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 120ms ease;
+
+    &:hover {
+        color: #ef4444;
+    }
+}
+
 /* ── Section ─────────────────────────────────────────────────── */
 
 .section {
