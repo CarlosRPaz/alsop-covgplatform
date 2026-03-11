@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import styles from './Sidebar.module.scss';
 import { supabase } from '@/lib/supabaseClient';
+import { useSidebar } from './SidebarContext';
 import {
     LayoutDashboard,
     FileText,
@@ -12,13 +13,16 @@ import {
     LogOut,
     UserCircle,
     Shield,
-    Home
+    Home,
+    ChevronsLeft,
+    ChevronsRight,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export function Sidebar() {
     const pathname = usePathname();
     const router = useRouter();
+    const { collapsed, toggle } = useSidebar();
     const [userId, setUserId] = useState<string | null>(null);
 
     useEffect(() => {
@@ -44,14 +48,19 @@ export function Sidebar() {
     };
 
     return (
-        <aside className={styles.sidebar}>
-            <Link href="/" className={styles.brand} style={{ textDecoration: 'none', color: 'inherit' }}>
-                <Shield size={22} style={{ color: '#3b82f6' }} />
-                Gap Guard
-            </Link>
+        <aside className={clsx(styles.sidebar, collapsed && styles.collapsed)}>
+            <div className={styles.brandRow}>
+                <Link href="/" className={styles.brand} style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <Shield size={22} style={{ color: '#3b82f6', flexShrink: 0 }} />
+                    {!collapsed && <span className={styles.brandText}>Gap Guard</span>}
+                </Link>
+                <button className={styles.collapseBtn} onClick={toggle} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+                    {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
+                </button>
+            </div>
 
             <nav className={styles.nav}>
-                <div className={styles.sectionTitle}>Main Menu</div>
+                {!collapsed && <div className={styles.sectionTitle}>Main Menu</div>}
                 {navItems.map((item) => {
                     const isActive = pathname === item.href;
                     return (
@@ -59,14 +68,16 @@ export function Sidebar() {
                             key={item.label}
                             href={item.href}
                             className={clsx(styles.navItem, isActive && styles.active)}
+                            title={collapsed ? item.label : undefined}
                         >
                             <item.icon />
-                            {item.label}
+                            {!collapsed && <span>{item.label}</span>}
                         </Link>
                     );
                 })}
 
-                <div className={styles.sectionTitle} style={{ marginTop: '2rem' }}>Account</div>
+                {!collapsed && <div className={styles.sectionTitle} style={{ marginTop: '2rem' }}>Account</div>}
+                {collapsed && <div style={{ marginTop: '1.5rem' }} />}
                 {accountItems.map((item) => {
                     const isActive = pathname.startsWith(item.href) && item.href !== '#';
                     return (
@@ -74,22 +85,30 @@ export function Sidebar() {
                             key={item.label}
                             href={item.href}
                             className={clsx(styles.navItem, isActive && styles.active)}
+                            title={collapsed ? item.label : undefined}
                         >
                             <item.icon />
-                            {item.label}
+                            {!collapsed && <span>{item.label}</span>}
                         </Link>
                     );
                 })}
             </nav>
 
             <div className={styles.footer}>
-                <button onClick={handleLogout} className={styles.navItem} style={{ paddingLeft: 0, border: 'none', background: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+                <button
+                    onClick={handleLogout}
+                    className={styles.navItem}
+                    style={{ border: 'none', background: 'none', cursor: 'pointer', width: '100%' }}
+                    title={collapsed ? 'Logout' : undefined}
+                >
                     <LogOut />
-                    Logout
+                    {!collapsed && <span>Logout</span>}
                 </button>
-                <div style={{ marginTop: '1rem' }}>
-                    &copy; 2026 Alsop Inc
-                </div>
+                {!collapsed && (
+                    <div style={{ marginTop: '1rem' }}>
+                        &copy; 2026 Alsop Inc
+                    </div>
+                )}
             </div>
         </aside>
     );

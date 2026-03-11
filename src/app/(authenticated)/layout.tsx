@@ -6,6 +6,32 @@ import { supabase } from '@/lib/supabaseClient';
 import { type UserRole } from '@/lib/auth';
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Footer } from "@/components/layout/Footer";
+import { SidebarProvider, useSidebar } from "@/components/layout/SidebarContext";
+
+function AuthenticatedContent({ children }: { children: React.ReactNode }) {
+    const { collapsed } = useSidebar();
+
+    return (
+        <div style={{ display: 'flex', flex: 1 }}>
+            <Sidebar />
+            <div style={{
+                flex: 1,
+                marginLeft: collapsed ? '64px' : '240px',
+                minWidth: 0,
+                overflowX: 'hidden',
+                backgroundColor: 'var(--background)',
+                display: 'flex',
+                flexDirection: 'column',
+                transition: 'margin-left 0.2s ease',
+            }}>
+                <div style={{ flex: 1, padding: '2rem' }}>
+                    {children}
+                </div>
+                <Footer />
+            </div>
+        </div>
+    );
+}
 
 export default function AuthenticatedLayout({
     children,
@@ -235,24 +261,11 @@ export default function AuthenticatedLayout({
     }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-            <div style={{ display: 'flex', flex: 1 }}>
-                <Sidebar />
-                <div style={{
-                    flex: 1,
-                    marginLeft: '250px',
-                    minWidth: 0,
-                    overflowX: 'hidden',
-                    backgroundColor: 'var(--background)',
-                    display: 'flex',
-                    flexDirection: 'column'
-                }}>
-                    <div style={{ flex: 1, padding: '2rem' }}>
-                        {children}
-                    </div>
-                    <Footer />
-                </div>
+        <SidebarProvider>
+            <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+                <AuthenticatedContent>{children}</AuthenticatedContent>
             </div>
-        </div>
+        </SidebarProvider>
     );
 }
+
