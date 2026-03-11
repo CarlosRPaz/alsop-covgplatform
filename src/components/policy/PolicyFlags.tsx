@@ -97,10 +97,11 @@ function FlagCard({
     const [dismissMode, setDismissMode] = useState(false);
     const [dismissReason, setDismissReason] = useState('');
 
-    // Treat null/undefined status as 'open' (old schema compatibility)
-    const isOpen = !flag.status || flag.status === 'open';
-    const isResolved = flag.status === 'resolved';
-    const isDismissed = flag.status === 'dismissed';
+    // Old schema: no status column — use resolved_at to infer
+    const effectiveStatus = flag.status || (flag.resolved_at ? 'resolved' : 'open');
+    const isOpen = effectiveStatus === 'open';
+    const isResolved = effectiveStatus === 'resolved';
+    const isDismissed = effectiveStatus === 'dismissed';
     const isLoading = loading === flag.id;
     const sevColor = SEVERITY_COLORS[flag.severity] || '#64748b';
 
@@ -254,7 +255,7 @@ function FlagSection({
 }) {
     const [showInactive, setShowInactive] = useState(false);
     // Treat null/undefined status as 'open' (old schema compatibility)
-    const isOpen = (f: PolicyFlagRow) => !f.status || f.status === 'open';
+    const isOpen = (f: PolicyFlagRow) => (!f.status && !f.resolved_at) || f.status === 'open';
     const active = flags.filter(isOpen);
     const inactive = flags.filter(f => !isOpen(f));
 
@@ -400,7 +401,7 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
     };
 
     // Total open counts — treat null/missing status as 'open' (old schema)
-    const isOpen = (f: PolicyFlagRow) => !f.status || f.status === 'open';
+    const isOpen = (f: PolicyFlagRow) => (!f.status && !f.resolved_at) || f.status === 'open';
     const totalOpen = allFlags.filter(isOpen).length;
     const criticalCount = allFlags.filter(f => isOpen(f) && (f.severity === 'critical' || f.severity === 'high')).length;
 

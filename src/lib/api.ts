@@ -1211,15 +1211,17 @@ export async function fetchFlagsByPolicyId(policyId: string): Promise<PolicyFlag
             .order('created_at', { ascending: false });
 
         if (error || !data) {
-            logger.error('API', 'Error fetching flags for policy', { policyId, message: error?.message });
+            // Silently return empty on schema errors (column missing etc.)
+            if (error) logger.error('API', 'Error fetching flags for policy', { policyId, message: error.message });
             return [];
         }
 
         return (data as PolicyFlagRow[]).sort((a, b) => {
             const statusOrder: Record<string, number> = { open: 0, dismissed: 1, resolved: 2 };
-            // Treat null/undefined status as 'open' (old schema compatibility)
-            const aStat = statusOrder[a.status || 'open'] ?? 0;
-            const bStat = statusOrder[b.status || 'open'] ?? 0;
+            // Old schema: no status column — use resolved_at to infer
+            const getStatus = (f: PolicyFlagRow) => f.status || (f.resolved_at ? 'resolved' : 'open');
+            const aStat = statusOrder[getStatus(a)] ?? 0;
+            const bStat = statusOrder[getStatus(b)] ?? 0;
             if (aStat !== bStat) return aStat - bStat;
             return (SEVERITY_ORDER[b.severity] || 0) - (SEVERITY_ORDER[a.severity] || 0);
         });
@@ -1233,6 +1235,7 @@ export async function fetchFlagsByPolicyId(policyId: string): Promise<PolicyFlag
 
 /**
  * Fetch all flags for a given client.
+ * Gracefully returns [] if client_id column doesn't exist (pre-migration).
  */
 export async function fetchFlagsByClientId(clientId: string): Promise<PolicyFlagRow[]> {
     try {
@@ -1242,12 +1245,14 @@ export async function fetchFlagsByClientId(clientId: string): Promise<PolicyFlag
             .eq('client_id', clientId)
             .order('created_at', { ascending: false });
 
+        // Return empty on any error (including missing client_id column)
         if (error || !data) return [];
 
         return (data as PolicyFlagRow[]).sort((a, b) => {
             const statusOrder: Record<string, number> = { open: 0, dismissed: 1, resolved: 2 };
-            const aStat = statusOrder[a.status] ?? 0;
-            const bStat = statusOrder[b.status] ?? 0;
+            const getStatus = (f: PolicyFlagRow) => f.status || (f.resolved_at ? 'resolved' : 'open');
+            const aStat = statusOrder[getStatus(a)] ?? 0;
+            const bStat = statusOrder[getStatus(b)] ?? 0;
             if (aStat !== bStat) return aStat - bStat;
             return (SEVERITY_ORDER[b.severity] || 0) - (SEVERITY_ORDER[a.severity] || 0);
         });
