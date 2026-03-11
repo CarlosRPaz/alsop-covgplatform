@@ -125,52 +125,67 @@ function FlagCard({
             <div className={styles.flagCardLeft} style={{ borderLeftColor: sevColor }} />
 
             <div className={styles.flagCardBody}>
-                <div className={styles.flagCardHeader}>
-                    <span className={styles.severityBadge} style={{ backgroundColor: `${sevColor}18`, color: sevColor }}>
-                        {SEVERITY_ICONS[flag.severity]}
-                        <span>{flag.severity}</span>
-                    </span>
-
-                    <span className={styles.codeBadge}>{flag.code}</span>
-
-                    <span className={styles.sourceBadge}>
-                        {flag.source === 'user' ? <User size={11} /> : <Zap size={11} />}
-                        {SOURCE_LABELS[flag.source] || flag.source}
-                    </span>
-
-                    {flag.category && (
-                        <span className={styles.categoryBadge}>{flag.category.replace(/_/g, ' ')}</span>
-                    )}
-
-                    {isResolved && (
-                        <span className={styles.statusResolved}>
-                            <CheckCircle size={12} /> Resolved
+                {/* Top row: severity + title + date */}
+                <div className={styles.flagCardTopRow}>
+                    <div className={styles.flagCardTopLeft}>
+                        <span className={styles.severityBadge} style={{ backgroundColor: `${sevColor}18`, color: sevColor }}>
+                            {SEVERITY_ICONS[flag.severity]}
+                            <span>{flag.severity}</span>
                         </span>
-                    )}
-                    {isDismissed && (
-                        <span className={styles.statusDismissed}>
-                            <XCircle size={12} /> Dismissed
-                        </span>
-                    )}
+                        <span className={styles.flagTitle}>{flag.title}</span>
+                        {isResolved && (
+                            <span className={styles.statusResolved}>
+                                <CheckCircle size={11} /> Resolved
+                            </span>
+                        )}
+                        {isDismissed && (
+                            <span className={styles.statusDismissed}>
+                                <XCircle size={11} /> Dismissed
+                            </span>
+                        )}
+                        {(flag.times_seen || 0) > 1 && (
+                            <span className={styles.timesSeenBadge}>×{flag.times_seen}</span>
+                        )}
+                    </div>
+                    <span className={styles.flagDateRight}>
+                        <Clock size={11} /> {formatDate(flag.first_seen_at || flag.created_at)}
+                    </span>
                 </div>
 
-                <div className={styles.flagTitle}>{flag.title}</div>
-                {flag.message && <div className={styles.flagMessage}>{flag.message}</div>}
-
-                <div className={styles.flagMeta}>
-                    <span><Clock size={12} /> {formatDate(flag.first_seen_at || flag.created_at)}</span>
-                    {(flag.times_seen || 0) > 1 && (
-                        <span className={styles.timesSeenBadge}>
-                            Seen {flag.times_seen} times
-                        </span>
-                    )}
-                    {flag.resolved_at && <span>Resolved {formatDate(flag.resolved_at)}</span>}
-                    {flag.dismissed_at && <span>Dismissed {formatDate(flag.dismissed_at)}</span>}
-                    {flag.dismiss_reason && (
-                        <span className={styles.dismissReason}>
-                            Reason: {flag.dismiss_reason}
-                        </span>
-                    )}
+                {/* Message + action buttons row */}
+                <div className={styles.flagBodyRow}>
+                    <div className={styles.flagBodyLeft}>
+                        {flag.message && <span className={styles.flagMessage}>{flag.message}</span>}
+                        <span className={styles.codeBadge}>{flag.code}</span>
+                        {flag.resolved_at && <span className={styles.flagMetaInline}>Resolved {formatDate(flag.resolved_at)}</span>}
+                        {flag.dismissed_at && <span className={styles.flagMetaInline}>Dismissed {formatDate(flag.dismissed_at)}</span>}
+                        {flag.dismiss_reason && <span className={styles.dismissReason}>({flag.dismiss_reason})</span>}
+                    </div>
+                    <div className={styles.flagActionsInline}>
+                        {isOpen && !dismissMode && (
+                            <>
+                                <Button variant="ghost" size="sm" onClick={() => onResolve(flag.id)} disabled={isLoading} className={styles.actionBtn}>
+                                    <CheckCircle size={12} /> Resolve
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => setDismissMode(true)} disabled={isLoading} className={styles.actionBtn}>
+                                    <XCircle size={12} /> Dismiss
+                                </Button>
+                            </>
+                        )}
+                        {isResolved && (
+                            <Button variant="ghost" size="sm" onClick={() => onUnresolve(flag.id)} disabled={isLoading} className={styles.actionBtn}>
+                                <RotateCcw size={12} /> Reopen
+                            </Button>
+                        )}
+                        {flag.action_path && (
+                            <a href={flag.action_path} className={styles.actionLink}>
+                                <ExternalLink size={12} /> Go to issue
+                            </a>
+                        )}
+                        <Button variant="ghost" size="sm" onClick={loadHistory} className={styles.historyBtn}>
+                            <History size={12} /> {showHistory ? 'Hide' : 'History'}
+                        </Button>
+                    </div>
                 </div>
 
                 {/* Dismiss input mode */}
@@ -194,33 +209,6 @@ function FlagCard({
                         </div>
                     </div>
                 )}
-
-                {/* Action buttons */}
-                <div className={styles.flagActions}>
-                    {isOpen && !dismissMode && (
-                        <>
-                            <Button variant="ghost" size="sm" onClick={() => onResolve(flag.id)} disabled={isLoading} className={styles.actionBtn}>
-                                <CheckCircle size={13} /> Resolve
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => setDismissMode(true)} disabled={isLoading} className={styles.actionBtn}>
-                                <XCircle size={13} /> Dismiss
-                            </Button>
-                        </>
-                    )}
-                    {isResolved && (
-                        <Button variant="ghost" size="sm" onClick={() => onUnresolve(flag.id)} disabled={isLoading} className={styles.actionBtn}>
-                            <RotateCcw size={13} /> Reopen
-                        </Button>
-                    )}
-                    {flag.action_path && (
-                        <a href={flag.action_path} className={styles.actionLink}>
-                            <ExternalLink size={13} /> Go to issue
-                        </a>
-                    )}
-                    <Button variant="ghost" size="sm" onClick={loadHistory} className={styles.historyBtn}>
-                        <History size={13} /> {showHistory ? 'Hide' : 'History'}
-                    </Button>
-                </div>
 
                 {/* History panel */}
                 {showHistory && (

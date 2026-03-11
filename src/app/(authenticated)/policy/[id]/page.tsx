@@ -6,8 +6,8 @@ import Link from 'next/link';
 import styles from './page.module.css';
 import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
-import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil } from 'lucide-react';
-import { getPolicyDetailById, mapPolicyDetailToDeclaration, generateAIReport, Declaration, AIReportData, PolicyDetail } from '@/lib/api';
+import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info } from 'lucide-react';
+import { getPolicyDetailById, mapPolicyDetailToDeclaration, generateAIReport, Declaration, AIReportData, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow } from '@/lib/api';
 import { PolicyDashboard } from '@/components/policy/PolicyDashboard';
 import { AIReport } from '@/components/policy/AIReport';
 import { PolicyFiles } from '@/components/policy/PolicyFiles';
@@ -39,6 +39,9 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     const [copied, setCopied] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [policyDetailRaw, setPolicyDetailRaw] = useState<PolicyDetail | null>(null);
+    const [flagSummary, setFlagSummary] = useState<{ total: number; critical: number; high: number; warning: number; info: number }>(
+        { total: 0, critical: 0, high: 0, warning: 0, info: 0 }
+    );
 
     const copyPolicyNumber = () => {
         if (declaration?.policy_number) {
@@ -69,6 +72,21 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
         }
 
         loadData();
+    }, [id]);
+
+    // Fetch flag counts for the indicator pill
+    useEffect(() => {
+        if (!id) return;
+        fetchFlagsByPolicyId(id).then(flags => {
+            const open = flags.filter((f: PolicyFlagRow) => !f.status || f.status === 'open');
+            setFlagSummary({
+                total: open.length,
+                critical: open.filter((f: PolicyFlagRow) => f.severity === 'critical').length,
+                high: open.filter((f: PolicyFlagRow) => f.severity === 'high').length,
+                warning: open.filter((f: PolicyFlagRow) => f.severity === 'warning').length,
+                info: open.filter((f: PolicyFlagRow) => f.severity === 'info').length,
+            });
+        });
     }, [id]);
 
     const renderTabContent = () => {
@@ -258,6 +276,37 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                             {declaration.insured_name}
                         </span>
                     </div>
+
+                    {/* Flag indicator pill */}
+                    {flagSummary.total > 0 && (
+                        <div
+                            className={styles.flagIndicator}
+                            onClick={() => setActiveTab('flags')}
+                            title="Click to view flags"
+                        >
+                            <Flag size={13} />
+                            <span className={styles.flagIndicatorTotal}>{flagSummary.total} open flag{flagSummary.total !== 1 ? 's' : ''}</span>
+                            {flagSummary.critical > 0 && (
+                                <span className={styles.flagDotCritical}>
+                                    <AlertCircle size={11} /> {flagSummary.critical}
+                                </span>
+                            )}
+                            {flagSummary.high > 0 && (
+                                <span className={styles.flagDotHigh}>
+                                    <AlertTriangle size={11} /> {flagSummary.high}
+                                </span>
+                            )}
+                            {flagSummary.warning > 0 && (
+                                <span className={styles.flagDotWarning}>{flagSummary.warning} warn</span>
+                            )}
+                            {flagSummary.info > 0 && (
+                                <span className={styles.flagDotInfo}>
+                                    <Info size={11} /> {flagSummary.info}
+                                </span>
+                            )}
+                        </div>
+                    )}
+
                     <div className={styles.actionRow} style={{ padding: '10px 0px 0px 0px', float: "right" }}>
                         <Button variant="outline" className={`${styles.actionButton} ${styles.outlineAction}`} onClick={() => setIsEditOpen(true)}>
                             <Pencil size={16} />
@@ -281,7 +330,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
 
             {/* Tab Navigation */}
             <div className={styles.tabsWrapper}>
-                <Tabs tabs={policyTabs} defaultTab="review" onChange={setActiveTab} />
+                <Tabs tabs={policyTabs} defaultTab="review" activeTab={activeTab} onChange={setActiveTab} />
             </div>
 
             {/* Tab Content */}
