@@ -10,6 +10,7 @@ export interface NoteRow {
     created_at: string;
     updated_at: string;
     author_user_id: string | null;
+    author_name?: string | null;
     client_id: string;
     policy_id: string | null;
     body: string;
@@ -57,10 +58,31 @@ export async function getCurrentUserRole(): Promise<string | null> {
 // Notes CRUD
 // ---------------------------------------------------------------------------
 
+async function attachAuthorNamesToNotes(notes: NoteRow[]) {
+    const authorIds = [...new Set(notes.map(n => n.author_user_id).filter(Boolean))] as string[];
+    if (authorIds.length > 0) {
+        const { data: accounts } = await supabase
+            .from('accounts')
+            .select('id, first_name, last_name')
+            .in('id', authorIds);
+
+        if (accounts) {
+            const nameMap = new Map(accounts.map(a => [a.id, `${a.first_name || ''} ${a.last_name || ''}`.trim()]));
+            for (const n of notes) {
+                if (n.author_user_id) {
+                    n.author_name = nameMap.get(n.author_user_id) || null;
+                }
+            }
+        }
+    }
+}
+
 export async function fetchNotes(opts: {
     clientId?: string;
     policyId?: string;
     includeArchived?: boolean;
+    limit?: number;
+    offset?: number;
 }): Promise<NoteRow[]> {
     try {
         let query = supabase
@@ -69,22 +91,22 @@ export async function fetchNotes(opts: {
             .order('is_pinned', { ascending: false })
             .order('updated_at', { ascending: false });
 
-        if (opts.clientId) {
-            query = query.eq('client_id', opts.clientId);
-        }
-        if (opts.policyId) {
-            query = query.eq('policy_id', opts.policyId);
-        }
-        if (!opts.includeArchived) {
-            query = query.eq('is_archived', false);
-        }
+        if (opts.clientId) query = query.eq('client_id', opts.clientId);
+        if (opts.policyId) query = query.eq('policy_id', opts.policyId);
+        if (!opts.includeArchived) query = query.eq('is_archived', false);
+
+        if (opts.limit) query = query.limit(opts.limit);
+        if (opts.offset) query = query.range(opts.offset, opts.offset + (opts.limit || 20) - 1);
 
         const { data, error } = await query;
         if (error) {
             logger.error('Notes', 'Error fetching notes', { message: error.message });
             return [];
         }
-        return (data || []) as NoteRow[];
+
+        const notes = (data || []) as NoteRow[];
+        await attachAuthorNamesToNotes(notes);
+        return notes;
     } catch (err) {
         logger.error('Notes', 'Unexpected error', { error: String(err) });
         return [];
@@ -94,7 +116,7 @@ export async function fetchNotes(opts: {
 /**
  * Fetch notes for a client that have NO policy_id set (general client notes).
  */
-export async function fetchClientOnlyNotes(clientId: string, includeArchived = false): Promise<NoteRow[]> {
+export async function fetchClientOnlyNotes(clientId: string, includeArchived = false, limit?: number, offset?: number): Promise<NoteRow[]> {
     try {
         let query = supabase
             .from('notes')
@@ -108,12 +130,18 @@ export async function fetchClientOnlyNotes(clientId: string, includeArchived = f
             query = query.eq('is_archived', false);
         }
 
+        if (limit) query = query.limit(limit);
+        if (offset) query = query.range(offset, offset + (limit || 20) - 1);
+
         const { data, error } = await query;
         if (error) {
             logger.error('Notes', 'Error fetching client-only notes', { message: error.message });
             return [];
         }
-        return (data || []) as NoteRow[];
+
+        const notes = (data || []) as NoteRow[];
+        await attachAuthorNamesToNotes(notes);
+        return notes;
     } catch (err) {
         logger.error('Notes', 'Unexpected error', { error: String(err) });
         return [];
