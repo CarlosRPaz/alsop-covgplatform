@@ -148,40 +148,41 @@ CREATE INDEX IF NOT EXISTS idx_flag_events_flag_id
 -- 6. SEED flag_definitions with initial rules
 -- ============================================================================
 INSERT INTO public.flag_definitions (code, label, description, category, default_severity, entity_scope, auto_resolve, is_manual_allowed) VALUES
-    -- Data Quality — Specific missing-field flags (replacing generic MISSING_FIELDS)
-    ('MISSING_DWELLING_LIMIT',       'Missing Dwelling Limit',       'Policy term is missing the dwelling coverage limit.',           'data_quality', 'warning',  'policy', true,  false),
-    ('MISSING_PREMIUM',              'Missing Annual Premium',       'Policy term has no annual premium recorded.',                   'data_quality', 'warning',  'policy', true,  false),
-    ('MISSING_DEDUCTIBLE',           'Missing Deductible',           'Policy term is missing the deductible amount.',                 'data_quality', 'info',     'policy', true,  false),
-    ('MISSING_EFFECTIVE_DATE',       'Missing Effective Date',       'Policy term has no effective date.',                            'data_quality', 'warning',  'policy', true,  false),
-    ('MISSING_EXPIRATION_DATE',      'Missing Expiration Date',      'Policy term has no expiration date.',                           'data_quality', 'warning',  'policy', true,  false),
-    ('MISSING_CARRIER',              'Missing Carrier Name',         'Policy has no carrier name recorded.',                          'data_quality', 'info',     'policy', true,  false),
-    ('MISSING_POLICY_NUMBER',        'Missing Policy Number',        'Policy has no policy number.',                                  'data_quality', 'warning',  'policy', true,  false),
-    ('MISSING_NAMED_INSURED',        'Missing Named Insured',        'Client has no named insured value.',                            'data_quality', 'warning',  'client', true,  false),
-    ('MISSING_EMAIL',                'Missing Client Email',         'Client has no email on file.',                                  'data_quality', 'info',     'client', true,  false),
-    ('MISSING_PROPERTY_ADDRESS',     'Missing Property Address',     'Policy has no property address.',                               'data_quality', 'info',     'policy', true,  false),
+    -- Data Quality — Critical
+    ('MISSING_POLICY_NUMBER',                    'Missing Policy Number',               'Policy number was not extracted.',                              'data_quality',  'critical', 'policy', true,  false),
+    ('MISSING_PROPERTY_LOCATION',                'Missing Property Location',            'Property location was not extracted.',                          'data_quality',  'critical', 'policy', true,  false),
+    ('MISSING_DWELLING_LIMIT',                   'Missing Dwelling Limit',               'Dwelling coverage limit is missing.',                           'data_quality',  'critical', 'policy', true,  false),
+    ('MISSING_ORDINANCE_OR_LAW',                 'Missing Ordinance or Law',             'Ordinance or law coverage is missing.',                         'coverage_gap',  'critical', 'policy', true,  false),
+    ('MISSING_EXTENDED_DWELLING',                'Missing Extended Dwelling Coverage',   'Extended dwelling coverage is missing.',                        'coverage_gap',  'critical', 'policy', true,  false),
+    ('MISSING_DWELLING_REPLACEMENT_COST',        'Missing Dwelling Replacement Cost',    'Dwelling replacement cost is missing.',                         'coverage_gap',  'critical', 'policy', true,  false),
+    ('MISSING_PERSONAL_PROPERTY_REPLACEMENT_COST','Missing Personal Property RC',        'Personal property replacement cost is missing.',                'coverage_gap',  'critical', 'policy', true,  false),
+    ('MISSING_FENCES_COVERAGE',                  'Missing Fences Coverage',              'Fences coverage is missing.',                                   'coverage_gap',  'critical', 'policy', true,  false),
+    ('MISSING_PERSONAL_PROPERTY_COVERAGE_C',     'Missing Personal Property (Cov C)',    'Personal property Coverage C is missing.',                      'coverage_gap',  'critical', 'policy', true,  false),
+    ('MORTGAGEE_PRESENT_DWELLING_ZERO',          'Mortgagee Present, Dwelling $0',       'Mortgagee on policy but dwelling coverage is $0.',              'coverage_gap',  'critical', 'policy', false, false),
 
-    -- Renewal
-    ('RENEWAL_UPCOMING',             'Renewal Upcoming',             'Policy term expires within 21 days.',                           'renewal',      'warning',  'policy', true,  false),
+    -- Data Quality / Coverage — High
+    ('MISSING_EMAIL',                            'Missing Client Email',                 'Client has no email on file.',                                  'data_quality',  'high',     'client', true,  false),
+    ('MISSING_PHONE',                            'Missing Client Phone',                 'Client has no phone number on file.',                           'data_quality',  'high',     'client', true,  false),
+    ('NO_DIC',                                   'DIC Not on File',                      'DIC coverage is not on file for this policy term.',             'dic',           'high',     'policy', false, false),
+    ('DWELLING_RC_NOT_INCLUDED',                 'Dwelling RC Not Included',             'Dwelling replacement cost is not included.',                    'coverage_gap',  'high',     'policy', false, false),
+    ('DWELLING_RC_INCLUDED_LOW_ORDINANCE',       'RC Included, Low Ordinance/Law',       'Replacement cost included but ordinance/law is low.',           'coverage_gap',  'high',     'policy', true,  false),
+    ('FAIR_RENTAL_VALUE_ZERO_OR_MISSING',        'Fair Rental Value Zero or Missing',    'Fair rental value coverage is $0 or missing.',                  'coverage_gap',  'high',     'policy', true,  false),
+    ('ECM_PREMIUM_MISSING_OR_ZERO',              'Premium Missing or Zero',              'Annual premium is missing or $0.',                              'data_quality',  'high',     'policy', true,  false),
+    ('RENEWAL_UPCOMING',                         'Renewal Upcoming',                     'Policy term expires within 21 days.',                           'renewal',       'high',     'policy', true,  false),
 
-    -- Coverage Gap
-    ('COVERAGE_GAP_OTHER_STRUCTURES','Missing Other Structures',     'Policy term has no other structures coverage.',                 'coverage_gap', 'info',     'policy', true,  false),
-    ('COVERAGE_GAP_PERSONAL_PROPERTY','Missing Personal Property',   'Policy term has no personal property coverage.',                'coverage_gap', 'info',     'policy', true,  false),
-
-    -- DIC
-    ('DIC_NOT_ON_FILE',              'DIC Not on File',              'Policy term indicates no DIC coverage exists.',                 'dic',          'warning',  'policy', false, false),
-
-    -- Duplicate
-    ('POSSIBLE_DUPLICATE_CLIENT',    'Possible Duplicate Client',    'Another client with a similar name exists.',                    'duplicate',    'info',     'client', false, false),
-
-    -- Workflow
-    ('PENDING_REVIEW',               'Policy Pending Review',        'Policy status is pending_review and needs attention.',          'workflow',     'info',     'policy', true,  false),
+    -- Warning
+    ('OTHER_STRUCTURES_ZERO',                    'Other Structures $0',                  'Other structures coverage is $0.',                              'coverage_gap',  'warning',  'policy', true,  false),
+    ('PERSONAL_PROPERTY_ZERO_OWNER_OCCUPIED',    'Personal Property $0 (Owner-Occupied)','Personal property is $0 for owner-occupied property.',          'coverage_gap',  'warning',  'policy', true,  false),
+    ('MOBILE_OR_MANUFACTURED_WITH_RC_INCLUDED',  'Mobile/Manufactured Home w/ RC',       'Mobile/manufactured home has replacement cost included.',       'coverage_gap',  'warning',  'policy', false, false),
+    ('ROOF_AGE_OVER_25_WITH_RC_INCLUDED',        'Roof Age >25 Years w/ RC',             'Structure >25 years old with replacement cost included.',       'coverage_gap',  'warning',  'policy', false, false),
+    ('DUPLICATE_ID_IN_TABLE',                    'Duplicate ID in Table',                'Possible duplicate record detected during import.',             'duplicate',     'warning',  'policy', false, false),
 
     -- Manual
-    ('MANUAL_FLAG',                  'Manual Flag',                  'Staff-created flag for any purpose.',                           'manual',       'info',     'policy', false, true),
-    ('MANUAL_CLIENT_FLAG',           'Manual Client Flag',           'Staff-created flag on a client.',                               'manual',       'info',     'client', false, true),
+    ('MANUAL_FLAG',                              'Manual Flag',                          'Staff-created flag for any purpose.',                           'manual',        'info',     'policy', false, true),
+    ('MANUAL_CLIENT_FLAG',                       'Manual Client Flag',                   'Staff-created flag on a client.',                               'manual',        'info',     'client', false, true),
 
     -- Parser
-    ('PARSER_EXTRACTION_FAILURE',    'Extraction Failure',           'Document parser could not extract one or more fields.',         'parser',       'warning',  'policy', true,  false)
+    ('PARSER_EXTRACTION_FAILURE',                'Extraction Failure',                   'Document parser could not extract one or more fields.',         'parser',        'warning',  'policy', true,  false)
 
 ON CONFLICT (code) DO NOTHING;
 

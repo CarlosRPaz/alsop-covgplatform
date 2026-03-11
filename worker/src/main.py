@@ -36,7 +36,8 @@ from .extract.fair_plan import parse_declaration
 from .extract.llm_extract import extract_with_llm
 from .db.dec_pages import upsert_dec_page
 from .db.lifecycle import process_lifecycle
-from .db.flags import generate_and_resolve_flags
+from .db.flag_evaluator import evaluate_flags
+from .db.flags import insert_activity_event
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -187,13 +188,27 @@ def process_job(job: dict) -> None:
                 logger.info("job_id=%s step=%s linked dec_pages to policy/client", job_id, current_step)
 
             if policy_id:
-                # 9. Generate and resolve flags
-                current_step = "generate_flags"
+                # 9. Evaluate flags (new system)
+                current_step = "evaluate_flags"
                 logger.info("job_id=%s step=%s policy_id=%s", job_id, current_step, policy_id)
-                generate_and_resolve_flags(
+                evaluate_flags(
                     policy_id=policy_id,
+                    client_id=client_id,
+                    policy_term_id=policy_term_id,
                     dec_page_id=dec_page_id,
+                    extracted_data=fair_plan_data,
                     missing_fields=parsed_result["missing_fields"],
+                )
+
+                # 9b. Log document-processed as activity event (NOT a flag)
+                insert_activity_event(
+                    event_type="dec.uploaded",
+                    title="New Declaration Processed",
+                    detail="A new declaration page was successfully parsed and applied.",
+                    policy_id=policy_id,
+                    client_id=client_id,
+                    dec_page_id=dec_page_id,
+                    actor_user_id=account_id,
                 )
 
         # 10. Mark job done
