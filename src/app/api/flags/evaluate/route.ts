@@ -9,12 +9,13 @@ import { logger } from '@/lib/logger';
  * Fetches policy, current term, and client data, then runs all flag checks.
  * Creates/refreshes open flags and auto-resolves cleared conditions.
  *
+ * Schema-resilient: works with both old and new policy_flags schemas.
+ *
  * Body: { policy_id: string }
  */
 
 const RULE_VERSION = '1.0.0';
 
-// Severity for each rule
 interface FlagCheck {
     code: string;
     severity: string;
@@ -29,10 +30,10 @@ interface EvalCtx {
     policy_id: string;
     client_id: string | null;
     policy_term_id: string | null;
-    data: Record<string, unknown>;       // coverage_data from term
-    term: Record<string, unknown>;       // full term row
-    client: Record<string, unknown>;     // full client row
-    policy: Record<string, unknown>;     // full policy row
+    data: Record<string, unknown>;
+    term: Record<string, unknown>;
+    client: Record<string, unknown>;
+    policy: Record<string, unknown>;
 }
 
 function get(ctx: EvalCtx, key: string): unknown {
@@ -60,15 +61,6 @@ function isZeroOrMissing(val: unknown): boolean {
 function checkMissingField(key: string, label: string) {
     return (ctx: EvalCtx): string | null => {
         if (isMissing(get(ctx, key))) return `${label} is missing or empty.`;
-        return null;
-    };
-}
-
-function checkZeroValue(key: string, label: string) {
-    return (ctx: EvalCtx): string | null => {
-        const val = get(ctx, key);
-        if (val === null || val === undefined) return null;
-        if (isZeroOrMissing(val)) return `${label} is $0.`;
         return null;
     };
 }
@@ -179,13 +171,34 @@ const FLAG_CHECKS: FlagCheck[] = [
 ];
 
 // ── Build stable flag_key ────────────────────────────────────
-function buildFlagKey(scope: string, entityId: string, code: string, subjectPath = ''): string {
-    return `${scope}:${entityId}:${code}${subjectPath ? ':' + subjectPath : ''}`;
+function buildFlagKey(scope: string, entityId: string, code: string): string {
+    return `${scope}:${entityId}:${code}`;
+}
+
+// ── Schema detection ─────────────────────────────────────────
+// Detect if the new schema (with status, flag_key columns) exists
+// by trying a lightweight query. Cache the result.
+let schemaHasStatus: boolean | null = null;
+
+async function detectSchema(sb: ReturnType<typeof getSupabaseAdmin>): Promise<boolean> {
+    if (schemaHasStatus !== null) return schemaHasStatus;
+    try {
+        const { error } = await sb
+            .from('policy_flags')
+            .select('status')
+            .limit(1);
+        schemaHasStatus = !error;
+    } catch {
+        schemaHasStatus = false;
+    }
+    return schemaHasStatus;
 }
 
 // ── Main handler ─────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
+    const errors: string[] = [];
+
     try {
         const body = await request.json();
         const policyId = body.policy_id;
@@ -195,7 +208,10 @@ export async function POST(request: NextRequest) {
         }
 
         const sb = getSupabaseAdmin();
-        const summary = { created: 0, refreshed: 0, resolved: 0, checked: 0 };
+        const summary = { created: 0, refreshed: 0, resolved: 0, checked: 0, fired: 0 };
+        const newSchema = await detectSchema(sb);
+
+        logger.info('API', `Flag evaluation starting for policy ${policyId}`, { newSchema });
 
         // 1. Fetch policy
         const { data: policy, error: pErr } = await sb
@@ -205,16 +221,23 @@ export async function POST(request: NextRequest) {
             .single();
 
         if (pErr || !policy) {
-            return NextResponse.json({ success: false, error: 'Policy not found' }, { status: 404 });
+            return NextResponse.json({
+                success: false,
+                error: `Policy not found: ${pErr?.message || 'no data'}`,
+            }, { status: 404 });
         }
 
         // 2. Fetch current term
-        const { data: term } = await sb
+        const { data: term, error: tErr } = await sb
             .from('policy_terms')
             .select('*')
             .eq('policy_id', policyId)
             .eq('is_current', true)
             .single();
+
+        if (tErr) {
+            logger.warn('API', `No current term for policy ${policyId}: ${tErr.message}`);
+        }
 
         // 3. Fetch client
         let client: Record<string, unknown> = {};
@@ -236,6 +259,12 @@ export async function POST(request: NextRequest) {
             policy,
         };
 
+        logger.info('API', `Eval context built`, {
+            has_term: !!term,
+            coverage_keys: Object.keys(coverageData).length,
+            has_client: !!policy.client_id,
+        });
+
         // 5. Run each check
         for (const rule of FLAG_CHECKS) {
             summary.checked++;
@@ -247,69 +276,123 @@ export async function POST(request: NextRequest) {
 
             if (!entityId) continue;
 
-            const flagKey = buildFlagKey(rule.entity_scope, entityId, rule.code);
             const message = rule.check(ctx);
 
             if (message) {
-                // Flag should fire — upsert
-                const now = new Date().toISOString();
+                summary.fired++;
 
-                // Check if open flag already exists
-                const { data: existing } = await sb
-                    .from('policy_flags')
-                    .select('id, times_seen')
-                    .eq('flag_key', flagKey)
-                    .eq('status', 'open')
-                    .single();
+                if (newSchema) {
+                    // ── New schema path: use flag_key + status ──
+                    const flagKey = buildFlagKey(rule.entity_scope, entityId, rule.code);
+                    const now = new Date().toISOString();
 
-                if (existing) {
-                    // Refresh existing flag
-                    await sb.from('policy_flags').update({
-                        last_seen_at: now,
-                        times_seen: (existing.times_seen || 1) + 1,
-                        message,
-                        updated_at: now,
-                    }).eq('id', existing.id);
-                    summary.refreshed++;
+                    // Check if open flag already exists
+                    const { data: existing, error: lookupErr } = await sb
+                        .from('policy_flags')
+                        .select('id, times_seen')
+                        .eq('flag_key', flagKey)
+                        .eq('status', 'open')
+                        .maybeSingle();
+
+                    if (lookupErr) {
+                        errors.push(`Lookup error for ${rule.code}: ${lookupErr.message}`);
+                        continue;
+                    }
+
+                    if (existing) {
+                        const { error: updErr } = await sb.from('policy_flags').update({
+                            last_seen_at: now,
+                            times_seen: (existing.times_seen || 1) + 1,
+                            message,
+                            updated_at: now,
+                        }).eq('id', existing.id);
+
+                        if (updErr) {
+                            errors.push(`Update error for ${rule.code}: ${updErr.message}`);
+                        } else {
+                            summary.refreshed++;
+                        }
+                    } else {
+                        const { data: newFlag, error: insErr } = await sb.from('policy_flags').insert({
+                            flag_key: flagKey,
+                            code: rule.code,
+                            severity: rule.severity,
+                            title: rule.title,
+                            message,
+                            category: rule.category,
+                            source: 'system',
+                            status: 'open',
+                            policy_id: rule.entity_scope !== 'client' ? ctx.policy_id : null,
+                            client_id: ctx.client_id,
+                            policy_term_id: rule.entity_scope === 'policy_term' ? ctx.policy_term_id : null,
+                            rule_version: RULE_VERSION,
+                            first_seen_at: now,
+                            last_seen_at: now,
+                            times_seen: 1,
+                            created_at: now,
+                            updated_at: now,
+                        }).select('id').single();
+
+                        if (insErr) {
+                            errors.push(`Insert error for ${rule.code}: ${insErr.message}`);
+                        } else if (newFlag) {
+                            // Try to write flag_event (may not exist)
+                            try {
+                                await sb.from('flag_events').insert({
+                                    flag_id: newFlag.id,
+                                    event_type: 'created',
+                                    note: `Flag check: ${rule.title}`,
+                                });
+                            } catch { /* flag_events table may not exist */ }
+                            summary.created++;
+                        }
+                    }
                 } else {
-                    // Create new flag
-                    const { data: newFlag } = await sb.from('policy_flags').insert({
-                        flag_key: flagKey,
-                        code: rule.code,
-                        severity: rule.severity,
-                        title: rule.title,
-                        message,
-                        category: rule.category,
-                        source: 'system',
-                        status: 'open',
-                        policy_id: rule.entity_scope !== 'client' ? ctx.policy_id : null,
-                        client_id: ctx.client_id,
-                        policy_term_id: rule.entity_scope === 'policy_term' ? ctx.policy_term_id : null,
-                        rule_version: RULE_VERSION,
-                        first_seen_at: now,
-                        last_seen_at: now,
-                        times_seen: 1,
-                        created_at: now,
-                        updated_at: now,
-                    }).select('id').single();
+                    // ── Old schema path: use resolved_at for status ──
+                    const now = new Date().toISOString();
 
-                    if (newFlag) {
-                        await sb.from('flag_events').insert({
-                            flag_id: newFlag.id,
-                            event_type: 'created',
-                            note: `Flag check: ${rule.title}`,
-                        });
-                        summary.created++;
+                    // Check if an unresolved flag already exists for this code + policy
+                    const { data: existing, error: lookupErr } = await sb
+                        .from('policy_flags')
+                        .select('id')
+                        .eq('policy_id', policyId)
+                        .eq('code', rule.code)
+                        .is('resolved_at', null)
+                        .maybeSingle();
+
+                    if (lookupErr) {
+                        errors.push(`Old-schema lookup error for ${rule.code}: ${lookupErr.message}`);
+                        continue;
+                    }
+
+                    if (existing) {
+                        // Already exists, skip
+                        summary.refreshed++;
+                    } else {
+                        const { data: newFlag, error: insErr } = await sb.from('policy_flags').insert({
+                            policy_id: policyId,
+                            code: rule.code,
+                            severity: rule.severity,
+                            title: rule.title,
+                            message,
+                            source: 'system',
+                        }).select('id').single();
+
+                        if (insErr) {
+                            errors.push(`Old-schema insert error for ${rule.code}: ${insErr.message}`);
+                        } else if (newFlag) {
+                            summary.created++;
+                        }
                     }
                 }
-            } else if (rule.auto_resolve) {
-                // Condition clear — auto-resolve if open flag exists
+            } else if (rule.auto_resolve && newSchema) {
+                const flagKey = buildFlagKey(rule.entity_scope, entityId, rule.code);
                 const { data: openFlag } = await sb
                     .from('policy_flags')
                     .select('id')
                     .eq('flag_key', flagKey)
                     .eq('status', 'open')
-                    .single();
+                    .maybeSingle();
 
                 if (openFlag) {
                     await sb.from('policy_flags').update({
@@ -317,12 +400,6 @@ export async function POST(request: NextRequest) {
                         resolved_at: new Date().toISOString(),
                         updated_at: new Date().toISOString(),
                     }).eq('id', openFlag.id);
-
-                    await sb.from('flag_events').insert({
-                        flag_id: openFlag.id,
-                        event_type: 'resolved',
-                        note: `Auto-resolved: ${rule.title} condition no longer applies.`,
-                    });
                     summary.resolved++;
                 }
             }
@@ -330,7 +407,7 @@ export async function POST(request: NextRequest) {
 
         // 6. Also check for duplicates
         if (policy.policy_number) {
-            const flagKey = buildFlagKey('policy', policyId, 'DUPLICATE_ID_IN_TABLE');
+            summary.checked++;
             const { data: dupes } = await sb
                 .from('policies')
                 .select('id')
@@ -338,68 +415,92 @@ export async function POST(request: NextRequest) {
                 .neq('id', policyId)
                 .limit(3);
 
-            summary.checked++;
-
             if (dupes && dupes.length > 0) {
+                summary.fired++;
                 const msg = `Found ${dupes.length} other polic${dupes.length > 1 ? 'ies' : 'y'} with the same policy number (${policy.policy_number}).`;
-                const { data: existing } = await sb
-                    .from('policy_flags')
-                    .select('id, times_seen')
-                    .eq('flag_key', flagKey)
-                    .eq('status', 'open')
-                    .single();
 
-                if (existing) {
-                    await sb.from('policy_flags').update({
-                        last_seen_at: new Date().toISOString(),
-                        times_seen: (existing.times_seen || 1) + 1,
-                        message: msg,
-                        updated_at: new Date().toISOString(),
-                    }).eq('id', existing.id);
-                    summary.refreshed++;
+                if (newSchema) {
+                    const flagKey = buildFlagKey('policy', policyId, 'DUPLICATE_ID_IN_TABLE');
+                    const now = new Date().toISOString();
+
+                    const { data: existing } = await sb
+                        .from('policy_flags')
+                        .select('id, times_seen')
+                        .eq('flag_key', flagKey)
+                        .eq('status', 'open')
+                        .maybeSingle();
+
+                    if (!existing) {
+                        const { error: insErr } = await sb.from('policy_flags').insert({
+                            flag_key: flagKey,
+                            code: 'DUPLICATE_ID_IN_TABLE',
+                            severity: 'warning',
+                            title: 'Possible Duplicate Policy',
+                            message: msg,
+                            category: 'duplicate',
+                            source: 'system',
+                            status: 'open',
+                            policy_id: policyId,
+                            client_id: policy.client_id,
+                            rule_version: RULE_VERSION,
+                            first_seen_at: now,
+                            last_seen_at: now,
+                            times_seen: 1,
+                            created_at: now,
+                            updated_at: now,
+                        }).select('id').single();
+                        if (insErr) errors.push(`Duplicate insert error: ${insErr.message}`);
+                        else summary.created++;
+                    } else {
+                        summary.refreshed++;
+                    }
                 } else {
-                    const { data: newF } = await sb.from('policy_flags').insert({
-                        flag_key: flagKey,
-                        code: 'DUPLICATE_ID_IN_TABLE',
-                        severity: 'warning',
-                        title: 'Possible Duplicate Policy',
-                        message: msg,
-                        category: 'duplicate',
-                        source: 'system',
-                        status: 'open',
-                        policy_id: policyId,
-                        client_id: policy.client_id,
-                        rule_version: RULE_VERSION,
-                        first_seen_at: new Date().toISOString(),
-                        last_seen_at: new Date().toISOString(),
-                        times_seen: 1,
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString(),
-                    }).select('id').single();
-                    if (newF) {
-                        await sb.from('flag_events').insert({
-                            flag_id: newF.id,
-                            event_type: 'created',
-                            note: 'Flag check: Possible Duplicate Policy',
-                        });
-                        summary.created++;
+                    // Old schema
+                    const { data: existing } = await sb
+                        .from('policy_flags')
+                        .select('id')
+                        .eq('policy_id', policyId)
+                        .eq('code', 'DUPLICATE_ID_IN_TABLE')
+                        .is('resolved_at', null)
+                        .maybeSingle();
+
+                    if (!existing) {
+                        const { error: insErr } = await sb.from('policy_flags').insert({
+                            policy_id: policyId,
+                            code: 'DUPLICATE_ID_IN_TABLE',
+                            severity: 'warning',
+                            title: 'Possible Duplicate Policy',
+                            message: msg,
+                            source: 'system',
+                        }).select('id').single();
+                        if (insErr) errors.push(`Old-schema duplicate insert error: ${insErr.message}`);
+                        else summary.created++;
+                    } else {
+                        summary.refreshed++;
                     }
                 }
             }
         }
 
-        logger.info('API', `Flag evaluation for policy ${policyId}`, summary);
+        logger.info('API', `Flag evaluation complete for policy ${policyId}`, { ...summary, errors });
 
         return NextResponse.json({
             success: true,
             summary,
-            message: `Checked ${summary.checked} rules: ${summary.created} created, ${summary.refreshed} refreshed, ${summary.resolved} resolved.`,
+            errors: errors.length > 0 ? errors : undefined,
+            schema: newSchema ? 'new' : 'old',
+            message: `Checked ${summary.checked} rules (${summary.fired} fired): ${summary.created} created, ${summary.refreshed} refreshed, ${summary.resolved} resolved.${errors.length > 0 ? ` ${errors.length} errors.` : ''}`,
         });
 
     } catch (err) {
         logger.error('API', 'Error in flag evaluation', {
             error: err instanceof Error ? err.message : String(err),
+            errors,
         });
-        return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+        return NextResponse.json({
+            success: false,
+            error: err instanceof Error ? err.message : 'Internal server error',
+            errors,
+        }, { status: 500 });
     }
 }

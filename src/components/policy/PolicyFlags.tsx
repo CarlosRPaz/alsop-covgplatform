@@ -421,20 +421,14 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
         setFlagCheckResult(null);
         try {
             const result = await runFlagCheck(policyId);
-            if (result.success && result.summary) {
-                const s = result.summary;
-                setFlagCheckResult(
-                    `Checked ${s.checked} rules: ${s.created} new, ${s.refreshed} refreshed, ${s.resolved} auto-resolved`
-                );
-            } else {
-                setFlagCheckResult(result.message || 'Flag check failed');
-            }
+            // The API now returns a detailed message with fired/created/errors info
+            setFlagCheckResult(result.message || (result.success ? 'Flag check complete' : 'Flag check failed'));
             await loadFlags();
         } catch {
             setFlagCheckResult('Error running flag check');
         } finally {
             setFlagCheckRunning(false);
-            setTimeout(() => setFlagCheckResult(null), 6000);
+            setTimeout(() => setFlagCheckResult(null), 8000);
         }
     };
 
