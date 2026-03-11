@@ -75,6 +75,44 @@
     gap: 4px;
 }
 
+.bannerActions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.flagCheckBtn {
+    font-size: 0.8rem !important;
+    gap: 4px;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spinning {
+    animation: spin 1s linear infinite;
+}
+
+.flagCheckToast {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    color: #10b981;
+    margin-bottom: 0.75rem;
+}
+
 /* ── Section ─────────────────────────────────────────────────── */
 
 .section {

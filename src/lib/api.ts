@@ -1506,6 +1506,27 @@ export async function fetchAllOpenFlags(filters?: {
 }
 
 
+/**
+ * Run on-demand flag evaluation for a policy via the API route.
+ */
+export async function runFlagCheck(policyId: string): Promise<{
+    success: boolean;
+    message?: string;
+    summary?: { created: number; refreshed: number; resolved: number; checked: number };
+}> {
+    try {
+        const res = await fetch('/api/flags/evaluate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ policy_id: policyId }),
+        });
+        return await res.json();
+    } catch (err) {
+        return { success: false, message: 'Failed to run flag check' };
+    }
+}
+
+
 // --- Ingestion Debug (Phase 2) ---
 
 export interface SubmissionDebugRow {

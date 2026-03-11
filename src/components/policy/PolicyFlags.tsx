@@ -10,6 +10,7 @@ import {
     dismissFlag,
     unresolveFlag,
     createManualFlag,
+    runFlagCheck,
     PolicyFlagRow,
     FlagEventRow,
     FlagDefinitionRow,
@@ -33,6 +34,8 @@ import {
     Shield,
     User,
     Zap,
+    RefreshCw,
+    Loader,
 } from 'lucide-react';
 import styles from './PolicyFlags.module.scss';
 
@@ -330,6 +333,8 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
         message: '',
         scope: 'policy' as 'policy' | 'client',
     });
+    const [flagCheckRunning, setFlagCheckRunning] = useState(false);
+    const [flagCheckResult, setFlagCheckResult] = useState<string | null>(null);
 
     const loadFlags = useCallback(async () => {
         setLoading(true);
@@ -411,6 +416,28 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
         setActionLoading(null);
     };
 
+    const handleFlagCheck = async () => {
+        setFlagCheckRunning(true);
+        setFlagCheckResult(null);
+        try {
+            const result = await runFlagCheck(policyId);
+            if (result.success && result.summary) {
+                const s = result.summary;
+                setFlagCheckResult(
+                    `Checked ${s.checked} rules: ${s.created} new, ${s.refreshed} refreshed, ${s.resolved} auto-resolved`
+                );
+            } else {
+                setFlagCheckResult(result.message || 'Flag check failed');
+            }
+            await loadFlags();
+        } catch {
+            setFlagCheckResult('Error running flag check');
+        } finally {
+            setFlagCheckRunning(false);
+            setTimeout(() => setFlagCheckResult(null), 6000);
+        }
+    };
+
     if (loading) {
         return (
             <div className={styles.container}>
@@ -435,10 +462,30 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
                         </span>
                     )}
                 </div>
-                <Button variant="outline" size="sm" onClick={openAddForm} className={styles.addButton}>
-                    <Plus size={14} /> Add Manual Flag
-                </Button>
+                <div className={styles.bannerActions}>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleFlagCheck}
+                        disabled={flagCheckRunning}
+                        className={styles.flagCheckBtn}
+                    >
+                        {flagCheckRunning ? <Loader size={14} className={styles.spinning} /> : <RefreshCw size={14} />}
+                        {flagCheckRunning ? 'Checking...' : 'Run Flag Check'}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={openAddForm} className={styles.addButton}>
+                        <Plus size={14} /> Add Manual Flag
+                    </Button>
+                </div>
             </div>
+
+            {/* Flag check result toast */}
+            {flagCheckResult && (
+                <div className={styles.flagCheckToast}>
+                    <CheckCircle size={14} />
+                    {flagCheckResult}
+                </div>
+            )}
 
             {/* Manual flag form */}
             {showAddForm && (
