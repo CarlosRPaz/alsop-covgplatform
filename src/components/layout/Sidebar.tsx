@@ -16,6 +16,7 @@ import {
     Home,
     ChevronsLeft,
     ChevronsRight,
+    Flag,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -34,6 +35,7 @@ export function Sidebar() {
     const navItems = [
         { label: 'Home', href: '/', icon: Home },
         { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+        { label: 'Flags', href: '/flags', icon: Flag },
         { label: 'Submit Declaration', href: '/submit', icon: FileText },
     ];
 

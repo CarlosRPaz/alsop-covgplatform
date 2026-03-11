@@ -83,7 +83,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             case 'flags':
                 return (
                     <div className={styles.content}>
-                        <PolicyFlags policyId={id} />
+                        <PolicyFlags policyId={id} clientId={declaration?.client_id || undefined} />
                     </div>
                 );
             case 'notes':

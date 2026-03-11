@@ -46,12 +46,12 @@ export function KPIStats() {
     useEffect(() => {
         const load = async () => {
             try {
-                // 1. High Severity Flags (unresolved critical + warning)
+                // 1. High Severity Flags (open critical + high + warning)
                 const { count: flagsCount } = await supabase
                     .from('policy_flags')
                     .select('*', { count: 'exact', head: true })
-                    .in('severity', ['critical', 'warning'])
-                    .is('resolved_at', null);
+                    .in('severity', ['critical', 'high', 'warning'])
+                    .eq('status', 'open');
 
                 // 2. Missing DIC (Active term, no DIC)
                 const today = new Date().toISOString().split('T')[0];

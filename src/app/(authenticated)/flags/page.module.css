@@ -1,0 +1,348 @@
+/* ── Flags Work Queue Page ─────────────────────────────────── */
+
+.flagsPage {
+    padding: 1.5rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.pageHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+}
+
+.headerLeft {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #f1f5f9;
+}
+
+.headerLeft h1 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.flagCount {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+    font-weight: 500;
+}
+
+/* ── Severity Summary Cards ───────────────────────────────── */
+
+.severitySummary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+
+.sevCard {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    border-left: 3px solid transparent;
+}
+
+.sevValue {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+
+.sevLabel {
+    font-size: 0.7rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* ── Toolbar ──────────────────────────────────────────────── */
+
+.toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.quickViews {
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+}
+
+.quickViewBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 12px;
+    font-size: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.02);
+    color: #94a3b8;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.quickViewBtn:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #e2e8f0;
+}
+
+.quickViewActive {
+    background: rgba(59, 130, 246, 0.15) !important;
+    border-color: rgba(59, 130, 246, 0.3) !important;
+    color: #60a5fa !important;
+    font-weight: 600;
+}
+
+.filterRow {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.searchBox {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    flex: 1;
+    max-width: 300px;
+    color: #94a3b8;
+}
+
+.searchBox input {
+    background: none;
+    border: none;
+    color: #e2e8f0;
+    font-size: 0.8rem;
+    outline: none;
+    width: 100%;
+}
+
+.filterSelect {
+    padding: 0.35rem 0.5rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    color: #e2e8f0;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+/* ── Flag List ──────────────────────────────────────────────── */
+
+.flagList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.loadingState {
+    color: rgba(255, 255, 255, 0.5);
+    text-align: center;
+    padding: 3rem 1rem;
+    font-size: 0.875rem;
+}
+
+.emptyQueue {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 3rem 1rem;
+    color: #10b981;
+    text-align: center;
+}
+
+.emptyQueue p {
+    color: #64748b;
+    font-size: 0.875rem;
+}
+
+/* ── Queue Card ─────────────────────────────────────────────── */
+
+.queueCard {
+    display: flex;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+}
+
+.queueCard:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.queueCardLeft {
+    width: 3px;
+    flex-shrink: 0;
+    border-left: 3px solid transparent;
+}
+
+.queueCardBody {
+    flex: 1;
+    padding: 0.65rem 1rem;
+    min-width: 0;
+}
+
+.queueHeader {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.2rem;
+}
+
+.queueSeverity {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.03em;
+}
+
+.queueCode {
+    font-size: 0.6rem;
+    color: #64748b;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+.queueCategory {
+    font-size: 0.6rem;
+    color: #64748b;
+    text-transform: capitalize;
+}
+
+.queueSource {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.6rem;
+    color: #94a3b8;
+}
+
+.statusResolved {
+    font-size: 0.6rem;
+    color: #10b981;
+    font-weight: 500;
+    text-transform: capitalize;
+}
+
+.statusDismissed {
+    font-size: 0.6rem;
+    color: #64748b;
+    font-weight: 500;
+    text-transform: capitalize;
+}
+
+.queueTitle {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    margin-bottom: 0.1rem;
+}
+
+.queueMessage {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    line-height: 1.4;
+    margin-bottom: 0.2rem;
+}
+
+.queueMeta {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.65rem;
+    color: #64748b;
+    flex-wrap: wrap;
+}
+
+.queueMeta span {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.timesSeen {
+    color: #f59e0b;
+    font-weight: 500;
+}
+
+.policyLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: #60a5fa;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.65rem;
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
+.policyLink:hover {
+    background: rgba(96, 165, 250, 0.1);
+}
+
+.queueActions {
+    display: flex;
+    gap: 0.25rem;
+    margin-top: 0.35rem;
+    padding-top: 0.3rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.queueActionBtn {
+    font-size: 0.72rem !important;
+    gap: 3px;
+    padding: 2px 7px !important;
+    border-radius: 4px !important;
+}
+
+@media (max-width: 768px) {
+    .severitySummary {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .quickViews {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        padding-bottom: 0.25rem;
+    }
+
+    .filterRow {
+        flex-direction: column;
+    }
+
+    .searchBox {
+        max-width: 100%;
+    }
+}

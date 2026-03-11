@@ -1,218 +1,402 @@
 .container {
-    padding: 1rem 0;
+    padding: 0;
 }
 
 .loadingState {
-    padding: 2rem;
+    color: rgba(255, 255, 255, 0.5);
     text-align: center;
-    color: var(--text-dim);
+    padding: 3rem 1rem;
+    font-size: 0.875rem;
 }
 
-.header {
+/* ── Summary Banner ──────────────────────────────────────────── */
+
+.summaryBanner {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
     margin-bottom: 1rem;
+
+    h2 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #f1f5f9;
+    }
 }
 
-.headerLeft {
+.summaryLeft {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    color: var(--text-primary);
+    color: #94a3b8;
 }
 
-.title {
-    font-size: 1.125rem;
-    font-weight: 600;
-    margin: 0;
-}
-
-.countBadge {
+.totalBadge {
     font-size: 0.75rem;
-    font-weight: 500;
     padding: 2px 8px;
-    border-radius: 9999px;
-    background: rgba(59, 130, 246, 0.12);
-    color: #3b82f6;
+    border-radius: 999px;
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+    font-weight: 500;
+}
+
+.criticalBadge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    font-weight: 600;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.7;
+    }
 }
 
 .addButton {
-    display: inline-flex;
-    align-items: center;
+    font-size: 0.8rem !important;
     gap: 4px;
 }
 
-// Flag list
-.flagList {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+/* ── Section ─────────────────────────────────────────────────── */
+
+.section {
+    margin-bottom: 1.25rem;
 }
 
-// Individual flag card
-.flagCard {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-md);
-    padding: 0.75rem 1rem;
-    transition: border-color 150ms ease;
-
-    &.severitycritical {
-        border-left: 3px solid #ef4444;
-    }
-
-    &.severitywarning {
-        border-left: 3px solid #f59e0b;
-    }
-
-    &.severityinfo {
-        border-left: 3px solid #3b82f6;
-    }
-}
-
-.flagResolved {
-    opacity: 0.6;
-}
-
-// Flag header row
-.flagHeader {
+.sectionHeader {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-bottom: 0.25rem;
+    padding: 0.5rem 0;
+    color: #94a3b8;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    margin-bottom: 0.5rem;
+
+    h3 {
+        margin: 0;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #cbd5e1;
+    }
+}
+
+.sectionCount {
+    font-size: 0.7rem;
+    color: #64748b;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.sectionEmpty {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.8rem;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.05);
+    border-radius: 8px;
+}
+
+/* ── Flag Card ───────────────────────────────────────────────── */
+
+.flagCard {
+    display: flex;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+    transition: border-color 0.15s;
+
+    &:hover {
+        border-color: rgba(255, 255, 255, 0.12);
+    }
+}
+
+.flagInactive {
+    opacity: 0.55;
+}
+
+.flagCardLeft {
+    width: 3px;
+    flex-shrink: 0;
+    border-left: 3px solid transparent;
+}
+
+.flagCardBody {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    min-width: 0;
+}
+
+.flagCardHeader {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     flex-wrap: wrap;
+    margin-bottom: 0.35rem;
 }
 
 .severityBadge {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    font-size: 0.6875rem;
+    gap: 3px;
+    font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    padding: 2px 6px;
+    padding: 2px 7px;
     border-radius: 4px;
+    letter-spacing: 0.03em;
 }
 
-.sevcritical {
-    background: rgba(239, 68, 68, 0.15);
-    color: #ef4444;
-}
-
-.sevwarning {
-    background: rgba(245, 158, 11, 0.15);
-    color: #f59e0b;
-}
-
-.sevinfo {
-    background: rgba(59, 130, 246, 0.15);
-    color: #3b82f6;
-}
-
-.flagCode {
-    font-size: 0.6875rem;
-    font-family: monospace;
-    color: var(--text-dim);
-    background: rgba(255, 255, 255, 0.05);
-    padding: 1px 5px;
+.codeBadge {
+    font-size: 0.65rem;
+    color: #64748b;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 1px 6px;
     border-radius: 3px;
 }
 
-.flagSource {
-    font-size: 0.6875rem;
-    color: var(--text-dim);
-}
-
-.resolvedBadge {
+.sourceBadge {
     display: inline-flex;
     align-items: center;
     gap: 3px;
-    font-size: 0.6875rem;
-    color: #22c55e;
+    font-size: 0.65rem;
+    color: #94a3b8;
+    padding: 1px 5px;
+}
+
+.categoryBadge {
+    font-size: 0.65rem;
+    color: #64748b;
+    text-transform: capitalize;
+}
+
+.statusResolved {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.65rem;
+    color: #10b981;
+    font-weight: 500;
+}
+
+.statusDismissed {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.65rem;
+    color: #64748b;
     font-weight: 500;
 }
 
 .flagTitle {
     font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--text-primary);
-    margin-bottom: 0.125rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    margin-bottom: 0.15rem;
 }
 
 .flagMessage {
-    font-size: 0.8125rem;
-    color: var(--text-mid);
-    margin-bottom: 0.25rem;
+    font-size: 0.8rem;
+    color: #94a3b8;
     line-height: 1.4;
+    margin-bottom: 0.35rem;
 }
 
 .flagMeta {
     display: flex;
-    gap: 1rem;
-    font-size: 0.6875rem;
-    color: var(--text-dim);
-    margin-bottom: 0.25rem;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.7rem;
+    color: #64748b;
+    flex-wrap: wrap;
+
+    span {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+    }
 }
+
+.timesSeenBadge {
+    color: #f59e0b;
+    font-weight: 500;
+}
+
+.dismissReason {
+    font-style: italic;
+    color: #94a3b8;
+}
+
+/* ── Flag Actions ────────────────────────────────────────────── */
 
 .flagActions {
     display: flex;
+    align-items: center;
     gap: 0.25rem;
-    margin-top: 0.25rem;
+    margin-top: 0.5rem;
+    padding-top: 0.4rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .actionBtn {
     font-size: 0.75rem !important;
-    padding: 2px 6px !important;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-// Empty state
-.emptyState {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 2rem;
-    color: var(--text-dim);
-    text-align: center;
-
-    p {
-        margin: 0;
-        font-size: 0.875rem;
-    }
-}
-
-// Resolved section
-.resolvedSection {
-    margin-top: 1rem;
-}
-
-.resolvedToggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: none;
-    border: none;
-    color: var(--text-dim);
-    font-size: 0.8125rem;
-    cursor: pointer;
-    padding: 0.25rem 0;
-    margin-bottom: 0.5rem;
+    gap: 3px;
+    padding: 3px 8px !important;
+    border-radius: 4px !important;
 
     &:hover {
-        color: var(--text-mid);
+        background: rgba(255, 255, 255, 0.06) !important;
     }
 }
 
-// Add flag form
+.historyBtn {
+    font-size: 0.7rem !important;
+    gap: 3px;
+    padding: 3px 6px !important;
+    margin-left: auto;
+    color: #64748b !important;
+}
+
+.actionLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.75rem;
+    color: #60a5fa;
+    text-decoration: none;
+    padding: 3px 6px;
+    border-radius: 4px;
+
+    &:hover {
+        background: rgba(96, 165, 250, 0.1);
+    }
+}
+
+/* ── Dismiss Form ────────────────────────────────────────────── */
+
+.dismissForm {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.dismissInput {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 0.4rem 0.6rem;
+    color: #e2e8f0;
+    font-size: 0.8rem;
+    width: 100%;
+
+    &:focus {
+        outline: none;
+        border-color: rgba(59, 130, 246, 0.4);
+    }
+}
+
+.dismissActions {
+    display: flex;
+    gap: 0.35rem;
+}
+
+/* ── History Panel ───────────────────────────────────────────── */
+
+.historyPanel {
+    margin-top: 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    padding-top: 0.5rem;
+}
+
+.historyRow {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+    font-size: 0.7rem;
+}
+
+.eventType {
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: capitalize;
+    min-width: 70px;
+}
+
+.eventNote {
+    color: #64748b;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.eventDate {
+    color: #475569;
+    flex-shrink: 0;
+}
+
+.historyLoading,
+.historyEmpty {
+    font-size: 0.7rem;
+    color: #475569;
+    padding: 0.25rem 0;
+}
+
+/* ── Inactive Toggle ─────────────────────────────────────────── */
+
+.inactiveToggle {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    color: #64748b;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.4rem 0;
+    margin-top: 0.25rem;
+
+    &:hover {
+        color: #94a3b8;
+    }
+}
+
+/* ── Add Form ────────────────────────────────────────────────── */
+
 .addFormCard {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
     padding: 1rem;
     margin-bottom: 1rem;
 }
@@ -221,21 +405,23 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-weight: 600;
-    font-size: 0.875rem;
-    color: var(--text-primary);
     margin-bottom: 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #e2e8f0;
 }
 
 .closeBtn {
     background: none;
     border: none;
-    color: var(--text-dim);
+    color: #64748b;
     cursor: pointer;
-    padding: 2px;
+    padding: 4px;
+    border-radius: 4px;
 
     &:hover {
-        color: var(--text-primary);
+        color: #94a3b8;
+        background: rgba(255, 255, 255, 0.06);
     }
 }
 
@@ -251,14 +437,41 @@
     gap: 0.25rem;
 
     label {
-        font-size: 0.75rem;
+        font-size: 0.7rem;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
         font-weight: 500;
-        color: var(--text-mid);
     }
+}
 
-    &.fullWidth {
-        grid-column: 1 / -1;
+.fullWidth {
+    grid-column: span 2;
+}
+
+.input,
+.select,
+.textarea {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 0.4rem 0.6rem;
+    color: #e2e8f0;
+    font-size: 0.8rem;
+
+    &:focus {
+        outline: none;
+        border-color: rgba(59, 130, 246, 0.5);
     }
+}
+
+.select {
+    cursor: pointer;
+}
+
+.textarea {
+    resize: vertical;
+    font-family: inherit;
 }
 
 .formActions {
@@ -267,55 +480,19 @@
     margin-top: 0.75rem;
 }
 
-// Shared input styles
-.input,
-.select,
-.textarea {
-    background: var(--bg-base, #0f1117);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-sm, 4px);
-    padding: 0.375rem 0.5rem;
-    font-size: 0.8125rem;
-    color: var(--text-primary);
-    outline: none;
-    width: 100%;
+/* ── Empty State ─────────────────────────────────────────────── */
 
-    &:focus {
-        border-color: rgba(59, 130, 246, 0.5);
-        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
-    }
-}
-
-.textarea {
-    resize: vertical;
-    min-height: 48px;
-}
-
-.select {
-    cursor: pointer;
-}
-
-// Edit form (inline)
-.editForm {
+.emptyState {
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 0.5rem;
-}
+    padding: 3rem 1rem;
+    color: #10b981;
+    text-align: center;
 
-.editRow {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-
-    label {
-        font-size: 0.6875rem;
-        font-weight: 500;
-        color: var(--text-dim);
+    p {
+        color: #64748b;
+        font-size: 0.875rem;
     }
-}
-
-.editActions {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 0.25rem;
 }

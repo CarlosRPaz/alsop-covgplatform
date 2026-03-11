@@ -219,20 +219,62 @@ export interface PolicyTermRow {
 /** Row shape from the `policy_flags` table. */
 export interface PolicyFlagRow {
     id: string;
-    policy_id: string;
-    source_dec_page_id?: string;
+    policy_id?: string | null;
+    client_id?: string | null;
+    policy_term_id?: string | null;
+    submission_id?: string | null;
+    dec_page_id?: string | null;
+    source_dec_page_id?: string | null;
     code: string;
-    severity: 'info' | 'warning' | 'critical';
+    severity: string;
     title: string;
-    message?: string;
+    message?: string | null;
     details?: Record<string, unknown>;
-    source: string;            // 'ai' | 'rule' | 'system' | 'user'
-    rule_version?: string;
-    created_by_account_id?: string;
+    source: string;
+    status: string;               // 'open' | 'resolved' | 'dismissed'
+    flag_key?: string | null;
+    category?: string | null;
+    action_path?: string | null;
+    rule_version?: string | null;
+    assigned_account_id?: string | null;
+    assigned_office?: string | null;
+    first_seen_at?: string | null;
+    last_seen_at?: string | null;
+    times_seen?: number;
+    created_by_account_id?: string | null;
     created_at?: string;
+    updated_at?: string | null;
     resolved_at?: string | null;
     resolved_by_account_id?: string | null;
+    dismissed_at?: string | null;
+    dismissed_by_account_id?: string | null;
+    dismiss_reason?: string | null;
 }
+
+export interface FlagEventRow {
+    id: string;
+    flag_id: string;
+    event_type: string;
+    actor_account_id?: string | null;
+    note?: string | null;
+    details?: Record<string, unknown>;
+    created_at: string;
+}
+
+export interface FlagDefinitionRow {
+    code: string;
+    label: string;
+    description?: string | null;
+    category: string;
+    default_severity: string;
+    entity_scope: string;
+    auto_resolve: boolean;
+    is_manual_allowed: boolean;
+    is_active: boolean;
+    default_action_path?: string | null;
+    rule_version?: string | null;
+}
+
 
 /**
  * Dashboard-level Policy type — a joined view for the agent dashboard table.
@@ -1094,40 +1136,34 @@ export async function fetchAIReport(id: string): Promise<AIReportData> {
 // Policy Flags
 // ---------------------------------------------------------------------------
 
-const SEVERITY_ORDER: Record<string, number> = { critical: 3, warning: 2, info: 1 };
+const SEVERITY_ORDER: Record<string, number> = { critical: 4, high: 3, warning: 2, info: 1 };
 
 /**
  * Batch-fetch flag summary (count + highest severity) for a list of policy IDs.
- * Used by fetchDashboardPolicies to avoid N+1 queries.
- * Only counts active (unresolved) flags when resolved_at column exists.
+ * Uses status='open' instead of resolved_at IS NULL.
  */
 async function fetchFlagSummaryForPolicies(
     policyIds: string[]
-): Promise<Map<string, { count: number; severity?: 'info' | 'warning' | 'critical' }>> {
-    const result = new Map<string, { count: number; severity?: 'info' | 'warning' | 'critical' }>();
+): Promise<Map<string, { count: number; severity?: string }>> {
+    const result = new Map<string, { count: number; severity?: string }>();
     if (policyIds.length === 0) return result;
 
     try {
         const { data, error } = await supabase
             .from('policy_flags')
-            .select('id, policy_id, severity, resolved_at')
-            .in('policy_id', policyIds);
+            .select('id, policy_id, severity, status')
+            .in('policy_id', policyIds)
+            .eq('status', 'open');
 
         if (error || !data) {
-            // Table might not exist yet — return empty map gracefully
             logger.warn('API', 'Could not fetch flag summaries', { message: error?.message });
             return result;
         }
 
-        // Group by policy_id, filtering to active (unresolved) flags
         for (const flag of data) {
-            // If resolved_at exists and is set, skip (resolved flag)
-            if (flag.resolved_at) continue;
-
             const existing = result.get(flag.policy_id) || { count: 0, severity: undefined };
             existing.count++;
-
-            const sev = flag.severity as 'info' | 'warning' | 'critical';
+            const sev = flag.severity as string;
             if (!existing.severity || (SEVERITY_ORDER[sev] || 0) > (SEVERITY_ORDER[existing.severity] || 0)) {
                 existing.severity = sev;
             }
@@ -1143,7 +1179,7 @@ async function fetchFlagSummaryForPolicies(
 }
 
 /**
- * Fetch all flags for a given policy, ordered by severity desc then created_at desc.
+ * Fetch all flags for a given policy, ordered by status then severity.
  */
 export async function fetchFlagsByPolicyId(policyId: string): Promise<PolicyFlagRow[]> {
     try {
@@ -1154,20 +1190,15 @@ export async function fetchFlagsByPolicyId(policyId: string): Promise<PolicyFlag
             .order('created_at', { ascending: false });
 
         if (error || !data) {
-            logger.error('API', 'Error fetching flags for policy', {
-                policyId,
-                message: error?.message,
-            });
+            logger.error('API', 'Error fetching flags for policy', { policyId, message: error?.message });
             return [];
         }
 
-        // Sort: active first, then by severity desc
         return (data as PolicyFlagRow[]).sort((a, b) => {
-            // Active (unresolved) first
-            const aResolved = a.resolved_at ? 1 : 0;
-            const bResolved = b.resolved_at ? 1 : 0;
-            if (aResolved !== bResolved) return aResolved - bResolved;
-            // Then by severity
+            const statusOrder: Record<string, number> = { open: 0, dismissed: 1, resolved: 2 };
+            const aStat = statusOrder[a.status] ?? 0;
+            const bStat = statusOrder[b.status] ?? 0;
+            if (aStat !== bStat) return aStat - bStat;
             return (SEVERITY_ORDER[b.severity] || 0) - (SEVERITY_ORDER[a.severity] || 0);
         });
     } catch (err) {
@@ -1179,21 +1210,62 @@ export async function fetchFlagsByPolicyId(policyId: string): Promise<PolicyFlag
 }
 
 /**
- * Resolve a flag (set resolved_at and resolved_by_account_id).
+ * Fetch all flags for a given client.
  */
-export async function resolveFlag(flagId: string): Promise<boolean> {
+export async function fetchFlagsByClientId(clientId: string): Promise<PolicyFlagRow[]> {
     try {
+        const { data, error } = await supabase
+            .from('policy_flags')
+            .select('*')
+            .eq('client_id', clientId)
+            .order('created_at', { ascending: false });
+
+        if (error || !data) return [];
+
+        return (data as PolicyFlagRow[]).sort((a, b) => {
+            const statusOrder: Record<string, number> = { open: 0, dismissed: 1, resolved: 2 };
+            const aStat = statusOrder[a.status] ?? 0;
+            const bStat = statusOrder[b.status] ?? 0;
+            if (aStat !== bStat) return aStat - bStat;
+            return (SEVERITY_ORDER[b.severity] || 0) - (SEVERITY_ORDER[a.severity] || 0);
+        });
+    } catch (err) {
+        return [];
+    }
+}
+
+/**
+ * Resolve a flag — sets status='resolved', resolved_at, resolved_by.
+ * Also appends a flag_event.
+ */
+export async function resolveFlag(flagId: string, actorAccountId?: string): Promise<boolean> {
+    try {
+        const now = new Date().toISOString();
+        const update: Record<string, unknown> = {
+            status: 'resolved',
+            resolved_at: now,
+            updated_at: now,
+        };
+        if (actorAccountId) update.resolved_by_account_id = actorAccountId;
+
         const { error } = await supabase
             .from('policy_flags')
-            .update({
-                resolved_at: new Date().toISOString(),
-            })
+            .update(update)
             .eq('id', flagId);
 
         if (error) {
             logger.error('API', 'Error resolving flag', { flagId, message: error.message });
             return false;
         }
+
+        // Append flag event
+        await supabase.from('flag_events').insert({
+            flag_id: flagId,
+            event_type: 'resolved',
+            actor_account_id: actorAccountId || null,
+            note: 'Resolved by staff',
+        });
+
         return true;
     } catch (err) {
         logger.error('API', 'Unexpected error resolving flag', {
@@ -1204,15 +1276,61 @@ export async function resolveFlag(flagId: string): Promise<boolean> {
 }
 
 /**
- * Unresolve a flag (clear resolved_at and resolved_by_account_id).
+ * Dismiss a flag — sets status='dismissed', dismissed_at, reason.
+ */
+export async function dismissFlag(
+    flagId: string,
+    reason: string = '',
+    actorAccountId?: string
+): Promise<boolean> {
+    try {
+        const now = new Date().toISOString();
+        const update: Record<string, unknown> = {
+            status: 'dismissed',
+            dismissed_at: now,
+            updated_at: now,
+        };
+        if (reason) update.dismiss_reason = reason;
+        if (actorAccountId) update.dismissed_by_account_id = actorAccountId;
+
+        const { error } = await supabase
+            .from('policy_flags')
+            .update(update)
+            .eq('id', flagId);
+
+        if (error) {
+            logger.error('API', 'Error dismissing flag', { flagId, message: error.message });
+            return false;
+        }
+
+        await supabase.from('flag_events').insert({
+            flag_id: flagId,
+            event_type: 'dismissed',
+            actor_account_id: actorAccountId || null,
+            note: reason || 'Dismissed by staff',
+        });
+
+        return true;
+    } catch (err) {
+        logger.error('API', 'Unexpected error dismissing flag', {
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return false;
+    }
+}
+
+/**
+ * Unresolve (reopen) a flag.
  */
 export async function unresolveFlag(flagId: string): Promise<boolean> {
     try {
         const { error } = await supabase
             .from('policy_flags')
             .update({
+                status: 'open',
                 resolved_at: null,
                 resolved_by_account_id: null,
+                updated_at: new Date().toISOString(),
             })
             .eq('id', flagId);
 
@@ -1220,11 +1338,15 @@ export async function unresolveFlag(flagId: string): Promise<boolean> {
             logger.error('API', 'Error unresolving flag', { flagId, message: error.message });
             return false;
         }
+
+        await supabase.from('flag_events').insert({
+            flag_id: flagId,
+            event_type: 'reopened',
+            note: 'Reopened by staff',
+        });
+
         return true;
     } catch (err) {
-        logger.error('API', 'Unexpected error unresolving flag', {
-            error: err instanceof Error ? err.message : String(err),
-        });
         return false;
     }
 }
@@ -1239,7 +1361,7 @@ export async function updateFlag(
     try {
         const { error } = await supabase
             .from('policy_flags')
-            .update(updates)
+            .update({ ...updates, updated_at: new Date().toISOString() })
             .eq('id', flagId);
 
         if (error) {
@@ -1248,50 +1370,141 @@ export async function updateFlag(
         }
         return true;
     } catch (err) {
-        logger.error('API', 'Unexpected error updating flag', {
-            error: err instanceof Error ? err.message : String(err),
-        });
         return false;
     }
 }
 
 /**
- * Create a new flag manually.
+ * Fetch flag_events history for a flag.
  */
-export async function createFlag(
-    policyId: string,
-    fields: { code: string; severity: string; title: string; message?: string; details?: Record<string, unknown> }
-): Promise<PolicyFlagRow | null> {
+export async function fetchFlagEvents(flagId: string): Promise<FlagEventRow[]> {
     try {
+        const { data, error } = await supabase
+            .from('flag_events')
+            .select('*')
+            .eq('flag_id', flagId)
+            .order('created_at', { ascending: false });
+
+        if (error || !data) return [];
+        return data as FlagEventRow[];
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * Fetch manual-allowed flag definitions.
+ */
+export async function fetchManualFlagDefinitions(): Promise<FlagDefinitionRow[]> {
+    try {
+        const { data, error } = await supabase
+            .from('flag_definitions')
+            .select('*')
+            .eq('is_manual_allowed', true)
+            .eq('is_active', true);
+
+        if (error || !data) return [];
+        return data as FlagDefinitionRow[];
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * Create a manual flag (supports both policy and client scope).
+ */
+export async function createManualFlag(fields: {
+    code: string;
+    severity: string;
+    title: string;
+    message?: string;
+    policy_id?: string | null;
+    client_id?: string | null;
+    category?: string;
+}): Promise<PolicyFlagRow | null> {
+    try {
+        const now = new Date().toISOString();
         const { data, error } = await supabase
             .from('policy_flags')
             .insert({
-                policy_id: policyId,
+                policy_id: fields.policy_id || null,
+                client_id: fields.client_id || null,
                 code: fields.code,
                 severity: fields.severity,
                 title: fields.title,
                 message: fields.message || null,
-                details: fields.details || {},
                 source: 'user',
+                status: 'open',
+                category: fields.category || 'manual',
+                first_seen_at: now,
+                last_seen_at: now,
+                times_seen: 1,
+                created_at: now,
+                updated_at: now,
             })
             .select('*')
             .single();
 
         if (error || !data) {
-            logger.error('API', 'Error creating flag', {
-                policyId,
-                message: error?.message,
-            });
+            logger.error('API', 'Error creating manual flag', { message: error?.message });
             return null;
         }
+
+        // Append flag_event
+        await supabase.from('flag_events').insert({
+            flag_id: (data as PolicyFlagRow).id,
+            event_type: 'created',
+            note: `Manual flag created: ${fields.title}`,
+        });
+
         return data as PolicyFlagRow;
     } catch (err) {
-        logger.error('API', 'Unexpected error creating flag', {
+        logger.error('API', 'Unexpected error creating manual flag', {
             error: err instanceof Error ? err.message : String(err),
         });
         return null;
     }
 }
+
+/**
+ * Fetch all open flags with optional filters — for the /flags work queue.
+ */
+export async function fetchAllOpenFlags(filters?: {
+    status?: string;
+    severity?: string;
+    category?: string;
+    code?: string;
+    source?: string;
+}): Promise<PolicyFlagRow[]> {
+    try {
+        let query = supabase
+            .from('policy_flags')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(500);
+
+        if (filters?.status) {
+            query = query.eq('status', filters.status);
+        } else {
+            query = query.eq('status', 'open');
+        }
+        if (filters?.severity) query = query.eq('severity', filters.severity);
+        if (filters?.category) query = query.eq('category', filters.category);
+        if (filters?.code) query = query.eq('code', filters.code);
+        if (filters?.source) query = query.eq('source', filters.source);
+
+        const { data, error } = await query;
+
+        if (error || !data) return [];
+
+        return (data as PolicyFlagRow[]).sort((a, b) => {
+            return (SEVERITY_ORDER[b.severity] || 0) - (SEVERITY_ORDER[a.severity] || 0);
+        });
+    } catch {
+        return [];
+    }
+}
+
 
 // --- Ingestion Debug (Phase 2) ---
 
