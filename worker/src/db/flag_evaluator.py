@@ -315,6 +315,32 @@ def _check_renewal_upcoming(ctx: EvalContext) -> str | None:
         return None
 
 
+def _check_duplicate_policy_by_number(ctx: EvalContext) -> str | None:
+    """Check if another policy exists with the same policy_number."""
+    if not ctx.policy_id:
+        return None
+    # Get the policy_number from extracted data or from the DB
+    policy_number = ctx.data.get("policy_number")
+    if not policy_number:
+        return None
+    try:
+        sb = get_supabase()
+        res = (
+            sb.table("policies")
+            .select("id, policy_number")
+            .eq("policy_number", policy_number)
+            .neq("id", ctx.policy_id)
+            .limit(3)
+            .execute()
+        )
+        if res.data and len(res.data) > 0:
+            count = len(res.data)
+            return f"Found {count} other polic{'ies' if count > 1 else 'y'} with the same policy number ({policy_number})."
+    except Exception as e:
+        logger.warning("Duplicate check failed for policy_number %s: %s", policy_number, e)
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Rule registry — add new rules here
 # ---------------------------------------------------------------------------
@@ -327,7 +353,7 @@ FLAG_RULES: list[FlagRule] = [
 
     FlagRule("MISSING_PROPERTY_LOCATION", "critical", "Missing Property Location",
              "data_quality", "policy", True,
-             _check_missing_field_in_list("property_location", "Property location")),
+             _check_missing_field("property_location", "Property location")),
 
     # ── Data quality: coverage fields ──────────────────────────────────────
     FlagRule("MISSING_DWELLING_LIMIT", "critical", "Missing Dwelling Limit",
@@ -359,13 +385,15 @@ FLAG_RULES: list[FlagRule] = [
              _check_missing_field("limit_personal_property", "Personal property (Coverage C)")),
 
     # ── Client/contact ─────────────────────────────────────────────────────
-    FlagRule("MISSING_EMAIL", "high", "Missing Client Email",
-             "data_quality", "client", True,
-             _check_missing_field("email", "Client email")),
-
-    FlagRule("MISSING_PHONE", "high", "Missing Client Phone",
-             "data_quality", "client", True,
-             _check_missing_field("phone", "Client phone number")),
+    # MVP-DEFERRED: MISSING_EMAIL and MISSING_PHONE are disabled until the
+    # clients table has email/phone columns reliably populated.
+    # Uncomment when ready:
+    # FlagRule("MISSING_EMAIL", "high", "Missing Client Email",
+    #          "data_quality", "client", True,
+    #          _check_missing_field("email", "Client email")),
+    # FlagRule("MISSING_PHONE", "high", "Missing Client Phone",
+    #          "data_quality", "client", True,
+    #          _check_missing_field("phone", "Client phone number")),
 
     # ── Coverage/DIC ───────────────────────────────────────────────────────
     FlagRule("NO_DIC", "high", "DIC Not on File",
@@ -406,6 +434,11 @@ FLAG_RULES: list[FlagRule] = [
     FlagRule("MORTGAGEE_PRESENT_DWELLING_ZERO", "critical",
              "Mortgagee Present, Dwelling $0",
              "coverage_gap", "policy", False, _check_mortgagee_present_dwelling_zero),
+
+    # ── Duplicate detection ────────────────────────────────────────────────
+    FlagRule("DUPLICATE_ID_IN_TABLE", "warning",
+             "Possible Duplicate Policy",
+             "duplicate", "policy", False, _check_duplicate_policy_by_number),
 ]
 
 
