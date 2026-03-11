@@ -1258,35 +1258,55 @@ export async function fetchFlagsByClientId(clientId: string): Promise<PolicyFlag
 
 /**
  * Resolve a flag — sets status='resolved', resolved_at, resolved_by.
- * Also appends a flag_event.
+ * Falls back to old schema if new columns don't exist.
  */
 export async function resolveFlag(flagId: string, actorAccountId?: string): Promise<boolean> {
     try {
         const now = new Date().toISOString();
-        const update: Record<string, unknown> = {
+
+        // Try new schema first
+        const newUpdate: Record<string, unknown> = {
             status: 'resolved',
             resolved_at: now,
             updated_at: now,
         };
-        if (actorAccountId) update.resolved_by_account_id = actorAccountId;
+        if (actorAccountId) newUpdate.resolved_by_account_id = actorAccountId;
 
         const { error } = await supabase
             .from('policy_flags')
-            .update(update)
+            .update(newUpdate)
             .eq('id', flagId);
 
         if (error) {
-            logger.error('API', 'Error resolving flag', { flagId, message: error.message });
-            return false;
+            // Fallback: old schema (no status / updated_at columns)
+            if (error.message?.includes('schema cache') || error.message?.includes('column')) {
+                const oldUpdate: Record<string, unknown> = { resolved_at: now };
+                if (actorAccountId) oldUpdate.resolved_by_account_id = actorAccountId;
+
+                const { error: oldErr } = await supabase
+                    .from('policy_flags')
+                    .update(oldUpdate)
+                    .eq('id', flagId);
+
+                if (oldErr) {
+                    logger.error('API', 'Error resolving flag (old schema)', { flagId, message: oldErr.message });
+                    return false;
+                }
+            } else {
+                logger.error('API', 'Error resolving flag', { flagId, message: error.message });
+                return false;
+            }
         }
 
-        // Append flag event
-        await supabase.from('flag_events').insert({
-            flag_id: flagId,
-            event_type: 'resolved',
-            actor_account_id: actorAccountId || null,
-            note: 'Resolved by staff',
-        });
+        // Append flag event (best-effort)
+        try {
+            await supabase.from('flag_events').insert({
+                flag_id: flagId,
+                event_type: 'resolved',
+                actor_account_id: actorAccountId || null,
+                note: 'Resolved by staff',
+            });
+        } catch { /* flag_events table may not exist */ }
 
         return true;
     } catch (err) {
@@ -1299,6 +1319,7 @@ export async function resolveFlag(flagId: string, actorAccountId?: string): Prom
 
 /**
  * Dismiss a flag — sets status='dismissed', dismissed_at, reason.
+ * Falls back to old schema (sets resolved_at as proxy) if new columns don't exist.
  */
 export async function dismissFlag(
     flagId: string,
@@ -1307,30 +1328,51 @@ export async function dismissFlag(
 ): Promise<boolean> {
     try {
         const now = new Date().toISOString();
-        const update: Record<string, unknown> = {
+
+        // Try new schema first
+        const newUpdate: Record<string, unknown> = {
             status: 'dismissed',
             dismissed_at: now,
             updated_at: now,
         };
-        if (reason) update.dismiss_reason = reason;
-        if (actorAccountId) update.dismissed_by_account_id = actorAccountId;
+        if (reason) newUpdate.dismiss_reason = reason;
+        if (actorAccountId) newUpdate.dismissed_by_account_id = actorAccountId;
 
         const { error } = await supabase
             .from('policy_flags')
-            .update(update)
+            .update(newUpdate)
             .eq('id', flagId);
 
         if (error) {
-            logger.error('API', 'Error dismissing flag', { flagId, message: error.message });
-            return false;
+            // Fallback: old schema — use resolved_at as dismiss proxy
+            if (error.message?.includes('schema cache') || error.message?.includes('column')) {
+                const oldUpdate: Record<string, unknown> = { resolved_at: now };
+                if (actorAccountId) oldUpdate.resolved_by_account_id = actorAccountId;
+
+                const { error: oldErr } = await supabase
+                    .from('policy_flags')
+                    .update(oldUpdate)
+                    .eq('id', flagId);
+
+                if (oldErr) {
+                    logger.error('API', 'Error dismissing flag (old schema)', { flagId, message: oldErr.message });
+                    return false;
+                }
+            } else {
+                logger.error('API', 'Error dismissing flag', { flagId, message: error.message });
+                return false;
+            }
         }
 
-        await supabase.from('flag_events').insert({
-            flag_id: flagId,
-            event_type: 'dismissed',
-            actor_account_id: actorAccountId || null,
-            note: reason || 'Dismissed by staff',
-        });
+        // Append flag event (best-effort)
+        try {
+            await supabase.from('flag_events').insert({
+                flag_id: flagId,
+                event_type: 'dismissed',
+                actor_account_id: actorAccountId || null,
+                note: reason || 'Dismissed by staff',
+            });
+        } catch { /* flag_events table may not exist */ }
 
         return true;
     } catch (err) {
@@ -1343,6 +1385,7 @@ export async function dismissFlag(
 
 /**
  * Unresolve (reopen) a flag.
+ * Falls back to old schema if new columns don't exist.
  */
 export async function unresolveFlag(flagId: string): Promise<boolean> {
     try {
@@ -1357,15 +1400,30 @@ export async function unresolveFlag(flagId: string): Promise<boolean> {
             .eq('id', flagId);
 
         if (error) {
-            logger.error('API', 'Error unresolving flag', { flagId, message: error.message });
-            return false;
+            // Fallback: old schema
+            if (error.message?.includes('schema cache') || error.message?.includes('column')) {
+                const { error: oldErr } = await supabase
+                    .from('policy_flags')
+                    .update({ resolved_at: null, resolved_by_account_id: null })
+                    .eq('id', flagId);
+
+                if (oldErr) {
+                    logger.error('API', 'Error unresolving flag (old schema)', { flagId, message: oldErr.message });
+                    return false;
+                }
+            } else {
+                logger.error('API', 'Error unresolving flag', { flagId, message: error.message });
+                return false;
+            }
         }
 
-        await supabase.from('flag_events').insert({
-            flag_id: flagId,
-            event_type: 'reopened',
-            note: 'Reopened by staff',
-        });
+        try {
+            await supabase.from('flag_events').insert({
+                flag_id: flagId,
+                event_type: 'reopened',
+                note: 'Reopened by staff',
+            });
+        } catch { /* flag_events table may not exist */ }
 
         return true;
     } catch (err) {
