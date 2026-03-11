@@ -300,7 +300,8 @@ export interface DashboardPolicy {
     annual_premium?: string;
     // Flag summary (joined)
     flag_count: number;
-    highest_severity?: 'info' | 'warning' | 'critical';
+    highest_severity?: 'info' | 'warning' | 'critical' | 'high';
+    flags: Array<{ code: string; title: string; severity: string }>;
     // Metadata
     created_at?: string;
 }
@@ -603,7 +604,7 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
             // policy_terms is an array; find the current term
             const terms: Array<{ id: string; effective_date?: string; expiration_date?: string; annual_premium?: number; is_current?: boolean }> = row.policy_terms || [];
             const currentTerm = terms.find(t => t.is_current === true) || terms[0] || null;
-            const flagInfo = flagMap.get(row.id) || { count: 0, severity: undefined };
+            const flagInfo = flagMap.get(row.id) || { count: 0, severity: undefined, flags: [] };
 
             return {
                 id: row.id,
@@ -624,6 +625,7 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
                     : undefined,
                 flag_count: flagInfo.count,
                 highest_severity: flagInfo.severity,
+                flags: flagInfo.flags || [],
                 created_at: row.created_at,
             } as DashboardPolicy;
         });
@@ -1139,21 +1141,35 @@ export async function fetchAIReport(id: string): Promise<AIReportData> {
 const SEVERITY_ORDER: Record<string, number> = { critical: 4, high: 3, warning: 2, info: 1 };
 
 /**
- * Batch-fetch flag summary (count + highest severity) for a list of policy IDs.
- * Uses status='open' instead of resolved_at IS NULL.
+ * Batch-fetch flag summary (count + highest severity + flag details) for a list of policy IDs.
+ * Handles both old schema (no status column) and new schema (status='open').
  */
 async function fetchFlagSummaryForPolicies(
     policyIds: string[]
-): Promise<Map<string, { count: number; severity?: string }>> {
-    const result = new Map<string, { count: number; severity?: string }>();
+): Promise<Map<string, { count: number; severity?: string; flags: Array<{ code: string; title: string; severity: string }> }>> {
+    const result = new Map<string, { count: number; severity?: string; flags: Array<{ code: string; title: string; severity: string }> }>();
     if (policyIds.length === 0) return result;
 
     try {
-        const { data, error } = await supabase
+        // Try fetching with status filter first (new schema)
+        // Fall back to resolved_at IS NULL if status column doesn't exist
+        let { data, error } = await supabase
             .from('policy_flags')
-            .select('id, policy_id, severity, status')
+            .select('id, policy_id, severity, status, code, title')
             .in('policy_id', policyIds)
             .eq('status', 'open');
+
+        if (error) {
+            // Fallback: old schema — use resolved_at IS NULL
+            const fallback = await supabase
+                .from('policy_flags')
+                .select('id, policy_id, severity, code, title, resolved_at')
+                .in('policy_id', policyIds)
+                .is('resolved_at', null);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            data = fallback.data as any;
+            error = fallback.error;
+        }
 
         if (error || !data) {
             logger.warn('API', 'Could not fetch flag summaries', { message: error?.message });
@@ -1161,8 +1177,13 @@ async function fetchFlagSummaryForPolicies(
         }
 
         for (const flag of data) {
-            const existing = result.get(flag.policy_id) || { count: 0, severity: undefined };
+            const existing = result.get(flag.policy_id) || { count: 0, severity: undefined, flags: [] };
             existing.count++;
+            existing.flags.push({
+                code: flag.code || 'UNKNOWN',
+                title: flag.title || flag.code || 'Flag',
+                severity: flag.severity || 'info',
+            });
             const sev = flag.severity as string;
             if (!existing.severity || (SEVERITY_ORDER[sev] || 0) > (SEVERITY_ORDER[existing.severity] || 0)) {
                 existing.severity = sev;

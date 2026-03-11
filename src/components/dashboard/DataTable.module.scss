@@ -855,3 +855,63 @@
     color: var(--text-dim);
     font-size: 0.75rem;
 }
+
+/* Flag Pill Badges — shows individual flag titles */
+.flagPillsWrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    max-width: 260px;
+}
+
+.flagPill {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    line-height: 1.5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+    /* Default (no severity match) */
+    background: rgba(100, 116, 139, 0.12);
+    color: #94a3b8;
+    border: 1px solid rgba(100, 116, 139, 0.2);
+}
+
+.flagPillCritical {
+    background: rgba(239, 68, 68, 0.12);
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.25);
+}
+
+.flagPillHigh {
+    background: rgba(249, 115, 22, 0.12);
+    color: #fb923c;
+    border-color: rgba(249, 115, 22, 0.25);
+}
+
+.flagPillWarning {
+    background: rgba(245, 158, 11, 0.12);
+    color: #fbbf24;
+    border-color: rgba(245, 158, 11, 0.25);
+}
+
+.flagPillInfo {
+    background: rgba(59, 130, 246, 0.12);
+    color: #60a5fa;
+    border-color: rgba(59, 130, 246, 0.25);
+}
+
+.flagPillMore {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.04);
+}

@@ -729,7 +729,30 @@ export function DataTable() {
                                                     {row.status}
                                                 </span>
                                             ) : col.key === 'flag_count' ? (
-                                                row.flag_count > 0 ? (
+                                                row.flags && row.flags.length > 0 ? (
+                                                    <div className={styles.flagPillsWrap}>
+                                                        {row.flags.slice(0, 3).map((f: { code: string; title: string; severity: string }, i: number) => (
+                                                            <span
+                                                                key={`${f.code}-${i}`}
+                                                                className={clsx(
+                                                                    styles.flagPill,
+                                                                    f.severity === 'critical' && styles.flagPillCritical,
+                                                                    f.severity === 'high' && styles.flagPillHigh,
+                                                                    f.severity === 'warning' && styles.flagPillWarning,
+                                                                    f.severity === 'info' && styles.flagPillInfo,
+                                                                )}
+                                                                title={`${f.code}: ${f.title}`}
+                                                            >
+                                                                {f.title}
+                                                            </span>
+                                                        ))}
+                                                        {row.flags.length > 3 && (
+                                                            <span className={styles.flagPillMore}>
+                                                                +{row.flags.length - 3}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                ) : row.flag_count > 0 ? (
                                                     <span className={clsx(
                                                         styles.flagCountBadge,
                                                         row.highest_severity === 'critical' && styles.flagCritical,

@@ -95,7 +95,8 @@ function FlagCard({
     const [dismissMode, setDismissMode] = useState(false);
     const [dismissReason, setDismissReason] = useState('');
 
-    const isOpen = flag.status === 'open';
+    // Treat null/undefined status as 'open' (old schema compatibility)
+    const isOpen = !flag.status || flag.status === 'open';
     const isResolved = flag.status === 'resolved';
     const isDismissed = flag.status === 'dismissed';
     const isLoading = loading === flag.id;
