@@ -27,6 +27,9 @@ const EVENT_CONFIG: Record<string, { icon: React.ReactNode; css: string }> = {
     'client.created': { icon: <UserPlus size={16} />, css: 'client_created' },
     'import.row': { icon: <Upload size={16} />, css: 'dec_upload' },
     'import.csv': { icon: <Upload size={16} />, css: 'dec_upload' },
+    'client.updated': { icon: <Pencil size={16} />, css: 'note_event' },
+    'policy.updated': { icon: <Pencil size={16} />, css: 'policy_created' },
+    'policy_term.updated': { icon: <Pencil size={16} />, css: 'term_renewal' },
 };
 
 export function ActivityTimeline({ clientId, policyId }: ActivityTimelineProps) {

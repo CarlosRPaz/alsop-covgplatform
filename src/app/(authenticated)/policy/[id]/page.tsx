@@ -6,8 +6,8 @@ import Link from 'next/link';
 import styles from './page.module.css';
 import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
-import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check } from 'lucide-react';
-import { getPolicyDetailById, mapPolicyDetailToDeclaration, generateAIReport, Declaration, AIReportData } from '@/lib/api';
+import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil } from 'lucide-react';
+import { getPolicyDetailById, mapPolicyDetailToDeclaration, generateAIReport, Declaration, AIReportData, PolicyDetail } from '@/lib/api';
 import { PolicyDashboard } from '@/components/policy/PolicyDashboard';
 import { AIReport } from '@/components/policy/AIReport';
 import { PolicyFiles } from '@/components/policy/PolicyFiles';
@@ -15,6 +15,7 @@ import { PolicyFlags } from '@/components/policy/PolicyFlags';
 import { ActivityTimeline } from '@/components/shared/ActivityTimeline';
 import { NotesPanel } from '@/components/shared/NotesPanel';
 import { DecPageReview } from '@/components/policy/DecPageReview';
+import { PolicyEditPanel } from '@/components/policy/PolicyEditPanel';
 
 const policyTabs = [
     { id: 'review', label: 'POLICY REVIEW' },
@@ -36,6 +37,8 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     const [activeTab, setActiveTab] = useState('review');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [isEditOpen, setIsEditOpen] = useState(false);
+    const [policyDetailRaw, setPolicyDetailRaw] = useState<PolicyDetail | null>(null);
 
     const copyPolicyNumber = () => {
         if (declaration?.policy_number) {
@@ -53,6 +56,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             try {
                 const detail = await getPolicyDetailById(id);
                 if (detail) {
+                    setPolicyDetailRaw(detail);
                     const decl = mapPolicyDetailToDeclaration(detail);
                     setDeclaration(decl);
                     setAiReport(generateAIReport(decl));
@@ -255,6 +259,10 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                         </span>
                     </div>
                     <div className={styles.actionRow} style={{ padding: '10px 0px 0px 0px', float: "right" }}>
+                        <Button variant="outline" className={`${styles.actionButton} ${styles.outlineAction}`} onClick={() => setIsEditOpen(true)}>
+                            <Pencil size={16} />
+                            Edit Policy
+                        </Button>
                         <Button variant="outline" className={`${styles.actionButton} ${styles.outlineAction}`}>
                             <Mail size={16} />
                             Email Options
@@ -278,6 +286,23 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
 
             {/* Tab Content */}
             {renderTabContent()}
+
+            {/* Edit Panel */}
+            {isEditOpen && policyDetailRaw && (
+                <PolicyEditPanel
+                    policyDetail={policyDetailRaw}
+                    onClose={() => setIsEditOpen(false)}
+                    onSaved={async () => {
+                        setIsEditOpen(false);
+                        const detail = await getPolicyDetailById(id);
+                        if (detail) {
+                            setPolicyDetailRaw(detail);
+                            setDeclaration(mapPolicyDetailToDeclaration(detail));
+                            setAiReport(generateAIReport(mapPolicyDetailToDeclaration(detail)));
+                        }
+                    }}
+                />
+            )}
         </div>
     );
 }

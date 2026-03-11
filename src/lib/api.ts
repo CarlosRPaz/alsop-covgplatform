@@ -203,6 +203,15 @@ export interface PolicyTermRow {
     date_issued?: string;
     annual_premium?: number;
     is_current?: boolean;
+    policy_activity?: string;
+    carrier_status?: string;
+    payment_status?: string;
+    payment_plan?: string;
+    cancellation_reason?: string;
+    dic_exists?: boolean;
+    sold_by?: string;
+    office?: string;
+    import_batch_id?: string;
     created_at?: string;
     updated_at?: string;
 }
@@ -609,6 +618,17 @@ export interface PolicyDetail {
     expiration_date?: string;
     date_issued?: string;
     annual_premium?: string;
+    annual_premium_raw?: number;
+    // Term workflow fields
+    policy_activity?: string;
+    carrier_status?: string;
+    payment_status?: string;
+    payment_plan?: string;
+    cancellation_reason?: string;
+    dic_exists?: boolean;
+    sold_by?: string;
+    office?: string;
+    is_current?: boolean;
     // Dec page data (joined, optional — may not exist yet)
     dec_page_id?: string;
     year_built?: number;
@@ -718,7 +738,15 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
                     construction_type,
                     cb_fire_lightning_smoke_damage,
                     cb_extended_coverages,
-                    cb_vandalism_malicious_mischief
+                    cb_vandalism_malicious_mischief,
+                    policy_activity,
+                    carrier_status,
+                    payment_status,
+                    payment_plan,
+                    cancellation_reason,
+                    dic_exists,
+                    sold_by,
+                    office
                 )
             `)
             .eq('id', policyId)
@@ -758,6 +786,17 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
             annual_premium: currentTerm?.annual_premium != null
                 ? `$${Number(currentTerm.annual_premium).toLocaleString()}`
                 : undefined,
+            annual_premium_raw: currentTerm?.annual_premium ?? undefined,
+            // Term workflow fields
+            policy_activity: currentTerm?.policy_activity || undefined,
+            carrier_status: currentTerm?.carrier_status || undefined,
+            payment_status: currentTerm?.payment_status || undefined,
+            payment_plan: currentTerm?.payment_plan || undefined,
+            cancellation_reason: currentTerm?.cancellation_reason || undefined,
+            dic_exists: currentTerm?.dic_exists ?? undefined,
+            sold_by: currentTerm?.sold_by || undefined,
+            office: currentTerm?.office || undefined,
+            is_current: currentTerm?.is_current ?? undefined,
             // Coverage — now from policy_terms (approved data)
             dec_page_id: currentTerm?.source_dec_page_id || undefined,
             year_built: currentTerm?.year_built ? parseInt(currentTerm.year_built, 10) : undefined,
@@ -1658,5 +1697,84 @@ export async function approveDecPage(decPageId: string, policyId: string): Promi
     } catch (err) {
         logger.error('API', 'Error in approveDecPage', { error: String(err) });
         return false;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Update Helpers (Edit MVP)
+// ---------------------------------------------------------------------------
+
+/**
+ * Update a client record. Only sends the fields provided.
+ */
+export async function updateClient(
+    clientId: string,
+    fields: Partial<Pick<ClientRow, 'named_insured' | 'insured_type' | 'email' | 'phone' | 'mailing_address_raw'>>
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { error } = await supabase
+            .from('clients')
+            .update({ ...fields, updated_at: new Date().toISOString() })
+            .eq('id', clientId);
+
+        if (error) {
+            logger.error('API', `Error updating client ${clientId}`, { message: error.message });
+            return { success: false, error: error.message };
+        }
+        return { success: true };
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error('API', `Unexpected error updating client ${clientId}`, { error: msg });
+        return { success: false, error: msg };
+    }
+}
+
+/**
+ * Update a policy header record.
+ */
+export async function updatePolicy(
+    policyId: string,
+    fields: Partial<Pick<PolicyRow, 'policy_number' | 'carrier_name' | 'property_address_raw' | 'status'>>
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { error } = await supabase
+            .from('policies')
+            .update({ ...fields, updated_at: new Date().toISOString() })
+            .eq('id', policyId);
+
+        if (error) {
+            logger.error('API', `Error updating policy ${policyId}`, { message: error.message });
+            return { success: false, error: error.message };
+        }
+        return { success: true };
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error('API', `Unexpected error updating policy ${policyId}`, { error: msg });
+        return { success: false, error: msg };
+    }
+}
+
+/**
+ * Update a policy term record (typically the is_current=true term).
+ */
+export async function updatePolicyTerm(
+    termId: string,
+    fields: Partial<Omit<PolicyTermRow, 'id' | 'policy_id' | 'created_at' | 'updated_at' | 'import_batch_id'>>
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { error } = await supabase
+            .from('policy_terms')
+            .update({ ...fields, updated_at: new Date().toISOString() })
+            .eq('id', termId);
+
+        if (error) {
+            logger.error('API', `Error updating policy_term ${termId}`, { message: error.message });
+            return { success: false, error: error.message };
+        }
+        return { success: true };
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error('API', `Unexpected error updating policy_term ${termId}`, { error: msg });
+        return { success: false, error: msg };
     }
 }
