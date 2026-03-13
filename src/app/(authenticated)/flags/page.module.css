@@ -68,6 +68,11 @@
     letter-spacing: 0.05em;
 }
 
+.activeSevCard {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
 /* ── Toolbar ──────────────────────────────────────────────── */
 
 .toolbar {
@@ -237,6 +242,18 @@
     font-size: 0.6rem;
     color: #64748b;
     text-transform: capitalize;
+}
+
+.queuePolicyNum {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.6rem;
+    font-weight: 500;
+    color: #cbd5e1;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 1px 5px;
+    border-radius: 3px;
 }
 
 .queueSource {

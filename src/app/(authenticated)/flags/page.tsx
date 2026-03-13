@@ -84,6 +84,10 @@ export default function FlagsPage() {
             filters.severity = 'critical';
         } else if (activeView === 'high') {
             filters.severity = 'high';
+        } else if (activeView === 'warning') {
+            filters.severity = 'warning';
+        } else if (activeView === 'info') {
+            filters.severity = 'info';
         } else if (activeView === 'renewal') {
             filters.category = 'renewal';
         } else if (activeView === 'data_quality') {
@@ -149,22 +153,38 @@ export default function FlagsPage() {
 
             {/* Severity summary cards */}
             <div className={styles.severitySummary}>
-                <div className={styles.sevCard} style={{ borderLeftColor: SEVERITY_COLORS.critical }}>
+                <div
+                    className={`${styles.sevCard} ${activeView === 'critical' ? styles.activeSevCard : ''}`}
+                    style={{ borderLeftColor: SEVERITY_COLORS.critical, cursor: 'pointer' }}
+                    onClick={() => setActiveView('critical')}
+                >
                     <AlertCircle size={16} color={SEVERITY_COLORS.critical} />
                     <span className={styles.sevValue}>{criticalCount}</span>
                     <span className={styles.sevLabel}>Critical</span>
                 </div>
-                <div className={styles.sevCard} style={{ borderLeftColor: SEVERITY_COLORS.high }}>
+                <div
+                    className={`${styles.sevCard} ${activeView === 'high' ? styles.activeSevCard : ''}`}
+                    style={{ borderLeftColor: SEVERITY_COLORS.high, cursor: 'pointer' }}
+                    onClick={() => setActiveView('high')}
+                >
                     <AlertTriangle size={16} color={SEVERITY_COLORS.high} />
                     <span className={styles.sevValue}>{highCount}</span>
                     <span className={styles.sevLabel}>High</span>
                 </div>
-                <div className={styles.sevCard} style={{ borderLeftColor: SEVERITY_COLORS.warning }}>
+                <div
+                    className={`${styles.sevCard} ${activeView === 'warning' ? styles.activeSevCard : ''}`}
+                    style={{ borderLeftColor: SEVERITY_COLORS.warning, cursor: 'pointer' }}
+                    onClick={() => setActiveView('warning')}
+                >
                     <AlertTriangle size={16} color={SEVERITY_COLORS.warning} />
                     <span className={styles.sevValue}>{warningCount}</span>
                     <span className={styles.sevLabel}>Warning</span>
                 </div>
-                <div className={styles.sevCard} style={{ borderLeftColor: '#3b82f6' }}>
+                <div
+                    className={`${styles.sevCard} ${activeView === 'info' ? styles.activeSevCard : ''}`}
+                    style={{ borderLeftColor: '#3b82f6', cursor: 'pointer' }}
+                    onClick={() => setActiveView('info')}
+                >
                     <Info size={16} color="#3b82f6" />
                     <span className={styles.sevValue}>{flags.length - criticalCount - highCount - warningCount}</span>
                     <span className={styles.sevLabel}>Info</span>
@@ -234,6 +254,11 @@ export default function FlagsPage() {
                                         <span className={styles.queueCode}>{flag.code}</span>
                                         {flag.category && (
                                             <span className={styles.queueCategory}>{flag.category.replace(/_/g, ' ')}</span>
+                                        )}
+                                        {flag.policy_number && (
+                                            <span className={styles.queuePolicyNum}>
+                                                <Shield size={11} /> {flag.policy_number}
+                                            </span>
                                         )}
                                         <span className={styles.queueSource}>
                                             {flag.source === 'user' ? <User size={11} /> : <Zap size={11} />}

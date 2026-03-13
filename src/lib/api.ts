@@ -249,6 +249,7 @@ export interface PolicyFlagRow {
     dismissed_at?: string | null;
     dismissed_by_account_id?: string | null;
     dismiss_reason?: string | null;
+    policy_number?: string | null;
 }
 
 export interface FlagEventRow {
@@ -1544,7 +1545,7 @@ export async function fetchAllOpenFlags(filters?: {
     try {
         let query = supabase
             .from('policy_flags')
-            .select('*')
+            .select('*, policies(policy_number)')
             .order('created_at', { ascending: false })
             .limit(1000);
 
@@ -1564,7 +1565,7 @@ export async function fetchAllOpenFlags(filters?: {
         if (error) {
             const fallback = await supabase
                 .from('policy_flags')
-                .select('*')
+                .select('*, policies(policy_number)')
                 .order('created_at', { ascending: false })
                 .limit(1000);
 
@@ -1584,7 +1585,10 @@ export async function fetchAllOpenFlags(filters?: {
 
         if (!data) return [];
 
-        return (data as PolicyFlagRow[]).sort((a, b) => {
+        return (data as any[]).map(row => ({
+            ...row,
+            policy_number: row.policies?.policy_number || null,
+        })).sort((a, b) => {
             return (SEVERITY_ORDER[b.severity] || 0) - (SEVERITY_ORDER[a.severity] || 0);
         });
     } catch {
