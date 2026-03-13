@@ -80,30 +80,10 @@ export default function FlagsPage() {
             filters.status = '';
         }
 
-        if (activeView === 'critical') {
-            filters.severity = 'critical';
-        } else if (activeView === 'high') {
-            filters.severity = 'high';
-        } else if (activeView === 'warning') {
-            filters.severity = 'warning';
-        } else if (activeView === 'info') {
-            filters.severity = 'info';
-        } else if (activeView === 'renewal') {
-            filters.category = 'renewal';
-        } else if (activeView === 'data_quality') {
-            filters.category = 'data_quality';
-        } else if (activeView === 'coverage_gap') {
-            filters.category = 'coverage_gap';
-        } else if (activeView === 'dic') {
-            filters.category = 'dic';
-        } else if (activeView === 'manual') {
-            filters.source = 'user';
-        }
-
         const data = await fetchAllOpenFlags(filters);
         setFlags(data);
         setLoading(false);
-    }, [activeView, statusFilter]);
+    }, [statusFilter]);
 
     useEffect(() => {
         loadFlags();
@@ -123,14 +103,28 @@ export default function FlagsPage() {
         setActionLoading(null);
     };
 
+    const filteredByView = flags.filter(f => {
+        if (activeView === 'all') return true;
+        if (activeView === 'critical') return f.severity === 'critical';
+        if (activeView === 'high') return f.severity === 'high';
+        if (activeView === 'warning') return f.severity === 'warning';
+        if (activeView === 'info') return f.severity === 'info';
+        if (activeView === 'renewal') return f.category === 'renewal';
+        if (activeView === 'data_quality') return f.category === 'data_quality';
+        if (activeView === 'coverage_gap') return f.category === 'coverage_gap';
+        if (activeView === 'dic') return f.category === 'dic';
+        if (activeView === 'manual') return f.source === 'user';
+        return true;
+    });
+
     // Filter by search
     const filtered = searchTerm
-        ? flags.filter(f =>
+        ? filteredByView.filter(f =>
             f.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
             f.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (f.message || '').toLowerCase().includes(searchTerm.toLowerCase())
         )
-        : flags;
+        : filteredByView;
 
     // Stats
     const criticalCount = flags.filter(f => f.severity === 'critical').length;

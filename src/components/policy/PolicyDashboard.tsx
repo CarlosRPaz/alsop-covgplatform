@@ -35,6 +35,14 @@ export function PolicyDashboard({ declaration }: PolicyDashboardProps) {
                         </div>
                     )}
                     <div className={styles.field}>
+                        <label>Email:</label>
+                        <span>{declaration.client_email || '—'}</span>
+                    </div>
+                    <div className={styles.field}>
+                        <label>Phone:</label>
+                        <span>{declaration.client_phone || '—'}</span>
+                    </div>
+                    <div className={styles.field}>
                         <label>Mailing Address:</label>
                         <span>{declaration.mailing_address || '—'}</span>
                     </div>
@@ -160,6 +168,10 @@ export function PolicyDashboard({ declaration }: PolicyDashboardProps) {
                                 : '—'}
                         </span>
                     </div>
+                    <div className={styles.field}>
+                        <label>Renewal Date:</label>
+                        <span>{declaration.renewal_date || '—'}</span>
+                    </div>
                 </Card>
 
                 {/* Broker Info */}
@@ -234,6 +246,67 @@ export function PolicyDashboard({ declaration }: PolicyDashboardProps) {
                         )}
                     </Card>
                 )}
+
+                {/* Optional & Special Coverages */}
+                <Card className={styles.card}>
+                    <h3>Optional &amp; Special Coverages</h3>
+                    <div className={styles.row}>
+                        <div className={styles.field}>
+                            <label>Actual Cash Value:</label>
+                            <span>{declaration.limit_actual_cash_value_coverage || '—'}</span>
+                        </div>
+                        <div className={styles.field}>
+                            <label>Replacement Cost:</label>
+                            <span>{declaration.limit_replacement_cost_coverage || '—'}</span>
+                        </div>
+                    </div>
+                    <div className={styles.row}>
+                        <div className={styles.field}>
+                            <label>Extended Replacement:</label>
+                            <span>{declaration.limit_extended_replacement_cost_coverage || '—'}</span>
+                        </div>
+                        <div className={styles.field}>
+                            <label>Guaranteed Replacement:</label>
+                            <span>{declaration.limit_guaranteed_replacement_cost_coverage || '—'}</span>
+                        </div>
+                    </div>
+                    <div className={styles.row}>
+                        <div className={styles.field}>
+                            <label>Building Code Upgrade:</label>
+                            <span>{declaration.limit_building_code_upgrade_coverage || '—'}</span>
+                        </div>
+                        <div className={styles.field}>
+                            <label>Incidental Occupancy:</label>
+                            <span>{declaration.limit_permitted_incidental_occupancy || '—'}</span>
+                        </div>
+                    </div>
+                    <div className={styles.row}>
+                        <div className={styles.field}>
+                            <label>Plants, Shrubs, Trees:</label>
+                            <span>{declaration.limit_plants_shrubs_trees || '—'}</span>
+                        </div>
+                        <div className={styles.field}>
+                            <label>Outdoor Radio/TV:</label>
+                            <span>{declaration.limit_outdoor_radio_tv_equipment || '—'}</span>
+                        </div>
+                    </div>
+                    <div className={styles.row}>
+                        <div className={styles.field}>
+                            <label>Awnings:</label>
+                            <span>{declaration.limit_awnings || '—'}</span>
+                        </div>
+                        <div className={styles.field}>
+                            <label>Signs:</label>
+                            <span>{declaration.limit_signs || '—'}</span>
+                        </div>
+                    </div>
+                    {declaration.dic_company && (
+                        <div className={styles.field} style={{ marginTop: '0.5rem' }}>
+                            <label>DIC Company:</label>
+                            <span>{declaration.dic_company}</span>
+                        </div>
+                    )}
+                </Card>
             </div>
         </div>
     );
