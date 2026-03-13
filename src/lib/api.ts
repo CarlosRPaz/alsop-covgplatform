@@ -1546,21 +1546,43 @@ export async function fetchAllOpenFlags(filters?: {
             .from('policy_flags')
             .select('*')
             .order('created_at', { ascending: false })
-            .limit(500);
+            .limit(1000);
 
-        if (filters?.status) {
-            query = query.eq('status', filters.status);
-        } else {
-            query = query.eq('status', 'open');
+        const targetStatus = filters?.status !== undefined ? filters.status : 'open';
+
+        if (targetStatus && targetStatus !== 'all' && targetStatus !== '') {
+            query = query.eq('status', targetStatus);
         }
         if (filters?.severity) query = query.eq('severity', filters.severity);
         if (filters?.category) query = query.eq('category', filters.category);
         if (filters?.code) query = query.eq('code', filters.code);
         if (filters?.source) query = query.eq('source', filters.source);
 
-        const { data, error } = await query;
+        let { data, error } = await query;
 
-        if (error || !data) return [];
+        // If the query failed (e.g. old schema missing 'status', 'category', 'source'), fallback to memory filtering
+        if (error) {
+            const fallback = await supabase
+                .from('policy_flags')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(1000);
+
+            if (fallback.error || !fallback.data) return [];
+
+            const fallbackStatus = targetStatus || 'open';
+            data = fallback.data.filter(f => {
+                const effectiveStatus = f.status || (f.resolved_at ? 'resolved' : 'open');
+                if (fallbackStatus !== 'all' && fallbackStatus !== '' && effectiveStatus !== fallbackStatus) return false;
+                if (filters?.severity && f.severity !== filters.severity) return false;
+                if (filters?.category && f.category !== filters.category) return false;
+                if (filters?.code && f.code !== filters.code) return false;
+                if (filters?.source && f.source !== filters.source) return false;
+                return true;
+            });
+        }
+
+        if (!data) return [];
 
         return (data as PolicyFlagRow[]).sort((a, b) => {
             return (SEVERITY_ORDER[b.severity] || 0) - (SEVERITY_ORDER[a.severity] || 0);
