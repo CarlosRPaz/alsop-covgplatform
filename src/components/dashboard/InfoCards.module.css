@@ -22,6 +22,14 @@
     transform: translateY(-1px);
 }
 
+.clickable {
+    cursor: pointer;
+}
+
+.clickable:hover {
+    border-left: 2px solid rgba(99, 102, 241, 0.5);
+}
+
 .iconWrapper {
     display: flex;
     align-items: center;

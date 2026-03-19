@@ -182,13 +182,20 @@ function ColumnPopup({
     );
 }
 
-export function DataTable() {
+interface DataTableProps {
+    initialSearch?: string;
+    initialExpirationFilter?: { from?: string; to?: string };
+    initialStatusFilter?: string;
+    filterLabel?: string;
+}
+
+export function DataTable({ initialSearch, initialExpirationFilter, initialStatusFilter, filterLabel }: DataTableProps = {}) {
     const router = useRouter();
     const [data, setData] = useState<DashboardPolicy[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: keyof DashboardPolicy; direction: 'asc' | 'desc' } | null>(null);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState(initialSearch || '');
 
     // Track whether localStorage preferences have been loaded
     const [prefsLoaded, setPrefsLoaded] = useState(false);
@@ -439,8 +446,30 @@ export function DataTable() {
             );
         }
 
+        // Expiration date range filter (from dashboard drill-down)
+        if (initialExpirationFilter?.from || initialExpirationFilter?.to) {
+            result = result.filter(item => {
+                if (!item.expiration_date) return false;
+                const expMs = new Date(item.expiration_date).getTime();
+                if (initialExpirationFilter.from && expMs < new Date(initialExpirationFilter.from).getTime()) return false;
+                if (initialExpirationFilter.to && expMs >= new Date(initialExpirationFilter.to).getTime()) return false;
+                return true;
+            });
+        }
+
+        // Status filter (from dashboard drill-down)
+        if (initialStatusFilter) {
+            if (initialStatusFilter === 'pending_review') {
+                result = result.filter(item =>
+                    item.status === 'pending_review' || item.status === 'unknown'
+                );
+            } else {
+                result = result.filter(item => item.status === initialStatusFilter);
+            }
+        }
+
         return result;
-    }, [data, searchQuery, selectedFlags, flagSeverityFilter, columnSearchQueries]);
+    }, [data, searchQuery, selectedFlags, flagSeverityFilter, columnSearchQueries, initialExpirationFilter, initialStatusFilter]);
 
     const sortedData = useMemo(() => {
         if (!sortConfig) return filteredData;
@@ -468,6 +497,44 @@ export function DataTable() {
 
     return (
         <div className="w-full">
+            {/* Drill-down filter chips */}
+            {filterLabel && (
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem 0.75rem',
+                    marginBottom: '0.625rem',
+                    background: 'rgba(99, 102, 241, 0.06)',
+                    border: '1px solid rgba(99, 102, 241, 0.15)',
+                    borderRadius: '8px',
+                    fontSize: '0.75rem',
+                }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#818cf8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
+                    <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '0.2rem 0.5rem',
+                        fontWeight: 500,
+                        color: '#c7d2fe',
+                        background: 'rgba(99, 102, 241, 0.12)',
+                        border: '1px solid rgba(99, 102, 241, 0.2)',
+                        borderRadius: '4px',
+                        textTransform: 'capitalize' as const,
+                        cursor: 'pointer',
+                    }}
+                        onClick={() => router.push('/dashboard')}
+                        role="button"
+                    >
+                        {filterLabel}
+                        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                    </span>
+                    <span style={{ marginLeft: 'auto', fontSize: '0.68rem', color: '#64748b' }}>
+                        Showing {filteredData.length} of {data.length} policies
+                    </span>
+                </div>
+            )}
             {/* Controls - Redesigned to match reference */}
             <div className={styles.controlsBar}>
                 <div className={styles.searchContainer}>

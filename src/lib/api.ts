@@ -156,6 +156,8 @@ export interface Declaration {
     mortgagee_2_code?: string;
     // DIC (Difference in Conditions)
     dic_company?: string;
+    dic_exists?: boolean;
+    dic_policy_number?: string;
 
     // System Fields
     status: 'Pending Review' | 'Approved' | 'Rejected' | 'Incomplete';
@@ -209,6 +211,7 @@ export interface PolicyTermRow {
     payment_plan?: string;
     cancellation_reason?: string;
     dic_exists?: boolean;
+    dic_policy_number?: string;
     sold_by?: string;
     office?: string;
     import_batch_id?: string;
@@ -250,6 +253,25 @@ export interface PolicyFlagRow {
     dismissed_by_account_id?: string | null;
     dismiss_reason?: string | null;
     policy_number?: string | null;
+}
+
+// ------------------------------------------------------------------
+// Flag Definitions
+// ------------------------------------------------------------------
+
+export interface FlagDefinition {
+    code: string;
+    label: string;
+    description?: string;
+    category: string;
+    default_severity: 'critical' | 'high' | 'warning' | 'info';
+    entity_scope: string;
+    auto_resolve: boolean;
+    is_manual_allowed: boolean;
+    is_active: boolean;
+    default_action_path?: string;
+    rule_version?: string;
+    created_at: string;
 }
 
 export interface FlagEventRow {
@@ -671,6 +693,7 @@ export interface PolicyDetail {
     payment_plan?: string;
     cancellation_reason?: string;
     dic_exists?: boolean;
+    dic_policy_number?: string;
     sold_by?: string;
     office?: string;
     is_current?: boolean;
@@ -952,6 +975,8 @@ export function mapPolicyDetailToDeclaration(detail: PolicyDetail): Declaration 
         mortgagee_2_address: detail.mortgagee_2_address,
         mortgagee_2_code: detail.mortgagee_2_code,
         dic_company: detail.dic_company,
+        dic_exists: detail.dic_exists,
+        dic_policy_number: detail.dic_policy_number,
         status: 'Pending Review',
         flags: [],
     };
@@ -1597,6 +1622,133 @@ export async function fetchAllOpenFlags(filters?: {
 }
 
 
+// ------------------------------------------------------------------
+// Flagged Policies — grouped by policy for the agent worklist
+// ------------------------------------------------------------------
+
+export interface FlaggedPolicyGroup {
+    policy_id: string;
+    policy_number: string;
+    named_insured: string;
+    carrier_name?: string;
+    expiration_date?: string;
+    office?: string;
+    sold_by?: string;
+    client_id?: string;
+    flags: PolicyFlagRow[];
+    total_flags: number;
+    critical_count: number;
+    high_count: number;
+    warning_count: number;
+    info_count: number;
+    max_severity: string;
+}
+
+export async function fetchFlaggedPoliciesGrouped(): Promise<FlaggedPolicyGroup[]> {
+    try {
+        const { data, error } = await supabase
+            .from('policy_flags')
+            .select(`
+                *,
+                policies(
+                    id, policy_number, carrier_name, client_id,
+                    clients(named_insured),
+                    policy_terms(expiration_date, office, sold_by, is_current)
+                )
+            `)
+            .eq('status', 'open')
+            .order('created_at', { ascending: false })
+            .limit(2000);
+
+        if (error || !data) {
+            console.error('fetchFlaggedPoliciesGrouped error:', error);
+            return [];
+        }
+
+        // Group by policy_id
+        const groupMap = new Map<string, FlaggedPolicyGroup>();
+
+        for (const row of data as any[]) {
+            const policyId = row.policy_id;
+            if (!policyId) continue; // skip flags without a policy
+
+            if (!groupMap.has(policyId)) {
+                const policy = row.policies || {};
+                const client = policy.clients || {};
+                // Find the current term or the most recent one
+                const terms: any[] = Array.isArray(policy.policy_terms) ? policy.policy_terms : [];
+                const currentTerm = terms.find((t: any) => t.is_current) || terms[0] || {};
+
+                groupMap.set(policyId, {
+                    policy_id: policyId,
+                    policy_number: policy.policy_number || row.policy_number || 'Unknown',
+                    named_insured: client.named_insured || 'Unknown Insured',
+                    carrier_name: policy.carrier_name || undefined,
+                    expiration_date: currentTerm.expiration_date || undefined,
+                    office: currentTerm.office || undefined,
+                    sold_by: currentTerm.sold_by || undefined,
+                    client_id: policy.client_id || row.client_id || undefined,
+                    flags: [],
+                    total_flags: 0,
+                    critical_count: 0,
+                    high_count: 0,
+                    warning_count: 0,
+                    info_count: 0,
+                    max_severity: 'info',
+                });
+            }
+
+            const group = groupMap.get(policyId)!;
+            group.flags.push({
+                ...row,
+                policy_number: row.policies?.policy_number || row.policy_number || null,
+            });
+            group.total_flags++;
+
+            switch (row.severity) {
+                case 'critical': group.critical_count++; break;
+                case 'high': group.high_count++; break;
+                case 'warning': group.warning_count++; break;
+                default: group.info_count++; break;
+            }
+        }
+
+        // compute max_severity for each group
+        for (const group of groupMap.values()) {
+            if (group.critical_count > 0) group.max_severity = 'critical';
+            else if (group.high_count > 0) group.max_severity = 'high';
+            else if (group.warning_count > 0) group.max_severity = 'warning';
+            else group.max_severity = 'info';
+
+            // Sort flags within each group by severity
+            group.flags.sort((a, b) =>
+                (SEVERITY_ORDER[b.severity] || 0) - (SEVERITY_ORDER[a.severity] || 0)
+            );
+        }
+
+        // Sort groups: highest severity first, then nearest expiration, then most flags
+        const groups = Array.from(groupMap.values());
+        groups.sort((a, b) => {
+            const sevDiff = (SEVERITY_ORDER[b.max_severity] || 0) - (SEVERITY_ORDER[a.max_severity] || 0);
+            if (sevDiff !== 0) return sevDiff;
+
+            // Nearest expiration first (nulls last)
+            const expA = a.expiration_date ? new Date(a.expiration_date).getTime() : Infinity;
+            const expB = b.expiration_date ? new Date(b.expiration_date).getTime() : Infinity;
+            if (expA !== expB) return expA - expB;
+
+            // Most flags first
+            return b.total_flags - a.total_flags;
+        });
+
+        return groups;
+    } catch (err) {
+        console.error('fetchFlaggedPoliciesGrouped error:', err);
+        return [];
+    }
+}
+
+
 /**
  * Run on-demand flag evaluation for a policy via the API route.
  */
@@ -2103,3 +2255,77 @@ export async function updatePolicyTerm(
         return { success: false, error: msg };
     }
 }
+
+// ------------------------------------------------------------------
+// Flag Definitions
+// ------------------------------------------------------------------
+
+/**
+ * Fetch all flag definitions from the catalog.
+ */
+export async function fetchAllFlagDefinitions(): Promise<FlagDefinition[]> {
+    try {
+        const { data, error } = await supabase
+            .from('flag_definitions')
+            .select('*')
+            .order('category', { ascending: true })
+            .order('code', { ascending: true });
+
+        if (error) {
+            logger.error('API', 'Error fetching flag definitions', { message: error.message });
+            return [];
+        }
+
+        return (data as FlagDefinition[]) || [];
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error('API', 'Unexpected error fetching flag definitions', { error: msg });
+        return [];
+    }
+}
+
+
+// ------------------------------------------------------------------
+// Property Enrichments (Source-Tracked Data)
+// ------------------------------------------------------------------
+
+export interface PropertyEnrichment {
+    id: string;
+    policy_id: string;
+    field_key: string;
+    field_value: string | null;
+    source_name: string;
+    source_type: 'api' | 'public_data' | 'parser' | 'premium' | 'ai_interpretation';
+    source_url: string | null;
+    confidence: 'high' | 'medium' | 'low';
+    fetched_at: string;
+    notes: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+/**
+ * Fetch all property enrichments for a policy.
+ * Returns source-attributed data points (images, property data, etc.)
+ */
+export async function getPropertyEnrichments(policyId: string): Promise<PropertyEnrichment[]> {
+    try {
+        const { data, error } = await supabase
+            .from('property_enrichments')
+            .select('*')
+            .eq('policy_id', policyId)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            logger.error('API', 'Error fetching property enrichments', { policyId, message: error.message });
+            return [];
+        }
+
+        return (data as PropertyEnrichment[]) || [];
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error('API', 'Unexpected error fetching enrichments', { policyId, error: msg });
+        return [];
+    }
+}
+

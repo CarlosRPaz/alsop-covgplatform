@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import styles from './DashboardChart.module.css';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -10,6 +11,7 @@ interface DayBucket {
     dateLabel: string;      // "Mar 6"
     count: number;
     isToday: boolean;
+    dateStr: string;        // "2026-03-18" for routing
 }
 
 function buildDayBuckets(): DayBucket[] {
@@ -38,12 +40,14 @@ function buildDayBuckets(): DayBucket[] {
             dateLabel: `${monthNames[date.getMonth()]} ${date.getDate()}`,
             count: 0,
             isToday: date.getTime() === today.getTime(),
+            dateStr: date.toISOString().split('T')[0],
         });
     }
     return buckets;
 }
 
 export function DashboardChart() {
+    const router = useRouter();
     const [buckets, setBuckets] = useState<DayBucket[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -103,6 +107,44 @@ export function DashboardChart() {
     const thisWeekTotal = thisWeek.reduce((s, b) => s + b.count, 0);
     const nextWeekTotal = nextWeek.reduce((s, b) => s + b.count, 0);
 
+    const handleBarClick = (day: DayBucket) => {
+        if (day.count === 0) return;
+        // Navigate to /flags filtered to policies expiring on that specific date
+        // Use expiration_from and expiration_to for a single-day range
+        const nextDay = new Date(day.date);
+        nextDay.setDate(nextDay.getDate() + 1);
+        const toStr = nextDay.toISOString().split('T')[0];
+        router.push(`/dashboard?expiration_from=${day.dateStr}&expiration_to=${toStr}`);
+    };
+
+    const renderBar = (day: DayBucket, i: number) => {
+        const pct = maxValue > 0 ? (day.count / maxValue) * 100 : 0;
+        const isClickable = day.count > 0;
+        return (
+            <div
+                key={i}
+                className={`${styles.barGroup} ${day.isToday ? styles.todayGroup : ''} ${isClickable ? styles.clickableBar : ''}`}
+                onClick={() => handleBarClick(day)}
+            >
+                {day.count > 0 && (
+                    <div className={styles.barCount}>{day.count}</div>
+                )}
+                <div className={styles.bars}>
+                    <div
+                        className={`${styles.bar} ${day.isToday ? styles.todayBar : ''}`}
+                        style={{
+                            height: `${Math.max(pct, day.count > 0 ? 8 : 2)}%`,
+                        }}
+                    ></div>
+                </div>
+                <div className={`${styles.barLabel} ${day.isToday ? styles.todayLabel : ''}`}>
+                    {day.dayLabel}
+                </div>
+                <div className={styles.barDateLabel}>{day.dateLabel}</div>
+            </div>
+        );
+    };
+
     return (
         <div className={styles.chartContainer}>
             <div className={styles.chartHeader}>
@@ -128,28 +170,7 @@ export function DashboardChart() {
                         <span className={styles.weekCount}>{thisWeekTotal}</span>
                     </div>
                     <div className={styles.chart}>
-                        {thisWeek.map((day, i) => {
-                            const pct = maxValue > 0 ? (day.count / maxValue) * 100 : 0;
-                            return (
-                                <div key={i} className={`${styles.barGroup} ${day.isToday ? styles.todayGroup : ''}`}>
-                                    {day.count > 0 && (
-                                        <div className={styles.barCount}>{day.count}</div>
-                                    )}
-                                    <div className={styles.bars}>
-                                        <div
-                                            className={`${styles.bar} ${day.isToday ? styles.todayBar : ''}`}
-                                            style={{
-                                                height: `${Math.max(pct, day.count > 0 ? 8 : 2)}%`,
-                                            }}
-                                        ></div>
-                                    </div>
-                                    <div className={`${styles.barLabel} ${day.isToday ? styles.todayLabel : ''}`}>
-                                        {day.dayLabel}
-                                    </div>
-                                    <div className={styles.barDateLabel}>{day.dateLabel}</div>
-                                </div>
-                            );
-                        })}
+                        {thisWeek.map((day, i) => renderBar(day, i))}
                     </div>
                 </div>
 
@@ -163,32 +184,13 @@ export function DashboardChart() {
                         <span className={styles.weekCount}>{nextWeekTotal}</span>
                     </div>
                     <div className={styles.chart}>
-                        {nextWeek.map((day, i) => {
-                            const pct = maxValue > 0 ? (day.count / maxValue) * 100 : 0;
-                            return (
-                                <div key={i} className={styles.barGroup}>
-                                    {day.count > 0 && (
-                                        <div className={styles.barCount}>{day.count}</div>
-                                    )}
-                                    <div className={styles.bars}>
-                                        <div
-                                            className={styles.bar}
-                                            style={{
-                                                height: `${Math.max(pct, day.count > 0 ? 8 : 2)}%`,
-                                            }}
-                                        ></div>
-                                    </div>
-                                    <div className={styles.barLabel}>{day.dayLabel}</div>
-                                    <div className={styles.barDateLabel}>{day.dateLabel}</div>
-                                </div>
-                            );
-                        })}
+                        {nextWeek.map((day, i) => renderBar(day, i))}
                     </div>
                 </div>
             </div>
 
             <div className={styles.chartFooter}>
-                <span>DAILY RENEWALS</span>
+                <span>DAILY RENEWALS · CLICK A BAR TO VIEW POLICIES</span>
             </div>
         </div>
     );

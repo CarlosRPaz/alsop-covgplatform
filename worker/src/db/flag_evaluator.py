@@ -106,6 +106,50 @@ class FlagRule:
 
 
 # ---------------------------------------------------------------------------
+# Suppression helpers — used to quiet RC flags for mobile homes / SPC/Unit
+# ---------------------------------------------------------------------------
+
+# RC-related flag codes that should be suppressed for mobile/manufactured
+# homes or addresses containing SPC/Unit keywords.
+RC_SUPPRESSED_CODES = frozenset([
+    "MISSING_DWELLING_REPLACEMENT_COST",
+    "MISSING_PERSONAL_PROPERTY_REPLACEMENT_COST",
+    "DWELLING_RC_NOT_INCLUDED",
+    "DWELLING_RC_INCLUDED_LOW_ORDINANCE",
+])
+
+
+def _is_mobile_or_manufactured(ctx: EvalContext) -> bool:
+    """Returns True if the property is mobile or manufactured based on construction_type."""
+    construction = str(ctx.get("construction_type") or "").lower()
+    return "mobile" in construction or "manufactured" in construction
+
+
+def _has_suppression_address_keyword(ctx: EvalContext) -> bool:
+    """Returns True if the property address contains SPC or Unit."""
+    address = str(ctx.get("property_location") or "").upper()
+    # Match common abbreviations: "SPC", "SPACE", "UNIT"
+    for keyword in ("SPC ", "SPC#", "SPACE ", "SPACE#", "UNIT ", "UNIT#"):
+        if keyword in address:
+            return True
+    return False
+
+
+def _should_suppress_rc(ctx: EvalContext) -> bool:
+    """Returns True if replacement-cost flags should be suppressed for this context."""
+    return _is_mobile_or_manufactured(ctx) or _has_suppression_address_keyword(ctx)
+
+
+def _rc_suppressed_check(inner_fn: Callable[[EvalContext], str | None]):
+    """Wrapper: returns None (suppress the flag) if the property qualifies for RC suppression."""
+    def wrapped(ctx: EvalContext) -> str | None:
+        if _should_suppress_rc(ctx):
+            return None
+        return inner_fn(ctx)
+    return wrapped
+
+
+# ---------------------------------------------------------------------------
 # Check functions — each returns message string (fire) or None (clear)
 # ---------------------------------------------------------------------------
 
@@ -277,6 +321,17 @@ def _check_fair_rental_value(ctx: EvalContext) -> str | None:
     return None
 
 
+def _check_inflation_guard_not_included(ctx: EvalContext) -> str | None:
+    """Inflation guard not included or missing."""
+    val = ctx.get("limit_inflation_guard")
+    if val is None or val == "":
+        return "Inflation guard is not included or missing from the declaration page."
+    val_str = str(val).lower().strip()
+    if val_str in ("not included", "no", "false", "excluded", "0", "$0", "$0.00", "none"):
+        return "Inflation guard is not included."
+    return None
+
+
 def _check_ecm_premium(ctx: EvalContext) -> str | None:
     """ECM premium missing or zero — check annual_premium at term level."""
     val = ctx.get("total_annual_premium") or ctx.term.get("annual_premium")
@@ -370,11 +425,11 @@ FLAG_RULES: list[FlagRule] = [
 
     FlagRule("MISSING_DWELLING_REPLACEMENT_COST", "critical", "Missing Dwelling Replacement Cost",
              "coverage_gap", "policy", True,
-             _check_missing_field("limit_dwelling_replacement_cost", "Dwelling replacement cost")),
+             _rc_suppressed_check(_check_missing_field("limit_dwelling_replacement_cost", "Dwelling replacement cost"))),
 
     FlagRule("MISSING_PERSONAL_PROPERTY_REPLACEMENT_COST", "critical", "Missing Personal Property RC",
              "coverage_gap", "policy", True,
-             _check_missing_field("limit_personal_property_replacement_cost", "Personal property replacement cost")),
+             _rc_suppressed_check(_check_missing_field("limit_personal_property_replacement_cost", "Personal property replacement cost"))),
 
     FlagRule("MISSING_FENCES_COVERAGE", "critical", "Missing Fences Coverage",
              "coverage_gap", "policy", True,
@@ -400,13 +455,16 @@ FLAG_RULES: list[FlagRule] = [
              "dic", "policy", False, _check_no_dic),
 
     FlagRule("DWELLING_RC_NOT_INCLUDED", "high", "Dwelling RC Not Included",
-             "coverage_gap", "policy", False, _check_dwelling_rc_not_included),
+             "coverage_gap", "policy", False, _rc_suppressed_check(_check_dwelling_rc_not_included)),
 
     FlagRule("DWELLING_RC_INCLUDED_LOW_ORDINANCE", "high", "RC Included, Low Ordinance/Law",
-             "coverage_gap", "policy", True, _check_dwelling_rc_included_low_ordinance),
+             "coverage_gap", "policy", True, _rc_suppressed_check(_check_dwelling_rc_included_low_ordinance)),
 
     FlagRule("FAIR_RENTAL_VALUE_ZERO_OR_MISSING", "high", "Fair Rental Value Zero or Missing",
              "coverage_gap", "policy", True, _check_fair_rental_value),
+
+    FlagRule("INFLATION_GUARD_NOT_INCLUDED", "high", "Inflation Guard Not Included",
+             "coverage_gap", "policy", True, _check_inflation_guard_not_included),
 
     FlagRule("ECM_PREMIUM_MISSING_OR_ZERO", "high", "Premium Missing or Zero",
              "data_quality", "policy", True, _check_ecm_premium),

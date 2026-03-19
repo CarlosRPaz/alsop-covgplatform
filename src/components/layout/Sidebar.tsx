@@ -40,8 +40,8 @@ export function Sidebar() {
     ];
 
     const accountItems = [
-        ...(userId ? [{ label: 'My Profile', href: `/client/${userId}`, icon: UserCircle }] : []),
-        { label: 'Settings', href: '#', icon: Settings },
+        { label: 'My Profile', href: '/profile', icon: UserCircle },
+        { label: 'Settings', href: '/settings', icon: Settings },
     ];
 
     const handleLogout = async () => {

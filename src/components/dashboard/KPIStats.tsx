@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import styles from './KPIStats.module.scss';
 import { Flag, ShieldAlert, CalendarClock, ArrowRight, AlertTriangle, Search } from 'lucide-react';
@@ -12,11 +13,12 @@ interface MetricCardProps {
     icon: React.ElementType;
     color: string;
     subIcon?: React.ElementType;
+    onClick?: () => void;
 }
 
-function MetricCard({ title, value, sublabel, icon: Icon, color, subIcon: SubIcon }: MetricCardProps) {
+function MetricCard({ title, value, sublabel, icon: Icon, color, subIcon: SubIcon, onClick }: MetricCardProps) {
     return (
-        <div className={styles.statCard} style={{ cursor: 'pointer' }}>
+        <div className={styles.statCard} style={{ cursor: 'pointer' }} onClick={onClick} role="link">
             <div className={styles.decoration} style={{ color: color }} />
             <div className={styles.iconWrapper} style={{ backgroundColor: `${color}15`, color: color }}>
                 <Icon size={20} />
@@ -36,9 +38,10 @@ function MetricCard({ title, value, sublabel, icon: Icon, color, subIcon: SubIco
 }
 
 export function KPIStats() {
+    const router = useRouter();
     const [stats, setStats] = useState({
         highFlags: 0,
-        missingDic: 0,
+        missingDicPolicies: 0,
         expiringSoon: 0,
         loading: true
     });
@@ -46,36 +49,44 @@ export function KPIStats() {
     useEffect(() => {
         const load = async () => {
             try {
-                // 1. High Severity Flags (open critical + high + warning)
+                // 1. High Severity Flags — exact count of critical + high flags
                 const { count: flagsCount } = await supabase
                     .from('policy_flags')
                     .select('*', { count: 'exact', head: true })
-                    .in('severity', ['critical', 'high', 'warning'])
+                    .in('severity', ['critical', 'high'])
                     .eq('status', 'open');
 
-                // 2. Missing DIC (Active term, no DIC)
+                // 2. Missing DIC — count of POLICIES (not terms) missing DIC
+                // We count current terms where dic_exists = false, grouped by policy
                 const today = new Date().toISOString().split('T')[0];
-                const { count: dicCount } = await supabase
+                const { data: dicData } = await supabase
                     .from('policy_terms')
-                    .select('*', { count: 'exact', head: true })
+                    .select('policy_id')
                     .eq('dic_exists', false)
+                    .eq('is_current', true)
                     .gte('expiration_date', today);
 
-                // 3. Expiring Soon (Next 30 Days)
+                // Deduplicate by policy_id
+                const uniquePolicies = new Set((dicData || []).map(d => d.policy_id));
+
+                // 3. Expiring Soon — count of POLICIES expiring within 30 days
                 const thirtyDays = new Date();
                 thirtyDays.setDate(thirtyDays.getDate() + 30);
                 const thirtyDaysStr = thirtyDays.toISOString().split('T')[0];
 
-                const { count: expiringCount } = await supabase
+                const { data: expiringData } = await supabase
                     .from('policy_terms')
-                    .select('*', { count: 'exact', head: true })
+                    .select('policy_id')
+                    .eq('is_current', true)
                     .gte('expiration_date', today)
                     .lte('expiration_date', thirtyDaysStr);
 
+                const uniqueExpiringPolicies = new Set((expiringData || []).map(d => d.policy_id));
+
                 setStats({
                     highFlags: flagsCount ?? 0,
-                    missingDic: dicCount ?? 0,
-                    expiringSoon: expiringCount ?? 0,
+                    missingDicPolicies: uniquePolicies.size,
+                    expiringSoon: uniqueExpiringPolicies.size,
                     loading: false
                 });
             } catch (error) {
@@ -108,26 +119,29 @@ export function KPIStats() {
             <MetricCard
                 title="High Severity Flags"
                 value={stats.highFlags.toLocaleString()}
-                sublabel={stats.highFlags > 0 ? "Immediate attention required" : "All clear"}
+                sublabel={stats.highFlags > 0 ? "Critical & high flags open" : "All clear"}
                 icon={Flag}
-                color={stats.highFlags > 0 ? "#ef4444" : "#10b981"} // Red or Emerald
+                color={stats.highFlags > 0 ? "#ef4444" : "#10b981"}
                 subIcon={stats.highFlags > 0 ? AlertTriangle : ArrowRight}
+                onClick={() => router.push('/flags?severity=critical')}
             />
             <MetricCard
-                title="Missing DIC Coverage"
-                value={stats.missingDic.toLocaleString()}
-                sublabel="Current terms missing DIC"
+                title="Policies Missing DIC"
+                value={stats.missingDicPolicies.toLocaleString()}
+                sublabel="Active policies without DIC"
                 icon={ShieldAlert}
-                color={stats.missingDic > 0 ? "#8b5cf6" : "#64748b"} // Purple or Slate
+                color={stats.missingDicPolicies > 0 ? "#8b5cf6" : "#64748b"}
                 subIcon={Search}
+                onClick={() => router.push('/flags?code=NO_DIC')}
             />
             <MetricCard
                 title="Expiring Soon"
                 value={stats.expiringSoon.toLocaleString()}
-                sublabel="Renewals inside 30 days"
+                sublabel="Policies renewing in 30 days"
                 icon={CalendarClock}
-                color="#3b82f6" // Blue
+                color="#3b82f6"
                 subIcon={ArrowRight}
+                onClick={() => router.push('/dashboard?renewal_window=30')}
             />
         </div>
     );

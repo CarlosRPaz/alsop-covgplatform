@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { InfoCards } from '@/components/dashboard/InfoCards';
 import { KPIStats } from '@/components/dashboard/KPIStats';
 import { DataTable } from '@/components/dashboard/DataTable';
@@ -21,10 +22,64 @@ const tabs = [
 ];
 
 export default function DashboardPage() {
-    const [activeTab, setActiveTab] = useState('policy-table');
+    const searchParams = useSearchParams();
     const [isCSVModalOpen, setIsCSVModalOpen] = useState(false);
+    const tableSectionRef = useRef<HTMLDivElement>(null);
 
+    // Read URL params for drill-down filtering
+    const expirationFrom = searchParams.get('expiration_from') || '';
+    const expirationTo = searchParams.get('expiration_to') || '';
+    const statusFilter = searchParams.get('status') || '';
+    const renewalWindow = searchParams.get('renewal_window') || '';
+    const searchInit = searchParams.get('search') || '';
 
+    // Compute expiration filter from URL params
+    const expirationFilter = useMemo(() => {
+        if (renewalWindow) {
+            const today = new Date();
+            const future = new Date(today);
+            future.setDate(future.getDate() + parseInt(renewalWindow));
+            return {
+                from: today.toISOString().split('T')[0],
+                to: future.toISOString().split('T')[0],
+            };
+        }
+        if (expirationFrom || expirationTo) {
+            return { from: expirationFrom || undefined, to: expirationTo || undefined };
+        }
+        return undefined;
+    }, [expirationFrom, expirationTo, renewalWindow]);
+
+    const hasDrillDownFilters = !!(expirationFrom || expirationTo || statusFilter || renewalWindow || searchInit);
+
+    // If we have drill-down filters, default to policy-table tab
+    const [activeTab, setActiveTab] = useState('policy-table');
+
+    // Build a human-readable filter label
+    const filterLabel = useMemo(() => {
+        if (renewalWindow) return `Renewing in ${renewalWindow} days`;
+        if (expirationFrom && expirationTo) {
+            const from = new Date(expirationFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            const to = new Date(expirationTo);
+            to.setDate(to.getDate() - 1);
+            const toStr = to.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            return from === toStr ? `Expiring on ${from}` : `Expiring ${from} – ${toStr}`;
+        }
+        if (statusFilter === 'pending_review') return 'Pending review';
+        if (statusFilter) return `Status: ${statusFilter}`;
+        return '';
+    }, [expirationFrom, expirationTo, statusFilter, renewalWindow]);
+
+    // Auto-scroll to the table section when drill-down filters are active
+    useEffect(() => {
+        if (hasDrillDownFilters && tableSectionRef.current) {
+            // Small delay to let the page render first
+            const timer = setTimeout(() => {
+                tableSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 300);
+            return () => clearTimeout(timer);
+        }
+    }, [hasDrillDownFilters]);
 
     const renderTabContent = () => {
         switch (activeTab) {
@@ -55,7 +110,12 @@ export default function DashboardPage() {
                                 <Button variant="ghost" size="sm">View All</Button>
                             </div>
                         </div>
-                        <DataTable />
+                        <DataTable
+                            initialSearch={searchInit}
+                            initialExpirationFilter={expirationFilter}
+                            initialStatusFilter={statusFilter}
+                            filterLabel={filterLabel}
+                        />
                     </section>
                 );
             case 'activity':
@@ -110,8 +170,10 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
-                {/* Tabs */}
-                <Tabs tabs={tabs} defaultTab="policy-table" onChange={setActiveTab} />
+                {/* Tabs — scroll target when drill-down is active */}
+                <div ref={tableSectionRef}>
+                    <Tabs tabs={tabs} defaultTab="policy-table" onChange={setActiveTab} />
+                </div>
 
                 {/* Tab Content */}
                 {renderTabContent()}

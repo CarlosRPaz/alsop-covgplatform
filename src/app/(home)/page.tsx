@@ -1,42 +1,35 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/Button/Button';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
-import { BackgroundSlideshow } from '@/components/home/BackgroundSlideshow';
 import {
   Upload, Search, FileCheck, Shield, Zap, AlertTriangle,
-  ChevronDown, Lock, Eye, Brain, CheckCircle, HelpCircle,
-  ArrowRight, Clock, Star, Users, Database, Building2
+  ChevronRight, Lock, Eye, Brain, CheckCircle, HelpCircle,
+  ArrowRight, Star, Users, Building2
 } from 'lucide-react';
 import styles from './page.module.scss';
 
 // ─── Data ───
 
-const trustItems = [
-  { icon: Building2, text: '40 years in business' },
-  { icon: Brain, text: 'AI-assisted analysis' },
-  { icon: Shield, text: 'Built by Alsop & Associates' },
-  { icon: Lock, text: 'Secure document handling' },
-];
-
 const steps = [
   {
     num: '01',
     icon: Upload,
-    title: 'Upload Declarations Page',
+    title: 'Upload Your Dec Page',
     desc: 'Upload your current insurance declarations page as a PDF or image. It takes less than a minute.',
   },
   {
     num: '02',
     icon: Search,
-    title: 'We Analyze Coverage & Risk',
+    title: 'AI Analyzes Coverage',
     desc: 'Our AI extracts policy details, scores risk exposure, and identifies potential gaps in your coverage.',
   },
   {
     num: '03',
     icon: FileCheck,
     title: 'Get Your Gap Report',
-    desc: 'Receive a clear, actionable report with coverage gaps, recommendations, and next steps.',
+    desc: 'Receive a clear, actionable report showing coverage gaps, recommendations, and next steps.',
   },
 ];
 
@@ -58,7 +51,7 @@ const whyItems = [
 
 const dataProviders = [
   { name: 'CoreLogic', desc: 'Property data & risk analytics' },
-  { name: 'Verisk', desc: 'Insurance underwriting data' },
+  { name: 'Verisk', desc: 'Insurance underwriting intelligence' },
   { name: 'EagleView', desc: 'Aerial imagery & measurement' },
   { name: 'Nearmap', desc: 'High-resolution aerial surveys' },
 ];
@@ -84,82 +77,118 @@ const testimonials = [
 const faqs = [
   { q: 'Is it free?', a: 'Yes. Gap Guard is completely free to use. There are no hidden fees or upsells.' },
   { q: 'What do you need from me?', a: 'Just your insurance declarations page — the summary page from your policy documents. It\'s usually 1–3 pages.' },
-  { q: 'Do I need an account?', a: 'Yes, a free account is required. This ensures your documents and reports are stored securely and accessible only to you.' },
+  { q: 'Do I need an account?', a: 'Yes, a free account is required so your documents and reports stay secure and accessible only to you.' },
   { q: 'How long does the analysis take?', a: 'Most reports are generated within minutes of uploading your declarations page.' },
-  { q: 'Is my data safe?', a: 'Yes. We use encryption, least-privilege access, and never sell your personal data. Documents are stored securely in our cloud infrastructure.' },
+  { q: 'Is my data safe?', a: 'Yes. We use encryption, least-privilege access, and never sell your personal data.' },
   { q: 'What file types are supported?', a: 'We accept PDF, PNG, JPG, and JPEG files up to 10MB.' },
-  { q: 'Does this replace my agent?', a: 'No. Gap Guard is a tool that helps you and your agent make more informed decisions. We recommend reviewing results with a licensed professional.' },
-  { q: 'What states are supported?', a: 'We are currently focused on California. We\'re expanding to additional states soon.' },
-];
-
-const securityItems = [
-  { icon: Lock, text: 'Documents encrypted and stored securely' },
-  { icon: Eye, text: 'Least-privilege access controls' },
-  { icon: Shield, text: 'We never sell your personal data' },
-  { icon: Brain, text: 'AI is assistive — recommendations should be reviewed' },
+  { q: 'Does this replace my agent?', a: 'No. Gap Guard helps you and your agent make more informed decisions. We recommend reviewing results with a licensed professional.' },
+  { q: 'What states are supported?', a: 'We are currently focused on California.' },
 ];
 
 // ─── Page ───
 
 export default function Home() {
   return (
-    <div className={styles.pageWrapper}>
-      <BackgroundSlideshow />
+    <div className={styles.page}>
       <Navbar />
 
-      <main className={styles.main}>
-        {/* ─── 1. Hero ─── */}
-        <section className={styles.hero} id="hero">
-          <div className={styles.heroContent}>
-            <h1 className={styles.headline}>
-              Know what your policy<br /><em>really</em> covers.
-            </h1>
-            <p className={styles.tagline}>
-              Upload your Declarations Page and get an AI-powered coverage gap report — fast, free, and clear.
-            </p>
-            <div className={styles.ctaRow}>
-              <Link href="/submit">
-                <Button size="lg" className={styles.primaryCta}>
-                  Submit Declaration
-                  <ArrowRight size={18} style={{ marginLeft: '0.5rem' }} />
-                </Button>
-              </Link>
-              <a href="#how-it-works" className={styles.secondaryCta}>
-                How It Works
-                <ChevronDown size={16} />
-              </a>
-            </div>
-            <p className={styles.trustLine}>
-              By <strong>Alsop and Associates</strong> · 40 years serving California
-            </p>
-          </div>
-        </section>
-
-        {/* ─── 2. Trust Strip ─── */}
-        <section className={styles.trustStrip}>
-          <div className={styles.trustGrid}>
-            {trustItems.map((item, i) => (
-              <div key={i} className={styles.trustItem}>
-                <item.icon size={18} />
-                <span>{item.text}</span>
+      <main>
+        {/* ─── HERO: Split layout ─── */}
+        <section className={styles.hero}>
+          <div className={styles.heroInner}>
+            <div className={styles.heroText}>
+              <div className={styles.heroBadge}>
+                <Shield size={14} />
+                <span>Built by Alsop & Associates · 40 years in California</span>
               </div>
-            ))}
+              <h1 className={styles.heroHeadline}>
+                Uncover the gaps<br />in your coverage.
+              </h1>
+              <p className={styles.heroSub}>
+                Upload your insurance declarations page and get an AI-powered gap analysis — in minutes, not days.
+              </p>
+              <div className={styles.heroCtas}>
+                <Link href="/submit">
+                  <Button size="lg" className={styles.primaryCta}>
+                    Submit Declaration
+                    <ArrowRight size={18} />
+                  </Button>
+                </Link>
+                <a href="#how-it-works" className={styles.ghostCta}>
+                  See how it works
+                  <ChevronRight size={16} />
+                </a>
+              </div>
+              <div className={styles.heroProof}>
+                <div className={styles.proofItem}>
+                  <Lock size={14} />
+                  <span>Encrypted & secure</span>
+                </div>
+                <div className={styles.proofItem}>
+                  <Brain size={14} />
+                  <span>AI-assisted analysis</span>
+                </div>
+                <div className={styles.proofItem}>
+                  <CheckCircle size={14} />
+                  <span>Free to use</span>
+                </div>
+              </div>
+            </div>
+            <div className={styles.heroImage}>
+              <Image
+                src="/images/hero-home.png"
+                alt="A warm, well-protected home at dusk"
+                fill
+                priority
+                style={{ objectFit: 'cover' }}
+                quality={90}
+              />
+              <div className={styles.heroImageOverlay} />
+            </div>
           </div>
         </section>
 
-        {/* ─── 3. How It Works ─── */}
-        <section className={styles.section} id="how-it-works">
-          <div className={styles.sectionInner}>
-            <div className={styles.sectionHeader}>
-              <h2>How It Works</h2>
-              <p>Three simple steps to a smarter insurance review.</p>
+        {/* ─── TRUST BAR ─── */}
+        <section className={styles.trustBar}>
+          <div className={styles.trustBarInner}>
+            <div className={styles.trustStat}>
+              <strong>40+</strong>
+              <span>Years in business</span>
             </div>
-            <div className={styles.stepsGrid}>
+            <div className={styles.trustDivider} />
+            <div className={styles.trustStat}>
+              <strong>AI-Powered</strong>
+              <span>Gap analysis engine</span>
+            </div>
+            <div className={styles.trustDivider} />
+            <div className={styles.trustStat}>
+              <strong>California</strong>
+              <span>Focused coverage</span>
+            </div>
+            <div className={styles.trustDivider} />
+            <div className={styles.trustStat}>
+              <strong>Free</strong>
+              <span>No fees</span>
+            </div>
+          </div>
+        </section>
+
+        {/* ─── HOW IT WORKS ─── */}
+        <section className={styles.sectionLight} id="how-it-works">
+          <div className={styles.contain}>
+            <div className={styles.sectionHead}>
+              <span className={styles.sectionLabel}>How It Works</span>
+              <h2>Three steps to smarter coverage.</h2>
+              <p>No paperwork. No phone calls. Just upload and go.</p>
+            </div>
+            <div className={styles.stepsRow}>
               {steps.map((step, i) => (
                 <div key={i} className={styles.stepCard}>
-                  <span className={styles.stepNum}>{step.num}</span>
-                  <div className={styles.stepIcon}>
-                    <step.icon size={24} />
+                  <div className={styles.stepTop}>
+                    <span className={styles.stepNum}>{step.num}</span>
+                    <div className={styles.stepIconWrap}>
+                      <step.icon size={22} />
+                    </div>
                   </div>
                   <h3>{step.title}</h3>
                   <p>{step.desc}</p>
@@ -169,17 +198,18 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ─── 4. What You Get ─── */}
-        <section className={styles.section}>
-          <div className={styles.sectionInner}>
-            <div className={styles.sectionHeader}>
-              <h2>What You Get</h2>
-              <p>A comprehensive analysis — not just a summary.</p>
+        {/* ─── WHAT YOU GET ─── */}
+        <section className={styles.sectionDark}>
+          <div className={styles.contain}>
+            <div className={styles.sectionHead}>
+              <span className={styles.sectionLabel}>What You Get</span>
+              <h2>A comprehensive analysis — not just a summary.</h2>
+              <p>Every report is built to help you and your agent take action.</p>
             </div>
             <div className={styles.delivGrid}>
               {deliverables.map((d, i) => (
                 <div key={i} className={styles.delivCard}>
-                  <div className={styles.delivIcon}>
+                  <div className={styles.delivIconWrap}>
                     <d.icon size={20} />
                   </div>
                   <div>
@@ -192,17 +222,17 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ─── 5. Why It Matters ─── */}
-        <section className={styles.section} style={{ background: 'var(--bg-surface)' }}>
-          <div className={styles.sectionInner}>
-            <div className={styles.sectionHeader}>
-              <h2>Why It Matters</h2>
-              <p>Most coverage gaps are invisible — until you need your policy the most.</p>
+        {/* ─── WHY IT MATTERS ─── */}
+        <section className={styles.sectionLight}>
+          <div className={styles.contain}>
+            <div className={styles.sectionHead}>
+              <span className={styles.sectionLabel}>Why It Matters</span>
+              <h2>Most coverage gaps are invisible — until it&apos;s too late.</h2>
             </div>
             <div className={styles.whyGrid}>
               {whyItems.map((w, i) => (
                 <div key={i} className={styles.whyCard}>
-                  <AlertTriangle size={18} className={styles.whyIcon} />
+                  <AlertTriangle size={20} className={styles.whyIcon} />
                   <div>
                     <h3>{w.title}</h3>
                     <p>{w.desc}</p>
@@ -213,31 +243,35 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ─── 6. Data Providers ─── */}
-        <section className={styles.section}>
-          <div className={styles.sectionInner}>
-            <div className={styles.sectionHeader}>
-              <Database size={20} className={styles.sectionIcon} />
-              <h2>Connected to Industry Data</h2>
-              <p>We augment your policy data with trusted insurance industry sources.</p>
+        {/* ─── INDUSTRY DATA PARTNERS ─── */}
+        <section className={styles.sectionDark}>
+          <div className={styles.contain}>
+            <div className={styles.sectionHead}>
+              <span className={styles.sectionLabel}>Industry Data</span>
+              <h2>Designed to work with leading data providers.</h2>
+              <p>We&apos;re building Gap Guard to integrate with the most trusted sources in insurance intelligence.</p>
             </div>
-            <div className={styles.providerGrid}>
+            <div className={styles.partnerGrid}>
               {dataProviders.map((p, i) => (
-                <div key={i} className={styles.providerCard}>
-                  <span className={styles.providerName}>{p.name}</span>
-                  <span className={styles.providerDesc}>{p.desc}</span>
+                <div key={i} className={styles.partnerCard}>
+                  <Building2 size={24} className={styles.partnerIcon} />
+                  <span className={styles.partnerName}>{p.name}</span>
+                  <span className={styles.partnerDesc}>{p.desc}</span>
                 </div>
               ))}
             </div>
-            <p className={styles.disclaimer}>Partner integrations shown are placeholders during beta.</p>
+            <p className={styles.partnerDisclaimer}>
+              Data provider integrations are planned and under development. Names shown represent the data ecosystem Gap Guard is being designed to work with.
+            </p>
           </div>
         </section>
 
-        {/* ─── 7. Testimonials ─── */}
-        <section className={styles.section} style={{ background: 'var(--bg-surface)' }}>
-          <div className={styles.sectionInner}>
-            <div className={styles.sectionHeader}>
-              <h2>What Users Are Saying</h2>
+        {/* ─── TESTIMONIALS ─── */}
+        <section className={styles.sectionLight}>
+          <div className={styles.contain}>
+            <div className={styles.sectionHead}>
+              <span className={styles.sectionLabel}>What Users Are Saying</span>
+              <h2>Trusted by homeowners and agents alike.</h2>
             </div>
             <div className={styles.testGrid}>
               {testimonials.map((t, i) => (
@@ -253,38 +287,60 @@ export default function Home() {
                 </div>
               ))}
             </div>
-            <p className={styles.disclaimer}>Sample testimonials during beta.</p>
+            <p className={styles.finePrint}>Sample testimonials shown during beta period.</p>
           </div>
         </section>
 
-        {/* ─── 8. Security ─── */}
-        <section className={styles.section}>
-          <div className={styles.sectionInner}>
-            <div className={styles.sectionHeader}>
-              <h2>Security &amp; Privacy</h2>
-              <p>Your data is handled with care.</p>
+        {/* ─── SECURITY & PRIVACY ─── */}
+        <section className={styles.sectionDark}>
+          <div className={styles.contain}>
+            <div className={styles.sectionHead}>
+              <span className={styles.sectionLabel}>Security & Privacy</span>
+              <h2>Your data is handled with care.</h2>
             </div>
-            <div className={styles.securityGrid}>
-              {securityItems.map((s, i) => (
-                <div key={i} className={styles.securityItem}>
-                  <s.icon size={18} />
-                  <span>{s.text}</span>
+            <div className={styles.securityRow}>
+              <div className={styles.securityItem}>
+                <Lock size={20} />
+                <div>
+                  <h4>Encrypted Storage</h4>
+                  <p>All documents are encrypted at rest and in transit.</p>
                 </div>
-              ))}
+              </div>
+              <div className={styles.securityItem}>
+                <Eye size={20} />
+                <div>
+                  <h4>Access Controls</h4>
+                  <p>Least-privilege access — only you see your data.</p>
+                </div>
+              </div>
+              <div className={styles.securityItem}>
+                <Shield size={20} />
+                <div>
+                  <h4>No Data Sales</h4>
+                  <p>We never sell, share, or monetize your personal data.</p>
+                </div>
+              </div>
+              <div className={styles.securityItem}>
+                <Brain size={20} />
+                <div>
+                  <h4>AI Transparency</h4>
+                  <p>AI is assistive — recommendations should always be reviewed.</p>
+                </div>
+              </div>
             </div>
-            <p className={styles.legalDisclaimer}>
-              This tool provides informational guidance and is not legal or financial advice.
-              Recommendations should be reviewed with a licensed insurance professional.
+            <p className={styles.legalNote}>
+              This tool provides informational guidance and is not legal or financial advice. Recommendations should be reviewed with a licensed insurance professional.
             </p>
           </div>
         </section>
 
-        {/* ─── 9. FAQ ─── */}
-        <section className={styles.section} style={{ background: 'var(--bg-surface)' }}>
-          <div className={styles.sectionInner}>
-            <div className={styles.sectionHeader}>
-              <HelpCircle size={20} className={styles.sectionIcon} />
-              <h2>Frequently Asked Questions</h2>
+        {/* ─── FAQ ─── */}
+        <section className={styles.sectionLight}>
+          <div className={styles.contain}>
+            <div className={styles.sectionHead}>
+              <HelpCircle size={20} className={styles.sectionLabelIcon} />
+              <span className={styles.sectionLabel}>FAQ</span>
+              <h2>Frequently asked questions.</h2>
             </div>
             <div className={styles.faqList}>
               {faqs.map((f, i) => (
@@ -297,20 +353,21 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ─── 10. Final CTA ─── */}
+        {/* ─── FINAL CTA ─── */}
         <section className={styles.finalCta}>
-          <div className={styles.sectionInner}>
-            <h2>Submit your Declarations Page in minutes.</h2>
-            <p>Free. Fast. No surprises — except the ones we help you prevent.</p>
+          <div className={styles.contain}>
+            <h2>Ready to see what your policy is missing?</h2>
+            <p>Submit your declarations page in minutes. Free. Fast. No surprises.</p>
             <Link href="/submit">
               <Button size="lg" className={styles.primaryCta}>
                 Submit Declaration
-                <ArrowRight size={18} style={{ marginLeft: '0.5rem' }} />
+                <ArrowRight size={18} />
               </Button>
             </Link>
           </div>
         </section>
       </main>
+
       <Footer />
     </div>
   );

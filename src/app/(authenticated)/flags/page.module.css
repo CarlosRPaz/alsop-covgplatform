@@ -1,10 +1,12 @@
-/* ── Flags Work Queue Page ─────────────────────────────────── */
+/* ── Flagged Policies Worklist ─────────────────────────────── */
 
 .flagsPage {
     padding: 1.5rem;
-    max-width: 1200px;
+    max-width: 1280px;
     margin: 0 auto;
 }
+
+/* ── Header ───────────────────────────────────────────────── */
 
 .pageHeader {
     display: flex;
@@ -27,45 +29,54 @@
 }
 
 .flagCount {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     padding: 2px 8px;
     border-radius: 999px;
-    background: rgba(59, 130, 246, 0.15);
+    background: rgba(59, 130, 246, 0.12);
     color: #60a5fa;
     font-weight: 500;
 }
 
-/* ── Severity Summary Cards ───────────────────────────────── */
+/* ── Severity Summary ─────────────────────────────────────── */
 
 .severitySummary {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 0.75rem;
-    margin-bottom: 1.25rem;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
 }
 
 .sevCard {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.75rem 1rem;
+    padding: 0.625rem 0.875rem;
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 8px;
     border-left: 3px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: inherit;
+    font-family: inherit;
+}
+
+.sevCard:hover {
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .sevValue {
-    font-size: 1.25rem;
+    font-size: 1.15rem;
     font-weight: 700;
     color: #e2e8f0;
 }
 
 .sevLabel {
-    font-size: 0.7rem;
+    font-size: 0.67rem;
     color: #64748b;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    font-weight: 600;
 }
 
 .activeSevCard {
@@ -78,46 +89,15 @@
 .toolbar {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.5rem;
     margin-bottom: 1rem;
-}
-
-.quickViews {
-    display: flex;
-    gap: 0.35rem;
-    flex-wrap: wrap;
-}
-
-.quickViewBtn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 5px 12px;
-    font-size: 0.75rem;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    background: rgba(255, 255, 255, 0.02);
-    color: #94a3b8;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.15s;
-}
-
-.quickViewBtn:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: #e2e8f0;
-}
-
-.quickViewActive {
-    background: rgba(59, 130, 246, 0.15) !important;
-    border-color: rgba(59, 130, 246, 0.3) !important;
-    color: #60a5fa !important;
-    font-weight: 600;
 }
 
 .filterRow {
     display: flex;
     gap: 0.5rem;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .searchBox {
@@ -129,7 +109,7 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 6px;
     flex: 1;
-    max-width: 300px;
+    max-width: 360px;
     color: #94a3b8;
 }
 
@@ -148,16 +128,147 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 6px;
     color: #e2e8f0;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     cursor: pointer;
 }
 
-/* ── Flag List ──────────────────────────────────────────────── */
+.filterSelect option {
+    background: #1a1e28;
+    color: #e2e8f0;
+}
 
-.flagList {
+.clearBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.72rem;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.clearBtn:hover {
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* ── Renewal chips ────────────────────────────────────────── */
+
+.renewalChips {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    flex-wrap: wrap;
+}
+
+.chipIcon {
+    color: #64748b;
+}
+
+.chipLabel {
+    font-size: 0.72rem;
+    color: #64748b;
+    font-weight: 500;
+    margin-right: 0.125rem;
+}
+
+.chip {
+    padding: 0.2rem 0.6rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.chip:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #e2e8f0;
+}
+
+.chipActive {
+    background: rgba(59, 130, 246, 0.15) !important;
+    border-color: rgba(59, 130, 246, 0.3) !important;
+    color: #60a5fa !important;
+    font-weight: 600;
+}
+
+/* ── Active Filter Chips ──────────────────────────────────── */
+
+.activeFilters {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    flex-wrap: wrap;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+    background: rgba(99, 102, 241, 0.06);
+    border: 1px solid rgba(99, 102, 241, 0.15);
+    border-radius: 8px;
+}
+
+.activeFilterIcon {
+    color: #818cf8;
+    flex-shrink: 0;
+}
+
+.activeChip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #c7d2fe;
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: capitalize;
+}
+
+.activeChip:hover {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+}
+
+.clearAllBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: auto;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.clearAllBtn:hover {
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.08);
+}
+
+/* ── Policy List ──────────────────────────────────────────── */
+
+.policyList {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: 0.35rem;
 }
 
 .loadingState {
@@ -167,25 +278,50 @@
     font-size: 0.875rem;
 }
 
-.emptyQueue {
+/* ── Empty State ──────────────────────────────────────────── */
+
+.emptyState {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 0.5rem;
-    padding: 3rem 1rem;
-    color: #10b981;
+    padding: 4rem 1.5rem;
     text-align: center;
+    color: #10b981;
 }
 
-.emptyQueue p {
+.emptyState h3 {
+    color: #e2e8f0;
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.emptyState p {
     color: #64748b;
-    font-size: 0.875rem;
+    font-size: 0.85rem;
+    max-width: 400px;
 }
 
-/* ── Queue Card ─────────────────────────────────────────────── */
+.clearFiltersBtn {
+    margin-top: 0.5rem;
+    padding: 0.4rem 1rem;
+    font-size: 0.78rem;
+    color: #60a5fa;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
 
-.queueCard {
-    display: flex;
+.clearFiltersBtn:hover {
+    background: rgba(59, 130, 246, 0.2);
+}
+
+/* ── Policy Row (main) ────────────────────────────────────── */
+
+.policyRow {
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 8px;
@@ -193,166 +329,308 @@
     transition: border-color 0.15s;
 }
 
-.queueCard:hover {
+.policyRow:hover {
     border-color: rgba(255, 255, 255, 0.12);
 }
 
-.queueCardLeft {
+.policyRowExpanded {
+    border-color: rgba(59, 130, 246, 0.2);
+}
+
+.policyRowMain {
+    display: flex;
+    align-items: stretch;
+}
+
+.policyRowLeft {
     width: 3px;
     flex-shrink: 0;
     border-left: 3px solid transparent;
 }
 
-.queueCardBody {
+.expandBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    border-right: 1px solid rgba(255, 255, 255, 0.04);
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.expandBtn:hover {
+    color: #e2e8f0;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.policyRowBody {
     flex: 1;
-    padding: 0.65rem 1rem;
+    padding: 0.6rem 0.875rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
+    transition: background 0.15s;
+}
+
+.policyRowBody:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+/* ── Policy meta (left part of row) ───────────────────────── */
+
+.policyMeta {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    flex-wrap: wrap;
+    flex: 1;
     min-width: 0;
 }
 
-.queueHeader {
+.policyNumber {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    white-space: nowrap;
+}
+
+.insuredName {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #cbd5e1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+.carrierName {
+    font-size: 0.7rem;
+    color: #64748b;
+    white-space: nowrap;
+}
+
+.officeBadge,
+.agentBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.67rem;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 1px 5px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+.expDate {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.7rem;
+    color: #94a3b8;
+    white-space: nowrap;
+}
+
+.expired {
+    color: #ef4444 !important;
+    font-weight: 600;
+}
+
+.expiringSoon {
+    color: #f97316 !important;
+    font-weight: 500;
+}
+
+.expiringModerate {
+    color: #eab308 !important;
+}
+
+/* ── Policy flags (right part of row) ─────────────────────── */
+
+.policyFlags {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.375rem;
+    flex-shrink: 0;
+}
+
+.sevCounts {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    flex-wrap: wrap;
-    margin-bottom: 0.2rem;
 }
 
-.queueSeverity {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 0.65rem;
+.totalBadge {
+    font-size: 0.72rem;
     font-weight: 600;
-    text-transform: uppercase;
-    padding: 2px 6px;
-    border-radius: 4px;
-    letter-spacing: 0.03em;
-}
-
-.queueCode {
-    font-size: 0.6rem;
-    color: #64748b;
-    font-family: 'SF Mono', 'Fira Code', monospace;
-    background: rgba(255, 255, 255, 0.04);
-    padding: 1px 5px;
-    border-radius: 3px;
-}
-
-.queueCategory {
-    font-size: 0.6rem;
-    color: #64748b;
-    text-transform: capitalize;
-}
-
-.queuePolicyNum {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 0.6rem;
-    font-weight: 500;
     color: #cbd5e1;
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(255, 255, 255, 0.06);
+    padding: 1px 7px;
+    border-radius: 4px;
+}
+
+.sevMini {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.67rem;
+    font-weight: 600;
+}
+
+.flagPreview {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.previewChip {
+    font-size: 0.65rem;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.03);
     padding: 1px 5px;
     border-radius: 3px;
+    border-left: 2px solid transparent;
+    white-space: nowrap;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.queueSource {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 0.6rem;
-    color: #94a3b8;
-}
-
-.statusResolved {
-    font-size: 0.6rem;
-    color: #10b981;
-    font-weight: 500;
-    text-transform: capitalize;
-}
-
-.statusDismissed {
-    font-size: 0.6rem;
+.moreChip {
+    font-size: 0.62rem;
     color: #64748b;
     font-weight: 500;
-    text-transform: capitalize;
 }
 
-.queueTitle {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #e2e8f0;
-    margin-bottom: 0.1rem;
+/* ── Expanded Panel ───────────────────────────────────────── */
+
+.expandedPanel {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.01);
+    padding: 0.75rem 1rem;
 }
 
-.queueMessage {
-    font-size: 0.75rem;
-    color: #94a3b8;
-    line-height: 1.4;
-    margin-bottom: 0.2rem;
-}
-
-.queueMeta {
+.expandedHeader {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    font-size: 0.65rem;
+    justify-content: space-between;
+    margin-bottom: 0.625rem;
+    font-size: 0.72rem;
     color: #64748b;
-    flex-wrap: wrap;
-}
-
-.queueMeta span {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-}
-
-.timesSeen {
-    color: #f59e0b;
     font-weight: 500;
 }
 
-.policyLink {
+.openPolicyBtn {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
+    gap: 4px;
+    font-size: 0.72rem;
     color: #60a5fa;
     background: none;
-    border: none;
+    border: 1px solid rgba(96, 165, 250, 0.2);
+    padding: 3px 8px;
+    border-radius: 4px;
     cursor: pointer;
-    font-size: 0.65rem;
-    padding: 1px 4px;
-    border-radius: 3px;
+    transition: all 0.15s;
 }
 
-.policyLink:hover {
+.openPolicyBtn:hover {
     background: rgba(96, 165, 250, 0.1);
 }
 
-.queueActions {
+.expandedFlags {
     display: flex;
+    flex-direction: column;
     gap: 0.25rem;
-    margin-top: 0.35rem;
-    padding-top: 0.3rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.04);
 }
 
-.queueActionBtn {
-    font-size: 0.72rem !important;
+.expandedFlagRow {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.5rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 5px;
+    font-size: 0.78rem;
+    flex-wrap: wrap;
+}
+
+.flagSevBadge {
+    display: inline-flex;
+    align-items: center;
     gap: 3px;
-    padding: 2px 7px !important;
-    border-radius: 4px !important;
+    font-size: 0.62rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+}
+
+.flagTitle {
+    font-weight: 500;
+    color: #e2e8f0;
+    font-size: 0.78rem;
+}
+
+.flagCat {
+    font-size: 0.65rem;
+    color: #64748b;
+    text-transform: capitalize;
+}
+
+.flagMsg {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    flex-basis: 100%;
+    padding-left: 3.5rem;
+    line-height: 1.35;
+}
+
+.clientFlagTag {
+    font-size: 0.6rem;
+    color: #a78bfa;
+    background: rgba(167, 139, 250, 0.1);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 500;
+}
+
+/* ── Responsive ───────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+    .policyRowBody {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .policyFlags {
+        align-items: flex-start;
+    }
+
+    .flagPreview {
+        justify-content: flex-start;
+    }
 }
 
 @media (max-width: 768px) {
     .severitySummary {
         grid-template-columns: repeat(2, 1fr);
-    }
-
-    .quickViews {
-        overflow-x: auto;
-        flex-wrap: nowrap;
-        padding-bottom: 0.25rem;
     }
 
     .filterRow {
@@ -361,5 +639,23 @@
 
     .searchBox {
         max-width: 100%;
+    }
+
+    .insuredName {
+        max-width: 150px;
+    }
+}
+
+@media (max-width: 480px) {
+    .flagsPage {
+        padding: 1rem;
+    }
+
+    .policyMeta {
+        gap: 0.35rem;
+    }
+
+    .insuredName {
+        max-width: 120px;
     }
 }

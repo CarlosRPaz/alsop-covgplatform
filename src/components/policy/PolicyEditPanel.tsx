@@ -40,6 +40,7 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
         payment_plan: policyDetail.payment_plan || '',
         cancellation_reason: policyDetail.cancellation_reason || '',
         dic_exists: policyDetail.dic_exists ?? false,
+        dic_policy_number: policyDetail.dic_policy_number || '',
         sold_by: policyDetail.sold_by || '',
         office: policyDetail.office || '',
         is_current: policyDetail.is_current ?? true,
@@ -131,6 +132,10 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
         if (termForm.dic_exists !== (policyDetail.dic_exists ?? false)) {
             termChanges.dic_exists = termForm.dic_exists;
             termChangedFields.push('dic_exists');
+        }
+        if (termForm.dic_policy_number !== (policyDetail.dic_policy_number || '')) {
+            termChanges.dic_policy_number = termForm.dic_policy_number || null;
+            termChangedFields.push('dic_policy_number');
         }
         if (termForm.sold_by !== (policyDetail.sold_by || '')) {
             termChanges.sold_by = termForm.sold_by || null;
@@ -362,7 +367,6 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
                             </div>
                         </div>
 
-                        {/* Boolean toggles */}
                         <div className={styles.toggle}>
                             <button
                                 type="button"
@@ -376,6 +380,20 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
                                 DIC Coverage Exists
                             </span>
                         </div>
+
+                        {termForm.dic_exists && (
+                            <div className={styles.fieldGroupFull} style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+                                <div className={styles.field}>
+                                    <label className={styles.fieldLabel}>DIC Policy Number</label>
+                                    <input
+                                        className={styles.fieldInput}
+                                        value={termForm.dic_policy_number}
+                                        onChange={(e) => setTermForm(f => ({ ...f, dic_policy_number: e.target.value }))}
+                                        placeholder="Enter associated DIC policy number"
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         <div className={styles.toggle}>
                             <button

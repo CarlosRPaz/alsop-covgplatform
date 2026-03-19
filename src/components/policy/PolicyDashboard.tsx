@@ -300,6 +300,12 @@ export function PolicyDashboard({ declaration }: PolicyDashboardProps) {
                             <span>{declaration.limit_signs || '—'}</span>
                         </div>
                     </div>
+                    {declaration.dic_exists && (
+                        <div className={styles.field} style={{ marginTop: '0.5rem' }}>
+                            <label>DIC Policy Number:</label>
+                            <span>{declaration.dic_policy_number || '—'}</span>
+                        </div>
+                    )}
                     {declaration.dic_company && (
                         <div className={styles.field} style={{ marginTop: '0.5rem' }}>
                             <label>DIC Company:</label>

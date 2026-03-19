@@ -38,6 +38,7 @@ from .db.dec_pages import upsert_dec_page
 from .db.lifecycle import process_lifecycle
 from .db.flag_evaluator import evaluate_flags
 from .db.flags import insert_activity_event
+from .db.enrichment import enrich_property
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -210,6 +211,17 @@ def process_job(job: dict) -> None:
                     dec_page_id=dec_page_id,
                     actor_user_id=account_id,
                 )
+
+                # 10. Property enrichment (non-blocking)
+                current_step = "enrich_property"
+                logger.info("job_id=%s step=%s policy_id=%s", job_id, current_step, policy_id)
+                try:
+                    enrich_property(policy_id, fair_plan_data.get("property_location"))
+                except Exception as enrich_exc:
+                    logger.warning(
+                        "job_id=%s enrichment failed (non-fatal): %s",
+                        job_id, enrich_exc,
+                    )
 
         # 10. Mark job done
         current_step = "complete_job"

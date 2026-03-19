@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
 import { logger } from '@/lib/logger';
@@ -166,6 +167,71 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
         // 4. DB-FIRST: Insert dec_page_submissions row (status='pending')
         // ---------------------------------------------------------------
         const now = new Date().toISOString();
+        const fileBuffer = Buffer.from(await file.arrayBuffer());
+        const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+
+        // Check for existing duplicate (exact file match) that wasn't a failure
+        const { data: existingDuplicate } = await supabaseAdmin
+            .from('dec_page_submissions')
+            .select('id, status')
+            .eq('file_hash', fileHash)
+            .neq('status', 'failed') // Could be pending, uploaded, processed, etc.
+            .limit(1)
+            .maybeSingle();
+
+        if (existingDuplicate) {
+            logger.info('Upload', 'Duplicate file detected, skipping upload and processing', {
+                fileHash,
+                existingId: existingDuplicate.id,
+                accountId
+            });
+
+            // Insert a tracking record for the duplicate attempt (status='duplicate')
+            // This prevents the worker from processing it, but gives us an audit trail
+            const { data: dupRow, error: dupError } = await supabaseAdmin
+                .from('dec_page_submissions')
+                .insert({
+                    account_id: accountId,
+                    first_name: account.first_name || '',
+                    last_name: account.last_name || '',
+                    email: account.email || '',
+                    phone: account.phone || '',
+                    file_path: '',
+                    file_name: file.name,
+                    file_size: file.size,
+                    file_type: file.type,
+                    status: 'duplicate',
+                    bucket: 'cfp-raw-decpage',
+                    file_hash: fileHash,
+                    duplicate_of: existingDuplicate.id,
+                    created_at: now,
+                    updated_at: now,
+                })
+                .select('id')
+                .single();
+
+            if (dupError) {
+                logger.error('Upload', 'Failed to insert duplicate tracking row (non-fatal)', { error: dupError.message });
+            }
+
+            const submittedBy = [account.first_name, account.last_name].filter(Boolean).join(' ') || account.email || 'User';
+
+            return NextResponse.json(
+                {
+                    success: true,
+                    message: 'Duplicate document recognized. Linking to existing record.',
+                    data: {
+                        submissionId: dupRow?.id || existingDuplicate.id,
+                        storagePath: '',
+                        fileName: file.name,
+                        fileSize: file.size,
+                        submittedBy,
+                        submittedAt: now,
+                    },
+                },
+                { status: 200 } // Send success so the UI clears the upload state smoothly
+            );
+        }
 
         const { data: insertedRow, error: insertError } = await supabaseAdmin
             .from('dec_page_submissions')
@@ -181,6 +247,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
                 file_type: file.type,
                 status: 'pending',
                 bucket: 'cfp-raw-decpage',
+                file_hash: fileHash,
                 created_at: now,
                 updated_at: now,
             })
@@ -199,13 +266,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
         }
 
         submissionId = insertedRow.id;
-        logger.info('Upload', 'Submission row created (pending)', { submissionId, accountId });
+        logger.info('Upload', 'Submission row created (pending)', { submissionId, accountId, fileHash });
 
         // ---------------------------------------------------------------
         // 5. Upload file: submissions/{account_id}/{submission_id}.pdf
         // ---------------------------------------------------------------
         const storagePath = `submissions/${accountId}/${submissionId}.pdf`;
-        const fileBuffer = Buffer.from(await file.arrayBuffer());
 
         logger.info('Upload', 'Uploading file to storage', { storagePath, fileSize: file.size });
 
