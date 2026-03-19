@@ -396,6 +396,67 @@ def _check_duplicate_policy_by_number(ctx: EvalContext) -> str | None:
     return None
 
 
+def _check_roof_age_over_25_with_rc(ctx: EvalContext) -> str | None:
+    """
+    Roof ≥25 years old with replacement cost included.
+    Under 25 years is required for RC eligibility.
+
+    Checks enrichment data first (year_built from property_enrichments),
+    then falls back to parsed year_built from extracted data.
+    """
+    # Check if RC is included
+    rc_val = ctx.get("dwelling_replacement_cost_included")
+    if not rc_val:
+        return None
+
+    rc_str = str(rc_val).strip().lower()
+    rc_included = rc_str in ("yes", "true", "included", "1")
+    if not rc_included:
+        return None
+
+    # Try to get year_built — first from enrichments, then from parsed data
+    year_built = None
+
+    # Try enrichment data via DB
+    if ctx.policy_id:
+        try:
+            sb = get_supabase()
+            res = (
+                sb.table("property_enrichments")
+                .select("field_value")
+                .eq("policy_id", ctx.policy_id)
+                .eq("field_key", "year_built")
+                .limit(1)
+                .execute()
+            )
+            if res.data and res.data[0].get("field_value"):
+                year_built = int(res.data[0]["field_value"])
+        except Exception:
+            pass
+
+    # Fallback: parsed data
+    if not year_built:
+        yb_raw = ctx.get("year_built")
+        if yb_raw:
+            try:
+                year_built = int(str(yb_raw).strip())
+            except (ValueError, TypeError):
+                pass
+
+    if not year_built:
+        return None
+
+    current_year = datetime.now().year
+    roof_age = current_year - year_built
+
+    if roof_age >= 25:
+        return (
+            f"Structure built in {year_built} ({roof_age} years old). "
+            f"Roof age must be under 25 years for replacement cost eligibility."
+        )
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Rule registry — add new rules here
 # ---------------------------------------------------------------------------

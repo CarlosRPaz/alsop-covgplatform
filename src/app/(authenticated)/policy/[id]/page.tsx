@@ -55,6 +55,16 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
         confidence: propertyImageEnrichment.confidence,
     } : null;
 
+    // Derive fire risk data
+    const fireRiskEnrichment = enrichments.find(e => e.field_key === 'fire_risk_label');
+    const fireRiskLabel = fireRiskEnrichment?.field_value || null;
+    const fireRiskColor = fireRiskLabel === 'Very High' ? '#ef4444'
+        : fireRiskLabel === 'High' ? '#f97316'
+            : fireRiskLabel === 'Moderate' ? '#eab308'
+                : fireRiskLabel === 'Low' ? '#22c55e'
+                    : fireRiskLabel === 'Very Low' ? '#16a34a'
+                        : '#6b7280';
+
     const copyPolicyNumber = () => {
         if (declaration?.policy_number) {
             navigator.clipboard.writeText(declaration.policy_number);
@@ -217,10 +227,32 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                                         : 'AI-Detected Structures & Coverage Areas'}
                                 </p>
                             </div>
-                            <Button variant="outline" className="text-white border-white hover:bg-white/20">
-                                <Maximize2 size={16} className="mr-2" />
-                                View Full Image
-                            </Button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                {fireRiskLabel && (
+                                    <div style={{
+                                        background: 'rgba(0, 0, 0, 0.6)',
+                                        backdropFilter: 'blur(8px)',
+                                        borderRadius: '8px',
+                                        padding: '0.4rem 0.75rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        border: `1px solid ${fireRiskColor}40`,
+                                    }}>
+                                        <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.6)' }}>🔥 FIRE RISK</span>
+                                        <span style={{
+                                            fontSize: '0.8rem',
+                                            fontWeight: 700,
+                                            color: fireRiskColor,
+                                            textTransform: 'uppercase',
+                                        }}>{fireRiskLabel}</span>
+                                    </div>
+                                )}
+                                <Button variant="outline" className="text-white border-white hover:bg-white/20">
+                                    <Maximize2 size={16} className="mr-2" />
+                                    View Full Image
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </div>
