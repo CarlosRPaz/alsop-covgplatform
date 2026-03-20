@@ -5,15 +5,17 @@ import { getUserProfile, UserProfile, isAdmin } from '@/lib/auth';
 import { supabase } from '@/lib/supabaseClient';
 import {
     Settings as SettingsIcon, User, Bell, Palette, Shield, ChevronRight,
-    Mail, Key, Monitor, Globe, Database, Lock, Loader2
+    Mail, Key, Monitor, Globe, Database, Lock, Loader2, Satellite
 } from 'lucide-react';
+import DataSourcesCatalog from '@/components/settings/DataSourcesCatalog';
 
-type Section = 'account' | 'notifications' | 'display' | 'admin';
+type Section = 'account' | 'notifications' | 'display' | 'admin' | 'data_sources';
 
 const SECTIONS = [
     { id: 'account' as Section, label: 'Account', icon: User, description: 'Name, email, password' },
     { id: 'notifications' as Section, label: 'Notifications', icon: Bell, description: 'Email & alert preferences' },
     { id: 'display' as Section, label: 'Display', icon: Palette, description: 'Theme & layout preferences' },
+    { id: 'data_sources' as Section, label: 'Data Sources', icon: Satellite, description: 'Enrichment pipeline catalog' },
     { id: 'admin' as Section, label: 'Admin Settings', icon: Shield, description: 'Branding, integrations, global config', adminOnly: true },
 ];
 
@@ -40,7 +42,7 @@ export default function SettingsPage() {
     const showAdmin = profile && isAdmin(profile.role);
 
     return (
-        <div style={{ maxWidth: '900px', margin: '2rem auto', padding: '0 1.5rem' }}>
+        <div style={{ maxWidth: activeSection === 'data_sources' ? '1200px' : '900px', margin: '2rem auto', padding: '0 1.5rem', transition: 'max-width 0.3s ease' }}>
             {/* Header */}
             <div style={{ marginBottom: '1.5rem' }}>
                 <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-high)', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -103,6 +105,7 @@ export default function SettingsPage() {
                     {activeSection === 'account' && <AccountSection profile={profile} />}
                     {activeSection === 'notifications' && <NotificationsSection />}
                     {activeSection === 'display' && <DisplaySection />}
+                    {activeSection === 'data_sources' && <DataSourcesCatalog />}
                     {activeSection === 'admin' && <AdminSection />}
                 </div>
             </div>

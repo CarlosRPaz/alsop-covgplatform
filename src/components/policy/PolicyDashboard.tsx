@@ -1,16 +1,96 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Declaration } from '@/lib/api';
+import { Declaration, PropertyEnrichment } from '@/lib/api';
 import styles from './PolicyDashboard.module.css';
 import { Card } from '../ui/Card/Card';
 
 interface PolicyDashboardProps {
     declaration: Declaration;
+    enrichments?: PropertyEnrichment[];
 }
 
-export function PolicyDashboard({ declaration }: PolicyDashboardProps) {
+export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboardProps) {
     const router = useRouter();
+
+    // Helper to pull enrichment values
+    const getEnrichment = (key: string) => enrichments.find(e => e.field_key === key);
+    const enrichVal = (key: string) => getEnrichment(key)?.field_value || null;
+
+    const fireRiskLabel = enrichVal('fire_risk_label');
+    const fireRiskClass = enrichVal('fire_risk_class');
+    const latitude = enrichVal('latitude');
+    const longitude = enrichVal('longitude');
+    const propertyImage = enrichVal('property_image');
+
+    // Most recent enrichment fetch date
+    const latestFetch = enrichments.length > 0
+        ? enrichments.reduce((latest, e) => {
+            const t = new Date(e.fetched_at).getTime();
+            return t > latest ? t : latest;
+        }, 0)
+        : null;
+    const lastFetchedStr = latestFetch
+        ? new Date(latestFetch).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : null;
+
+    // Unique sources used
+    const uniqueSources = [...new Set(enrichments.map(e => e.source_name))];
+
+    // AI Vision observations — parse structured notes from ai_* enrichment rows
+    interface ParsedAiObs {
+        key: string;
+        label: string;
+        detected: boolean;
+        confidence: 'high' | 'medium' | 'low';
+        rationale: string;
+        manualReview: boolean;
+    }
+
+    const aiObservations: ParsedAiObs[] = enrichments
+        .filter(e => e.field_key.startsWith('ai_') && e.field_key !== 'ai_vision_summary')
+        .map(e => {
+            try {
+                const meta = JSON.parse(e.notes || '{}');
+                return {
+                    key: e.field_key,
+                    label: meta.label || e.field_key.replace('ai_', '').replace(/_/g, ' '),
+                    detected: e.field_value === 'detected',
+                    confidence: (e.confidence as 'high' | 'medium' | 'low') || 'medium',
+                    rationale: meta.rationale || '',
+                    manualReview: meta.manual_review || false,
+                };
+            } catch {
+                return null;
+            }
+        })
+        .filter((o): o is ParsedAiObs => o !== null);
+
+    const detectedFeatures = aiObservations.filter(o => o.detected);
+
+    // Vision summary metadata
+    const visionSummaryEnrichment = enrichments.find(e => e.field_key === 'ai_vision_summary');
+    const visionSummaryValue = visionSummaryEnrichment?.field_value || null;
+    const visionSummaryMeta = (() => {
+        try {
+            const meta = JSON.parse(visionSummaryEnrichment?.notes || '{}');
+            return { imageQuality: meta.image_quality as string | undefined };
+        } catch {
+            return null;
+        }
+    })();
+
+    // Fire risk color
+    const fireRiskColor = (cls: string | null) => {
+        switch (cls) {
+            case '1': return '#4ade80';
+            case '2': return '#86efac';
+            case '3': return '#facc15';
+            case '4': return '#fb923c';
+            case '5': return '#ef4444';
+            default: return '#64748b';
+        }
+    };
 
     return (
         <div className={styles.container}>
@@ -71,6 +151,144 @@ export function PolicyDashboard({ declaration }: PolicyDashboardProps) {
                         <label># of Units:</label>
                         <span>{declaration.number_of_units || '—'}</span>
                     </div>
+                </Card>
+
+                {/* Property Enrichment Data */}
+                <Card className={styles.card}>
+                    <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '4px', background: 'rgba(99,102,241,0.15)', flexShrink: 0 }}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#818cf8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+                        </span>
+                        Property Enrichment
+                    </h3>
+                    {enrichments.length === 0 ? (
+                        <div style={{ fontSize: '0.78rem', color: '#64748b', padding: '0.5rem 0' }}>
+                            No enrichment data yet. Click <strong>Enrich Property Data</strong> above to fetch.
+                        </div>
+                    ) : (
+                        <>
+                            {/* Fire Risk */}
+                            {fireRiskLabel && (
+                                <div className={styles.field}>
+                                    <label>Fire Risk:</label>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                                        <span style={{
+                                            display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%',
+                                            background: fireRiskColor(fireRiskClass),
+                                            boxShadow: `0 0 6px ${fireRiskColor(fireRiskClass)}40`,
+                                        }} />
+                                        <span style={{ fontWeight: 600, color: fireRiskColor(fireRiskClass) }}>{fireRiskLabel}</span>
+                                        {fireRiskClass && <span style={{ fontSize: '0.68rem', color: '#64748b' }}>(Class {fireRiskClass})</span>}
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* Coordinates */}
+                            {latitude && longitude && (
+                                <div className={styles.field}>
+                                    <label>Coordinates:</label>
+                                    <span style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                                        {Number(latitude).toFixed(5)}, {Number(longitude).toFixed(5)}
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* Satellite Image */}
+                            {propertyImage && (
+                                <div className={styles.field}>
+                                    <label>Satellite:</label>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#4ade80', fontSize: '0.78rem' }}>
+                                        ✓ Image available
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* AI Vision Analysis Section */}
+                            {aiObservations.length > 0 && (
+                                <div style={{ marginTop: '0.6rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '3px', background: 'rgba(249,115,22,0.15)', flexShrink: 0 }}>
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fb923c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
+                                        </span>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>AI Vision Analysis</span>
+                                        {visionSummaryMeta && (
+                                            <span style={{
+                                                fontSize: '0.58rem', padding: '0.1rem 0.35rem', borderRadius: '3px',
+                                                color: '#fb923c', background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.2)',
+                                            }}>AI-Inferred</span>
+                                        )}
+                                    </div>
+
+                                    {/* Detected features */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                        {detectedFeatures.map(obs => (
+                                            <div key={obs.key} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem' }}>
+                                                <span style={{ color: '#4ade80', flexShrink: 0, fontSize: '0.7rem' }}>✓</span>
+                                                <span style={{ color: 'var(--text-high)', fontWeight: 500, flex: 1 }}>{obs.label}</span>
+                                                <span style={{
+                                                    display: 'inline-block', padding: '0.08rem 0.3rem', borderRadius: '3px',
+                                                    fontSize: '0.58rem', fontWeight: 600,
+                                                    color: obs.confidence === 'high' ? '#4ade80' : obs.confidence === 'medium' ? '#facc15' : '#fb923c',
+                                                    background: obs.confidence === 'high' ? 'rgba(34,197,94,0.1)' : obs.confidence === 'medium' ? 'rgba(234,179,8,0.1)' : 'rgba(249,115,22,0.1)',
+                                                    border: `1px solid ${obs.confidence === 'high' ? 'rgba(34,197,94,0.2)' : obs.confidence === 'medium' ? 'rgba(234,179,8,0.2)' : 'rgba(249,115,22,0.2)'}`,
+                                                }}>{obs.confidence}</span>
+                                                {obs.manualReview && (
+                                                    <span style={{ fontSize: '0.58rem', color: '#facc15' }} title="Manual review recommended">⚠</span>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Summary */}
+                                    <div style={{ marginTop: '0.35rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.6rem', color: '#475569' }}>
+                                            {detectedFeatures.length} detected · {aiObservations.length - detectedFeatures.length} not found
+                                        </span>
+                                        {visionSummaryMeta?.imageQuality && (
+                                            <span style={{ fontSize: '0.6rem', color: '#475569' }}>
+                                                Image: {visionSummaryMeta.imageQuality}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Overall AI notes */}
+                                    {visionSummaryValue && (
+                                        <div style={{ marginTop: '0.3rem', fontSize: '0.68rem', color: '#64748b', fontStyle: 'italic', lineHeight: 1.4 }}>
+                                            {visionSummaryValue}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Sources */}
+                            <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                                <div style={{ fontSize: '0.65rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.3rem' }}>Sources</div>
+                                <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                                    {uniqueSources.map(src => (
+                                        <span key={src} style={{
+                                            display: 'inline-block', padding: '0.15rem 0.45rem',
+                                            borderRadius: '4px', fontSize: '0.62rem', fontWeight: 600,
+                                            color: src === 'Satellite Vision AI' ? '#fb923c' : '#a5b4fc',
+                                            background: src === 'Satellite Vision AI' ? 'rgba(249,115,22,0.1)' : 'rgba(99,102,241,0.1)',
+                                            border: `1px solid ${src === 'Satellite Vision AI' ? 'rgba(249,115,22,0.2)' : 'rgba(99,102,241,0.2)'}`,
+                                        }}>{src}</span>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Meta */}
+                            <div style={{ marginTop: '0.4rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.62rem', color: '#475569' }}>
+                                    {enrichments.length} data point{enrichments.length !== 1 ? 's' : ''}
+                                </span>
+                                {lastFetchedStr && (
+                                    <span style={{ fontSize: '0.62rem', color: '#475569' }}>
+                                        Last fetched {lastFetchedStr}
+                                    </span>
+                                )}
+                            </div>
+                        </>
+                    )}
                 </Card>
 
                 {/* Coverage Limits */}
@@ -317,3 +535,4 @@ export function PolicyDashboard({ declaration }: PolicyDashboardProps) {
         </div>
     );
 }
+

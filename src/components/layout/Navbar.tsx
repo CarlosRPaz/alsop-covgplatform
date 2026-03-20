@@ -105,7 +105,7 @@ export function Navbar() {
                 <div className={styles.navActions}>
                     {isLoggedIn ? (
                         <>
-                            <Link href={`/client/${userId}`} className={styles.welcomeLink}>
+                            <Link href="/profile" className={styles.welcomeLink}>
                                 <div className={styles.welcomeSection}>
                                     <User size={16} className={styles.welcomeIcon} />
                                     <span className={styles.welcomeText}>

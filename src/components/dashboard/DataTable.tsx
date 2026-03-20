@@ -9,9 +9,9 @@ import { ArrowUpDown, Search, ChevronDown, ChevronUp, Columns, ArrowUp, ArrowDow
 import { Button } from '@/components/ui/Button/Button';
 import { useRouter } from 'next/navigation';
 
-// localStorage keys
-const LS_VISIBLE_COLUMNS = 'cfp_datatable_visibleColumns';
-const LS_COLUMN_ORDER = 'cfp_datatable_columnOrder';
+// localStorage keys (v2 — reset to pick up new column order & visibility defaults)
+const LS_VISIBLE_COLUMNS = 'cfp_datatable_visibleColumns_v2';
+const LS_COLUMN_ORDER = 'cfp_datatable_columnOrder_v2';
 const LS_SELECTED_FLAGS = 'cfp_datatable_selectedFlags';
 
 // Helpers
@@ -35,30 +35,25 @@ function saveToStorage(key: string, value: unknown) {
 // Column definition type
 type ColumnDef = { key: keyof DashboardPolicy; label: string; width?: string };
 
-// Policy-centric columns for the dashboard
+// Policy-centric columns — ordered by agent importance
 const INITIAL_COLUMNS: ColumnDef[] = [
-    // Policy Info
     { key: 'policy_number', label: 'Policy #' },
-    // Client Info (joined)
+    { key: 'flag_count', label: 'Flags' },
     { key: 'named_insured', label: 'Insured Name', width: '200px' },
-    // Addresses
-    { key: 'mailing_address', label: 'Mailing Address', width: '250px' },
-    { key: 'property_address', label: 'Property Address', width: '250px' },
-    // Current Term (joined)
+    { key: 'status', label: 'Status' },
     { key: 'effective_date', label: 'Effective Date' },
     { key: 'expiration_date', label: 'Expiration Date' },
     { key: 'annual_premium', label: 'Annual Premium' },
-    // Policy metadata
+    { key: 'property_address', label: 'Property Address', width: '250px' },
+    { key: 'mailing_address', label: 'Mailing Address', width: '250px' },
     { key: 'carrier_name', label: 'Carrier' },
-    { key: 'status', label: 'Status' },
-    // Flags
-    { key: 'flag_count', label: 'Flags' },
 ];
 
-// Default visible columns (key subset for initial view)
+// All columns visible by default
 const DEFAULT_VISIBLE_KEYS = new Set([
-    'policy_number', 'named_insured', 'property_address', 'mailing_address',
-    'effective_date', 'expiration_date', 'annual_premium', 'status', 'flag_count',
+    'policy_number', 'flag_count', 'named_insured', 'status',
+    'effective_date', 'expiration_date', 'annual_premium',
+    'property_address', 'mailing_address', 'carrier_name',
 ]);
 
 // Column Header Popup Component

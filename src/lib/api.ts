@@ -2329,3 +2329,38 @@ export async function getPropertyEnrichments(policyId: string): Promise<Property
     }
 }
 
+
+// ------------------------------------------------------------------
+// On-Demand Property Enrichment
+// ------------------------------------------------------------------
+
+export interface EnrichmentRunResult {
+    message: string;
+    results: {
+        satellite_image: boolean;
+        coordinates: boolean;
+        fire_risk: boolean;
+        vision_analysis: boolean;
+        address_used: string;
+    };
+    error?: string;
+}
+
+/**
+ * Trigger on-demand property enrichment for a specific policy.
+ * Calls the server-side API route which runs satellite imagery,
+ * geocoding, and fire risk enrichment directly.
+ */
+export async function runPropertyEnrichment(policyId: string): Promise<EnrichmentRunResult> {
+    const res = await fetch('/api/enrichment/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ policy_id: policyId }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data.error || 'Enrichment failed');
+    }
+    return data as EnrichmentRunResult;
+}

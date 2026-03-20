@@ -6,8 +6,8 @@ import Link from 'next/link';
 import styles from './page.module.css';
 import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
-import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info } from 'lucide-react';
-import { getPolicyDetailById, mapPolicyDetailToDeclaration, generateAIReport, Declaration, AIReportData, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment } from '@/lib/api';
+import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2 } from 'lucide-react';
+import { getPolicyDetailById, mapPolicyDetailToDeclaration, generateAIReport, Declaration, AIReportData, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment } from '@/lib/api';
 import { PolicyDashboard } from '@/components/policy/PolicyDashboard';
 import { AIReport } from '@/components/policy/AIReport';
 import { PolicyFiles } from '@/components/policy/PolicyFiles';
@@ -43,6 +43,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
         { total: 0, critical: 0, high: 0, warning: 0, info: 0 }
     );
     const [enrichments, setEnrichments] = useState<PropertyEnrichment[]>([]);
+    const [enrichStep, setEnrichStep] = useState<string | null>(null);
 
     // Derive enriched property image
     const propertyImageEnrichment = enrichments.find(e => e.field_key === 'property_image');
@@ -119,7 +120,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             case 'review':
                 return (
                     <div className={styles.content}>
-                        <PolicyDashboard declaration={declaration!} />
+                        <PolicyDashboard declaration={declaration!} enrichments={enrichments} />
                         {aiReport && <AIReport data={aiReport} />}
                     </div>
                 );
@@ -407,6 +408,65 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                     )}
 
                     <div className={styles.actionRow} style={{ padding: '10px 0px 0px 0px', float: "right" }}>
+                        <Button
+                            variant="outline"
+                            className={`${styles.actionButton} ${styles.outlineAction}`}
+                            disabled={!!enrichStep}
+                            onClick={async () => {
+                                const steps = [
+                                    'Fetching satellite image…',
+                                    'Geocoding address…',
+                                    'Checking fire risk…',
+                                    'Running AI vision analysis…',
+                                    'Finalizing…',
+                                ];
+                                let stepIdx = 0;
+                                setEnrichStep(steps[0]);
+                                const timer = setInterval(() => {
+                                    stepIdx++;
+                                    if (stepIdx < steps.length) {
+                                        setEnrichStep(steps[stepIdx]);
+                                    }
+                                }, 4000);
+                                try {
+                                    await runPropertyEnrichment(id);
+                                    clearInterval(timer);
+                                    setEnrichStep('✓ Complete!');
+                                    const updated = await getPropertyEnrichments(id);
+                                    setEnrichments(updated);
+                                    setTimeout(() => setEnrichStep(null), 2000);
+                                } catch (e) {
+                                    clearInterval(timer);
+                                    console.error('Enrichment failed:', e);
+                                    setEnrichStep('✗ Failed — try again');
+                                    setTimeout(() => setEnrichStep(null), 3000);
+                                }
+                            }}
+                        >
+                            {enrichStep ? (
+                                <>
+                                    {enrichStep === '✓ Complete!' ? (
+                                        <Check size={16} style={{ color: '#22c55e' }} />
+                                    ) : enrichStep === '✗ Failed — try again' ? (
+                                        <X size={16} style={{ color: '#ef4444' }} />
+                                    ) : (
+                                        <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                                    )}
+                                    <span style={{
+                                        fontSize: '0.78rem',
+                                        color: enrichStep === '✓ Complete!' ? '#22c55e'
+                                            : enrichStep === '✗ Failed — try again' ? '#ef4444'
+                                            : undefined,
+                                        fontWeight: enrichStep === '✓ Complete!' || enrichStep === '✗ Failed — try again' ? 600 : undefined,
+                                    }}>{enrichStep}</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Satellite size={16} />
+                                    Enrich Property Data
+                                </>
+                            )}
+                        </Button>
                         <Button variant="outline" className={`${styles.actionButton} ${styles.outlineAction}`} onClick={() => setIsEditOpen(true)}>
                             <Pencil size={16} />
                             Edit Policy
