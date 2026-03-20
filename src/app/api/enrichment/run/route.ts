@@ -367,6 +367,38 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        // 7. Auto-generate report after enrichment
+        let reportGenerated = false;
+        try {
+            const origin = request.nextUrl.origin;
+            const reportRes = await fetch(`${origin}/api/reports/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ policyId: policy_id }),
+            });
+            if (reportRes.ok) {
+                reportGenerated = true;
+            } else {
+                logger.error('Enrichment', `Report generation HTTP error: ${reportRes.status}`);
+            }
+        } catch (e) {
+            logger.error('Enrichment', `Report generation error: ${e}`);
+        }
+        results.report_generated = reportGenerated;
+
+        // 8. Activity event: enrichment complete
+        try {
+            await sb.from('activity_events').insert({
+                event_type: 'enrichment.completed',
+                title: 'Property data enriched',
+                detail: `Satellite: ${results.satellite_image ? '✓' : '✗'}, Street View: ${results.street_view_image ? '✓' : '✗'}, Fire Risk: ${results.fire_risk ? '✓' : '✗'}, AI Vision: ${results.vision_analysis ? '✓' : '✗'}, Report: ${reportGenerated ? '✓' : '✗'}`,
+                policy_id: policy_id,
+                meta: { results },
+            });
+        } catch (e) {
+            logger.warn('Enrichment', `Activity event insert failed (non-fatal): ${e}`);
+        }
+
         return NextResponse.json({
             message: 'Enrichment complete',
             results,

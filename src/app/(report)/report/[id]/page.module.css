@@ -1,0 +1,198 @@
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem;
+    font-family: var(--font-inter), system-ui, sans-serif;
+    color: #1e293b;
+    background: #f8fafc;
+    min-height: 100vh;
+}
+
+.document {
+    background: #ffffff;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+    padding: 3.5rem;
+    position: relative;
+    border: 1px solid #e2e8f0;
+}
+
+/* Header & Typography */
+.reportTitle {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 1.5rem;
+    border-bottom: 2px solid #f1f5f9;
+}
+
+.reportSubtitle {
+    font-size: 1.1rem;
+    color: #64748b;
+    margin-bottom: 2rem;
+}
+
+.section {
+    margin-top: 3rem;
+    margin-bottom: 2.5rem;
+}
+
+.sectionHeader {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 1.2rem;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 0.6rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.textBlock {
+    font-size: 1rem;
+    line-height: 1.7;
+    color: #334155;
+    margin-bottom: 1.2rem;
+}
+
+/* Action Tags / Pills */
+.actionBadge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-right: 0.75rem;
+}
+
+.actionBadge.discuss { background: #eff6ff; color: #3b82f6; border: 1px solid #bfdbfe; }
+.actionBadge.verify { background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; }
+.actionBadge.review { background: #fffbeb; color: #f59e0b; border: 1px solid #fde68a; }
+.actionBadge.consider_coverage { background: #f0fdf4; color: #22c55e; border: 1px solid #bbf7d0; }
+
+/* Grids */
+.grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.2rem;
+}
+
+.gridItem {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 1.2rem;
+}
+
+.gridLabel {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    margin-bottom: 0.4rem;
+}
+
+.gridValue {
+    font-size: 1.05rem;
+    color: #0f172a;
+    font-weight: 500;
+}
+
+/* Callouts / Warnings */
+.callout {
+    padding: 1.2rem 1.4rem;
+    border-left: 4px solid #3b82f6;
+    background: #eff6ff;
+    border-radius: 0 8px 8px 0;
+    margin-bottom: 1.2rem;
+}
+
+.callout.high, .callout.critical {
+    border-left-color: #ef4444;
+    background: #fef2f2;
+}
+
+.callout.medium {
+    border-left-color: #f59e0b;
+    background: #fffbeb;
+}
+
+.calloutTitle {
+    font-weight: 700;
+    font-size: 1.05rem;
+    margin-bottom: 0.4rem;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.calloutText {
+    font-size: 0.95rem;
+    color: #334155;
+    line-height: 1.6;
+}
+
+/* AI Banner */
+.aiBanner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: linear-gradient(to right, #f8fafc, #f1f5f9);
+    border: 1px solid #e2e8f0;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 2rem;
+    font-size: 0.85rem;
+    color: #475569;
+}
+
+.aiBadge {
+    background: #e0e7ff;
+    color: #4f46e5;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+}
+
+/* Print Styles */
+@media print {
+    @page {
+        margin: 1cm;
+    }
+    .container {
+        padding: 0;
+        background: transparent;
+        max-width: 100%;
+        min-height: auto;
+    }
+    .document {
+        box-shadow: none;
+        padding: 0;
+        border: none;
+        background: transparent;
+    }
+    .noPrint {
+        display: none !important;
+    }
+    .pageBreakBefore {
+        page-break-before: always;
+    }
+    .avoidBreak {
+        page-break-inside: avoid;
+    }
+    /* Ensure colors print correctly */
+    .container :global(*) {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+}

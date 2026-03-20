@@ -255,6 +255,20 @@ export interface PolicyFlagRow {
     policy_number?: string | null;
 }
 
+/** Row shape from the `policy_reports` table. */
+export interface PolicyReportRow {
+    id: string;
+    policy_id: string;
+    client_id?: string | null;
+    policy_term_id?: string | null;
+    status: string; // 'draft' | 'published'
+    created_by_account_id?: string | null;
+    data_payload: Record<string, any>;
+    ai_insights: Record<string, any>;
+    created_at?: string;
+    updated_at?: string;
+}
+
 // ------------------------------------------------------------------
 // Flag Definitions
 // ------------------------------------------------------------------
@@ -2363,4 +2377,57 @@ export async function runPropertyEnrichment(policyId: string): Promise<Enrichmen
         throw new Error(data.error || 'Enrichment failed');
     }
     return data as EnrichmentRunResult;
+}
+// ---------------------------------------------------------------------------
+// Policy Reports (v1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch a specific generated policy report by its ID.
+ */
+export async function getReportById(reportId: string): Promise<PolicyReportRow | undefined> {
+    try {
+        const { data, error } = await supabase
+            .from('policy_reports')
+            .select('*')
+            .eq('id', reportId)
+            .single();
+
+        if (error || !data) {
+            logger.error('API', `Error fetching report ${reportId}`, { message: error?.message });
+            return undefined;
+        }
+
+        return data as PolicyReportRow;
+    } catch (err) {
+        logger.error('API', `Unexpected error fetching report ${reportId}`, {
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return undefined;
+    }
+}
+
+/**
+ * Fetch the most recently generated report for a specific policy.
+ */
+export async function getLatestReportForPolicy(policyId: string): Promise<PolicyReportRow | undefined> {
+    try {
+        const { data, error } = await supabase
+            .from('policy_reports')
+            .select('*')
+            .eq('policy_id', policyId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (error || !data) {
+            // It's normal for a policy to not have a report yet.
+            return undefined;
+        }
+
+        return data as PolicyReportRow;
+    } catch (err) {
+        logger.warn('API', `Could not fetch latest report for policy ${policyId}`);
+        return undefined;
+    }
 }

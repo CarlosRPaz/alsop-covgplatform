@@ -1,7 +1,8 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Declaration, PropertyEnrichment } from '@/lib/api';
+import { Declaration, PropertyEnrichment, getLatestReportForPolicy, PolicyReportRow } from '@/lib/api';
 import styles from './PolicyDashboard.module.css';
 import { Card } from '../ui/Card/Card';
 
@@ -12,6 +13,42 @@ interface PolicyDashboardProps {
 
 export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboardProps) {
     const router = useRouter();
+    const [report, setReport] = useState<PolicyReportRow | null>(null);
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    useEffect(() => {
+        const policyId = declaration.policy_id || declaration.id;
+        if (policyId) {
+            getLatestReportForPolicy(policyId).then(data => {
+                if (data) setReport(data);
+            });
+        }
+    }, [declaration.policy_id, declaration.id]);
+
+    const handleGenerateReport = async () => {
+        setIsGenerating(true);
+        try {
+            const policyId = declaration.policy_id || declaration.id;
+            const res = await fetch('/api/reports/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ policyId })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.report) {
+                    router.push(`/report/${data.report.id}`);
+                }
+            } else {
+                alert('Failed to generate report');
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Error generating report');
+        } finally {
+            setIsGenerating(false);
+        }
+    };
 
     // Helper to pull enrichment values
     const getEnrichment = (key: string) => enrichments.find(e => e.field_key === key);
@@ -135,7 +172,36 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
 
     return (
         <div className={styles.container}>
-            <h2 className={styles.sectionTitle}>Policy Overview</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h2 className={styles.sectionTitle} style={{ margin: 0 }}>Policy Overview</h2>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    {report ? (
+                        <>
+                            <button
+                                onClick={() => router.push(`/report/${report.id}`)}
+                                style={{ background: '#0f172a', color: '#fff', border: 'none', padding: '0.4rem 1rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
+                            >
+                                View Latest Report
+                            </button>
+                            <button
+                                onClick={handleGenerateReport}
+                                disabled={isGenerating}
+                                style={{ background: 'transparent', color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.12)', padding: '0.4rem 1rem', borderRadius: '4px', cursor: isGenerating ? 'wait' : 'pointer', fontWeight: 500, fontSize: '0.85rem' }}
+                            >
+                                {isGenerating ? 'Generating...' : 'Regenerate'}
+                            </button>
+                        </>
+                    ) : (
+                        <button
+                            onClick={handleGenerateReport}
+                            disabled={isGenerating}
+                            style={{ background: '#0f172a', color: '#fff', border: 'none', padding: '0.4rem 1rem', borderRadius: '4px', cursor: isGenerating ? 'wait' : 'pointer', fontWeight: 600 }}
+                        >
+                            {isGenerating ? 'Generating...' : 'Generate Review Report'}
+                        </button>
+                    )}
+                </div>
+            </div>
             <div className={styles.grid}>
                 {/* Insured Information */}
                 <Card className={styles.card}>
