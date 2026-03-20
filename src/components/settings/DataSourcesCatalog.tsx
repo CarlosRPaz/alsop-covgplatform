@@ -166,6 +166,20 @@ const DATA_POINTS: DataPoint[] = [
         notes: 'Used by fire risk and future structure detection providers.',
         detailNotes: 'Geocoded once and reused across enrichment providers. Stored as separate latitude/longitude enrichment rows.',
     },
+    {
+        id: 'street_view_image', name: 'Street View Image', category: 'property_basics',
+        sourceType: 'api', sourceName: 'Google Street View API',
+        status: 'live', confidence: 'trusted', usedIn: ['policy_page', 'report'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
+        notes: 'Google Street View static image for front elevation analysis.',
+    },
+    {
+        id: 'ai_sv_stories', name: 'Number of Stories (SV)', category: 'property_basics',
+        sourceType: 'ai_inferred', sourceName: 'Street Vision AI (GPT-4o)',
+        status: 'live', confidence: 'inferred', usedIn: ['policy_page', 'report'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
+        notes: 'AI inferred number of stories from front elevation.',
+    },
 
     // ── Exterior Structures (Live via AI Vision) ──
     {
@@ -247,6 +261,20 @@ const DATA_POINTS: DataPoint[] = [
         notes: 'AI vision detection of sports courts and recreational areas. Liability flag potential.',
     },
     {
+        id: 'ai_sv_garage', name: 'Front Garage / Carport (SV)', category: 'exterior_structures',
+        sourceType: 'ai_inferred', sourceName: 'Street Vision AI (GPT-4o)',
+        status: 'live', confidence: 'inferred', usedIn: ['policy_page', 'report'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
+        notes: 'Presence of front-facing attached/detached garage or carport.',
+    },
+    {
+        id: 'ai_sv_fencing', name: 'Front Fencing / Gates (SV)', category: 'exterior_structures',
+        sourceType: 'ai_inferred', sourceName: 'Street Vision AI (GPT-4o)',
+        status: 'live', confidence: 'inferred', usedIn: ['policy_page', 'report'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
+        notes: 'Visible fencing or gate across the front property line.',
+    },
+    {
         id: 'bbq_barn', name: 'BBQ Pit / Barn', category: 'exterior_structures',
         sourceType: 'ai_inferred', sourceName: 'Satellite Imagery AI',
         status: 'planned', confidence: 'inferred', usedIn: ['report'],
@@ -312,6 +340,13 @@ const DATA_POINTS: DataPoint[] = [
 
     // ── Roof Condition ──
     {
+        id: 'ai_sv_roof_condition', name: 'Roof Condition Clues (SV)', category: 'roof_condition',
+        sourceType: 'ai_inferred', sourceName: 'Street Vision AI (GPT-4o)',
+        status: 'live', confidence: 'inferred', usedIn: ['policy_page', 'report'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
+        notes: 'Front elevation view of roof condition clues like missing shingles or tarps.',
+    },
+    {
         id: 'damaged_roof', name: 'Damaged Roof', category: 'roof_condition',
         sourceType: 'ai_inferred', sourceName: 'Aerial Imagery AI',
         status: 'planned', confidence: 'manual_review', usedIn: ['report', 'flags'],
@@ -334,6 +369,20 @@ const DATA_POINTS: DataPoint[] = [
     },
 
     // ── Property Condition ──
+    {
+        id: 'ai_sv_exterior_condition', name: 'Exterior Condition (SV)', category: 'property_condition',
+        sourceType: 'ai_inferred', sourceName: 'Street Vision AI (GPT-4o)',
+        status: 'live', confidence: 'inferred', usedIn: ['policy_page', 'report'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
+        notes: 'Visible signs of siding damage, peeling paint, etc. from street view.',
+    },
+    {
+        id: 'ai_sv_vegetation', name: 'Overgrown Vegetation (SV)', category: 'property_condition',
+        sourceType: 'ai_inferred', sourceName: 'Street Vision AI (GPT-4o)',
+        status: 'live', confidence: 'inferred', usedIn: ['policy_page', 'report'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
+        notes: 'Detection of yard debris or overgrown vegetation near structures.',
+    },
     {
         id: 'overgrown_veg', name: 'Overgrown Vegetation / Debris', category: 'property_condition',
         sourceType: 'ai_inferred', sourceName: 'Aerial / Street View AI',

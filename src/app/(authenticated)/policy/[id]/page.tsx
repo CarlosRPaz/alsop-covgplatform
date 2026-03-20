@@ -12,6 +12,7 @@ import { PolicyDashboard } from '@/components/policy/PolicyDashboard';
 import { AIReport } from '@/components/policy/AIReport';
 import { PolicyFiles } from '@/components/policy/PolicyFiles';
 import { PolicyFlags } from '@/components/policy/PolicyFlags';
+import { FlagAlertBanner } from '@/components/policy/FlagAlertBanner';
 import { ActivityTimeline } from '@/components/shared/ActivityTimeline';
 import { NotesPanel } from '@/components/shared/NotesPanel';
 import { DecPageReview } from '@/components/policy/DecPageReview';
@@ -42,6 +43,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     const [flagSummary, setFlagSummary] = useState<{ total: number; critical: number; high: number; warning: number; info: number }>(
         { total: 0, critical: 0, high: 0, warning: 0, info: 0 }
     );
+    const [openFlags, setOpenFlags] = useState<PolicyFlagRow[]>([]);
     const [enrichments, setEnrichments] = useState<PropertyEnrichment[]>([]);
     const [enrichStep, setEnrichStep] = useState<string | null>(null);
 
@@ -102,6 +104,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
         if (!id) return;
         fetchFlagsByPolicyId(id).then(flags => {
             const open = flags.filter((f: PolicyFlagRow) => !f.status || f.status === 'open');
+            setOpenFlags(open);
             setFlagSummary({
                 total: open.length,
                 critical: open.filter((f: PolicyFlagRow) => f.severity === 'critical').length,
@@ -339,7 +342,10 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                         style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                         title="Click to copy policy number"
                     >
-                        <span style={{ color: 'var(--text-high)', fontWeight: 500 }}>Policy # </span><span style={{ color: '#60a5fa', fontWeight: 600 }}>{declaration.policy_number}</span>
+                        <span>
+                            <span style={{ color: 'var(--text-high)', fontWeight: 500 }}>Policy #</span>
+                            <span style={{ color: '#60a5fa', fontWeight: 600 }}>{declaration.policy_number}</span>
+                        </span>
                         <button
                             onClick={(e) => { e.stopPropagation(); copyPolicyNumber(); }}
                             style={{
@@ -376,36 +382,6 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                             {declaration.insured_name}
                         </span>
                     </div>
-
-                    {/* Flag indicator pill */}
-                    {flagSummary.total > 0 && (
-                        <div
-                            className={styles.flagIndicator}
-                            onClick={() => setActiveTab('flags')}
-                            title="Click to view flags"
-                        >
-                            <Flag size={13} />
-                            <span className={styles.flagIndicatorTotal}>{flagSummary.total} open flag{flagSummary.total !== 1 ? 's' : ''}</span>
-                            {flagSummary.critical > 0 && (
-                                <span className={styles.flagDotCritical}>
-                                    <AlertCircle size={11} /> {flagSummary.critical}
-                                </span>
-                            )}
-                            {flagSummary.high > 0 && (
-                                <span className={styles.flagDotHigh}>
-                                    <AlertTriangle size={11} /> {flagSummary.high}
-                                </span>
-                            )}
-                            {flagSummary.warning > 0 && (
-                                <span className={styles.flagDotWarning}>{flagSummary.warning} warn</span>
-                            )}
-                            {flagSummary.info > 0 && (
-                                <span className={styles.flagDotInfo}>
-                                    <Info size={11} /> {flagSummary.info}
-                                </span>
-                            )}
-                        </div>
-                    )}
 
                     <div className={styles.actionRow} style={{ padding: '10px 0px 0px 0px', float: "right" }}>
                         <Button
@@ -486,6 +462,13 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                     </div>
                 </div>
             </div>
+
+            {/* Prominent Flag Alert Banner */}
+            {openFlags.length > 0 && (
+                <div className={styles.flagBannerWrapper}>
+                    <FlagAlertBanner flags={openFlags} onViewFlags={() => setActiveTab('flags')} />
+                </div>
+            )}
 
             {/* Tab Navigation */}
             <div className={styles.tabsWrapper}>

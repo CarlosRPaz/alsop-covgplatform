@@ -339,3 +339,9 @@
     background: rgba(59, 130, 246, 0.18);
     color: #60a5fa;
 }
+
+/* ── Flag Alert Banner Wrapper ──────────────────────────────── */
+.flagBannerWrapper {
+    padding: 0 2rem;
+    margin-bottom: 1rem;
+}

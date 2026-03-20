@@ -111,6 +111,48 @@ async function enrichSatelliteImage(
     return true;
 }
 
+async function enrichStreetViewImage(
+    sb: ReturnType<typeof getSupabaseAdmin>,
+    policyId: string,
+    coords: { lat: number; lng: number }
+): Promise<boolean> {
+    if (!GOOGLE_MAPS_API_KEY) return false;
+
+    // 1. Check Metadata API to ensure a street view image actually exists here
+    const metaUrl = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${coords.lat},${coords.lng}&key=${GOOGLE_MAPS_API_KEY}`;
+    
+    try {
+        const metaRes = await fetch(metaUrl);
+        if (!metaRes.ok) return false;
+        
+        const metaData = await metaRes.json();
+        if (metaData.status !== "OK") {
+            // No street view image available
+            return false;
+        }
+
+        // 2. Build the actual image URL (browser will load this directly)
+        const imageUrl = `https://maps.googleapis.com/maps/api/streetview?location=${coords.lat},${coords.lng}&size=640x440&pitch=0&key=${GOOGLE_MAPS_API_KEY}`;
+        
+        // 3. Store the URL in enrichments
+        await upsertEnrichment(sb, {
+            policy_id: policyId,
+            field_key: 'street_view_image',
+            field_value: imageUrl,
+            source_name: 'Google Street View',
+            source_type: 'api',
+            source_url: `https://maps.google.com/?q=${coords.lat},${coords.lng}&layer=c`,
+            confidence: 'high',
+            notes: `Street View image for coordinates: ${coords.lat}, ${coords.lng} (Date: ${metaData.date || 'Unknown'})`,
+        });
+        
+        return true;
+    } catch (e) {
+        logger.error('Enrichment', `Street View Metadata error: ${e}`);
+        return false;
+    }
+}
+
 async function enrichCoordinates(
     sb: ReturnType<typeof getSupabaseAdmin>,
     policyId: string,
@@ -246,9 +288,11 @@ export async function POST(request: NextRequest) {
 
         const results: Record<string, boolean | string> = {
             satellite_image: false,
+            street_view_image: false,
             coordinates: false,
             fire_risk: false,
             vision_analysis: false,
+            street_vision_analysis: false,
             address_used: address,
         };
 
@@ -268,12 +312,18 @@ export async function POST(request: NextRequest) {
             logger.error('Enrichment', `Geocoding error: ${e}`);
         }
 
-        // 4. Fire risk (needs coordinates)
+        // 4. Fire risk & Street View (needs coordinates)
         if (coords) {
             try {
                 results.fire_risk = await enrichFireRisk(sb, policy_id, address, coords);
             } catch (e) {
                 logger.error('Enrichment', `Fire risk error: ${e}`);
+            }
+
+            try {
+                results.street_view_image = await enrichStreetViewImage(sb, policy_id, coords);
+            } catch (e) {
+                logger.error('Enrichment', `Street View error: ${e}`);
             }
         }
 
@@ -294,6 +344,26 @@ export async function POST(request: NextRequest) {
                 }
             } catch (e) {
                 logger.error('Enrichment', `Vision analysis error: ${e}`);
+            }
+        }
+
+        // 6. AI Street Vision Analysis (needs street view image)
+        if (results.street_view_image) {
+            try {
+                const origin = request.nextUrl.origin;
+                const streetVisionRes = await fetch(`${origin}/api/enrichment/street-vision-analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ policy_id }),
+                });
+                if (streetVisionRes.ok) {
+                    const streetVisionData = await streetVisionRes.json();
+                    results.street_vision_analysis = streetVisionData.results?.analyzed ?? false;
+                } else {
+                    logger.error('Enrichment', `Street Vision analysis HTTP error: ${streetVisionRes.status}`);
+                }
+            } catch (e) {
+                logger.error('Enrichment', `Street Vision analysis error: ${e}`);
             }
         }
 
