@@ -50,7 +50,15 @@ export function DashboardChart() {
     const router = useRouter();
     const [buckets, setBuckets] = useState<DayBucket[]>([]);
     const [loading, setLoading] = useState(true);
-    const [viewMode, setViewMode] = useState<'chart' | 'grid'>('chart');
+    const [viewMode, setViewMode] = useState<'chart' | 'grid'>(() => {
+        if (typeof window === 'undefined') return 'chart';
+        return (localStorage.getItem('cfp_renewal_viewMode') as 'chart' | 'grid') || 'chart';
+    });
+
+    const handleViewModeChange = (mode: 'chart' | 'grid') => {
+        setViewMode(mode);
+        try { localStorage.setItem('cfp_renewal_viewMode', mode); } catch {}
+    };
 
     useEffect(() => {
         async function fetchRenewals() {
@@ -218,13 +226,13 @@ export function DashboardChart() {
                         />
                         <button
                             className={`${styles.toggleBtn} ${viewMode === 'chart' ? styles.toggleBtnActive : ''}`}
-                            onClick={() => setViewMode('chart')}
+                            onClick={() => handleViewModeChange('chart')}
                         >
                             Chart
                         </button>
                         <button
                             className={`${styles.toggleBtn} ${viewMode === 'grid' ? styles.toggleBtnActive : ''}`}
-                            onClick={() => setViewMode('grid')}
+                            onClick={() => handleViewModeChange('grid')}
                         >
                             Grid
                         </button>
