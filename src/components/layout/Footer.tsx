@@ -36,7 +36,7 @@ export function Footer() {
                     <div>
                         <div className={styles.logoWrapper}>
                             <FileText className={styles.logoIcon} />
-                            <span className={styles.logoText}>Gap Guard</span>
+                            <span className={styles.logoText}>CoverageCheckNow</span>
                         </div>
                         <p className={styles.description}>
                             Streamlining policy review and coverage analysis for insurance agents.
@@ -133,7 +133,7 @@ export function Footer() {
                 {/* Bottom Bar */}
                 <div className={styles.bottomBar}>
                     <p className={styles.copyright}>
-                        © {currentYear} Gap Guard. All rights reserved.
+                        © {currentYear} CoverageCheckNow. All rights reserved.
                     </p>
                     <div className={styles.legalLinks}>
                         <a href="#" className={styles.legalLink}>

@@ -373,7 +373,7 @@ function AdminSection() {
 
             <SettingGroup title="Branding" icon={Palette}>
                 <SettingRow label="Company Name" value="Alsop Inc" actionLabel="Edit" placeholder />
-                <SettingRow label="Logo" value="Gap Guard shield" actionLabel="Upload" placeholder />
+                <SettingRow label="Logo" value="CoverageCheckNow shield" actionLabel="Upload" placeholder />
                 <SettingRow label="Primary Color" value="#3b82f6" actionLabel="Change" placeholder />
             </SettingGroup>
 

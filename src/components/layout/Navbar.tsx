@@ -75,7 +75,7 @@ export function Navbar() {
             <div className={styles.container}>
                 <Link href="/" className={styles.logo}>
                     <Shield size={28} className={styles.logoIcon} />
-                    <span className={styles.logoText}>Gap Guard</span>
+                    <span className={styles.logoText}>CoverageCheckNow</span>
                 </Link>
 
                 <div className={styles.navLinks}>

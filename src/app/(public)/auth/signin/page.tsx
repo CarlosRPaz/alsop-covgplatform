@@ -119,7 +119,7 @@ export default function SignInPage() {
                 <div className={styles.brandHeader}>
                     <Link href="/" className={styles.brandLink}>
                         <Shield size={32} className={styles.brandIcon} />
-                        <span className={styles.brandName}>Gap Guard</span>
+                        <span className={styles.brandName}>CoverageCheckNow</span>
                     </Link>
                     <p className={styles.brandTagline}>
                         Intelligent coverage gap analysis

@@ -64,7 +64,7 @@ export function Sidebar({ userRole }: SidebarProps) {
             <div className={styles.brandRow}>
                 <Link href="/" className={styles.brand} style={{ textDecoration: 'none', color: 'inherit' }}>
                     <Shield size={22} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-                    {!collapsed && <span className={styles.brandText}>Gap Guard</span>}
+                    {!collapsed && <span className={styles.brandText}>CoverageCheckNow</span>}
                 </Link>
                 <button className={styles.collapseBtn} onClick={toggle} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
                     {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}

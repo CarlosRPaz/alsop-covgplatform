@@ -63,7 +63,7 @@ const testimonials = [
   {
     name: 'Sarah M.',
     role: 'Homeowner, Santa Barbara',
-    quote: 'I had no idea my flood coverage had been dropped after my last renewal. Gap Guard caught it in minutes.',
+    quote: 'I had no idea my flood coverage had been dropped after my last renewal. CoverageCheckNow caught it in minutes.',
   },
   {
     name: 'David K.',
@@ -73,18 +73,18 @@ const testimonials = [
   {
     name: 'Rachel T.',
     role: 'Insurance Agent, LA',
-    quote: 'I use Gap Guard for every client onboarding now. It saves hours of manual dec page review and catches things I might miss.',
+    quote: 'I use CoverageCheckNow for every client onboarding now. It saves hours of manual dec page review and catches things I might miss.',
   },
 ];
 
 const faqs = [
-  { q: 'Is it free?', a: 'Yes. Gap Guard is completely free to use. There are no hidden fees or upsells.' },
+  { q: 'Is it free?', a: 'Yes. CoverageCheckNow is completely free to use. There are no hidden fees or upsells.' },
   { q: 'What do you need from me?', a: 'Just your insurance declarations page — the summary page from your policy documents. It\'s usually 1–3 pages.' },
   { q: 'Do I need an account?', a: 'Yes, a free account is required so your documents and reports stay secure and accessible only to you.' },
   { q: 'How long does the analysis take?', a: 'Most reports are generated within minutes of uploading your declarations page.' },
   { q: 'Is my data safe?', a: 'Yes. We use encryption, least-privilege access, and never sell your personal data.' },
   { q: 'What file types are supported?', a: 'We accept PDF, PNG, JPG, and JPEG files up to 10MB.' },
-  { q: 'Does this replace my agent?', a: 'No. Gap Guard helps you and your agent make more informed decisions. We recommend reviewing results with a licensed professional.' },
+  { q: 'Does this replace my agent?', a: 'No. CoverageCheckNow helps you and your agent make more informed decisions. We recommend reviewing results with a licensed professional.' },
   { q: 'What states are supported?', a: 'We are currently focused on California.' },
 ];
 
@@ -248,7 +248,7 @@ export default function Home() {
             <div className={styles.sectionHead}>
               <span className={styles.sectionLabel}>Industry Data</span>
               <h2>Designed to work with leading data providers.</h2>
-              <p>We&apos;re building Gap Guard to integrate with the most trusted sources in insurance intelligence.</p>
+              <p>We&apos;re building CoverageCheckNow to integrate with the most trusted sources in insurance intelligence.</p>
             </div>
             <AnimatedStagger className={styles.partnerGrid} staggerMs={120} distance={25}>
               {dataProviders.map((p, i) => (
@@ -260,7 +260,7 @@ export default function Home() {
               ))}
             </AnimatedStagger>
             <p className={styles.partnerDisclaimer}>
-              Data provider integrations are planned and under development. Names shown represent the data ecosystem Gap Guard is being designed to work with.
+              Data provider integrations are planned and under development. Names shown represent the data ecosystem CoverageCheckNow is being designed to work with.
             </p>
           </div>
         </section>

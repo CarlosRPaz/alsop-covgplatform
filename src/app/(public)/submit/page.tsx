@@ -161,7 +161,7 @@ function AuthGate() {
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
                     <Shield size={28} style={{ color: 'var(--bg-dark-accent)' }} />
                     <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-dark-high)', letterSpacing: '-0.02em' }}>
-                        Gap Guard
+                        CoverageCheckNow
                     </span>
                 </div>
                 <p style={{ color: 'var(--text-dark-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
