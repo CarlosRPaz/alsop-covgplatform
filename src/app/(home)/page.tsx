@@ -20,7 +20,7 @@ const steps = [
     num: '01',
     icon: Upload,
     title: 'Upload Your Dec Page',
-    desc: 'Upload your current insurance declarations page as a PDF or image. It takes less than a minute.',
+    desc: 'Upload your current insurance declarations page as a PDF. It takes less than a minute.',
   },
   {
     num: '02',
@@ -241,7 +241,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ─── INDUSTRY DATA PARTNERS ─── */}
+        {/* ─── INDUSTRY DATA PARTNERS (hidden: no partners yet) ───
         <section className={styles.sectionDark}>
           <div className={styles.contain}>
             <div className={styles.sectionHead}>
@@ -263,8 +263,9 @@ export default function Home() {
             </p>
           </div>
         </section>
+        ─── */}
 
-        {/* ─── TESTIMONIALS ─── */}
+        {/* ─── TESTIMONIALS (hidden: no real testimonials yet) ───
         <section className={styles.sectionLight}>
           <div className={styles.contain}>
             <div className={styles.sectionHead}>
@@ -288,6 +289,7 @@ export default function Home() {
             <p className={styles.finePrint}>Sample testimonials shown during beta period.</p>
           </div>
         </section>
+        ─── */}
 
         {/* ─── SECURITY & PRIVACY ─── */}
         <section className={styles.sectionDark}>

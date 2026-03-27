@@ -15,7 +15,7 @@ const SECTIONS = [
     { id: 'account' as Section, label: 'Account', icon: User, description: 'Name, email, password' },
     { id: 'notifications' as Section, label: 'Notifications', icon: Bell, description: 'Email & alert preferences' },
     { id: 'display' as Section, label: 'Display', icon: Palette, description: 'Theme & layout preferences' },
-    { id: 'data_sources' as Section, label: 'Data Sources', icon: Satellite, description: 'Enrichment pipeline catalog' },
+    { id: 'data_sources' as Section, label: 'Data Sources', icon: Satellite, description: 'Enrichment pipeline catalog', agentOnly: true },
     { id: 'admin' as Section, label: 'Admin Settings', icon: Shield, description: 'Branding, integrations, global config', adminOnly: true },
 ];
 
@@ -63,6 +63,7 @@ export default function SettingsPage() {
                 }}>
                     {SECTIONS.map(s => {
                         if (s.adminOnly && !showAdmin) return null;
+                        if ((s as any).agentOnly && !showAdmin && profile?.role === 'customer') return null;
                         const Icon = s.icon;
                         const isActive = activeSection === s.id;
                         return (
