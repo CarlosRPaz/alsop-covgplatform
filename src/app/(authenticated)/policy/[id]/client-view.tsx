@@ -77,7 +77,7 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `gap-report-${detail?.policy_number || policyId}.json`;
+            a.download = `coverage-report-${detail?.policy_number || policyId}.json`;
             a.click();
             URL.revokeObjectURL(url);
         } finally {
@@ -373,7 +373,7 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
                             />
                             {/* AI Report */}
                             <FileRow
-                                label="Gap Analysis Report"
+                                label="Coverage Analysis Report"
                                 available={!!reportRow}
                                 loading={downloading === 'report'}
                                 onClick={reportRow ? handleDownloadReport : handleRequestReport}
@@ -383,13 +383,7 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
                         </div>
                     </Card>
 
-                    {/* Insured Info */}
-                    <Card title="Insured" icon={Shield}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <PropRow label="Name" value={detail.named_insured} />
-                            <PropRow label="Carrier" value={detail.carrier_name} />
-                        </div>
-                    </Card>
+
 
                     {/* Contact Support */}
                     <div style={{

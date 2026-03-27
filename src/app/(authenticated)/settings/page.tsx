@@ -242,8 +242,17 @@ function AccountSection({ profile }: { profile: UserProfile | null }) {
                 </div>
                 {editing ? (
                     <>
-                        <EditableRow label="First Name" value={editFirst} onChange={setEditFirst} inputStyle={inputStyle} />
-                        <EditableRow label="Last Name" value={editLast} onChange={setEditLast} inputStyle={inputStyle} />
+                        {isAgent ? (
+                            <>
+                                <EditableRow label="First Name" value={editFirst} onChange={setEditFirst} inputStyle={inputStyle} />
+                                <EditableRow label="Last Name" value={editLast} onChange={setEditLast} inputStyle={inputStyle} />
+                            </>
+                        ) : (
+                            <>
+                                <SettingRow label="First Name" value={editFirst || '—'} note="Contact support to change" />
+                                <SettingRow label="Last Name" value={editLast || '—'} note="Contact support to change" />
+                            </>
+                        )}
                         <EditableRow label="Email" value={editEmail} onChange={setEditEmail} inputStyle={inputStyle} type="email" />
                         <EditableRow label="Phone" value={editPhone} onChange={setEditPhone} inputStyle={inputStyle} type="tel" />
                     </>

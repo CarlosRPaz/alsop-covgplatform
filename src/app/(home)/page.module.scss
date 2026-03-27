@@ -120,7 +120,7 @@ $transition: 250ms ease;
 }
 
 .heroHeadline {
-  font-size: 2.85rem;
+  font-size: 2.6rem;
   font-weight: 750;
   color: #ffffff;
   line-height: 1.08;
@@ -128,11 +128,11 @@ $transition: 250ms ease;
   margin-bottom: 1.25rem;
 
   @media (max-width: 1200px) {
-    font-size: 2.4rem;
+    font-size: 2.2rem;
   }
 
   @media (max-width: 768px) {
-    font-size: 1.9rem;
+    font-size: 1.75rem;
   }
 }
 

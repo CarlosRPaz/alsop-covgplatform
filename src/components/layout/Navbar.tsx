@@ -21,6 +21,7 @@ export function Navbar() {
     const [userId, setUserId] = useState<string | null>(null);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [userRole, setUserRole] = useState<UserRole | null>(null);
+    const [authLoading, setAuthLoading] = useState(true);
 
     useEffect(() => {
         async function loadUser() {
@@ -37,6 +38,7 @@ export function Navbar() {
                     setFirstName(session.user.email?.split('@')[0] || 'User');
                 }
             }
+            setAuthLoading(false);
         }
 
         loadUser();
@@ -79,7 +81,7 @@ export function Navbar() {
                 </Link>
 
                 <div className={styles.navLinks}>
-                    {navLinks
+                    {!authLoading && navLinks
                         .filter((link) => !link.authRequired || isLoggedIn)
                         .filter((link) => !(link.hideForRole && link.hideForRole === userRole))
                         .map((link) => (
@@ -94,7 +96,7 @@ export function Navbar() {
                 </div>
 
                 <div className={styles.navActions}>
-                    {isLoggedIn ? (
+                    {authLoading ? null : isLoggedIn ? (
                         <>
                             <Link href={userRole === 'customer' ? '/portal' : '/dashboard'} className={styles.welcomeLink}>
                                 <div className={styles.welcomeSection}>

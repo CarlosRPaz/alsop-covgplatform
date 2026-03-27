@@ -25,24 +25,23 @@ const steps = [
   {
     num: '02',
     icon: Search,
-    title: 'AI Analyzes Coverage',
-    desc: 'Our AI extracts policy details, scores risk exposure, and identifies potential gaps in your coverage.',
+    title: 'Advanced Coverage Analysis',
+    desc: 'Crafted with innovative tools, our system reviews your policy, evaluates risk, and highlights ways to strengthen your coverage.',
   },
   {
     num: '03',
     icon: FileCheck,
-    title: 'Get Your Gap Report',
-    desc: 'Receive a clear, actionable report showing coverage gaps, recommendations, and next steps.',
+    title: 'Get Your Coverage Report',
+    desc: 'Receive a clear, actionable report with coverage recommendations, risk insights, and next steps.',
   },
 ];
 
 const deliverables = [
-  { icon: AlertTriangle, title: 'Coverage Gap Identification', desc: 'See exactly where your current policy may leave you exposed.' },
+  { icon: AlertTriangle, title: 'Risk Exposure Analysis', desc: 'See exactly where your current policy may leave you underinsured or at risk.' },
   { icon: Zap, title: 'Risk Scoring', desc: 'Understand your risk level across property, liability, and specialty lines.' },
-  { icon: CheckCircle, title: 'Coverage Recommendations', desc: 'Actionable suggestions to close gaps and strengthen your protection.' },
+  { icon: CheckCircle, title: 'Coverage Recommendations', desc: 'Actionable suggestions to strengthen your coverage, reduce risk, and protect what matters most.' },
   { icon: FileCheck, title: 'Renewal Confidence Checklist', desc: 'Know what to ask your agent before your next renewal.' },
   { icon: Users, title: 'Agent-Reviewed Options', desc: 'Connect with experienced agents who can implement recommended changes.' },
-  { icon: Shield, title: 'Ongoing Monitoring', desc: 'Track changes to your coverage profile over time as policies renew.' },
 ];
 
 const whyItems = [
@@ -68,7 +67,7 @@ const testimonials = [
   {
     name: 'David K.',
     role: 'Small Business Owner',
-    quote: 'The gap report showed my liability limits were half what they should be. My agent confirmed and we fixed it the same week.',
+    quote: 'The coverage report showed my liability limits were half what they should be. My agent confirmed and we fixed it the same week.',
   },
   {
     name: 'Rachel T.',
@@ -111,7 +110,7 @@ export default function Home() {
                 staggerMs={140}
               />
               <p className={styles.heroSub}>
-                Upload your insurance declarations page and get an AI-powered gap analysis — in minutes, not days.
+                Upload your insurance declarations page and get a coverage analysis report — in minutes, not days.
               </p>
               <div className={styles.heroCtas}>
                 <Link href="/submit">
@@ -132,7 +131,7 @@ export default function Home() {
                 </div>
                 <div className={styles.proofItem}>
                   <Brain size={14} />
-                  <span>AI-assisted analysis</span>
+                  <span>Technology-assisted content</span>
                 </div>
                 <div className={styles.proofItem}>
                   <CheckCircle size={14} />
@@ -156,8 +155,8 @@ export default function Home() {
             </div>
             <div className={styles.trustDivider} />
             <div className={styles.trustStat}>
-              <strong>AI-Powered</strong>
-              <span>Gap analysis engine</span>
+              <strong>Advanced Technology</strong>
+              <span>Coverage analysis engine</span>
             </div>
             <div className={styles.trustDivider} />
             <div className={styles.trustStat}>
@@ -177,8 +176,8 @@ export default function Home() {
           <div className={styles.contain}>
             <div className={styles.sectionHead}>
               <span className={styles.sectionLabel}>How It Works</span>
-              <h2>Three steps to smarter coverage.</h2>
-              <p>No paperwork. No phone calls. Just upload and go.</p>
+              <h2>Three steps for smart coverage.</h2>
+              <p>No paperwork. Just upload and go.</p>
             </div>
             <AnimatedStagger className={styles.stepsRow} staggerMs={150}>
               {steps.map((step, i) => (
@@ -226,7 +225,7 @@ export default function Home() {
           <div className={styles.contain}>
             <div className={styles.sectionHead}>
               <span className={styles.sectionLabel}>Why It Matters</span>
-              <h2>Most coverage gaps are invisible — until it&apos;s too late.</h2>
+              <h2>Most coverage risks are invisible — until it&apos;s too late.</h2>
             </div>
             <AnimatedStagger className={styles.whyGrid} staggerMs={100} distance={30}>
               {whyItems.map((w, i) => (
@@ -322,8 +321,8 @@ export default function Home() {
               <div className={styles.securityItem}>
                 <Brain size={20} />
                 <div>
-                  <h4>AI Transparency</h4>
-                  <p>AI is assistive — recommendations should always be reviewed.</p>
+                  <h4>Technology Transparency</h4>
+                  <p>Technology is assistive — recommendations should always be reviewed.</p>
                 </div>
               </div>
             </AnimatedStagger>
