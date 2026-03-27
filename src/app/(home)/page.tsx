@@ -105,7 +105,7 @@ export default function Home() {
                 <span>Built by Alsop & Associates · 40 years in California</span>
               </div>
               <AnimatedHeadline
-                text="Most homes are underinsured. Find out if you have gaps in your coverage."
+                text="Most homes are underinsured and exposed to risk. Safeguard your home and check your coverage today."
                 className={styles.heroHeadline}
                 delayMs={300}
                 staggerMs={140}
