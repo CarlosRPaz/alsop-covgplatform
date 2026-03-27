@@ -102,10 +102,10 @@ export default function Home() {
             <div className={styles.heroText}>
               <div className={styles.heroBadge}>
                 <Shield size={14} />
-                <span>Built by Alsop & Associates · 40 years in California</span>
+                <span>Powered by Alsop & Associates · 40 years in California</span>
               </div>
               <AnimatedHeadline
-                text="Most homes are underinsured and exposed to risk. Safeguard your home and check your coverage today."
+                text="Most homes are underinsured. Check your coverage and safeguard your home today."
                 className={styles.heroHeadline}
                 delayMs={300}
                 staggerMs={140}
