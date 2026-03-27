@@ -41,7 +41,8 @@ function AuthenticatedContent({ children, userRole }: { children: React.ReactNod
                 flexDirection: 'column',
                 transition: 'margin-left 0.2s ease',
             }}>
-                {/* Global Search Bar */}
+                {/* Global Search Bar — agents only */}
+                {userRole !== 'customer' && (
                 <div style={{
                     padding: '0.75rem 2rem',
                     borderBottom: '1px solid var(--border-default)',
@@ -55,6 +56,7 @@ function AuthenticatedContent({ children, userRole }: { children: React.ReactNod
                 }}>
                     <GlobalSearch />
                 </div>
+                )}
                 <div style={{ flex: 1, padding: '2rem' }}>
                     {children}
                 </div>
