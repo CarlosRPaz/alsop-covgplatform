@@ -2,16 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Declaration, PropertyEnrichment, getLatestReportForPolicy, PolicyReportRow } from '@/lib/api';
+import { Declaration, PropertyEnrichment, getLatestReportForPolicy, PolicyReportRow, PolicyDetail } from '@/lib/api';
 import styles from './PolicyDashboard.module.css';
 import { Card } from '../ui/Card/Card';
 
 interface PolicyDashboardProps {
     declaration: Declaration;
     enrichments?: PropertyEnrichment[];
+    policyDetail?: PolicyDetail;
 }
 
-export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboardProps) {
+export function PolicyDashboard({ declaration, enrichments = [], policyDetail }: PolicyDashboardProps) {
     const router = useRouter();
     const [report, setReport] = useState<PolicyReportRow | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -161,12 +162,12 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
     // Fire risk color
     const fireRiskColor = (cls: string | null) => {
         switch (cls) {
-            case '1': return '#4ade80';
-            case '2': return '#86efac';
-            case '3': return '#facc15';
-            case '4': return '#fb923c';
-            case '5': return '#ef4444';
-            default: return '#64748b';
+            case '1': return 'var(--status-success)';
+            case '2': return 'var(--status-success)';
+            case '3': return 'var(--status-warning)';
+            case '4': return 'var(--enrichment-high)';
+            case '5': return 'var(--status-error)';
+            default: return 'var(--text-muted)';
         }
     };
 
@@ -179,14 +180,14 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
                         <>
                             <button
                                 onClick={() => router.push(`/report/${report.id}`)}
-                                style={{ background: '#0f172a', color: '#fff', border: 'none', padding: '0.4rem 1rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
+                                style={{ background: 'var(--accent-primary)', color: 'var(--text-inverse)', border: 'none', padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 600 }}
                             >
                                 View Latest Report
                             </button>
                             <button
                                 onClick={handleGenerateReport}
                                 disabled={isGenerating}
-                                style={{ background: 'transparent', color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.12)', padding: '0.4rem 1rem', borderRadius: '4px', cursor: isGenerating ? 'wait' : 'pointer', fontWeight: 500, fontSize: '0.85rem' }}
+                                style={{ background: 'transparent', color: 'var(--text-mid)', border: '1px solid var(--border-default)', padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)', cursor: isGenerating ? 'wait' : 'pointer', fontWeight: 500, fontSize: '0.85rem' }}
                             >
                                 {isGenerating ? 'Generating...' : 'Regenerate'}
                             </button>
@@ -195,7 +196,7 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
                         <button
                             onClick={handleGenerateReport}
                             disabled={isGenerating}
-                            style={{ background: '#0f172a', color: '#fff', border: 'none', padding: '0.4rem 1rem', borderRadius: '4px', cursor: isGenerating ? 'wait' : 'pointer', fontWeight: 600 }}
+                            style={{ background: 'var(--accent-primary)', color: 'var(--text-inverse)', border: 'none', padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)', cursor: isGenerating ? 'wait' : 'pointer', fontWeight: 600 }}
                         >
                             {isGenerating ? 'Generating...' : 'Generate Review Report'}
                         </button>
@@ -209,7 +210,7 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
                     <div className={styles.field}>
                         <label>Insured Name:</label>
                         <span
-                            style={{ color: '#60a5fa', cursor: 'pointer' }}
+                            style={{ color: 'var(--accent-primary)', cursor: 'pointer' }}
                             onClick={() => declaration.client_id && router.push(`/client/${declaration.client_id}`)}
                         >
                             {declaration.insured_name}
@@ -260,6 +261,118 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
                     </div>
                 </Card>
 
+                {/* Payment & Billing */}
+                <Card className={styles.card}>
+                    <h3>Payment & Billing</h3>
+                    <div className={styles.field}>
+                        <label>Payment Status:</label>
+                        <span style={{
+                            color: policyDetail?.payment_status ? 'var(--text-high)' : 'var(--text-muted)',
+                            fontWeight: policyDetail?.payment_status ? 600 : 400,
+                        }}>
+                            {policyDetail?.payment_status || 'Not on file'}
+                        </span>
+                    </div>
+                    <div className={styles.field}>
+                        <label>Payment Plan:</label>
+                        <span style={{
+                            color: policyDetail?.payment_plan ? 'var(--text-high)' : 'var(--text-muted)',
+                            fontWeight: policyDetail?.payment_plan ? 600 : 400,
+                        }}>
+                            {policyDetail?.payment_plan || 'Not on file'}
+                        </span>
+                    </div>
+                    <div className={styles.field}>
+                        <label>Annual Premium:</label>
+                        <span>{policyDetail?.annual_premium || declaration.total_annual_premium || '—'}</span>
+                    </div>
+                </Card>
+
+                {/* Property Valuation */}
+                <Card className={styles.card}>
+                    <h3>Property Valuation</h3>
+                    {(() => {
+                        const sqftEnrich = enrichments.find(e => e.field_key === 'best_sqft');
+                        const rcEnrich = enrichments.find(e => e.field_key === 'rc_estimate_fallback');
+                        const sqftValue = sqftEnrich?.field_value ? parseInt(sqftEnrich.field_value, 10) : null;
+                        const rcValue = rcEnrich?.field_value ? parseInt(rcEnrich.field_value, 10) : null;
+
+                        // Parse source details from notes
+                        let sqftMeta: any = {};
+                        try { sqftMeta = JSON.parse(sqftEnrich?.notes || '{}'); } catch { /* */ }
+                        let rcMeta: any = {};
+                        try { rcMeta = JSON.parse(rcEnrich?.notes || '{}'); } catch { /* */ }
+
+                        if (!sqftValue && !rcValue) {
+                            return (
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem', lineHeight: 1.5, padding: '0.25rem 0' }}>
+                                    No valuation data yet. Run enrichment or enter square footage manually to generate an estimate.
+                                </div>
+                            );
+                        }
+
+                        return (
+                            <>
+                                <div className={styles.field}>
+                                    <label>Square Footage:</label>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <strong style={{ color: 'var(--text-high)', fontWeight: 700 }}>
+                                            {sqftValue ? sqftValue.toLocaleString() + ' sq ft' : '—'}
+                                        </strong>
+                                        {sqftEnrich && (
+                                            <span style={{
+                                                fontSize: '0.6rem', fontWeight: 600, padding: '0.1rem 0.4rem',
+                                                borderRadius: '4px', background: 'rgba(99,102,241,0.12)',
+                                                color: 'var(--accent-secondary)', border: '1px solid var(--accent-secondary-muted)',
+                                                textTransform: 'uppercase', letterSpacing: '0.03em',
+                                            }}>
+                                                {sqftMeta.resolvedFrom || sqftEnrich.source_name} · {sqftEnrich.confidence}
+                                            </span>
+                                        )}
+                                    </span>
+                                </div>
+                                {sqftMeta.needsReview && (
+                                    <div style={{ fontSize: '0.72rem', color: 'var(--status-warning)', marginBottom: '0.35rem' }}>
+                                        ⚠ Needs verification — limited source data
+                                    </div>
+                                )}
+                                <div className={styles.field}>
+                                    <label>Est. Replacement Cost:</label>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <strong style={{ color: 'var(--text-high)', fontWeight: 700 }}>
+                                            {rcValue ? '$' + rcValue.toLocaleString() : '—'}
+                                        </strong>
+                                        {rcEnrich && (
+                                            <span style={{
+                                                fontSize: '0.6rem', fontWeight: 600, padding: '0.1rem 0.4rem',
+                                                borderRadius: '4px', background: 'rgba(234,179,8,0.12)',
+                                                color: 'var(--status-warning)', border: '1px solid var(--bg-warning-subtle)',
+                                                textTransform: 'uppercase', letterSpacing: '0.03em',
+                                            }}>
+                                                Internal Estimate
+                                            </span>
+                                        )}
+                                    </span>
+                                </div>
+                                {rcMeta.costPerSqFt && (
+                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                                        Based on ${rcMeta.costPerSqFt}/sq ft · {rcMeta.methodology === 'vendor' ? rcEnrich?.source_name : 'Internal model'}
+                                    </div>
+                                )}
+                                {rcMeta.disclaimer && (
+                                    <div style={{
+                                        fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.5rem',
+                                        padding: '0.4rem 0.6rem', background: 'rgba(234,179,8,0.05)',
+                                        borderRadius: '6px', border: '1px solid rgba(234,179,8,0.1)',
+                                        lineHeight: 1.45,
+                                    }}>
+                                        {rcMeta.disclaimer}
+                                    </div>
+                                )}
+                            </>
+                        );
+                    })()}
+                </Card>
                 {/* Coverage Limits */}
                 <Card className={styles.card}>
                     <h3>Coverage Limits</h3>
@@ -417,7 +530,7 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
                         )}
                         {declaration.mortgagee_2_name && (
                             <>
-                                <div className={styles.field} style={{ marginTop: '0.75rem', borderTop: '1px solid #333', paddingTop: '0.75rem' }}>
+                                <div className={styles.field} style={{ marginTop: '0.75rem', borderTop: '1px solid var(--border-default)', paddingTop: '0.75rem' }}>
                                     <label>2nd Mortgagee:</label>
                                     <span>{declaration.mortgagee_2_name}</span>
                                 </div>
@@ -504,13 +617,13 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
                 {/* Property Enrichment Data */}
                 <Card className={styles.card}>
                     <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '4px', background: 'rgba(99,102,241,0.15)', flexShrink: 0 }}>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#818cf8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '4px', background: 'var(--bg-accent-subtle)', flexShrink: 0 }}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent-secondary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
                         </span>
                         Property Enrichment
                     </h3>
                     {enrichments.length === 0 ? (
-                        <div style={{ fontSize: '0.78rem', color: '#64748b', padding: '0.5rem 0' }}>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', padding: '0.5rem 0' }}>
                             No enrichment data yet. Click <strong>Enrich Property Data</strong> above to fetch.
                         </div>
                     ) : (
@@ -526,7 +639,7 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
                                             boxShadow: `0 0 6px ${fireRiskColor(fireRiskClass)}40`,
                                         }} />
                                         <span style={{ fontWeight: 600, color: fireRiskColor(fireRiskClass) }}>{fireRiskLabel}</span>
-                                        {fireRiskClass && <span style={{ fontSize: '0.68rem', color: '#64748b' }}>(Class {fireRiskClass})</span>}
+                                        {fireRiskClass && <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>(Class {fireRiskClass})</span>}
                                     </span>
                                 </div>
                             )}
@@ -545,7 +658,7 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
                             {propertyImage && (
                                 <div className={styles.field}>
                                     <label>Satellite:</label>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#4ade80', fontSize: '0.78rem' }}>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--status-success)', fontSize: '0.78rem' }}>
                                         ✓ Overhead image available
                                     </span>
                                 </div>
@@ -555,7 +668,7 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
                             {streetViewImage && (
                                 <div className={styles.field}>
                                     <label>Street View:</label>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#4ade80', fontSize: '0.78rem' }}>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--status-success)', fontSize: '0.78rem' }}>
                                         ✓ Front-elevation available
                                     </span>
                                 </div>
@@ -568,11 +681,11 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
                                         <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '3px', background: 'rgba(249,115,22,0.15)', flexShrink: 0 }}>
                                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fb923c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
                                         </span>
-                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Satellite AI Vision</span>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Satellite AI Vision</span>
                                         {visionSummaryMeta && (
                                             <span style={{
                                                 fontSize: '0.58rem', padding: '0.1rem 0.35rem', borderRadius: '3px',
-                                                color: '#fb923c', background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.2)',
+                                                color: 'var(--enrichment-high)', background: 'var(--bg-warning-subtle)', border: '1px solid var(--status-warning)',
                                             }}>AI-Inferred</span>
                                         )}
                                     </div>
@@ -581,17 +694,17 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                         {detectedFeatures.map(obs => (
                                             <div key={obs.key} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem' }}>
-                                                <span style={{ color: '#4ade80', flexShrink: 0, fontSize: '0.7rem' }}>✓</span>
+                                                <span style={{ color: 'var(--status-success)', flexShrink: 0, fontSize: '0.7rem' }}>✓</span>
                                                 <span style={{ color: 'var(--text-high)', fontWeight: 500, flex: 1 }}>{obs.label}</span>
                                                 <span style={{
                                                     display: 'inline-block', padding: '0.08rem 0.3rem', borderRadius: '3px',
                                                     fontSize: '0.58rem', fontWeight: 600,
-                                                    color: obs.confidence === 'high' ? '#4ade80' : obs.confidence === 'medium' ? '#facc15' : '#fb923c',
+                                                    color: obs.confidence === 'high' ? 'var(--enrichment-high)' : obs.confidence === 'medium' ? 'var(--enrichment-medium)' : 'var(--enrichment-low)',
                                                     background: obs.confidence === 'high' ? 'rgba(34,197,94,0.1)' : obs.confidence === 'medium' ? 'rgba(234,179,8,0.1)' : 'rgba(249,115,22,0.1)',
                                                     border: `1px solid ${obs.confidence === 'high' ? 'rgba(34,197,94,0.2)' : obs.confidence === 'medium' ? 'rgba(234,179,8,0.2)' : 'rgba(249,115,22,0.2)'}`,
                                                 }}>{obs.confidence}</span>
                                                 {obs.manualReview && (
-                                                    <span style={{ fontSize: '0.58rem', color: '#facc15' }} title="Manual review recommended">⚠</span>
+                                                    <span style={{ fontSize: '0.58rem', color: 'var(--status-warning)' }} title="Manual review recommended">⚠</span>
                                                 )}
                                             </div>
                                         ))}
@@ -599,11 +712,11 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
 
                                     {/* Summary */}
                                     <div style={{ marginTop: '0.35rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ fontSize: '0.6rem', color: '#475569' }}>
+                                        <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>
                                             {detectedFeatures.length} detected · {aiObservations.length - detectedFeatures.length} not found
                                         </span>
                                         {visionSummaryMeta?.imageQuality && (
-                                            <span style={{ fontSize: '0.6rem', color: '#475569' }}>
+                                            <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>
                                                 Image: {visionSummaryMeta.imageQuality}
                                             </span>
                                         )}
@@ -611,7 +724,7 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
 
                                     {/* Overall AI notes */}
                                     {visionSummaryValue && (
-                                        <div style={{ marginTop: '0.3rem', fontSize: '0.68rem', color: '#64748b', fontStyle: 'italic', lineHeight: 1.4 }}>
+                                        <div style={{ marginTop: '0.3rem', fontSize: '0.68rem', color: 'var(--text-muted)', fontStyle: 'italic', lineHeight: 1.4 }}>
                                             {visionSummaryValue}
                                         </div>
                                     )}
@@ -625,10 +738,10 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
                                         <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '3px', background: 'rgba(56,189,248,0.15)', flexShrink: 0 }}>
                                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h18v18H3z"/><circle cx="12" cy="12" r="3"/></svg>
                                         </span>
-                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Front Elevation AI</span>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Front Elevation AI</span>
                                         <span style={{
                                             fontSize: '0.58rem', padding: '0.1rem 0.35rem', borderRadius: '3px',
-                                            color: '#38bdf8', background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.2)',
+                                            color: 'var(--status-info)', background: 'var(--bg-info-subtle)', border: '1px solid var(--status-info)',
                                         }}>AI-Inferred</span>
                                     </div>
 
@@ -637,16 +750,16 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
                                             <div key={obs.key} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem' }}>
                                                 <span style={{ color: '#38bdf8', flexShrink: 0, fontSize: '0.7rem' }}>•</span>
                                                 <span style={{ color: 'var(--text-high)', fontWeight: 500, minWidth: '100px' }}>{obs.label}:</span>
-                                                <span style={{ color: '#f1f5f9', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={obs.value}>{obs.value}</span>
+                                                <span style={{ color: 'var(--text-high)', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={obs.value}>{obs.value}</span>
                                                 <span style={{
                                                     display: 'inline-block', padding: '0.08rem 0.3rem', borderRadius: '3px',
                                                     fontSize: '0.58rem', fontWeight: 600,
-                                                    color: obs.confidence === 'high' ? '#4ade80' : obs.confidence === 'medium' ? '#facc15' : '#fb923c',
+                                                    color: obs.confidence === 'high' ? 'var(--enrichment-high)' : obs.confidence === 'medium' ? 'var(--enrichment-medium)' : 'var(--enrichment-low)',
                                                     background: obs.confidence === 'high' ? 'rgba(34,197,94,0.1)' : obs.confidence === 'medium' ? 'rgba(234,179,8,0.1)' : 'rgba(249,115,22,0.1)',
                                                     border: `1px solid ${obs.confidence === 'high' ? 'rgba(34,197,94,0.2)' : obs.confidence === 'medium' ? 'rgba(234,179,8,0.2)' : 'rgba(249,115,22,0.2)'}`,
                                                 }}>{obs.confidence}</span>
                                                 {obs.manualReview && (
-                                                    <span style={{ fontSize: '0.58rem', color: '#facc15' }} title="Manual review recommended">⚠</span>
+                                                    <span style={{ fontSize: '0.58rem', color: 'var(--status-warning)' }} title="Manual review recommended">⚠</span>
                                                 )}
                                             </div>
                                         ))}
@@ -654,14 +767,14 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
 
                                     <div style={{ marginTop: '0.35rem', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
                                         {svSummaryMeta?.imageQuality && (
-                                            <span style={{ fontSize: '0.6rem', color: '#475569' }}>
+                                            <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>
                                                 Image: {svSummaryMeta.imageQuality}
                                             </span>
                                         )}
                                     </div>
 
                                     {svSummaryValue && (
-                                        <div style={{ marginTop: '0.3rem', fontSize: '0.68rem', color: '#64748b', fontStyle: 'italic', lineHeight: 1.4 }}>
+                                        <div style={{ marginTop: '0.3rem', fontSize: '0.68rem', color: 'var(--text-muted)', fontStyle: 'italic', lineHeight: 1.4 }}>
                                             {svSummaryValue}
                                         </div>
                                     )}
@@ -670,13 +783,13 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
 
                             {/* Sources */}
                             <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                                <div style={{ fontSize: '0.65rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.3rem' }}>Sources</div>
+                                <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.3rem' }}>Sources</div>
                                 <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                                     {uniqueSources.map(src => (
                                         <span key={src} style={{
                                             display: 'inline-block', padding: '0.15rem 0.45rem',
                                             borderRadius: '4px', fontSize: '0.62rem', fontWeight: 600,
-                                            color: src === 'Satellite Vision AI' ? '#fb923c' : '#a5b4fc',
+                                            color: src === 'Satellite Vision AI' ? 'var(--enrichment-high)' : 'var(--accent-secondary)',
                                             background: src === 'Satellite Vision AI' ? 'rgba(249,115,22,0.1)' : 'rgba(99,102,241,0.1)',
                                             border: `1px solid ${src === 'Satellite Vision AI' ? 'rgba(249,115,22,0.2)' : 'rgba(99,102,241,0.2)'}`,
                                         }}>{src}</span>
@@ -686,11 +799,11 @@ export function PolicyDashboard({ declaration, enrichments = [] }: PolicyDashboa
 
                             {/* Meta */}
                             <div style={{ marginTop: '0.4rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.62rem', color: '#475569' }}>
+                                <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
                                     {enrichments.length} data point{enrichments.length !== 1 ? 's' : ''}
                                 </span>
                                 {lastFetchedStr && (
-                                    <span style={{ fontSize: '0.62rem', color: '#475569' }}>
+                                    <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
                                         Last fetched {lastFetchedStr}
                                     </span>
                                 )}

@@ -7,23 +7,23 @@ import { KPIStats } from '@/components/dashboard/KPIStats';
 import { DataTable } from '@/components/dashboard/DataTable';
 import { DashboardChart } from '@/components/dashboard/DashboardChart';
 import { ActivityTab } from '@/components/dashboard/ActivityTab';
-import { HighSeverityTab } from '@/components/dashboard/HighSeverityTab';
 import { CSVUploadModal } from '@/components/dashboard/CSVUploadModal';
+import { BatchEnrichModal } from '@/components/dashboard/BatchEnrichModal';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button/Button';
-import { Plus, Upload } from 'lucide-react';
+import { Plus, Upload, Zap } from 'lucide-react';
 
 
 const tabs = [
     { id: 'policy-table', label: 'POLICY TABLE' },
     { id: 'activity', label: 'ACTIVITY' },
-    { id: 'high-severity', label: 'HIGH SEVERITY' },
 ];
 
 export default function DashboardPage() {
     const searchParams = useSearchParams();
     const [isCSVModalOpen, setIsCSVModalOpen] = useState(false);
+    const [isEnrichModalOpen, setIsEnrichModalOpen] = useState(false);
     const tableSectionRef = useRef<HTMLDivElement>(null);
 
     // Read URL params for drill-down filtering
@@ -87,7 +87,7 @@ export default function DashboardPage() {
                 return (
                     <section>
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 mt-4">
-                            <h2 className="text-xl font-bold font-heading" style={{ color: 'var(--text-high)' }}>All Declarations</h2>
+                            <h2 className="text-xl font-bold font-heading" style={{ color: 'var(--text-high)' }}>All Policies</h2>
                             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1rem' }}>
                                 <Link href="/submit">
                                     <Button size="sm" variant="primary">
@@ -95,19 +95,24 @@ export default function DashboardPage() {
                                         New Declaration
                                     </Button>
                                 </Link>
-                                <Button size="sm" variant="primary">
-                                    <Plus className="w-3 h-3 mr-1.5" />
-                                    New Account
-                                </Button>
+
                                 <Button
-                                    variant="excel"
+                                    variant="outline"
                                     size="sm"
                                     onClick={() => setIsCSVModalOpen(true)}
                                 >
                                     <Upload className="w-3 h-3 mr-1.5" />
                                     Upload CSV
                                 </Button>
-                                <Button variant="ghost" size="sm">View All</Button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setIsEnrichModalOpen(true)}
+                                    style={{ color: 'var(--text-muted)' }}
+                                >
+                                    <Zap className="w-3 h-3 mr-1.5" />
+                                    Enrich &amp; Analyze
+                                </Button>
                             </div>
                         </div>
                         <DataTable
@@ -120,8 +125,6 @@ export default function DashboardPage() {
                 );
             case 'activity':
                 return <ActivityTab />;
-            case 'high-severity':
-                return <HighSeverityTab />;
             default:
                 return null;
         }
@@ -134,7 +137,7 @@ export default function DashboardPage() {
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-3" style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
                     <div>
                         <h1 className="text-2xl font-bold text-slate-900 mb-1">Agent Dashboard</h1>
-                        <p className="text-sm text-slate-500">Overview of all CFP declarations and their status</p>
+                        <p className="text-sm text-slate-500">Overview of all policies and their status</p>
                     </div>
                 </header>
 
@@ -183,6 +186,12 @@ export default function DashboardPage() {
             <CSVUploadModal
                 isOpen={isCSVModalOpen}
                 onClose={() => setIsCSVModalOpen(false)}
+            />
+
+            {/* Batch Enrich Modal */}
+            <BatchEnrichModal
+                isOpen={isEnrichModalOpen}
+                onClose={() => setIsEnrichModalOpen(false)}
             />
         </main>
     );

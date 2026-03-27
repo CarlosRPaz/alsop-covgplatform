@@ -1,13 +1,34 @@
 'use client';
 
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FileText, Mail, Phone, MapPin } from 'lucide-react';
+import { FileText, Mail, Phone, MapPin, MessageSquare } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
+import { getUserProfile } from '@/lib/auth';
+import { SupportModal } from '@/components/shared/SupportModal';
 import styles from './Footer.module.css';
 
 export function Footer() {
     const currentYear = new Date().getFullYear();
+    const [supportOpen, setSupportOpen] = useState(false);
+    const [userName, setUserName] = useState<string | undefined>(undefined);
+    const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
 
-    return (
+    useEffect(() => {
+        // Detect if user is logged in to pre-fill support modal
+        async function checkAuth() {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+                setUserEmail(session.user.email || undefined);
+                const profile = await getUserProfile();
+                if (profile?.first_name) setUserName(`${profile.first_name}${profile.last_name ? ' ' + profile.last_name : ''}`);
+                else if (session.user.email) setUserName(undefined); // email only, no name
+            }
+        }
+        checkAuth();
+    }, []);
+
+    return (<>
         <footer className={styles.footer}>
             <div className={styles.container}>
                 <div className={styles.grid}>
@@ -15,10 +36,10 @@ export function Footer() {
                     <div>
                         <div className={styles.logoWrapper}>
                             <FileText className={styles.logoIcon} />
-                            <span className={styles.logoText}>Alsop Covg Platform</span>
+                            <span className={styles.logoText}>Gap Guard</span>
                         </div>
                         <p className={styles.description}>
-                            Streamlining Alsop Covg Platform declarations for insurance agents and brokers.
+                            Streamlining policy review and coverage analysis for insurance agents.
                         </p>
                         <div className={styles.socialLinks}>
                             <a href="#" className={styles.socialLink}>
@@ -54,14 +75,9 @@ export function Footer() {
                                 </Link>
                             </li>
                             <li>
-                                <a href="#" className={styles.link}>
-                                    Features
-                                </a>
-                            </li>
-                            <li>
-                                <a href="#" className={styles.link}>
-                                    Pricing
-                                </a>
+                                <Link href="/flags" className={styles.link}>
+                                    Flags
+                                </Link>
                             </li>
                         </ul>
                     </div>
@@ -71,24 +87,19 @@ export function Footer() {
                         <h3 className={styles.sectionTitle}>Support</h3>
                         <ul className={styles.linkList}>
                             <li>
-                                <a href="#" className={styles.link}>
-                                    Documentation
-                                </a>
+                                <Link href="/settings" className={styles.link}>
+                                    Settings
+                                </Link>
                             </li>
                             <li>
-                                <a href="#" className={styles.link}>
-                                    Help Center
-                                </a>
-                            </li>
-                            <li>
-                                <a href="#" className={styles.link}>
-                                    API Reference
-                                </a>
-                            </li>
-                            <li>
-                                <a href="#" className={styles.link}>
-                                    Contact Us
-                                </a>
+                                <button
+                                    onClick={() => setSupportOpen(true)}
+                                    className={styles.link}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                                >
+                                    <MessageSquare size={12} />
+                                    Contact Support
+                                </button>
                             </li>
                         </ul>
                     </div>
@@ -122,7 +133,7 @@ export function Footer() {
                 {/* Bottom Bar */}
                 <div className={styles.bottomBar}>
                     <p className={styles.copyright}>
-                        © {currentYear} CFP Platform. All rights reserved.
+                        © {currentYear} Gap Guard. All rights reserved.
                     </p>
                     <div className={styles.legalLinks}>
                         <a href="#" className={styles.legalLink}>
@@ -138,5 +149,12 @@ export function Footer() {
                 </div>
             </div>
         </footer>
-    );
+
+        <SupportModal
+            isOpen={supportOpen}
+            onClose={() => setSupportOpen(false)}
+            clientName={userName}
+            clientEmail={userEmail}
+        />
+    </>);
 }

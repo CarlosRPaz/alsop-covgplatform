@@ -343,10 +343,25 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
         }
 
         // ---------------------------------------------------------------
-        // 8. Return success
+        // 8. Activity event: dec page uploaded
         // ---------------------------------------------------------------
-        const submittedBy = [account.first_name, account.last_name].filter(Boolean).join(' ') || account.email || 'User';
+        const submittedBy = [account.first_name, account.last_name].filter(Boolean).join(' ') || account.email || 'Unknown user';
 
+        try {
+            await supabaseAdmin.from('activity_events').insert({
+                actor_user_id: accountId,
+                event_type: 'dec.uploaded',
+                title: `Declaration uploaded by ${submittedBy}`,
+                detail: `File: ${file.name} (${(file.size / 1024).toFixed(0)} KB)`,
+                meta: { submission_id: submissionId, file_name: file.name, file_size: file.size },
+            });
+        } catch (e) {
+            logger.warn('Upload', `Activity event insert failed (non-fatal): ${e}`);
+        }
+
+        // ---------------------------------------------------------------
+        // 9. Return success
+        // ---------------------------------------------------------------
         return NextResponse.json(
             {
                 success: true,

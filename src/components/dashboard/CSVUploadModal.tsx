@@ -42,7 +42,7 @@ export function CSVUploadModal({ isOpen, onClose, onImportComplete }: CSVUploadM
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [parseResult, setParseResult] = useState<ParseResult | null>(null);
-    const [commitResult, setCommitResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
+    const [commitResult, setCommitResult] = useState<{ imported: number; skipped: number; errors: string[]; flags_created?: number; new_clients_created?: number; terms_created?: number; terms_updated?: number } | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [expandedSection, setExpandedSection] = useState<string | null>('valid');
     const [progressPhase, setProgressPhase] = useState(0);
@@ -437,12 +437,61 @@ export function CSVUploadModal({ isOpen, onClose, onImportComplete }: CSVUploadM
                         <span style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-high)' }}>
                             Import Complete!
                         </span>
+
+                        {/* Primary stats */}
                         <div style={{ display: 'flex', gap: '1rem', fontSize: '0.875rem' }}>
                             <span style={{ color: '#22c55e' }}>✓ {commitResult.imported} imported</span>
                             {commitResult.skipped > 0 && (
                                 <span style={{ color: '#f59e0b' }}>⚠ {commitResult.skipped} skipped</span>
                             )}
                         </div>
+
+                        {/* Enhanced stats grid */}
+                        <div style={{
+                            display: 'grid', gridTemplateColumns: '1fr 1fr',
+                            gap: '0.5rem 1.5rem', width: '100%', maxWidth: '320px',
+                            marginTop: '0.5rem', fontSize: '0.8125rem',
+                        }}>
+                            {(commitResult.new_clients_created ?? 0) > 0 && (
+                                <>
+                                    <span style={{ color: 'var(--text-muted)' }}>New clients</span>
+                                    <span style={{ color: 'var(--text-high)', fontWeight: 600 }}>{commitResult.new_clients_created}</span>
+                                </>
+                            )}
+                            {(commitResult.terms_created ?? 0) > 0 && (
+                                <>
+                                    <span style={{ color: 'var(--text-muted)' }}>Terms created</span>
+                                    <span style={{ color: 'var(--text-high)', fontWeight: 600 }}>{commitResult.terms_created}</span>
+                                </>
+                            )}
+                            {(commitResult.terms_updated ?? 0) > 0 && (
+                                <>
+                                    <span style={{ color: 'var(--text-muted)' }}>Terms updated</span>
+                                    <span style={{ color: 'var(--text-high)', fontWeight: 600 }}>{commitResult.terms_updated}</span>
+                                </>
+                            )}
+                            {(commitResult.flags_created ?? 0) > 0 && (
+                                <>
+                                    <span style={{ color: 'var(--text-muted)' }}>Flags created</span>
+                                    <span style={{ color: '#f87171', fontWeight: 600 }}>{commitResult.flags_created}</span>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Enrichment note */}
+                        <div style={{
+                            width: '100%', marginTop: '0.75rem',
+                            padding: '0.625rem 0.875rem',
+                            background: 'rgba(99, 102, 241, 0.06)',
+                            border: '1px solid rgba(99, 102, 241, 0.15)',
+                            borderRadius: 'var(--radius-sm)',
+                            fontSize: '0.75rem', color: 'var(--text-mid)',
+                            lineHeight: 1.5,
+                        }}>
+                            <strong style={{ color: '#818cf8' }}>💡 Tip:</strong> Enrichment and reports are not run during bulk import to save costs.
+                            You can enrich policies individually from each policy&apos;s detail page when needed.
+                        </div>
+
                         {commitResult.errors.length > 0 && (
                             <div style={{
                                 width: '100%', maxHeight: '120px', overflowY: 'auto', marginTop: '0.5rem',

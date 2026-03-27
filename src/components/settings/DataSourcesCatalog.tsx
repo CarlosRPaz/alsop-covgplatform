@@ -10,12 +10,12 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-type SourceType = 'parser' | 'public_data' | 'api' | 'ai_inferred' | 'manual' | 'future_vendor';
+type SourceType = 'parser' | 'public_data' | 'api' | 'ai_inferred' | 'manual' | 'future_vendor' | 'internal_fallback';
 type Status = 'live' | 'partial' | 'planned' | 'manual_only' | 'deferred';
-type Confidence = 'trusted' | 'inferred' | 'manual_review';
+type Confidence = 'trusted' | 'inferred' | 'manual_review' | 'fallback';
 type UsedIn = 'policy_page' | 'report' | 'flags' | 'internal';
 type Lifecycle = 'parsed' | 'enriched' | 'manual' | 'future';
-type Category = 'property_basics' | 'fire_risk' | 'exterior_structures' | 'roof_condition' | 'property_condition' | 'interior';
+type Category = 'property_basics' | 'fire_risk' | 'exterior_structures' | 'roof_condition' | 'property_condition' | 'interior' | 'valuation';
 
 interface DataPoint {
     id: string;
@@ -43,6 +43,7 @@ interface DataPoint {
 
 const CATEGORY_LABELS: Record<Category, string> = {
     property_basics: 'Property Basics',
+    valuation: 'Valuation & Cost',
     fire_risk: 'Fire & Risk',
     exterior_structures: 'Exterior Structures',
     roof_condition: 'Roof Condition',
@@ -57,6 +58,7 @@ const SOURCE_TYPE_LABELS: Record<SourceType, string> = {
     ai_inferred: 'AI / Inferred',
     manual: 'Manual',
     future_vendor: 'Future Vendor',
+    internal_fallback: 'Internal Fallback',
 };
 
 const STATUS_LABELS: Record<Status, string> = {
@@ -71,6 +73,7 @@ const CONFIDENCE_LABELS: Record<Confidence, string> = {
     trusted: 'Trusted',
     inferred: 'Inferred',
     manual_review: 'Manual Review',
+    fallback: 'Fallback',
 };
 
 const USED_IN_LABELS: Record<UsedIn, string> = {
@@ -101,12 +104,22 @@ const DATA_POINTS: DataPoint[] = [
         upgradeNote: 'Add county-specific assessor data as a higher-confidence backup source.',
     },
     {
-        id: 'sq_footage', name: 'Sq Footage', category: 'property_basics',
-        sourceType: 'api', sourceName: 'Property Data API',
-        status: 'planned', confidence: 'trusted', usedIn: ['policy_page', 'report'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Needs RentCast or county assessor API key.',
-        detailNotes: 'Will help with coverage adequacy analysis. Stored in property_enrichments with source attribution.',
+        id: 'sq_footage', name: 'Sq Footage', category: 'valuation',
+        sourceType: 'manual', sourceName: 'Multi-Source Resolver',
+        status: 'partial', confidence: 'manual_review', usedIn: ['policy_page', 'report', 'internal'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
+        notes: 'Multi-source strategy: manual agent entry, dec page parser, future property data API. Best value resolved by confidence ranking.',
+        detailNotes: 'Candidates gathered from all available sources. Best value selected by highest confidence then most recent. Needs review flag shown when only one low-confidence source exists.',
+        upgradeNote: 'Add property data API (RentCast, county assessor) for automated high-confidence sq ft.',
+    },
+    {
+        id: 'replacement_cost_estimate', name: 'Replacement Cost Estimate', category: 'valuation',
+        sourceType: 'internal_fallback', sourceName: 'CFP Internal Estimator',
+        status: 'live', confidence: 'fallback', usedIn: ['policy_page', 'report'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
+        notes: 'Internal fallback estimate using sq ft × cost-per-sqft by construction type. Clearly labeled as non-vendor.',
+        detailNotes: 'Uses construction type cost brackets with age and multi-story adjustments. Disclaimer always shown. Never presented as vendor-grade.',
+        upgradeNote: 'Plug in approved vendor (e.g., CoreLogic, e2Value) via the ReplacementCostProvider interface in valuationEngine.ts.',
     },
     {
         id: 'stories', name: '# of Stories', category: 'property_basics',
@@ -483,12 +496,14 @@ const sourceTypeColors: Record<SourceType, { bg: string; text: string; border: s
     ai_inferred: { bg: 'rgba(249, 115, 22, 0.1)', text: '#fb923c', border: 'rgba(249, 115, 22, 0.2)' },
     manual: { bg: 'rgba(148, 163, 184, 0.1)', text: '#94a3b8', border: 'rgba(148, 163, 184, 0.2)' },
     future_vendor: { bg: 'rgba(100, 116, 139, 0.08)', text: '#64748b', border: 'rgba(100, 116, 139, 0.15)' },
+    internal_fallback: { bg: 'rgba(234, 179, 8, 0.1)', text: '#fbbf24', border: 'rgba(234, 179, 8, 0.2)' },
 };
 
 const confidenceColors: Record<Confidence, { bg: string; text: string; border: string }> = {
     trusted: { bg: 'rgba(34, 197, 94, 0.1)', text: '#4ade80', border: 'rgba(34, 197, 94, 0.2)' },
     inferred: { bg: 'rgba(249, 115, 22, 0.1)', text: '#fb923c', border: 'rgba(249, 115, 22, 0.2)' },
     manual_review: { bg: 'rgba(234, 179, 8, 0.1)', text: '#facc15', border: 'rgba(234, 179, 8, 0.2)' },
+    fallback: { bg: 'rgba(234, 179, 8, 0.08)', text: '#f59e0b', border: 'rgba(234, 179, 8, 0.15)' },
 };
 
 function Badge({ label, colors }: { label: string; colors: { bg: string; text: string; border: string } }) {

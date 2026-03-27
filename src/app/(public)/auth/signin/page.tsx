@@ -80,7 +80,23 @@ export default function SignInPage() {
                 if (signInError) {
                     setError(signInError.message);
                 } else {
-                    router.push('/');
+                    // Check role to determine redirect
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (user) {
+                        const { data: account } = await supabase
+                            .from('accounts')
+                            .select('role')
+                            .eq('id', user.id)
+                            .single();
+                        const role = account?.role;
+                        if (role === 'customer') {
+                            router.push('/portal');
+                        } else {
+                            router.push('/dashboard');
+                        }
+                    } else {
+                        router.push('/dashboard');
+                    }
                 }
             }
         } catch {

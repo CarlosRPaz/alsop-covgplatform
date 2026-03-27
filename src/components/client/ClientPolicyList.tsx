@@ -46,6 +46,7 @@ export function ClientPolicyList({ clientId }: ClientPolicyListProps) {
                         <tr>
                             <th className={styles.th}>Policy Number</th>
                             <th className={styles.th}>Property Address</th>
+                            <th className={styles.th}>Flags</th>
                             <th className={styles.th}>Effective Date</th>
                             <th className={styles.th}>Expiration Date</th>
                             <th className={styles.th}>Premium</th>
@@ -53,7 +54,18 @@ export function ClientPolicyList({ clientId }: ClientPolicyListProps) {
                         </tr>
                     </thead>
                     <tbody>
-                        {policies.map((policy) => (
+                        {policies.map((policy) => {
+                            const flagCount = policy.flag_count || 0;
+                            const sev = policy.highest_severity || 'info';
+                            const sevColors: Record<string, { bg: string; color: string; border: string }> = {
+                                critical: { bg: 'rgba(239,68,68,0.12)', color: '#f87171', border: 'rgba(239,68,68,0.25)' },
+                                high:     { bg: 'rgba(249,115,22,0.12)', color: '#fb923c', border: 'rgba(249,115,22,0.25)' },
+                                warning:  { bg: 'rgba(234,179,8,0.12)', color: '#facc15', border: 'rgba(234,179,8,0.25)' },
+                                info:     { bg: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: 'rgba(59,130,246,0.25)' },
+                            };
+                            const sc = sevColors[sev] || sevColors.info;
+
+                            return (
                             <tr
                                 key={policy.id}
                                 className={`${styles.tr} ${styles.clickable}`}
@@ -63,6 +75,30 @@ export function ClientPolicyList({ clientId }: ClientPolicyListProps) {
                                     <span className={styles.policyNumber}>{policy.policy_number}</span>
                                 </td>
                                 <td className={styles.td}>{policy.property_address}</td>
+                                <td className={styles.td}>
+                                    {flagCount > 0 ? (
+                                        <span
+                                            title={policy.flags?.map(f => f.title).join(', ')}
+                                            style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '0.3rem',
+                                                padding: '0.2rem 0.55rem',
+                                                borderRadius: '4px',
+                                                fontSize: '0.75rem',
+                                                fontWeight: 700,
+                                                background: sc.bg,
+                                                color: sc.color,
+                                                border: `1px solid ${sc.border}`,
+                                                whiteSpace: 'nowrap',
+                                            }}
+                                        >
+                                            ⚑ {flagCount}
+                                        </span>
+                                    ) : (
+                                        <span style={{ color: '#4ade80', fontSize: '0.75rem', fontWeight: 600 }}>✓ None</span>
+                                    )}
+                                </td>
                                 <td className={styles.td}>{policy.effective_date || '—'}</td>
                                 <td className={styles.td}>{policy.expiration_date || '—'}</td>
                                 <td className={styles.td}>{policy.annual_premium || '—'}</td>
@@ -72,7 +108,8 @@ export function ClientPolicyList({ clientId }: ClientPolicyListProps) {
                                     </span>
                                 </td>
                             </tr>
-                        ))}
+                            );
+                        })}
                     </tbody>
                 </table>
 

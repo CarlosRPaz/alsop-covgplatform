@@ -1,19 +1,36 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { type UserRole } from '@/lib/auth';
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Footer } from "@/components/layout/Footer";
+import { GlobalSearch } from "@/components/layout/GlobalSearch";
 import { SidebarProvider, useSidebar } from "@/components/layout/SidebarContext";
+import { ToastProvider } from "@/components/ui/Toast/Toast";
 
-function AuthenticatedContent({ children }: { children: React.ReactNode }) {
+// Routes that customers are allowed to access
+const CLIENT_ALLOWED_ROUTES = ['/portal', '/submit', '/profile', '/settings', '/policy'];
+
+function AuthenticatedContent({ children, userRole }: { children: React.ReactNode; userRole: UserRole | null }) {
     const { collapsed } = useSidebar();
+    const pathname = usePathname();
+    const router = useRouter();
+
+    // Route guard: redirect customers away from agent-only pages
+    useEffect(() => {
+        if (userRole === 'customer') {
+            const isAllowed = CLIENT_ALLOWED_ROUTES.some(route => pathname.startsWith(route));
+            if (!isAllowed) {
+                router.replace('/portal');
+            }
+        }
+    }, [userRole, pathname, router]);
 
     return (
         <div style={{ display: 'flex', flex: 1 }}>
-            <Sidebar />
+            <Sidebar userRole={userRole} />
             <div style={{
                 flex: 1,
                 marginLeft: collapsed ? '64px' : '240px',
@@ -24,6 +41,20 @@ function AuthenticatedContent({ children }: { children: React.ReactNode }) {
                 flexDirection: 'column',
                 transition: 'margin-left 0.2s ease',
             }}>
+                {/* Global Search Bar */}
+                <div style={{
+                    padding: '0.75rem 2rem',
+                    borderBottom: '1px solid var(--border-default)',
+                    background: 'var(--bg-surface)',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 30,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'flex-end',
+                }}>
+                    <GlobalSearch />
+                </div>
                 <div style={{ flex: 1, padding: '2rem' }}>
                     {children}
                 </div>
@@ -83,7 +114,7 @@ export default function AuthenticatedLayout({
                 console.log('[Auth] User role:', role);
                 setUserRole(role);
 
-                if (role === 'admin' || role === 'service') {
+                if (role === 'admin' || role === 'service' || role === 'customer') {
                     console.log('[Auth] Access granted for role:', role);
                     setAuthState('authorized');
                 } else {
@@ -262,9 +293,11 @@ export default function AuthenticatedLayout({
 
     return (
         <SidebarProvider>
-            <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-                <AuthenticatedContent>{children}</AuthenticatedContent>
-            </div>
+            <ToastProvider>
+                <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+                <AuthenticatedContent userRole={userRole}>{children}</AuthenticatedContent>
+                </div>
+            </ToastProvider>
         </SidebarProvider>
     );
 }

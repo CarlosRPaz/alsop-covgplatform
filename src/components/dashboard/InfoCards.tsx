@@ -24,12 +24,14 @@ export function InfoCards() {
     ]);
 
     useEffect(() => {
+        const DEMO_CLIENT_ID = '00000000-0000-4000-a000-000000000001';
+
         const load = async () => {
             try {
-                const { count: activePolicies } = await supabase
+                const { count: totalPolicies } = await supabase
                     .from('policies')
                     .select('*', { count: 'exact', head: true })
-                    .eq('status', 'active');
+                    .neq('client_id', DEMO_CLIENT_ID);
 
                 const { count: missingPremium } = await supabase
                     .from('policy_terms')
@@ -40,7 +42,8 @@ export function InfoCards() {
                 const { count: pendingReview } = await supabase
                     .from('policies')
                     .select('*', { count: 'exact', head: true })
-                    .in('status', ['pending_review', 'unknown']);
+                    .in('status', ['pending_review', 'unknown'])
+                    .neq('client_id', DEMO_CLIENT_ID);
 
                 const today = new Date();
                 const weekFromNow = new Date(today);
@@ -56,8 +59,8 @@ export function InfoCards() {
 
                 setCards([
                     {
-                        title: 'Active Policies',
-                        value: (activePolicies ?? 0).toLocaleString(),
+                        title: 'Total Policies',
+                        value: (totalPolicies ?? 0).toLocaleString(),
                         icon: FileText,
                         color: '#14b8a6',
                     },

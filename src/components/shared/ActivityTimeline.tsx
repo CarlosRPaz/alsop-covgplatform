@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     FileText, RefreshCw, UserPlus, Clock, MessageSquare,
-    Pin, Archive, Pencil, Upload, Sparkles, FileBarChart
+    Pin, Archive, Pencil, Upload, Sparkles, FileBarChart, Zap, CheckCircle2, XCircle, Shield
 } from 'lucide-react';
 import styles from './ActivityTimeline.module.css';
 import { fetchActivityEvents, ActivityEventRow } from '@/lib/notes';
@@ -32,6 +32,10 @@ const EVENT_CONFIG: Record<string, { icon: React.ReactNode; css: string }> = {
     'policy_term.updated': { icon: <Pencil size={16} />, css: 'term_renewal' },
     'enrichment.completed': { icon: <Sparkles size={16} />, css: 'term_renewal' },
     'report.generated': { icon: <FileBarChart size={16} />, css: 'policy_created' },
+    'workup.started': { icon: <Zap size={16} />, css: 'term_renewal' },
+    'workup.completed': { icon: <CheckCircle2 size={16} />, css: 'policy_created' },
+    'workup.failed': { icon: <XCircle size={16} />, css: 'dec_upload' },
+    'flags.checked': { icon: <Shield size={16} />, css: 'term_renewal' },
 };
 
 export function ActivityTimeline({ clientId, policyId }: ActivityTimelineProps) {

@@ -19,7 +19,7 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    color: #f1f5f9;
+    color: var(--text-high);
 }
 
 .headerLeft h1 {
@@ -32,8 +32,8 @@
     font-size: 0.72rem;
     padding: 2px 8px;
     border-radius: 999px;
-    background: rgba(59, 130, 246, 0.12);
-    color: #60a5fa;
+    background: var(--accent-primary-muted);
+    color: var(--accent-primary);
     font-weight: 500;
 }
 
@@ -51,9 +51,9 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.625rem 0.875rem;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 8px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
     border-left: 3px solid transparent;
     cursor: pointer;
     transition: all 0.15s;
@@ -62,26 +62,27 @@
 }
 
 .sevCard:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--bg-surface-raised);
+    border-color: var(--border-strong);
 }
 
 .sevValue {
     font-size: 1.15rem;
     font-weight: 700;
-    color: #e2e8f0;
+    color: var(--text-high);
 }
 
 .sevLabel {
     font-size: 0.67rem;
-    color: #64748b;
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     font-weight: 600;
 }
 
 .activeSevCard {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.15);
+    background: var(--accent-primary-muted);
+    border-color: var(--accent-primary);
 }
 
 /* ── Toolbar ──────────────────────────────────────────────── */
@@ -105,36 +106,40 @@
     align-items: center;
     gap: 0.4rem;
     padding: 0.35rem 0.75rem;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 6px;
+    background: var(--bg-surface-raised);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
     flex: 1;
     max-width: 360px;
-    color: #94a3b8;
+    color: var(--text-muted);
 }
 
 .searchBox input {
     background: none;
     border: none;
-    color: #e2e8f0;
+    color: var(--text-high);
     font-size: 0.8rem;
     outline: none;
     width: 100%;
 }
 
+.searchBox input::placeholder {
+    color: var(--text-muted);
+}
+
 .filterSelect {
     padding: 0.35rem 0.5rem;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 6px;
-    color: #e2e8f0;
+    background: var(--bg-surface-raised);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    color: var(--text-high);
     font-size: 0.78rem;
     cursor: pointer;
 }
 
 .filterSelect option {
-    background: #1a1e28;
-    color: #e2e8f0;
+    background: var(--bg-surface-raised);
+    color: var(--text-high);
 }
 
 .clearBtn {
@@ -143,17 +148,17 @@
     gap: 3px;
     padding: 0.3rem 0.6rem;
     font-size: 0.72rem;
-    color: #94a3b8;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 6px;
+    color: var(--text-mid);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
     cursor: pointer;
     transition: all 0.15s;
 }
 
 .clearBtn:hover {
-    color: #ef4444;
-    border-color: rgba(239, 68, 68, 0.3);
+    color: var(--status-error);
+    border-color: var(--status-error);
 }
 
 /* ── Renewal chips ────────────────────────────────────────── */
@@ -166,12 +171,12 @@
 }
 
 .chipIcon {
-    color: #64748b;
+    color: var(--text-muted);
 }
 
 .chipLabel {
     font-size: 0.72rem;
-    color: #64748b;
+    color: var(--text-muted);
     font-weight: 500;
     margin-right: 0.125rem;
 }
@@ -180,23 +185,23 @@
     padding: 0.2rem 0.6rem;
     font-size: 0.7rem;
     font-weight: 500;
-    color: #94a3b8;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 4px;
+    color: var(--text-mid);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xs);
     cursor: pointer;
     transition: all 0.15s;
 }
 
 .chip:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: #e2e8f0;
+    background: var(--bg-surface-raised);
+    color: var(--text-high);
 }
 
 .chipActive {
-    background: rgba(59, 130, 246, 0.15) !important;
-    border-color: rgba(59, 130, 246, 0.3) !important;
-    color: #60a5fa !important;
+    background: var(--accent-primary-muted) !important;
+    border-color: var(--accent-primary) !important;
+    color: var(--accent-primary) !important;
     font-weight: 600;
 }
 
@@ -209,13 +214,13 @@
     flex-wrap: wrap;
     padding: 0.5rem 0.75rem;
     margin-bottom: 0.75rem;
-    background: rgba(99, 102, 241, 0.06);
-    border: 1px solid rgba(99, 102, 241, 0.15);
-    border-radius: 8px;
+    background: var(--accent-primary-muted);
+    border: 1px solid var(--accent-primary);
+    border-radius: var(--radius-md);
 }
 
 .activeFilterIcon {
-    color: #818cf8;
+    color: var(--accent-primary);
     flex-shrink: 0;
 }
 
@@ -226,19 +231,19 @@
     padding: 0.2rem 0.5rem;
     font-size: 0.7rem;
     font-weight: 500;
-    color: #c7d2fe;
-    background: rgba(99, 102, 241, 0.12);
-    border: 1px solid rgba(99, 102, 241, 0.2);
-    border-radius: 4px;
+    color: var(--accent-primary);
+    background: var(--accent-primary-subtle);
+    border: 1px solid var(--accent-primary);
+    border-radius: var(--radius-xs);
     cursor: pointer;
     transition: all 0.15s;
     text-transform: capitalize;
 }
 
 .activeChip:hover {
-    background: rgba(239, 68, 68, 0.12);
-    border-color: rgba(239, 68, 68, 0.3);
-    color: #fca5a5;
+    background: var(--bg-error-subtle);
+    border-color: var(--status-error);
+    color: var(--status-error);
 }
 
 .clearAllBtn {
@@ -249,18 +254,18 @@
     padding: 0.2rem 0.6rem;
     font-size: 0.68rem;
     font-weight: 600;
-    color: #94a3b8;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 4px;
+    color: var(--text-mid);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xs);
     cursor: pointer;
     transition: all 0.15s;
 }
 
 .clearAllBtn:hover {
-    color: #ef4444;
-    border-color: rgba(239, 68, 68, 0.3);
-    background: rgba(239, 68, 68, 0.08);
+    color: var(--status-error);
+    border-color: var(--status-error);
+    background: var(--bg-error-subtle);
 }
 
 /* ── Policy List ──────────────────────────────────────────── */
@@ -272,7 +277,7 @@
 }
 
 .loadingState {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     text-align: center;
     padding: 3rem 1rem;
     font-size: 0.875rem;
@@ -287,18 +292,18 @@
     gap: 0.5rem;
     padding: 4rem 1.5rem;
     text-align: center;
-    color: #10b981;
+    color: var(--status-success);
 }
 
 .emptyState h3 {
-    color: #e2e8f0;
+    color: var(--text-high);
     font-size: 1rem;
     font-weight: 600;
     margin: 0;
 }
 
 .emptyState p {
-    color: #64748b;
+    color: var(--text-mid);
     font-size: 0.85rem;
     max-width: 400px;
 }
@@ -307,34 +312,34 @@
     margin-top: 0.5rem;
     padding: 0.4rem 1rem;
     font-size: 0.78rem;
-    color: #60a5fa;
-    background: rgba(59, 130, 246, 0.1);
-    border: 1px solid rgba(59, 130, 246, 0.25);
-    border-radius: 6px;
+    color: var(--accent-primary);
+    background: var(--accent-primary-muted);
+    border: 1px solid var(--accent-primary);
+    border-radius: var(--radius-sm);
     cursor: pointer;
     transition: all 0.15s;
 }
 
 .clearFiltersBtn:hover {
-    background: rgba(59, 130, 246, 0.2);
+    background: var(--accent-primary-subtle);
 }
 
 /* ── Policy Row (main) ────────────────────────────────────── */
 
 .policyRow {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 8px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
     overflow: hidden;
     transition: border-color 0.15s;
 }
 
 .policyRow:hover {
-    border-color: rgba(255, 255, 255, 0.12);
+    border-color: var(--border-strong);
 }
 
 .policyRowExpanded {
-    border-color: rgba(59, 130, 246, 0.2);
+    border-color: var(--accent-primary);
 }
 
 .policyRowMain {
@@ -356,15 +361,15 @@
     flex-shrink: 0;
     background: none;
     border: none;
-    border-right: 1px solid rgba(255, 255, 255, 0.04);
-    color: #64748b;
+    border-right: 1px solid var(--border-subtle);
+    color: var(--text-muted);
     cursor: pointer;
     transition: all 0.15s;
 }
 
 .expandBtn:hover {
-    color: #e2e8f0;
-    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-high);
+    background: var(--accent-primary-subtle);
 }
 
 .policyRowBody {
@@ -379,7 +384,7 @@
 }
 
 .policyRowBody:hover {
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--accent-primary-subtle);
 }
 
 /* ── Policy meta (left part of row) ───────────────────────── */
@@ -399,14 +404,14 @@
     gap: 3px;
     font-size: 0.82rem;
     font-weight: 600;
-    color: #e2e8f0;
+    color: var(--text-high);
     white-space: nowrap;
 }
 
 .insuredName {
     font-size: 0.82rem;
     font-weight: 500;
-    color: #cbd5e1;
+    color: var(--text-mid);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -415,7 +420,7 @@
 
 .carrierName {
     font-size: 0.7rem;
-    color: #64748b;
+    color: var(--text-muted);
     white-space: nowrap;
 }
 
@@ -425,10 +430,10 @@
     align-items: center;
     gap: 3px;
     font-size: 0.67rem;
-    color: #94a3b8;
-    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-muted);
+    background: var(--accent-primary-subtle);
     padding: 1px 5px;
-    border-radius: 3px;
+    border-radius: var(--radius-xs);
     white-space: nowrap;
 }
 
@@ -437,22 +442,22 @@
     align-items: center;
     gap: 3px;
     font-size: 0.7rem;
-    color: #94a3b8;
+    color: var(--text-muted);
     white-space: nowrap;
 }
 
 .expired {
-    color: #ef4444 !important;
+    color: var(--status-error) !important;
     font-weight: 600;
 }
 
 .expiringSoon {
-    color: #f97316 !important;
+    color: var(--status-warning) !important;
     font-weight: 500;
 }
 
 .expiringModerate {
-    color: #eab308 !important;
+    color: var(--status-warning) !important;
 }
 
 /* ── Policy flags (right part of row) ─────────────────────── */
@@ -474,10 +479,10 @@
 .totalBadge {
     font-size: 0.72rem;
     font-weight: 600;
-    color: #cbd5e1;
-    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-mid);
+    background: var(--accent-primary-subtle);
     padding: 1px 7px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
 }
 
 .sevMini {
@@ -498,10 +503,10 @@
 
 .previewChip {
     font-size: 0.65rem;
-    color: #94a3b8;
-    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-mid);
+    background: var(--bg-surface-raised);
     padding: 1px 5px;
-    border-radius: 3px;
+    border-radius: var(--radius-xs);
     border-left: 2px solid transparent;
     white-space: nowrap;
     max-width: 160px;
@@ -511,15 +516,15 @@
 
 .moreChip {
     font-size: 0.62rem;
-    color: #64748b;
+    color: var(--text-muted);
     font-weight: 500;
 }
 
 /* ── Expanded Panel ───────────────────────────────────────── */
 
 .expandedPanel {
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    background: rgba(255, 255, 255, 0.01);
+    border-top: 1px solid var(--border-default);
+    background: var(--bg-surface-raised);
     padding: 0.75rem 1rem;
 }
 
@@ -529,7 +534,7 @@
     justify-content: space-between;
     margin-bottom: 0.625rem;
     font-size: 0.72rem;
-    color: #64748b;
+    color: var(--text-muted);
     font-weight: 500;
 }
 
@@ -538,17 +543,17 @@
     align-items: center;
     gap: 4px;
     font-size: 0.72rem;
-    color: #60a5fa;
+    color: var(--accent-primary);
     background: none;
-    border: 1px solid rgba(96, 165, 250, 0.2);
+    border: 1px solid var(--accent-primary);
     padding: 3px 8px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     cursor: pointer;
     transition: all 0.15s;
 }
 
 .openPolicyBtn:hover {
-    background: rgba(96, 165, 250, 0.1);
+    background: var(--accent-primary-muted);
 }
 
 .expandedFlags {
@@ -562,8 +567,8 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.4rem 0.5rem;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 5px;
+    background: var(--bg-surface);
+    border-radius: var(--radius-sm);
     font-size: 0.78rem;
     flex-wrap: wrap;
 }
@@ -576,26 +581,26 @@
     font-weight: 600;
     text-transform: uppercase;
     padding: 1px 6px;
-    border-radius: 3px;
+    border-radius: var(--radius-xs);
     letter-spacing: 0.03em;
     flex-shrink: 0;
 }
 
 .flagTitle {
     font-weight: 500;
-    color: #e2e8f0;
+    color: var(--text-high);
     font-size: 0.78rem;
 }
 
 .flagCat {
     font-size: 0.65rem;
-    color: #64748b;
+    color: var(--text-muted);
     text-transform: capitalize;
 }
 
 .flagMsg {
     font-size: 0.7rem;
-    color: #94a3b8;
+    color: var(--text-mid);
     flex-basis: 100%;
     padding-left: 3.5rem;
     line-height: 1.35;
@@ -603,10 +608,10 @@
 
 .clientFlagTag {
     font-size: 0.6rem;
-    color: #a78bfa;
-    background: rgba(167, 139, 250, 0.1);
+    color: var(--accent-secondary);
+    background: var(--accent-secondary-muted);
     padding: 1px 5px;
-    border-radius: 3px;
+    border-radius: var(--radius-xs);
     font-weight: 500;
 }
 

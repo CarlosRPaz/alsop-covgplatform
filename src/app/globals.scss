@@ -20,12 +20,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
+h1, h2, h3, h4, h5, h6 {
   color: var(--text-high);
   font-weight: 700;
   line-height: 1.2;
@@ -41,7 +36,7 @@ p {
   line-height: 1.6;
 }
 
-// Scrollbar (dark)
+// Scrollbar (light)
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -64,4 +59,10 @@ p {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+// Focus visible (accessibility)
+:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }

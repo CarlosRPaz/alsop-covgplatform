@@ -9,14 +9,14 @@
 .formWrapper {
     width: 100%;
     max-width: 480px;
-    background: rgba(30, 41, 59, 0.7);
+    background: var(--bg-surface);
     backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 1.25rem;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xl);
     padding: 2.5rem;
     box-shadow:
         0 20px 60px rgba(0, 0, 0, 0.3),
-        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+        0 0 0 1px rgba(255, 255, 255, 0.02) inset;
 }
 
 /* Brand Header */
@@ -34,18 +34,18 @@
 }
 
 .brandIcon {
-    color: #3b82f6;
+    color: var(--accent-primary);
 }
 
 .brandName {
     font-size: 1.5rem;
     font-weight: 700;
-    color: #ffffff;
+    color: var(--text-high);
     letter-spacing: -0.02em;
 }
 
 .brandTagline {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     font-size: 0.875rem;
     margin-top: 0.25rem;
 }
@@ -53,11 +53,11 @@
 /* Tab Toggle */
 .tabToggle {
     display: flex;
-    background: rgba(15, 23, 42, 0.5);
-    border-radius: 0.75rem;
+    background: var(--bg-surface-raised);
+    border-radius: var(--radius-lg);
     padding: 4px;
     margin-bottom: 1.75rem;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-default);
 }
 
 .tab {
@@ -69,21 +69,21 @@
     padding: 0.625rem 1rem;
     border: none;
     background: transparent;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     font-size: 0.875rem;
     font-weight: 500;
-    border-radius: 0.5rem;
+    border-radius: var(--radius-md);
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .tab:hover {
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-mid);
 }
 
 .activeTab {
-    background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
+    background: var(--accent-primary-muted);
+    color: var(--accent-primary);
     box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
 }
 
@@ -103,7 +103,7 @@
 .label {
     font-size: 0.8rem;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-mid);
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
@@ -117,7 +117,7 @@
 .inputIcon {
     position: absolute;
     left: 0.875rem;
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--text-muted);
     pointer-events: none;
     z-index: 1;
 }
@@ -125,23 +125,24 @@
 .input {
     width: 100%;
     padding: 0.75rem 0.875rem 0.75rem 2.75rem;
-    background: rgba(15, 23, 42, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.625rem;
-    color: #ffffff;
+    background: var(--bg-surface-raised);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    color: var(--text-high);
     font-size: 0.95rem;
     transition: all 0.2s ease;
     outline: none;
 }
 
 .input::placeholder {
-    color: rgba(255, 255, 255, 0.25);
+    color: var(--text-muted);
+    opacity: 0.6;
 }
 
 .input:focus {
-    border-color: rgba(59, 130, 246, 0.5);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
-    background: rgba(15, 23, 42, 0.8);
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--accent-primary-muted);
+    background: var(--bg-surface);
 }
 
 /* Submit Button */
@@ -152,14 +153,15 @@
     display: flex !important;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+    background: var(--accent-primary) !important;
     border: none !important;
-    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3) !important;
+    box-shadow: 0 4px 16px var(--accent-primary-muted) !important;
     transition: all 0.3s ease !important;
 }
 
 .submitButton:hover {
     transform: translateY(-1px) !important;
+    background: var(--accent-primary-hover) !important;
     box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4) !important;
 }
 
@@ -188,14 +190,14 @@
 .toggleText {
     text-align: center;
     margin-top: 1.5rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     font-size: 0.875rem;
 }
 
 .toggleLink {
     background: none;
     border: none;
-    color: #60a5fa;
+    color: var(--accent-primary);
     font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
@@ -204,7 +206,7 @@
 }
 
 .toggleLink:hover {
-    color: #93bbfd;
+    color: var(--accent-primary-hover);
     text-decoration: underline;
 }
 

@@ -1,51 +1,90 @@
-// ─── Theme: Dark Enterprise Dashboard ───
+// ─── Theme: Warm Light Enterprise Dashboard ───
 // Single source of truth for all CSS custom properties.
-// Reference: /docs/UI_GUIDELINES.md
+// Pantone-inspired palette — change colors here, they propagate everywhere.
+//
+// COLOR KEY:
+//   Egret (base bg)  ·  Dazzling Blue (primary)  ·  Imperial Purple (secondary)
+//   Lavender Fog (soft)  ·  Bison (warm neutral)  ·  Blue Atoll (info)
+//   Green Bee (success)  ·  Orange Peel (warning)  ·  True Red (error)
+//   Rose Quartz (soft alert bg)  ·  Lemon Drop (highlight bg)
 
 :root {
     // ── Backgrounds ──
-    --bg-base: #0b0e14;
-    --bg-surface: #12151c;
-    --bg-surface-raised: #1a1e28;
-    --bg-surface-overlay: #21252f;
+    --bg-base: #F0EDE5;              // Egret — warm off-white page bg
+    --bg-surface: #FAFAF7;           // Cards, panels
+    --bg-surface-raised: #FFFFFF;    // Elevated cards, modals
+    --bg-surface-overlay: #FFFFFF;   // Full overlays, dropdowns
 
     // ── Borders ──
-    --border-default: rgba(255, 255, 255, 0.06);
-    --border-subtle: rgba(255, 255, 255, 0.03);
+    --border-default: rgba(0, 0, 0, 0.08);
+    --border-subtle: rgba(0, 0, 0, 0.04);
+    --border-strong: rgba(0, 0, 0, 0.15);
 
-    // ── Accent ──
-    --accent-primary: #3b3ff0;
-    --accent-primary-hover: #4a4ef5;
-    --accent-primary-muted: rgba(59, 63, 240, 0.12);
+    // ── Accent: Primary (Dazzling Blue) ──
+    --accent-primary: #2243B6;
+    --accent-primary-hover: #1a3699;
+    --accent-primary-muted: rgba(34, 67, 182, 0.08);
+    --accent-primary-subtle: rgba(34, 67, 182, 0.05);
+
+    // ── Accent: Secondary (Imperial Purple) ──
+    --accent-secondary: #5A3E85;
+    --accent-secondary-hover: #4a3270;
+    --accent-secondary-muted: rgba(90, 62, 133, 0.08);
+
+    // ── Accent: Soft (Lavender Fog) ──
+    --accent-soft: #C5B9D8;
+    --accent-soft-bg: rgba(197, 185, 216, 0.15);
 
     // ── Text ──
-    --text-high: #f1f3f5;
-    --text-mid: #8b92a5;
-    --text-muted: #555d72;
-    --text-accent: #818cf8;
+    --text-high: #1a1a2e;            // Primary text — near black, warm
+    --text-mid: #5a5a72;             // Secondary text
+    --text-muted: #8b8b9e;           // Tertiary / placeholder
+    --text-accent: #2243B6;          // Linked / actionable text
+    --text-inverse: #FFFFFF;         // Text on dark/colored backgrounds
 
-    // ── Status ──
-    --status-success: #22c55e;
-    --status-warning: #f59e0b;
-    --status-error: #ef4444;
-    --status-info: #3b82f6;
+    // ── Status (used sparingly for indicators) ──
+    --status-success: #2B9B4B;       // Green Bee
+    --status-warning: #FF9F00;       // Orange Peel
+    --status-error: #BF1932;         // True Red
+    --status-info: #00B5BE;          // Blue Atoll
 
-    // ── Radius ──
-    --radius-sm: 0.375rem;
-    --radius-md: 0.5rem;
-    --radius-lg: 0.75rem;
+    // ── Status Backgrounds (subtle tints for alert bars/badges) ──
+    --bg-success-subtle: rgba(43, 155, 75, 0.08);
+    --bg-warning-subtle: rgba(255, 159, 0, 0.08);
+    --bg-error-subtle: rgba(191, 25, 50, 0.06);
+    --bg-info-subtle: rgba(0, 181, 190, 0.08);
+
+    // ── Supplementary Colors ──
+    --color-bison: #826644;          // Warm brown — muted labels
+    --color-rose-quartz: #F7CAC9;    // Soft pink — gentle emphasis
+    --color-lemon-drop: #FDE68A;     // Soft yellow — highlight bg
+
+    // ── Radius (slightly tight — clean, sharp, still rounded) ──
+    --radius-xs: 0.1875rem;
+    --radius-sm: 0.25rem;
+    --radius-md: 0.375rem;
+    --radius-lg: 0.5rem;
+    --radius-xl: 0.625rem;
     --radius-full: 9999px;
+
+    // ── Shadows (soft for light mode) ──
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
+    --shadow-overlay: 0 8px 32px rgba(0, 0, 0, 0.12);
 
     // ── Transition ──
     --transition-fast: 150ms ease;
+    --transition-normal: 250ms ease;
 
     // ── Layout ──
     --sidebar-width: 240px;
+    --sidebar-collapsed-width: 64px;
     --topbar-height: 48px;
     --content-max-width: 960px;
     --summary-panel-width: 300px;
 
-    // ── Legacy mappings (for existing components that reference old vars) ──
+    // ── Legacy mappings (backward compat) ──
     --background: var(--bg-base);
     --foreground: var(--text-high);
     --sidebar-bg: var(--bg-surface);
@@ -58,7 +97,7 @@
     --card: var(--bg-surface);
     --card-border: var(--border-default);
     --card-foreground: var(--text-high);
-    --card-shadow: none;
+    --card-shadow: var(--shadow-sm);
     --input: var(--bg-surface-raised);
     --input-border: var(--border-default);
     --border: var(--border-default);
@@ -68,4 +107,22 @@
     --secondary: var(--text-mid);
     --secondary-hover: var(--text-high);
     --secondary-foreground: #ffffff;
+
+    // ── Dark Sections (landing page, hero panels) ──
+    // Blends Imperial Purple + Dazzling Blue to complement the light palette
+    --bg-dark-base: #1a1a2e;          // Deep navy-purple
+    --bg-dark-surface: #212140;       // Slightly lighter
+    --bg-dark-raised: #2a2a50;        // Cards on dark
+    --bg-dark-accent: #2243B6;        // Dazzling Blue on dark bg
+    --border-dark: rgba(255, 255, 255, 0.08);
+    --text-dark-high: #F0EDE5;        // Egret on dark
+    --text-dark-mid: rgba(240, 237, 229, 0.65);
+    --text-dark-muted: rgba(240, 237, 229, 0.4);
+
+    // ── Component-specific tokens ──
+    --chart-bar: var(--accent-primary);
+    --chart-bar-today: var(--status-success);
+    --enrichment-high: #c7580a;
+    --enrichment-medium: #b8860b;
+    --enrichment-low: var(--text-muted);
 }

@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { X, Save, Loader2, CheckCircle } from 'lucide-react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { X, Save, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/Button/Button';
 import { updatePolicy, updatePolicyTerm, PolicyDetail } from '@/lib/api';
 import { insertActivityEvent } from '@/lib/notes';
@@ -13,7 +13,6 @@ interface PolicyEditPanelProps {
     onSaved: () => void;
 }
 
-// Parse a formatted currency string like "$1,234.56" into a number
 function parseCurrency(value: string): number | null {
     const cleaned = value.replace(/[$,\s]/g, '');
     if (cleaned === '') return null;
@@ -22,6 +21,8 @@ function parseCurrency(value: string): number | null {
 }
 
 export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPanelProps) {
+    const panelRef = useRef<HTMLDivElement>(null);
+
     // Policy header form
     const [policyForm, setPolicyForm] = useState({
         policy_number: policyDetail.policy_number || '',
@@ -48,12 +49,85 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
 
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+    const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+    const [dicError, setDicError] = useState(false);
 
+    // ── Dirty check ──
+    const isDirty = useCallback(() => {
+        if (policyForm.policy_number !== (policyDetail.policy_number || '')) return true;
+        if (policyForm.carrier_name !== (policyDetail.carrier_name || '')) return true;
+        if (policyForm.status !== (policyDetail.status || '')) return true;
+        if (termForm.effective_date !== (policyDetail.effective_date || '')) return true;
+        if (termForm.expiration_date !== (policyDetail.expiration_date || '')) return true;
+        if (termForm.annual_premium !== (policyDetail.annual_premium_raw != null ? String(policyDetail.annual_premium_raw) : '')) return true;
+        if (termForm.policy_activity !== (policyDetail.policy_activity || '')) return true;
+        if (termForm.carrier_status !== (policyDetail.carrier_status || '')) return true;
+        if (termForm.payment_status !== (policyDetail.payment_status || '')) return true;
+        if (termForm.payment_plan !== (policyDetail.payment_plan || '')) return true;
+        if (termForm.cancellation_reason !== (policyDetail.cancellation_reason || '')) return true;
+        if (termForm.dic_exists !== (policyDetail.dic_exists ?? false)) return true;
+        if (termForm.dic_policy_number !== (policyDetail.dic_policy_number || '')) return true;
+        if (termForm.sold_by !== (policyDetail.sold_by || '')) return true;
+        if (termForm.office !== (policyDetail.office || '')) return true;
+        if (termForm.is_current !== (policyDetail.is_current ?? true)) return true;
+        return false;
+    }, [policyForm, termForm, policyDetail]);
+
+    // ── Unsaved changes close handler ──
+    const handleClose = useCallback(() => {
+        if (isDirty()) {
+            setShowUnsavedDialog(true);
+        } else {
+            onClose();
+        }
+    }, [isDirty, onClose]);
+
+    // ── Escape key ──
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                handleClose();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleClose]);
+
+    // ── Overlay click — only close if mousedown target IS the overlay ──
+    const overlayMouseDownTarget = useRef<EventTarget | null>(null);
+    const handleOverlayMouseDown = (e: React.MouseEvent) => {
+        overlayMouseDownTarget.current = e.target;
+    };
+    const handleOverlayMouseUp = (e: React.MouseEvent) => {
+        // Only close if mousedown AND mouseup both happened on the overlay itself
+        if (overlayMouseDownTarget.current === e.currentTarget && e.target === e.currentTarget) {
+            handleClose();
+        }
+        overlayMouseDownTarget.current = null;
+    };
+
+    // ── DIC validation ──
+    useEffect(() => {
+        if (termForm.dic_exists && !termForm.dic_policy_number.trim()) {
+            setDicError(true);
+        } else {
+            setDicError(false);
+        }
+    }, [termForm.dic_exists, termForm.dic_policy_number]);
+
+    // ── Save ──
     const handleSave = async () => {
+        // DIC validation
+        if (termForm.dic_exists && !termForm.dic_policy_number.trim()) {
+            setMessage({ type: 'error', text: 'DIC policy number is required when DIC coverage is enabled.' });
+            setDicError(true);
+            return;
+        }
+
         setSaving(true);
         setMessage(null);
 
-        // --- Determine changed policy header fields ---
         const policyChanges: Record<string, string> = {};
         const policyChangedFields: string[] = [];
         if (policyForm.policy_number !== (policyDetail.policy_number || '')) {
@@ -69,7 +143,6 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
             policyChangedFields.push('status');
         }
 
-        // --- Determine changed term fields ---
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const termChanges: Record<string, any> = {};
         const termChangedFields: string[] = [];
@@ -150,13 +223,11 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
             termChangedFields.push('is_current');
         }
 
-        // Check if anything changed at all
         if (policyChangedFields.length === 0 && termChangedFields.length === 0) {
             onClose();
             return;
         }
 
-        // --- Save policy header ---
         if (policyChangedFields.length > 0) {
             const result = await updatePolicy(policyDetail.id, policyChanges);
             if (!result.success) {
@@ -174,7 +245,6 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
             });
         }
 
-        // --- Save current term ---
         if (termChangedFields.length > 0 && policyDetail.policy_term_id) {
             const result = await updatePolicyTerm(policyDetail.policy_term_id, termChanges);
             if (!result.success) {
@@ -200,238 +270,312 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
     };
 
     return (
-        <div className={styles.overlay} onClick={onClose}>
-            <div className={styles.panel} onClick={(e) => e.stopPropagation()}>
+        <div
+            className={styles.overlay}
+            onMouseDown={handleOverlayMouseDown}
+            onMouseUp={handleOverlayMouseUp}
+        >
+            <div className={styles.panel} ref={panelRef} onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
                 <div className={styles.panelHeader}>
                     <h2 className={styles.panelTitle}>Edit Policy</h2>
-                    <button className={styles.closeBtn} onClick={onClose}><X size={20} /></button>
+                    <button className={styles.closeBtn} onClick={handleClose}><X size={20} /></button>
                 </div>
 
                 {/* Toast */}
                 {message && (
                     <div className={message.type === 'success' ? styles.toastSuccess : styles.toastError}>
                         {message.type === 'success' && <CheckCircle size={16} />}
+                        {message.type === 'error' && <AlertTriangle size={16} />}
                         {message.text}
                     </div>
                 )}
 
-                {/* POLICY HEADER SECTION */}
-                <div className={styles.section}>
-                    <div className={styles.sectionTitle}>
-                        Policy Header
-                        <span className={styles.sectionDivider} />
-                    </div>
-
-                    <div className={styles.fieldGroup}>
-                        <div className={styles.field}>
-                            <label className={styles.fieldLabel}>Policy Number</label>
-                            <input
-                                className={styles.fieldInput}
-                                value={policyForm.policy_number}
-                                onChange={(e) => setPolicyForm(f => ({ ...f, policy_number: e.target.value }))}
-                            />
-                        </div>
-                        <div className={styles.field}>
-                            <label className={styles.fieldLabel}>Carrier Name</label>
-                            <input
-                                className={styles.fieldInput}
-                                value={policyForm.carrier_name}
-                                onChange={(e) => setPolicyForm(f => ({ ...f, carrier_name: e.target.value }))}
-                            />
-                        </div>
-                    </div>
-                    <div className={styles.fieldGroupFull}>
-                        <div className={styles.field}>
-                            <label className={styles.fieldLabel}>Status</label>
-                            <select
-                                className={styles.fieldSelect}
-                                value={policyForm.status}
-                                onChange={(e) => setPolicyForm(f => ({ ...f, status: e.target.value }))}
-                            >
-                                <option value="active">Active</option>
-                                <option value="pending_review">Pending Review</option>
-                                <option value="unknown">Unknown</option>
-                                <option value="cancelled">Cancelled</option>
-                                <option value="expired">Expired</option>
-                                <option value="non_renewed">Non-Renewed</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                {/* CURRENT TERM SECTION */}
-                {policyDetail.policy_term_id ? (
+                <div className={styles.scrollBody}>
+                    {/* POLICY HEADER SECTION */}
                     <div className={styles.section}>
                         <div className={styles.sectionTitle}>
-                            Current Term
+                            Policy Header
                             <span className={styles.sectionDivider} />
                         </div>
 
                         <div className={styles.fieldGroup}>
                             <div className={styles.field}>
-                                <label className={styles.fieldLabel}>Effective Date</label>
+                                <label className={styles.fieldLabel}>Policy Number</label>
                                 <input
-                                    type="date"
                                     className={styles.fieldInput}
-                                    value={termForm.effective_date}
-                                    onChange={(e) => setTermForm(f => ({ ...f, effective_date: e.target.value }))}
+                                    value={policyForm.policy_number}
+                                    onChange={(e) => setPolicyForm(f => ({ ...f, policy_number: e.target.value }))}
                                 />
                             </div>
                             <div className={styles.field}>
-                                <label className={styles.fieldLabel}>Expiration Date</label>
+                                <label className={styles.fieldLabel}>Carrier Name</label>
                                 <input
-                                    type="date"
                                     className={styles.fieldInput}
-                                    value={termForm.expiration_date}
-                                    onChange={(e) => setTermForm(f => ({ ...f, expiration_date: e.target.value }))}
+                                    value={policyForm.carrier_name}
+                                    onChange={(e) => setPolicyForm(f => ({ ...f, carrier_name: e.target.value }))}
                                 />
                             </div>
                         </div>
-
-                        <div className={styles.fieldGroup}>
+                        <div className={styles.fieldGroupFull}>
                             <div className={styles.field}>
-                                <label className={styles.fieldLabel}>Annual Premium</label>
-                                <input
-                                    className={styles.fieldInput}
-                                    value={termForm.annual_premium}
-                                    onChange={(e) => setTermForm(f => ({ ...f, annual_premium: e.target.value }))}
-                                    placeholder="e.g. 1234.56 or $1,234.56"
-                                />
-                            </div>
-                            <div className={styles.field}>
-                                <label className={styles.fieldLabel}>Policy Activity</label>
-                                <input
-                                    className={styles.fieldInput}
-                                    value={termForm.policy_activity}
-                                    onChange={(e) => setTermForm(f => ({ ...f, policy_activity: e.target.value }))}
-                                    placeholder="e.g. New Business, Renewal"
-                                />
+                                <label className={styles.fieldLabel}>Status</label>
+                                <select
+                                    className={styles.fieldSelect}
+                                    value={policyForm.status}
+                                    onChange={(e) => setPolicyForm(f => ({ ...f, status: e.target.value }))}
+                                >
+                                    <option value="active">Active</option>
+                                    <option value="pending_review">Pending Review</option>
+                                    <option value="unknown">Unknown</option>
+                                    <option value="cancelled">Cancelled</option>
+                                    <option value="expired">Expired</option>
+                                    <option value="non_renewed">Non-Renewed</option>
+                                </select>
                             </div>
                         </div>
+                    </div>
 
-                        <div className={styles.fieldGroup}>
-                            <div className={styles.field}>
-                                <label className={styles.fieldLabel}>Carrier Status</label>
-                                <input
-                                    className={styles.fieldInput}
-                                    value={termForm.carrier_status}
-                                    onChange={(e) => setTermForm(f => ({ ...f, carrier_status: e.target.value }))}
-                                />
+                    {/* CURRENT TERM SECTION */}
+                    {policyDetail.policy_term_id ? (
+                        <div className={styles.section}>
+                            <div className={styles.sectionTitle}>
+                                Current Term
+                                <span className={styles.sectionDivider} />
                             </div>
-                            <div className={styles.field}>
-                                <label className={styles.fieldLabel}>Payment Status</label>
-                                <input
-                                    className={styles.fieldInput}
-                                    value={termForm.payment_status}
-                                    onChange={(e) => setTermForm(f => ({ ...f, payment_status: e.target.value }))}
-                                />
-                            </div>
-                        </div>
 
-                        <div className={styles.fieldGroup}>
-                            <div className={styles.field}>
-                                <label className={styles.fieldLabel}>Payment Plan</label>
-                                <input
-                                    className={styles.fieldInput}
-                                    value={termForm.payment_plan}
-                                    onChange={(e) => setTermForm(f => ({ ...f, payment_plan: e.target.value }))}
-                                />
-                            </div>
-                            <div className={styles.field}>
-                                <label className={styles.fieldLabel}>Cancellation Reason</label>
-                                <input
-                                    className={styles.fieldInput}
-                                    value={termForm.cancellation_reason}
-                                    onChange={(e) => setTermForm(f => ({ ...f, cancellation_reason: e.target.value }))}
-                                />
-                            </div>
-                        </div>
-
-                        <div className={styles.fieldGroup}>
-                            <div className={styles.field}>
-                                <label className={styles.fieldLabel}>Sold By</label>
-                                <input
-                                    className={styles.fieldInput}
-                                    value={termForm.sold_by}
-                                    onChange={(e) => setTermForm(f => ({ ...f, sold_by: e.target.value }))}
-                                />
-                            </div>
-                            <div className={styles.field}>
-                                <label className={styles.fieldLabel}>Office</label>
-                                <input
-                                    className={styles.fieldInput}
-                                    value={termForm.office}
-                                    onChange={(e) => setTermForm(f => ({ ...f, office: e.target.value }))}
-                                />
-                            </div>
-                        </div>
-
-                        <div className={styles.toggle}>
-                            <button
-                                type="button"
-                                className={styles.toggleSwitch}
-                                data-active={termForm.dic_exists}
-                                onClick={() => setTermForm(f => ({ ...f, dic_exists: !f.dic_exists }))}
-                            >
-                                <span className={styles.toggleKnob} />
-                            </button>
-                            <span className={styles.fieldLabel} style={{ textTransform: 'none', letterSpacing: 'normal', fontSize: '0.875rem' }}>
-                                DIC Coverage Exists
-                            </span>
-                        </div>
-
-                        {termForm.dic_exists && (
-                            <div className={styles.fieldGroupFull} style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>
-                                <div className={styles.field}>
-                                    <label className={styles.fieldLabel}>DIC Policy Number</label>
-                                    <input
-                                        className={styles.fieldInput}
-                                        value={termForm.dic_policy_number}
-                                        onChange={(e) => setTermForm(f => ({ ...f, dic_policy_number: e.target.value }))}
-                                        placeholder="Enter associated DIC policy number"
-                                    />
+                            {/* Dates & Premium */}
+                            <div className={styles.groupCard}>
+                                <div className={styles.groupLabel}>Dates & Premium</div>
+                                <div className={styles.fieldGroup}>
+                                    <div className={styles.field}>
+                                        <label className={styles.fieldLabel}>Effective Date</label>
+                                        <input
+                                            type="date"
+                                            className={styles.fieldInput}
+                                            value={termForm.effective_date}
+                                            onChange={(e) => setTermForm(f => ({ ...f, effective_date: e.target.value }))}
+                                        />
+                                    </div>
+                                    <div className={styles.field}>
+                                        <label className={styles.fieldLabel}>Expiration Date</label>
+                                        <input
+                                            type="date"
+                                            className={styles.fieldInput}
+                                            value={termForm.expiration_date}
+                                            onChange={(e) => setTermForm(f => ({ ...f, expiration_date: e.target.value }))}
+                                        />
+                                    </div>
+                                </div>
+                                <div className={styles.fieldGroup}>
+                                    <div className={styles.field}>
+                                        <label className={styles.fieldLabel}>Annual Premium</label>
+                                        <input
+                                            className={styles.fieldInput}
+                                            value={termForm.annual_premium}
+                                            onChange={(e) => setTermForm(f => ({ ...f, annual_premium: e.target.value }))}
+                                            placeholder="e.g. 1234.56 or $1,234.56"
+                                        />
+                                    </div>
+                                    <div className={styles.field}>
+                                        <label className={styles.fieldLabel}>Policy Activity</label>
+                                        <input
+                                            className={styles.fieldInput}
+                                            value={termForm.policy_activity}
+                                            onChange={(e) => setTermForm(f => ({ ...f, policy_activity: e.target.value }))}
+                                            placeholder="e.g. New Business, Renewal"
+                                        />
+                                    </div>
                                 </div>
                             </div>
-                        )}
 
-                        <div className={styles.toggle}>
-                            <button
-                                type="button"
-                                className={styles.toggleSwitch}
-                                data-active={termForm.is_current}
-                                onClick={() => setTermForm(f => ({ ...f, is_current: !f.is_current }))}
-                            >
-                                <span className={styles.toggleKnob} />
-                            </button>
-                            <span className={styles.fieldLabel} style={{ textTransform: 'none', letterSpacing: 'normal', fontSize: '0.875rem' }}>
-                                Is Current Term
-                            </span>
+                            {/* Status & Billing */}
+                            <div className={styles.groupCard}>
+                                <div className={styles.groupLabel}>Status & Billing</div>
+                                <div className={styles.fieldGroup}>
+                                    <div className={styles.field}>
+                                        <label className={styles.fieldLabel}>Carrier Status</label>
+                                        <input
+                                            className={styles.fieldInput}
+                                            value={termForm.carrier_status}
+                                            onChange={(e) => setTermForm(f => ({ ...f, carrier_status: e.target.value }))}
+                                        />
+                                    </div>
+                                    <div className={styles.field}>
+                                        <label className={styles.fieldLabel}>Payment Status</label>
+                                        <select
+                                            className={styles.fieldSelect}
+                                            value={termForm.payment_status}
+                                            onChange={(e) => setTermForm(f => ({ ...f, payment_status: e.target.value }))}
+                                        >
+                                            <option value="">— Select —</option>
+                                            <option value="Paid in Full">Paid in Full</option>
+                                            <option value="Current">Current</option>
+                                            <option value="Outstanding">Outstanding</option>
+                                            <option value="Past Due">Past Due</option>
+                                            <option value="Cancelled">Cancelled</option>
+                                            <option value="Refund Issued">Refund Issued</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className={styles.fieldGroup}>
+                                    <div className={styles.field}>
+                                        <label className={styles.fieldLabel}>Payment Plan</label>
+                                        <select
+                                            className={styles.fieldSelect}
+                                            value={termForm.payment_plan}
+                                            onChange={(e) => setTermForm(f => ({ ...f, payment_plan: e.target.value }))}
+                                        >
+                                            <option value="">— Select —</option>
+                                            <option value="Pay in Full">Pay in Full</option>
+                                            <option value="Annual">Annual</option>
+                                            <option value="Semi-Annual">Semi-Annual</option>
+                                            <option value="Quarterly">Quarterly</option>
+                                            <option value="Monthly">Monthly</option>
+                                            <option value="10-Pay">10-Pay</option>
+                                            <option value="Mortgagee Billed">Mortgagee Billed</option>
+                                        </select>
+                                    </div>
+                                    <div className={styles.field}>
+                                        <label className={styles.fieldLabel}>Cancellation Reason</label>
+                                        <input
+                                            className={styles.fieldInput}
+                                            value={termForm.cancellation_reason}
+                                            onChange={(e) => setTermForm(f => ({ ...f, cancellation_reason: e.target.value }))}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Agency & Assignment */}
+                            <div className={styles.groupCard}>
+                                <div className={styles.groupLabel}>Agency & Assignment</div>
+                                <div className={styles.fieldGroup}>
+                                    <div className={styles.field}>
+                                        <label className={styles.fieldLabel}>Sold By</label>
+                                        <input
+                                            className={styles.fieldInput}
+                                            value={termForm.sold_by}
+                                            onChange={(e) => setTermForm(f => ({ ...f, sold_by: e.target.value }))}
+                                        />
+                                    </div>
+                                    <div className={styles.field}>
+                                        <label className={styles.fieldLabel}>Office</label>
+                                        <input
+                                            className={styles.fieldInput}
+                                            value={termForm.office}
+                                            onChange={(e) => setTermForm(f => ({ ...f, office: e.target.value }))}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* DIC & Toggles */}
+                            <div className={styles.groupCard}>
+                                <div className={styles.groupLabel}>DIC Coverage & Term</div>
+                                <div className={styles.toggle}>
+                                    <button
+                                        type="button"
+                                        className={styles.toggleSwitch}
+                                        data-active={termForm.dic_exists}
+                                        onClick={() => setTermForm(f => ({ ...f, dic_exists: !f.dic_exists }))}
+                                    >
+                                        <span className={styles.toggleKnob} />
+                                    </button>
+                                    <span className={styles.toggleLabel}>DIC Coverage Exists</span>
+                                </div>
+
+                                {termForm.dic_exists && (
+                                    <div style={{ marginTop: '0.5rem' }}>
+                                        <div className={styles.field}>
+                                            <label className={`${styles.fieldLabel} ${dicError ? styles.fieldLabelError : ''}`}>
+                                                DIC Policy Number {dicError && <span className={styles.requiredBadge}>Required</span>}
+                                            </label>
+                                            <input
+                                                className={`${styles.fieldInput} ${dicError ? styles.fieldInputError : ''}`}
+                                                value={termForm.dic_policy_number}
+                                                onChange={(e) => setTermForm(f => ({ ...f, dic_policy_number: e.target.value }))}
+                                                placeholder="Enter associated DIC policy number"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className={styles.toggle} style={{ marginTop: '0.75rem' }}>
+                                    <button
+                                        type="button"
+                                        className={styles.toggleSwitch}
+                                        data-active={termForm.is_current}
+                                        onClick={() => setTermForm(f => ({ ...f, is_current: !f.is_current }))}
+                                    >
+                                        <span className={styles.toggleKnob} />
+                                    </button>
+                                    <span className={styles.toggleLabel}>Is Current Term</span>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                ) : (
-                    <div className={styles.section}>
-                        <div className={styles.sectionTitle}>
-                            Current Term
-                            <span className={styles.sectionDivider} />
+                    ) : (
+                        <div className={styles.section}>
+                            <div className={styles.sectionTitle}>
+                                Current Term
+                                <span className={styles.sectionDivider} />
+                            </div>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                                No current term found for this policy. Term data will be available once a declaration or CSV import is processed.
+                            </p>
                         </div>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                            No current term found for this policy. Term data will be available once a declaration or CSV import is processed.
-                        </p>
-                    </div>
-                )}
+                    )}
+                </div>
 
                 {/* Footer */}
                 <div className={styles.footer}>
-                    <Button variant="primary" size="sm" onClick={handleSave} disabled={saving}>
+                    <Button variant="primary" size="sm" onClick={handleSave} disabled={saving || dicError}>
                         {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Save className="w-4 h-4 mr-1.5" />}
                         {saving ? 'Saving...' : 'Save Changes'}
                     </Button>
-                    <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>
+                    <Button variant="outline" size="sm" onClick={handleClose} disabled={saving}>
                         Cancel
                     </Button>
                 </div>
             </div>
+
+            {/* Unsaved Changes Dialog */}
+            {showUnsavedDialog && (
+                <div className={styles.confirmOverlay} onClick={() => setShowUnsavedDialog(false)}>
+                    <div className={styles.confirmDialog} onClick={(e) => e.stopPropagation()}>
+                        <AlertTriangle size={24} style={{ color: '#f59e0b' }} />
+                        <h3 className={styles.confirmTitle}>Unsaved Changes</h3>
+                        <p className={styles.confirmText}>You have unsaved changes. What would you like to do?</p>
+                        <div className={styles.confirmActions}>
+                            <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => {
+                                    setShowUnsavedDialog(false);
+                                    handleSave();
+                                }}
+                            >
+                                <Save size={14} className="mr-1.5" />
+                                Save Changes
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    setShowUnsavedDialog(false);
+                                    onClose();
+                                }}
+                                style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}
+                            >
+                                Discard
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => setShowUnsavedDialog(false)}>
+                                Keep Editing
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

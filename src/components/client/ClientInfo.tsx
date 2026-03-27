@@ -1,11 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Phone, FileText, ArrowLeft, MapPin, GitMerge, Pencil, Save, X, Loader2, CheckCircle } from 'lucide-react';
+import { User, Mail, Phone, FileText, ArrowLeft, MapPin, GitMerge, Pencil, Save, X, Loader2, CheckCircle, Flag as FlagIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button/Button';
 import { getClientById, updateClient, ClientRow } from '@/lib/api';
 import { insertActivityEvent } from '@/lib/notes';
+import { supabase } from '@/lib/supabaseClient';
+import { useRecentlyVisited } from '@/hooks/useRecentlyVisited';
+import { useToast } from '@/components/ui/Toast/Toast';
 import styles from './ClientInfo.module.css';
 
 interface ClientInfoProps {
@@ -16,6 +19,8 @@ export function ClientInfo({ clientId }: ClientInfoProps) {
     const router = useRouter();
     const [client, setClient] = useState<ClientRow | undefined>(undefined);
     const [loading, setLoading] = useState(true);
+    const { addVisit } = useRecentlyVisited();
+    const toast = useToast();
 
     // Edit mode state
     const [isEditing, setIsEditing] = useState(false);
@@ -28,11 +33,31 @@ export function ClientInfo({ clientId }: ClientInfoProps) {
         mailing_address_raw: '',
     });
 
+    const [flagCount, setFlagCount] = useState(0);
+
     useEffect(() => {
         const load = async () => {
             try {
                 const result = await getClientById(clientId);
                 setClient(result);
+
+                // Record visit with the real client name
+                if (result) {
+                    addVisit({
+                        id: clientId,
+                        type: 'client',
+                        label: result.named_insured || 'Client',
+                        href: `/client/${clientId}`,
+                    });
+                }
+
+                // Fetch open flag count for this client
+                const { count } = await supabase
+                    .from('policy_flags')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('client_id', clientId)
+                    .eq('status', 'open');
+                setFlagCount(count ?? 0);
             } catch (error) {
                 console.error('Error loading client data:', error);
             } finally {
@@ -182,7 +207,26 @@ export function ClientInfo({ clientId }: ClientInfoProps) {
                         ) : (
                             <>
                                 <h1 className={styles.title}>{clientName}</h1>
-                                <p className={styles.subtitle}>Client ID: {clientId}</p>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    <p className={styles.subtitle}>Client ID: {clientId}</p>
+                                    {flagCount > 0 && (
+                                        <span style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.25rem',
+                                            padding: '0.15rem 0.5rem',
+                                            borderRadius: '999px',
+                                            fontSize: '0.7rem',
+                                            fontWeight: 700,
+                                            background: 'rgba(239, 68, 68, 0.12)',
+                                            color: '#f87171',
+                                            border: '1px solid rgba(239, 68, 68, 0.2)',
+                                        }}>
+                                            <FlagIcon size={11} />
+                                            {flagCount} Open {flagCount === 1 ? 'Flag' : 'Flags'}
+                                        </span>
+                                    )}
+                                </div>
                             </>
                         )}
                     </div>
@@ -226,8 +270,9 @@ export function ClientInfo({ clientId }: ClientInfoProps) {
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => { /* TODO: open merge modal */ }}
+                                onClick={() => toast.info('Merge Client Profile — coming soon!')}
                                 className={styles.actionButton}
+                                title="Coming soon"
                             >
                                 <GitMerge className="w-4 h-4" />
                                 Merge Client Profile
@@ -280,6 +325,24 @@ export function ClientInfo({ clientId }: ClientInfoProps) {
                                         outline: 'none',
                                     }}
                                 />
+                            ) : clientEmail === 'Not on file' ? (
+                                <button
+                                    onClick={enterEditMode}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: '#818cf8',
+                                        cursor: 'pointer',
+                                        fontSize: '0.875rem',
+                                        fontWeight: 500,
+                                        padding: 0,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.25rem',
+                                    }}
+                                >
+                                    + Add Email
+                                </button>
                             ) : (
                                 <div className={styles.infoValue}>{clientEmail}</div>
                             )}
@@ -309,6 +372,24 @@ export function ClientInfo({ clientId }: ClientInfoProps) {
                                         outline: 'none',
                                     }}
                                 />
+                            ) : clientPhone === 'Not on file' ? (
+                                <button
+                                    onClick={enterEditMode}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: '#818cf8',
+                                        cursor: 'pointer',
+                                        fontSize: '0.875rem',
+                                        fontWeight: 500,
+                                        padding: 0,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.25rem',
+                                    }}
+                                >
+                                    + Add Phone
+                                </button>
                             ) : (
                                 <div className={styles.infoValue}>{clientPhone}</div>
                             )}
@@ -321,7 +402,7 @@ export function ClientInfo({ clientId }: ClientInfoProps) {
                         </div>
                         <div>
                             <div className={styles.infoLabel}>Client Type</div>
-                            <div className={styles.infoValue}>{client?.insured_type || 'person'}</div>
+                            <div className={styles.infoValue}>{client?.insured_type === 'person' ? 'Individual' : client?.insured_type === 'business' ? 'Business' : (client?.insured_type || 'Individual')}</div>
                         </div>
                     </div>
 

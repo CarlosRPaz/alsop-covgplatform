@@ -5,9 +5,10 @@ import { Card } from '@/components/ui/Card/Card';
 import styles from './DataTable.module.scss';
 import { clsx } from 'clsx';
 import { fetchDashboardPolicies, DashboardPolicy } from '@/lib/api';
-import { ArrowUpDown, Search, ChevronDown, ChevronUp, Columns, ArrowUp, ArrowDown, EyeOff, X, GripVertical, Flag, ChevronFirst, ChevronLast } from 'lucide-react';
+import { ArrowUpDown, Search, ChevronDown, ChevronUp, Columns, ArrowUp, ArrowDown, EyeOff, X, GripVertical, Flag, ChevronFirst, ChevronLast, Download, Satellite, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/Button/Button';
 import { useRouter } from 'next/navigation';
+import { FullWorkupModal } from './FullWorkupModal';
 
 // localStorage keys (v2 — reset to pick up new column order & visibility defaults)
 const LS_VISIBLE_COLUMNS = 'cfp_datatable_visibleColumns_v2';
@@ -39,6 +40,7 @@ type ColumnDef = { key: keyof DashboardPolicy; label: string; width?: string };
 const INITIAL_COLUMNS: ColumnDef[] = [
     { key: 'policy_number', label: 'Policy #' },
     { key: 'flag_count', label: 'Flags' },
+    { key: 'is_enriched', label: 'Enriched' },
     { key: 'named_insured', label: 'Insured Name', width: '200px' },
     { key: 'status', label: 'Status' },
     { key: 'effective_date', label: 'Effective Date' },
@@ -51,7 +53,7 @@ const INITIAL_COLUMNS: ColumnDef[] = [
 
 // All columns visible by default
 const DEFAULT_VISIBLE_KEYS = new Set([
-    'policy_number', 'flag_count', 'named_insured', 'status',
+    'policy_number', 'flag_count', 'is_enriched', 'named_insured', 'status',
     'effective_date', 'expiration_date', 'annual_premium',
     'property_address', 'mailing_address', 'carrier_name',
 ]);
@@ -189,7 +191,9 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
     const [data, setData] = useState<DashboardPolicy[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [sortConfig, setSortConfig] = useState<{ key: keyof DashboardPolicy; direction: 'asc' | 'desc' } | null>(null);
+    const [sortConfig, setSortConfig] = useState<{ key: keyof DashboardPolicy; direction: 'asc' | 'desc' } | null>(
+        { key: 'expiration_date', direction: 'asc' }
+    );
     const [searchQuery, setSearchQuery] = useState(initialSearch || '');
 
     // Track whether localStorage preferences have been loaded
@@ -214,6 +218,10 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
     const columnMenuRef = useRef<HTMLDivElement>(null);
     const rowsPerPageMenuRef = useRef<HTMLDivElement>(null);
     const rowsPerPageMenuTopRef = useRef<HTMLDivElement>(null);
+
+    // Bulk Selection State
+    const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+    const [isWorkupOpen, setIsWorkupOpen] = useState(false);
 
     // Flag Filtering State
     const [allFlags, setAllFlags] = useState<string[]>([]);
@@ -361,6 +369,34 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
         }));
     };
 
+    // Export CSV - exports currently filtered & sorted data
+    const exportCSV = () => {
+        const headers = orderedVisibleColumns.map(col => col.label);
+        const rows = sortedData.map(row =>
+            orderedVisibleColumns.map(col => {
+                const val = row[col.key];
+                if (col.key === 'flag_count' && row.flags) {
+                    return row.flags.map((f: { title: string }) => f.title).join('; ');
+                }
+                if (val === null || val === undefined) return '';
+                return String(val).replace(/"/g, '""');
+            })
+        );
+
+        const csv = [
+            headers.join(','),
+            ...rows.map(r => r.map(v => `"${v}"`).join(','))
+        ].join('\n');
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `policies_export_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+    };
+
     // Drag and Drop handlers for column reordering
     const handleDragStart = (e: React.DragEvent, columnKey: string) => {
         setDraggedColumn(columnKey);
@@ -490,7 +526,58 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
     // Get visible columns in the current order
     const orderedVisibleColumns = columnOrder.filter(col => visibleColumns.has(col.key));
 
+    // Bulk selection helpers
+    const allPageSelected = paginatedData.length > 0 && paginatedData.every(row => selectedRows.has(row.id));
+    const somePageSelected = paginatedData.some(row => selectedRows.has(row.id));
+
+    const toggleSelectRow = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const next = new Set(selectedRows);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setSelectedRows(next);
+    };
+
+    const toggleSelectAllPage = () => {
+        if (allPageSelected) {
+            const next = new Set(selectedRows);
+            paginatedData.forEach(row => next.delete(row.id));
+            setSelectedRows(next);
+        } else {
+            const next = new Set(selectedRows);
+            paginatedData.forEach(row => next.add(row.id));
+            setSelectedRows(next);
+        }
+    };
+
+    const exportSelectedCSV = () => {
+        const selectedData = sortedData.filter(row => selectedRows.has(row.id));
+        const headers = orderedVisibleColumns.map(col => col.label);
+        const rows = selectedData.map(row =>
+            orderedVisibleColumns.map(col => {
+                const val = row[col.key];
+                if (col.key === 'flag_count' && row.flags) {
+                    return row.flags.map((f: { title: string }) => f.title).join('; ');
+                }
+                if (val === null || val === undefined) return '';
+                return String(val).replace(/"/g, '""');
+            })
+        );
+        const csv = [
+            headers.join(','),
+            ...rows.map(r => r.map(v => `"${v}"`).join(','))
+        ].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `policies_selected_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+    };
+
     return (
+        <>
         <div className="w-full">
             {/* Drill-down filter chips */}
             {filterLabel && (
@@ -719,6 +806,16 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                             </div>
                         )}
                     </div>
+
+                    {/* Export CSV */}
+                    <button
+                        onClick={exportCSV}
+                        className={styles.pillButton}
+                        title="Export filtered data as CSV"
+                    >
+                        <Download size={16} />
+                        <span>Export CSV</span>
+                    </button>
                 </div>
             </div>
 
@@ -799,11 +896,72 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                 </div>
             </div>
 
+            {/* Bulk Action Bar */}
+            {selectedRows.size > 0 && (
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '1rem',
+                    padding: '0.625rem 1rem',
+                    marginBottom: '0.5rem',
+                    background: 'rgba(99, 102, 241, 0.08)',
+                    border: '1px solid rgba(99, 102, 241, 0.2)',
+                    borderRadius: 'var(--radius-lg)',
+                    fontSize: '0.8125rem',
+                    color: '#818cf8',
+                    fontWeight: 600,
+                    animation: 'fadeIn 150ms ease-out',
+                }}>
+                    <span>{selectedRows.size} selected</span>
+                    <button
+                        onClick={exportSelectedCSV}
+                        className={styles.pillButton}
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
+                    >
+                        <Download size={14} />
+                        <span>Export Selected</span>
+                    </button>
+                    <button
+                        onClick={() => setIsWorkupOpen(true)}
+                        className={styles.pillButton}
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
+                    >
+                        <Zap size={14} />
+                        <span>Full Analysis</span>
+                    </button>
+                    <button
+                        onClick={() => setSelectedRows(new Set())}
+                        style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#818cf8',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            fontWeight: 500,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                        }}
+                    >
+                        <X size={14} /> Clear
+                    </button>
+                </div>
+            )}
+
             <Card className={styles.container}>
                 <div className={styles.tableWrapper}>
                     <table className={styles.table}>
                         <thead className={styles.thead}>
                             <tr>
+                                <th className={styles.th} style={{ width: 40, minWidth: 40 }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={allPageSelected}
+                                        ref={el => { if (el) el.indeterminate = somePageSelected && !allPageSelected; }}
+                                        onChange={toggleSelectAllPage}
+                                        style={{ accentColor: 'var(--accent-primary)', cursor: 'pointer', width: 16, height: 16 }}
+                                    />
+                                </th>
                                 {orderedVisibleColumns.map((col) => (
                                     <th
                                         key={col.key}
@@ -840,12 +998,37 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                             </tr>
                         </thead>
                         <tbody>
-                            {paginatedData.map((row) => (
+                            {paginatedData.map((row) => {
+                                const tooltipParts = [];
+                                if (row.annual_premium) tooltipParts.push(`Premium: $${Number(row.annual_premium).toLocaleString()}`);
+                                if (row.flag_count > 0) tooltipParts.push(`${row.flag_count} flag${row.flag_count > 1 ? 's' : ''}`);
+                                tooltipParts.push(row.is_enriched ? 'Enriched ✓' : 'Not enriched');
+                                if (row.expiration_date) {
+                                    const d = new Date(row.expiration_date);
+                                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                                    const dd = String(d.getDate()).padStart(2, '0');
+                                    const yy = String(d.getFullYear()).slice(-2);
+                                    tooltipParts.push(`Exp: ${mm}-${dd}-${yy}`);
+                                }
+                                const tooltip = tooltipParts.join(' · ') || undefined;
+
+                                return (
                                 <tr
                                     key={row.id}
                                     className={`${styles.tr} cursor-pointer`}
                                     onClick={() => router.push(`/policy/${row.id}`)}
+                                    title={tooltip}
+                                    style={selectedRows.has(row.id) ? { background: 'rgba(99, 102, 241, 0.06)' } : undefined}
                                 >
+                                    <td className={styles.td} style={{ width: 40 }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedRows.has(row.id)}
+                                            onChange={() => {}}
+                                            onClick={(e) => toggleSelectRow(row.id, e)}
+                                            style={{ accentColor: 'var(--accent-primary)', cursor: 'pointer', width: 16, height: 16 }}
+                                        />
+                                    </td>
                                     {orderedVisibleColumns.map(col => (
                                         <td key={col.key} className={styles.td}>
                                             {col.key === 'policy_number' ? (
@@ -871,49 +1054,63 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                                     {row.status}
                                                 </span>
                                             ) : col.key === 'flag_count' ? (
-                                                row.flags && row.flags.length > 0 ? (
-                                                    <div className={styles.flagPillsWrap}>
-                                                        {row.flags.slice(0, 3).map((f: { code: string; title: string; severity: string }, i: number) => (
-                                                            <span
-                                                                key={`${f.code}-${i}`}
-                                                                className={clsx(
-                                                                    styles.flagPill,
-                                                                    f.severity === 'critical' && styles.flagPillCritical,
-                                                                    f.severity === 'high' && styles.flagPillHigh,
-                                                                    f.severity === 'warning' && styles.flagPillWarning,
-                                                                    f.severity === 'info' && styles.flagPillInfo,
-                                                                )}
-                                                                title={`${f.code}: ${f.title}`}
-                                                            >
-                                                                {f.title}
-                                                            </span>
-                                                        ))}
-                                                        {row.flags.length > 3 && (
-                                                            <span className={styles.flagPillMore}>
-                                                                +{row.flags.length - 3}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                ) : row.flag_count > 0 ? (
-                                                    <span className={clsx(
-                                                        styles.flagCountBadge,
-                                                        row.highest_severity === 'critical' && styles.flagCritical,
-                                                        row.highest_severity === 'warning' && styles.flagWarning,
-                                                        row.highest_severity === 'info' && styles.flagInfo,
-                                                    )}>
-                                                        <Flag size={12} />
-                                                        {row.flag_count}
+                                                (() => {
+                                                    const flags = row.flags as Array<{ code: string; title: string; severity: string }> | undefined;
+                                                    const count = flags?.length || row.flag_count || 0;
+                                                    if (count === 0) return <span className={styles.flagCountNone}>—</span>;
+
+                                                    // Determine highest severity for coloring
+                                                    const sevOrder = ['critical', 'high', 'warning', 'info'];
+                                                    const highest = flags
+                                                        ? sevOrder.find(s => flags.some(f => f.severity === s)) || 'info'
+                                                        : (row.highest_severity || 'info');
+
+                                                    // Build tooltip with all flag titles
+                                                    const tip = flags
+                                                        ? flags.map(f => f.title).join('\n')
+                                                        : `${count} flag${count > 1 ? 's' : ''}`;
+
+                                                    return (
+                                                        <span
+                                                            className={clsx(
+                                                                styles.flagCompactBadge,
+                                                                highest === 'critical' && styles.flagCompactCritical,
+                                                                highest === 'high' && styles.flagCompactHigh,
+                                                                highest === 'warning' && styles.flagCompactWarning,
+                                                                highest === 'info' && styles.flagCompactInfo,
+                                                            )}
+                                                            title={tip}
+                                                        >
+                                                            <Flag size={12} />
+                                                            <span>{count}</span>
+                                                        </span>
+                                                    );
+                                                })()
+                                            ) : col.key === 'is_enriched' ? (
+                                                row.is_enriched ? (
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: '#22c55e', fontSize: '0.75rem', fontWeight: 500 }}>
+                                                        <Satellite size={12} />
+                                                        ✓
                                                     </span>
                                                 ) : (
-                                                    <span className={styles.flagCountNone}>—</span>
+                                                    <span style={{ color: '#475569', fontSize: '0.75rem' }}>—</span>
                                                 )
+                                            ) : (col.key === 'effective_date' || col.key === 'expiration_date') && row[col.key] ? (
+                                                (() => {
+                                                    const d = new Date(row[col.key] as string);
+                                                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                                                    const dd = String(d.getDate()).padStart(2, '0');
+                                                    const yy = String(d.getFullYear()).slice(-2);
+                                                    return `${mm}-${dd}-${yy}`;
+                                                })()
                                             ) : (
                                                 (row[col.key] ?? '') as React.ReactNode
                                             )}
                                         </td>
                                     ))}
                                 </tr>
-                            ))}
+                                );
+                            })}
                             {loading && (
                                 <tr>
                                     <td colSpan={visibleColumns.size} className="p-8 text-center text-slate-500">
@@ -1042,5 +1239,17 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
 
 
         </div>
+
+            {/* Full Workup Modal */}
+            <FullWorkupModal
+                isOpen={isWorkupOpen}
+                onClose={() => { setIsWorkupOpen(false); setSelectedRows(new Set()); }}
+                policyIds={Array.from(selectedRows)}
+                onComplete={() => {
+                    // Refresh table data
+                    fetchDashboardPolicies().then(d => setData(d));
+                }}
+            />
+        </>
     );
 }

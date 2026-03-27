@@ -34,6 +34,7 @@ interface EvalCtx {
     term: Record<string, unknown>;
     client: Record<string, unknown>;
     policy: Record<string, unknown>;
+    enrichments: Array<{ field_key: string; field_value: string; confidence: string; notes?: string }>;
 }
 
 function get(ctx: EvalCtx, key: string): unknown {
@@ -54,6 +55,11 @@ function isZeroOrMissing(val: unknown): boolean {
     } catch {
         return false;
     }
+}
+
+function getEnrichmentValue(ctx: EvalCtx, fieldKey: string): string | null {
+    const e = ctx.enrichments.find(en => en.field_key === fieldKey);
+    return e?.field_value || null;
 }
 
 // ── Check functions ──────────────────────────────────────────
@@ -168,6 +174,71 @@ const FLAG_CHECKS: FlagCheck[] = [
     { code: 'ECM_PREMIUM_MISSING_OR_ZERO', severity: 'high', title: 'Premium Missing or Zero', category: 'data_quality', entity_scope: 'policy', auto_resolve: true, check: checkEcmPremium },
     { code: 'OTHER_STRUCTURES_ZERO', severity: 'warning', title: 'Other Structures $0', category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, check: checkOtherStructuresZero },
     { code: 'PERSONAL_PROPERTY_ZERO_OWNER_OCCUPIED', severity: 'warning', title: 'Personal Property $0 (Owner-Occupied)', category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, check: checkPersonalPropertyZeroOwner },
+    // ── Enrichment-Aware Checks (AI Vision → Coverage Inconsistencies) ──
+    {
+        code: 'SOLAR_PANELS_NOT_COVERED',
+        severity: 'warning',
+        title: 'Solar Panels Detected — Coverage Gap Possible',
+        category: 'property_observation',
+        entity_scope: 'policy',
+        auto_resolve: false,
+        check: (ctx) => {
+            const val = getEnrichmentValue(ctx, 'ai_solar_panels');
+            if (val !== 'detected') return null;
+            // Solar detected — check if Other Structures or equipment coverage exists
+            const otherStructures = get(ctx, 'limit_other_structures');
+            if (!isMissing(otherStructures) && !isZeroOrMissing(otherStructures)) return null;
+            return 'Satellite imagery detected solar panels, but Other Structures coverage is $0 or missing. Solar equipment may need dedicated coverage or an endorsement.';
+        }
+    },
+    {
+        code: 'POOL_LIABILITY_GAP',
+        severity: 'warning',
+        title: 'Pool Detected — Verify Liability Coverage',
+        category: 'property_observation',
+        entity_scope: 'policy',
+        auto_resolve: false,
+        check: (ctx) => {
+            const val = getEnrichmentValue(ctx, 'ai_pool');
+            if (val !== 'detected') return null;
+            // Pool detected — check if Other Structures covers it and if there's adequate liability
+            const otherStructures = get(ctx, 'limit_other_structures');
+            if (isMissing(otherStructures) || isZeroOrMissing(otherStructures)) {
+                return 'Satellite imagery detected a swimming pool, but Other Structures coverage is $0 or missing. Pools and related structures (decking, fencing) typically require Other Structures coverage and may need a liability review.';
+            }
+            return null;
+        }
+    },
+    {
+        code: 'ROOF_CONDITION_CONCERN',
+        severity: 'warning',
+        title: 'Roof Condition Concern',
+        category: 'property_observation',
+        entity_scope: 'policy',
+        auto_resolve: false,
+        check: (ctx) => {
+            const roofVal = getEnrichmentValue(ctx, 'ai_roof_condition');
+            const svRoof = getEnrichmentValue(ctx, 'ai_sv_roof_condition');
+            const val = roofVal || svRoof;
+            if (val && (val.toLowerCase().includes('poor') || val.toLowerCase().includes('aging') || val.toLowerCase().includes('damaged') || val.toLowerCase().includes('deteriorat'))) {
+                return `AI vision analysis flagged potential roof concerns: "${val}". This may impact Dwelling Replacement Cost coverage. Recommend verification and possible inspection before renewal.`;
+            }
+            return null;
+        }
+    },
+    // ── Always-Active Agent Suggestions ──
+    {
+        code: 'PERILS_INSURED_AGAINST',
+        severity: 'high',
+        title: 'Review Perils Insured Against',
+        category: 'agent_suggestion',
+        entity_scope: 'policy',
+        auto_resolve: false,
+        check: () => {
+            // Always fires — this is an agent opportunity to discuss perils basis with the client
+            return 'Review the "Perils Insured Against" section with the client. This is a key opportunity to discuss coverage basis (named perils vs. open perils) and identify potential upgrades.';
+        }
+    },
 ];
 
 // ── Build stable flag_key ────────────────────────────────────
@@ -257,7 +328,17 @@ export async function POST(request: NextRequest) {
             term: term || {},
             client,
             policy,
+            enrichments: [],
         };
+
+        // 4b. Fetch enrichments for AI-observation-based flags
+        const { data: enrichData } = await sb
+            .from('property_enrichments')
+            .select('field_key, field_value, confidence, notes')
+            .eq('policy_id', policyId);
+        if (enrichData) {
+            ctx.enrichments = enrichData;
+        }
 
         logger.info('API', `Eval context built`, {
             has_term: !!term,

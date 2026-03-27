@@ -7,10 +7,11 @@ import styles from './Navbar.module.css';
 import { Button } from '@/components/ui/Button/Button';
 import { Shield, LogIn, LogOut, User } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
+import { getUserProfile, UserRole } from '@/lib/auth';
 
 const navLinks = [
-    { href: '/dashboard', label: 'Dashboard', authRequired: true },
-    { href: '/submit', label: 'Submit', authRequired: false },
+    { href: '/dashboard', label: 'Dashboard', authRequired: true, hideForRole: 'customer' },
+    { href: '/submit', label: 'Submit', authRequired: false, hideForRole: 'customer' },
 ];
 
 export function Navbar() {
@@ -19,6 +20,7 @@ export function Navbar() {
     const [firstName, setFirstName] = useState<string | null>(null);
     const [userId, setUserId] = useState<string | null>(null);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [userRole, setUserRole] = useState<UserRole | null>(null);
 
     useEffect(() => {
         async function loadUser() {
@@ -27,19 +29,13 @@ export function Navbar() {
                 setIsLoggedIn(true);
                 setUserId(session.user.id);
 
-                // Try profile first, then user_metadata
-                const { data: profile } = await supabase
-                    .from('accounts')
-                    .select('first_name')
-                    .eq('id', session.user.id)
-                    .single();
-
-                const name = profile?.first_name
-                    || session.user.user_metadata?.first_name
-                    || session.user.email?.split('@')[0]
-                    || 'User';
-
-                setFirstName(name);
+                const profile = await getUserProfile();
+                if (profile) {
+                    setUserRole(profile.role);
+                    setFirstName(profile.first_name || profile.email.split('@')[0] || 'User');
+                } else {
+                    setFirstName(session.user.email?.split('@')[0] || 'User');
+                }
             }
         }
 
@@ -53,19 +49,12 @@ export function Navbar() {
             } else {
                 setIsLoggedIn(true);
                 setUserId(session.user.id);
-                // Re-fetch name on auth change
-                supabase
-                    .from('accounts')
-                    .select('first_name')
-                    .eq('id', session.user.id)
-                    .single()
-                    .then(({ data: profile }) => {
-                        const name = profile?.first_name
-                            || session.user.user_metadata?.first_name
-                            || session.user.email?.split('@')[0]
-                            || 'User';
-                        setFirstName(name);
-                    });
+                getUserProfile().then(profile => {
+                    if (profile) {
+                        setUserRole(profile.role);
+                        setFirstName(profile.first_name || profile.email.split('@')[0] || 'User');
+                    }
+                });
             }
         });
 
@@ -77,6 +66,7 @@ export function Navbar() {
         setIsLoggedIn(false);
         setFirstName(null);
         setUserId(null);
+        setUserRole(null);
         router.push('/');
     };
 
@@ -91,6 +81,7 @@ export function Navbar() {
                 <div className={styles.navLinks}>
                     {navLinks
                         .filter((link) => !link.authRequired || isLoggedIn)
+                        .filter((link) => !(link.hideForRole && link.hideForRole === userRole))
                         .map((link) => (
                             <Link
                                 key={link.href}
@@ -105,7 +96,7 @@ export function Navbar() {
                 <div className={styles.navActions}>
                     {isLoggedIn ? (
                         <>
-                            <Link href="/profile" className={styles.welcomeLink}>
+                            <Link href={userRole === 'customer' ? '/portal' : '/dashboard'} className={styles.welcomeLink}>
                                 <div className={styles.welcomeSection}>
                                     <User size={16} className={styles.welcomeIcon} />
                                     <span className={styles.welcomeText}>

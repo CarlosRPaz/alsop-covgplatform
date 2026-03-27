@@ -178,6 +178,7 @@ export interface ClientRow {
     phone?: string;
     mailing_address_raw?: string;
     mailing_address_norm?: string;
+    is_demo?: boolean;
     created_at?: string;
     updated_at?: string;
 }
@@ -341,6 +342,8 @@ export interface DashboardPolicy {
     flags: Array<{ code: string; title: string; severity: string }>;
     // Metadata
     created_at?: string;
+    // Enrichment status
+    is_enriched: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -603,7 +606,8 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
                     named_insured,
                     email,
                     phone,
-                    mailing_address_raw
+                    mailing_address_raw,
+                    is_demo
                 ),
                 policy_terms (
                     id,
@@ -613,6 +617,7 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
                     is_current
                 )
             `)
+            .eq('clients.is_demo', false)
             .order('created_at', { ascending: false });
 
         if (error) {
@@ -632,6 +637,22 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
         // Batch-fetch flag counts for all policies (avoids N+1)
         const policyIds = data.map((r: { id: string }) => r.id);
         const flagMap = await fetchFlagSummaryForPolicies(policyIds);
+
+        // Batch-fetch enrichment status (avoids N+1)
+        const enrichedSet = new Set<string>();
+        try {
+            const { data: enrichRows } = await supabase
+                .from('property_enrichments')
+                .select('policy_id')
+                .in('policy_id', policyIds);
+            if (enrichRows) {
+                for (const row of enrichRows) {
+                    enrichedSet.add(row.policy_id);
+                }
+            }
+        } catch {
+            // Non-fatal: if enrichment check fails, all show as unenriched
+        }
 
         // Map the joined result to DashboardPolicy
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -664,6 +685,7 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
                 highest_severity: flagInfo.severity,
                 flags: flagInfo.flags || [],
                 created_at: row.created_at,
+                is_enriched: enrichedSet.has(row.id),
             } as DashboardPolicy;
         });
     } catch (err) {
@@ -997,6 +1019,48 @@ export function mapPolicyDetailToDeclaration(detail: PolicyDetail): Declaration 
 }
 
 /**
+ * Get a signed URL for the dec page PDF file.
+ * Looks up: dec_pages(id) → submission_id → dec_page_submissions(storage_path)
+ * Returns null if no file exists.
+ */
+export async function getDecPageFileUrl(decPageId: string): Promise<string | null> {
+    try {
+        // 1. Get the submission_id from dec_pages
+        const { data: decPage, error: dpErr } = await supabase
+            .from('dec_pages')
+            .select('submission_id')
+            .eq('id', decPageId)
+            .single();
+
+        if (dpErr || !decPage?.submission_id) return null;
+
+        // 2. Get storage path from dec_page_submissions
+        const { data: sub, error: subErr } = await supabase
+            .from('dec_page_submissions')
+            .select('storage_path, file_path')
+            .eq('id', decPage.submission_id)
+            .single();
+
+        if (subErr || !sub) return null;
+
+        const storagePath = sub.storage_path || sub.file_path;
+        if (!storagePath) return null;
+
+        // 3. Generate a signed URL (1 hour)
+        const { data: signed, error: signErr } = await supabase
+            .storage
+            .from('dec-pages')
+            .createSignedUrl(storagePath, 3600);
+
+        if (signErr || !signed?.signedUrl) return null;
+        return signed.signedUrl;
+    } catch (err) {
+        console.error('Error getting dec page file URL:', err);
+        return null;
+    }
+}
+
+/**
  * Fetch a single client by ID.
  */
 export async function getClientById(clientId: string): Promise<ClientRow | undefined> {
@@ -1051,6 +1115,16 @@ export async function fetchPoliciesByClientId(clientId: string): Promise<Dashboa
                     expiration_date,
                     annual_premium,
                     is_current
+                ),
+                policy_flags (
+                    id,
+                    code,
+                    title,
+                    severity,
+                    status
+                ),
+                property_enrichments (
+                    id
                 )
             `)
             .eq('client_id', clientId)
@@ -1070,6 +1144,14 @@ export async function fetchPoliciesByClientId(clientId: string): Promise<Dashboa
             const terms = row.policy_terms || [];
             const currentTerm = terms.find((t: PolicyTermRow) => t.is_current === true) || terms[0] || null;
 
+            // Flags
+            const openFlags = (row.policy_flags || []).filter((f: any) => f.status !== 'dismissed');
+            const severityOrder: Record<string, number> = { critical: 0, high: 1, warning: 2, info: 3 };
+            const sortedFlags = [...openFlags].sort((a: any, b: any) =>
+                (severityOrder[a.severity] ?? 9) - (severityOrder[b.severity] ?? 9)
+            );
+            const highestSev = sortedFlags.length > 0 ? sortedFlags[0].severity : undefined;
+
             return {
                 id: row.id,
                 policy_number: row.policy_number || 'N/A',
@@ -1088,6 +1170,10 @@ export async function fetchPoliciesByClientId(clientId: string): Promise<Dashboa
                     ? `$${Number(currentTerm.annual_premium).toLocaleString()}`
                     : undefined,
                 created_at: row.created_at,
+                flag_count: sortedFlags.length,
+                highest_severity: highestSev,
+                flags: sortedFlags.map((f: any) => ({ code: f.code, title: f.title, severity: f.severity })),
+                is_enriched: (row.property_enrichments || []).length > 0,
             } as DashboardPolicy;
         });
     } catch (err) {
@@ -1584,7 +1670,7 @@ export async function fetchAllOpenFlags(filters?: {
     try {
         let query = supabase
             .from('policy_flags')
-            .select('*, policies(policy_number)')
+            .select('*, policies(policy_number, client_id, clients(is_demo))')
             .order('created_at', { ascending: false })
             .limit(1000);
 
@@ -1624,12 +1710,14 @@ export async function fetchAllOpenFlags(filters?: {
 
         if (!data) return [];
 
-        return (data as any[]).map(row => ({
-            ...row,
-            policy_number: row.policies?.policy_number || null,
-        })).sort((a, b) => {
-            return (SEVERITY_ORDER[b.severity] || 0) - (SEVERITY_ORDER[a.severity] || 0);
-        });
+        return (data as any[])
+            .filter(row => !row.policies?.clients?.is_demo) // Exclude demo client flags
+            .map(row => ({
+                ...row,
+                policy_number: row.policies?.policy_number || null,
+            })).sort((a, b) => {
+                return (SEVERITY_ORDER[b.severity] || 0) - (SEVERITY_ORDER[a.severity] || 0);
+            });
     } catch {
         return [];
     }
@@ -1666,7 +1754,7 @@ export async function fetchFlaggedPoliciesGrouped(): Promise<FlaggedPolicyGroup[
                 *,
                 policies(
                     id, policy_number, carrier_name, client_id,
-                    clients(named_insured),
+                    clients(named_insured, is_demo),
                     policy_terms(expiration_date, office, sold_by, is_current)
                 )
             `)
@@ -1686,8 +1774,11 @@ export async function fetchFlaggedPoliciesGrouped(): Promise<FlaggedPolicyGroup[
             const policyId = row.policy_id;
             if (!policyId) continue; // skip flags without a policy
 
+            // Skip flags from demo clients
+            const policy = row.policies || {};
+            if (policy.clients?.is_demo) continue;
+
             if (!groupMap.has(policyId)) {
-                const policy = row.policies || {};
                 const client = policy.clients || {};
                 // Find the current term or the most recent one
                 const terms: any[] = Array.isArray(policy.policy_terms) ? policy.policy_terms : [];
@@ -1905,7 +1996,8 @@ export async function fetchDecPageFilesByPolicyId(policyId: string): Promise<Dec
             logger.error('API', 'Error fetching dec page files', { message: error.message, policyId });
             return [];
         }
-
+        
+    // (Existing code continues...)
         if (!data) return [];
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2429,5 +2521,73 @@ export async function getLatestReportForPolicy(policyId: string): Promise<Policy
     } catch (err) {
         logger.warn('API', `Could not fetch latest report for policy ${policyId}`);
         return undefined;
+    }
+}
+
+/**
+ * Upload a Dec Page file directly to an existing policy.
+ */
+export async function uploadDecPageToPolicy(policyId: string, file: File): Promise<{ success: boolean; error?: string; storagePath?: string }> {
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user?.id) {
+            return { success: false, error: 'Authentication required.' };
+        }
+
+        const accountId = session.user.id;
+        const submitId = crypto.randomUUID();
+        const extension = file.name.split('.').pop() || 'pdf';
+        const storagePath = `submissions/${accountId}/${submitId}.${extension}`;
+
+        // 1. Upload to storage
+        const { error: uploadError } = await supabase.storage
+            .from('cfp-raw-decpage')
+            .upload(storagePath, file, { contentType: file.type });
+
+        if (uploadError) {
+            logger.error('API', 'Storage upload failed', { message: uploadError.message });
+            return { success: false, error: 'Failed to upload file to storage.' };
+        }
+
+        // 2. Insert into dec_page_submissions so fetchDecPageFilesByPolicyId finds it
+        const { data: subData, error: subError } = await supabase
+            .from('dec_page_submissions')
+            .insert({
+                id: submitId,
+                account_id: accountId,
+                status: 'processed', // Skip AI ingestion
+                storage_path: storagePath,
+                file_path: storagePath,
+                file_name: file.name,
+                file_size: file.size,
+                file_type: file.type,
+                bucket: 'cfp-raw-decpage',
+            })
+            .select('id')
+            .single();
+
+        if (subError || !subData) {
+            logger.error('API', 'Failed to link file to submissions', { message: subError?.message });
+            return { success: false, error: 'Uploaded, but failed to link submission.' };
+        }
+
+        // 3. Insert into dec_pages to link to policy
+        const { error: linkError } = await supabase
+            .from('dec_pages')
+            .insert({
+                policy_id: policyId,
+                submission_id: subData.id,
+                parse_status: 'manual',
+            });
+
+        if (linkError) {
+            logger.error('API', 'Failed to link dec_page to policy', { message: linkError.message });
+            return { success: false, error: 'Uploaded, but failed to link to policy.' };
+        }
+
+        return { success: true, storagePath };
+    } catch (err) {
+        logger.error('API', 'Unexpected error uploading dec page', { error: err instanceof Error ? err.message : String(err) });
+        return { success: false, error: 'Unexpected error occurred.' };
     }
 }

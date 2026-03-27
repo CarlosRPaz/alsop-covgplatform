@@ -53,4 +53,31 @@ export const env = {
     get IS_PRODUCTION(): boolean {
         return process.env.NODE_ENV === 'production';
     },
+
+    // ── Email ──
+
+    /** Email send mode: 'disabled' | 'redirect' | 'live'. Default: disabled. */
+    get EMAIL_SEND_MODE(): string {
+        return process.env.EMAIL_SEND_MODE || 'disabled';
+    },
+
+    /** Postmark server token for transactional email. */
+    get POSTMARK_SERVER_TOKEN(): string | undefined {
+        return process.env.POSTMARK_SERVER_TOKEN;
+    },
+
+    /** Default From address for app-generated email. */
+    get EMAIL_FROM_DEFAULT(): string {
+        return process.env.EMAIL_FROM_DEFAULT || 'reports@cfpplatform.com';
+    },
+
+    /** Default Reply-To address. */
+    get EMAIL_REPLY_TO_DEFAULT(): string {
+        return process.env.EMAIL_REPLY_TO_DEFAULT || 'support@cfpplatform.com';
+    },
+
+    /** Dev redirect target (used when EMAIL_SEND_MODE=redirect). */
+    get EMAIL_DEV_REDIRECT(): string {
+        return process.env.EMAIL_DEV_REDIRECT || 'carlospaz@allstate.com';
+    },
 } as const;

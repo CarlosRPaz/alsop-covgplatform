@@ -29,8 +29,8 @@ function buildDayBuckets(): DayBucket[] {
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-    // 14 days: this week (Mon-Sun) + next week (Mon-Sun)
-    for (let i = 0; i < 14; i++) {
+    // 28 days: this week (Mon-Sun) + next 3 weeks
+    for (let i = 0; i < 28; i++) {
         const date = new Date(startMonday);
         date.setDate(startMonday.getDate() + i);
 
@@ -50,6 +50,7 @@ export function DashboardChart() {
     const router = useRouter();
     const [buckets, setBuckets] = useState<DayBucket[]>([]);
     const [loading, setLoading] = useState(true);
+    const [viewMode, setViewMode] = useState<'chart' | 'grid'>('chart');
 
     useEffect(() => {
         async function fetchRenewals() {
@@ -145,49 +146,122 @@ export function DashboardChart() {
         );
     };
 
+    const getGridLevel = (count: number, max: number) => {
+        if (count === 0) return 0;
+        if (max === 0) return 0;
+        const ratio = count / max;
+        if (ratio <= 0.25) return 1;
+        if (ratio <= 0.5) return 2;
+        if (ratio <= 0.75) return 3;
+        return 4;
+    };
+
+    const renderGrid = () => {
+        // Break 28 buckets into 4 rows of 7 days
+        const weeks = [];
+        for (let i = 0; i < 4; i++) {
+            weeks.push(buckets.slice(i * 7, (i + 1) * 7));
+        }
+
+        return (
+            <div className={`${styles.gridContainer} ${viewMode === 'grid' ? styles.slideLeft : ''}`}>
+                <div className={styles.gridDaysHeader}>
+                    {buckets.slice(0, 7).map(day => (
+                        <div key={day.dayLabel} className={styles.gridDayName}>{day.dayLabel}</div>
+                    ))}
+                </div>
+                {weeks.map((week, weekIndex) => (
+                    <div key={weekIndex} className={styles.gridRow}>
+                        {week.map((day, dayIndex) => {
+                            const level = getGridLevel(day.count, maxValue);
+                            const levelClass = styles[`gridCellLevel${level}`];
+                            
+                            return (
+                                <div
+                                    key={dayIndex}
+                                    className={`${styles.gridCell} ${levelClass || ''} ${day.isToday ? styles.gridCellToday : ''}`}
+                                    onClick={() => handleBarClick(day)}
+                                    title={`${day.count} policies renewing on ${day.dateLabel}`}
+                                >
+                                    <span className={styles.gridCellDate}>{day.dateLabel}</span>
+                                    <span className={styles.gridCellCount}>{day.count}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ))}
+            </div>
+        );
+    };
+
     return (
         <div className={styles.chartContainer}>
             <div className={styles.chartHeader}>
                 <div className={styles.chartTitle}>
                     <div className={styles.mainTitle}>Upcoming Renewals</div>
                     <div className={styles.subtitle}>
-                        {loading ? 'Loading...' : `${totalRenewals} policies expiring in the next 2 weeks`}
+                        {loading ? 'Loading...' : `${totalRenewals} policies expiring in the next 4 weeks`}
                     </div>
                 </div>
-                <div className={styles.chartLegend}>
-                    <div className={styles.legendItem}>
-                        <div className={styles.legendDot} style={{ backgroundColor: '#6366f1' }}></div>
-                        <span>Renewals</span>
+                <div className={styles.headerControls}>
+                    <div className={styles.chartLegend}>
+                        <div className={styles.legendItem}>
+                            <div className={styles.legendDot} style={{ backgroundColor: '#6366f1' }}></div>
+                            <span>Renewals</span>
+                        </div>
                     </div>
-                </div>
-            </div>
-
-            <div className={styles.weeksRow}>
-                {/* This Week */}
-                <div className={styles.weekBlock}>
-                    <div className={styles.weekLabel}>
-                        This Week
-                        <span className={styles.weekCount}>{thisWeekTotal}</span>
-                    </div>
-                    <div className={styles.chart}>
-                        {thisWeek.map((day, i) => renderBar(day, i))}
-                    </div>
-                </div>
-
-                {/* Divider */}
-                <div className={styles.weekDivider}></div>
-
-                {/* Next Week */}
-                <div className={styles.weekBlock}>
-                    <div className={styles.weekLabel}>
-                        Next Week
-                        <span className={styles.weekCount}>{nextWeekTotal}</span>
-                    </div>
-                    <div className={styles.chart}>
-                        {nextWeek.map((day, i) => renderBar(day, i))}
+                    {/* View Toggle */}
+                    <div className={styles.viewToggle}>
+                        <div
+                            className={styles.toggleIndicator}
+                            style={{ transform: viewMode === 'grid' ? 'translateX(100%)' : 'translateX(0)' }}
+                        />
+                        <button
+                            className={`${styles.toggleBtn} ${viewMode === 'chart' ? styles.toggleBtnActive : ''}`}
+                            onClick={() => setViewMode('chart')}
+                        >
+                            Chart
+                        </button>
+                        <button
+                            className={`${styles.toggleBtn} ${viewMode === 'grid' ? styles.toggleBtnActive : ''}`}
+                            onClick={() => setViewMode('grid')}
+                        >
+                            Grid
+                        </button>
                     </div>
                 </div>
             </div>
+
+            {viewMode === 'chart' ? (
+                <div className={`${styles.weeksRow} ${styles.slideRight}`}>
+                    {/* This Week */}
+                    <div className={styles.weekBlock}>
+                        <div className={styles.weekLabel}>
+                            This Week
+                            <span className={styles.weekCount}>{thisWeekTotal}</span>
+                        </div>
+                        <div className={styles.chart}>
+                            {thisWeek.map((day, i) => renderBar(day, i))}
+                        </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className={styles.weekDivider}></div>
+
+                    {/* Next Week */}
+                    <div className={styles.weekBlock}>
+                        <div className={styles.weekLabel}>
+                            Next Week
+                            <span className={styles.weekCount}>{nextWeekTotal}</span>
+                        </div>
+                        <div className={styles.chart}>
+                            {nextWeek.map((day, i) => renderBar(day, i))}
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                renderGrid()
+            )}
 
             <div className={styles.chartFooter}>
                 <span>DAILY RENEWALS · CLICK A BAR TO VIEW POLICIES</span>

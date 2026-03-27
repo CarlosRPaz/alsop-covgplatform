@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import React, { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import styles from './page.module.css';
 import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
-import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2 } from 'lucide-react';
-import { getPolicyDetailById, mapPolicyDetailToDeclaration, generateAIReport, Declaration, AIReportData, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment } from '@/lib/api';
+import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload } from 'lucide-react';
+import { getPolicyDetailById, mapPolicyDetailToDeclaration, generateAIReport, Declaration, AIReportData, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, uploadDecPageToPolicy } from '@/lib/api';
+import { PolicyStatusBar } from '@/components/policy/PolicyStatusBar';
 import { PolicyDashboard } from '@/components/policy/PolicyDashboard';
 import { AIReport } from '@/components/policy/AIReport';
 import { PolicyFiles } from '@/components/policy/PolicyFiles';
@@ -17,6 +18,12 @@ import { ActivityTimeline } from '@/components/shared/ActivityTimeline';
 import { NotesPanel } from '@/components/shared/NotesPanel';
 import { DecPageReview } from '@/components/policy/DecPageReview';
 import { PolicyEditPanel } from '@/components/policy/PolicyEditPanel';
+import { FullWorkupModal } from '@/components/dashboard/FullWorkupModal';
+import { EmailComposeModal } from '@/components/email/EmailComposeModal';
+import { useRecentlyVisited } from '@/hooks/useRecentlyVisited';
+import { useToast } from '@/components/ui/Toast/Toast';
+import { getUserProfile, UserRole } from '@/lib/auth';
+import { ClientPolicyView } from './client-view';
 
 const policyTabs = [
     { id: 'review', label: 'POLICY REVIEW' },
@@ -30,7 +37,8 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     const router = useRouter();
     // Unwrap params in Next.js 15
     const { id } = use(params);
-
+    const { addVisit } = useRecentlyVisited();
+    const toast = useToast();
 
     const [declaration, setDeclaration] = useState<Declaration | undefined>(undefined);
     const [aiReport, setAiReport] = useState<AIReportData | undefined>(undefined);
@@ -44,8 +52,31 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
         { total: 0, critical: 0, high: 0, warning: 0, info: 0 }
     );
     const [openFlags, setOpenFlags] = useState<PolicyFlagRow[]>([]);
+    const [allFlags, setAllFlags] = useState<PolicyFlagRow[]>([]);
     const [enrichments, setEnrichments] = useState<PropertyEnrichment[]>([]);
     const [enrichStep, setEnrichStep] = useState<string | null>(null);
+    const [flagCheckRunning, setFlagCheckRunning] = useState(false);
+    const [reportRow, setReportRow] = useState<PolicyReportRow | null>(null);
+    const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+    const [hasDecPage, setHasDecPage] = useState(false);
+    const [isWorkupOpen, setIsWorkupOpen] = useState(false);
+    const [decPageStoragePath, setDecPageStoragePath] = useState<string | null>(null);
+    const [decPageLoading, setDecPageLoading] = useState(false);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const [showEmailModal, setShowEmailModal] = useState(false);
+    const [userRole, setUserRole] = useState<UserRole | null>(null);
+    const [roleLoading, setRoleLoading] = useState(true);
+
+    // Detect user role for client vs agent view
+    useEffect(() => {
+        getUserProfile().then(p => {
+            setUserRole(p?.role || null);
+            setRoleLoading(false);
+        });
+    }, []);
+
+    // Client-view flag — checked AFTER all hooks (React rules of hooks)
+    const isCustomer = !roleLoading && userRole === 'customer';
 
     // Derive enriched property image
     const propertyImageEnrichment = enrichments.find(e => e.field_key === 'property_image');
@@ -103,6 +134,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     useEffect(() => {
         if (!id) return;
         fetchFlagsByPolicyId(id).then(flags => {
+            setAllFlags(flags);
             const open = flags.filter((f: PolicyFlagRow) => !f.status || f.status === 'open');
             setOpenFlags(open);
             setFlagSummary({
@@ -116,14 +148,100 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
 
         // Fetch property enrichments (source-tracked data)
         getPropertyEnrichments(id).then(setEnrichments);
+
+        // Fetch report existence
+        getLatestReportForPolicy(id).then(r => {
+            if (r) setReportRow(r);
+        });
+
+        // Fetch dec page file for the Dec Page button
+        fetchDecPageFilesByPolicyId(id).then(files => {
+            if (files.length > 0 && files[0].storage_path) {
+                setDecPageStoragePath(files[0].storage_path);
+            }
+        });
     }, [id]);
+
+    // Derived: enrichment status for the status bar
+    const isEnriched = enrichments.length > 0;
+    const lastEnrichedDate = isEnriched
+        ? new Date(enrichments.reduce((latest, e) => {
+            const t = new Date(e.fetched_at).getTime();
+            return t > latest ? t : latest;
+        }, 0)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : null;
+
+    // Derived: flag check status — if any flags exist (including resolved), the evaluator has run
+    const flagsChecked = allFlags.length > 0;
+    const lastCheckedDate = flagsChecked
+        ? new Date(allFlags.reduce((latest, f) => {
+            const t = new Date(f.created_at || 0).getTime();
+            return t > latest ? t : latest;
+        }, 0)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : null;
+
+    // Enrichment handler (shared between status bar)
+    const handleEnrich = async () => {
+        const steps = [
+            'Fetching satellite image…',
+            'Geocoding address…',
+            'Checking fire risk…',
+            'Running AI vision analysis…',
+            'Finalizing…',
+        ];
+        let stepIdx = 0;
+        setEnrichStep(steps[0]);
+        const timer = setInterval(() => {
+            stepIdx++;
+            if (stepIdx < steps.length) {
+                setEnrichStep(steps[stepIdx]);
+            }
+        }, 4000);
+        try {
+            await runPropertyEnrichment(id);
+            clearInterval(timer);
+            setEnrichStep('✓ Complete!');
+            const updated = await getPropertyEnrichments(id);
+            setEnrichments(updated);
+            setTimeout(() => setEnrichStep(null), 2000);
+        } catch (e) {
+            clearInterval(timer);
+            console.error('Enrichment failed:', e);
+            setEnrichStep('✗ Failed — try again');
+            setTimeout(() => setEnrichStep(null), 3000);
+        }
+    };
+
+    // Flag check handler
+    const handleFlagCheck = async () => {
+        setFlagCheckRunning(true);
+        try {
+            await runFlagCheck(id);
+            // Refresh flags
+            const flags = await fetchFlagsByPolicyId(id);
+            setAllFlags(flags);
+            const open = flags.filter((f: PolicyFlagRow) => !f.status || f.status === 'open');
+            setOpenFlags(open);
+            setFlagSummary({
+                total: open.length,
+                critical: open.filter((f: PolicyFlagRow) => f.severity === 'critical').length,
+                high: open.filter((f: PolicyFlagRow) => f.severity === 'high').length,
+                warning: open.filter((f: PolicyFlagRow) => f.severity === 'warning').length,
+                info: open.filter((f: PolicyFlagRow) => f.severity === 'info').length,
+            });
+        } catch (e) {
+            console.error('Flag check failed:', e);
+        } finally {
+            setFlagCheckRunning(false);
+        }
+    };
 
     const renderTabContent = () => {
         switch (activeTab) {
             case 'review':
                 return (
                     <div className={styles.content}>
-                        <PolicyDashboard declaration={declaration!} enrichments={enrichments} />
+                        <PolicyDashboard declaration={declaration!} enrichments={enrichments} policyDetail={policyDetailRaw || undefined} />
                         {aiReport && <AIReport data={aiReport} />}
                     </div>
                 );
@@ -170,6 +288,11 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                 return null;
         }
     };
+
+    // Client-specific view rendered AFTER all hooks
+    if (isCustomer) {
+        return <ClientPolicyView policyId={id} />;
+    }
 
     if (loading) {
         return (
@@ -328,144 +451,201 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             )}
 
             <div className={styles.header}>
-                <Link href="/dashboard">
-                    <Button variant="outline" className={styles.backButton}>
-                        <ArrowLeft size={16} style={{ marginRight: '8px' }} />
-                        Back to Dashboard
-                    </Button>
-                </Link>
+                {/* ── Left: Title Block ── */}
                 <div>
+                    <Link href="/dashboard">
+                        <button className={styles.backButton}>
+                            <ArrowLeft size={14} />
+                            Dashboard
+                        </button>
+                    </Link>
                     <h1 className={styles.title}>Policy Review</h1>
                     <div
                         className={styles.subtitle}
                         onClick={copyPolicyNumber}
-                        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
                         title="Click to copy policy number"
                     >
                         <span>
-                            <span style={{ color: 'var(--text-high)', fontWeight: 500 }}>Policy #</span>
-                            <span style={{ color: '#60a5fa', fontWeight: 600 }}>{declaration.policy_number}</span>
+                            Policy <strong style={{ color: 'var(--accent-primary)' }}>{declaration.policy_number}</strong>
                         </span>
                         <button
                             onClick={(e) => { e.stopPropagation(); copyPolicyNumber(); }}
-                            style={{
-                                background: 'none',
-                                border: '1px solid #475569',
-                                borderRadius: '6px',
-                                padding: '0.15rem 0.35rem',
-                                color: copied ? '#34d399' : '#6b7280',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                transition: 'color 0.15s, border-color 0.15s',
-                            }}
+                            className={styles.copyBtn}
+                            style={{ color: copied ? '#34d399' : '#4b5563' }}
                         >
-                            {copied ? <Check size={13} /> : <Copy size={13} />}
+                            {copied ? <Check size={12} /> : <Copy size={12} />}
                         </button>
                     </div>
-                    <div style={{ marginTop: '0.35rem' }}>
-                        <span
-                            style={{
-                                color: '#60a5fa',
-                                cursor: 'pointer',
-                                fontSize: '1.15rem',
-                                fontWeight: 700,
-                                letterSpacing: '-0.01em',
-                                lineHeight: 1.3,
-                                borderBottom: '2px solid transparent',
-                                transition: 'border-color 0.15s ease',
-                            }}
-                            onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#60a5fa')}
-                            onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'transparent')}
-                            onClick={() => declaration.client_id && router.push(`/client/${declaration.client_id}`)}
-                        >
-                            {declaration.insured_name}
-                        </span>
-                    </div>
+                    <span
+                        className={styles.clientName}
+                        onClick={() => declaration.client_id && router.push(`/client/${declaration.client_id}`)}
+                    >
+                        {declaration.insured_name}
+                    </span>
+                </div>
 
-                    <div className={styles.actionRow} style={{ padding: '10px 0px 0px 0px', float: "right" }}>
-                        <Button
-                            variant="outline"
-                            className={`${styles.actionButton} ${styles.outlineAction}`}
-                            disabled={!!enrichStep}
-                            onClick={async () => {
-                                const steps = [
-                                    'Fetching satellite image…',
-                                    'Geocoding address…',
-                                    'Checking fire risk…',
-                                    'Running AI vision analysis…',
-                                    'Finalizing…',
-                                ];
-                                let stepIdx = 0;
-                                setEnrichStep(steps[0]);
-                                const timer = setInterval(() => {
-                                    stepIdx++;
-                                    if (stepIdx < steps.length) {
-                                        setEnrichStep(steps[stepIdx]);
+                {/* ── Right: Action Cluster ── */}
+                <div className={styles.actionCluster}>
+                    <button className={styles.iconBtn} onClick={() => setIsEditOpen(true)} title="Edit Policy">
+                        <Settings size={16} />
+                    </button>
+                    <button className={styles.iconBtn} title="Email Options — coming soon" onClick={() => toast.info('Email Options — coming soon!')}>
+                        <Mail size={16} />
+                    </button>
+
+                    <div className={styles.actionDivider} />
+
+                    <button className={styles.secondaryBtn} onClick={() => setIsWorkupOpen(true)}>
+                        <Zap size={15} />
+                        Full Analysis
+                    </button>
+
+                    {!decPageStoragePath ? (
+                        <>
+                            <input
+                                type="file"
+                                accept="application/pdf"
+                                ref={fileInputRef}
+                                style={{ display: 'none' }}
+                                onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    setDecPageLoading(true);
+                                    try {
+                                        const res = await uploadDecPageToPolicy(id, file);
+                                        if (res.success && res.storagePath) {
+                                            setDecPageStoragePath(res.storagePath);
+                                            alert('Dec page uploaded successfully!');
+                                        } else {
+                                            alert(res.error || 'Failed to upload dec page.');
+                                        }
+                                    } catch (err) {
+                                        console.error(err);
+                                        alert('Failed to upload dec page.');
+                                    } finally {
+                                        setDecPageLoading(false);
+                                        if (fileInputRef.current) fileInputRef.current.value = '';
                                     }
-                                }, 4000);
+                                }}
+                            />
+                            <button
+                                className={styles.secondaryBtn}
+                                disabled={decPageLoading}
+                                title={decPageLoading ? 'Uploading...' : 'Upload Dec Page PDF'}
+                                onClick={() => fileInputRef.current?.click()}
+                            >
+                                <Upload size={15} />
+                                {decPageLoading ? 'Uploading…' : 'Upload Dec Page'}
+                            </button>
+                        </>
+                    ) : (
+                        <button
+                            className={styles.secondaryBtn}
+                            disabled={decPageLoading}
+                            title="Open Dec Page PDF"
+                            onClick={async () => {
+                                setDecPageLoading(true);
                                 try {
-                                    await runPropertyEnrichment(id);
-                                    clearInterval(timer);
-                                    setEnrichStep('✓ Complete!');
-                                    const updated = await getPropertyEnrichments(id);
-                                    setEnrichments(updated);
-                                    setTimeout(() => setEnrichStep(null), 2000);
-                                } catch (e) {
-                                    clearInterval(timer);
-                                    console.error('Enrichment failed:', e);
-                                    setEnrichStep('✗ Failed — try again');
-                                    setTimeout(() => setEnrichStep(null), 3000);
+                                    const url = await getDecPageFileDownloadUrl(decPageStoragePath);
+                                    if (url) {
+                                        window.open(url, '_blank');
+                                    } else {
+                                        alert('Could not generate download link.');
+                                    }
+                                } catch {
+                                    alert('Failed to open dec page file.');
+                                } finally {
+                                    setDecPageLoading(false);
                                 }
                             }}
                         >
-                            {enrichStep ? (
+                            <FileDown size={15} />
+                            {decPageLoading ? 'Opening…' : 'Dec Page'}
+                        </button>
+                    )}
+
+                    {reportRow ? (
+                        <button
+                            className={styles.primaryBtn}
+                            onClick={() => router.push(`/report/${reportRow.id}`)}
+                        >
+                            <ExternalLink size={15} />
+                            View Report
+                        </button>
+                    ) : (
+                        <button
+                            className={styles.dangerOutlineBtn}
+                            disabled={isGeneratingReport}
+                            onClick={async () => {
+                                setIsGeneratingReport(true);
+                                try {
+                                    const res = await fetch('/api/reports/generate', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ policyId: id }),
+                                    });
+                                    if (res.ok) {
+                                        const data = await res.json();
+                                        if (data.report) {
+                                            setReportRow(data.report);
+                                            router.push(`/report/${data.report.id}`);
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.error('Report generation failed:', e);
+                                } finally {
+                                    setIsGeneratingReport(false);
+                                }
+                            }}
+                        >
+                            {isGeneratingReport ? (
                                 <>
-                                    {enrichStep === '✓ Complete!' ? (
-                                        <Check size={16} style={{ color: '#22c55e' }} />
-                                    ) : enrichStep === '✗ Failed — try again' ? (
-                                        <X size={16} style={{ color: '#ef4444' }} />
-                                    ) : (
-                                        <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
-                                    )}
-                                    <span style={{
-                                        fontSize: '0.78rem',
-                                        color: enrichStep === '✓ Complete!' ? '#22c55e'
-                                            : enrichStep === '✗ Failed — try again' ? '#ef4444'
-                                            : undefined,
-                                        fontWeight: enrichStep === '✓ Complete!' || enrichStep === '✗ Failed — try again' ? 600 : undefined,
-                                    }}>{enrichStep}</span>
+                                    <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                                    Generating…
                                 </>
                             ) : (
                                 <>
-                                    <Satellite size={16} />
-                                    Enrich Property Data
+                                    <FileText size={15} />
+                                    Generate Report
                                 </>
                             )}
-                        </Button>
-                        <Button variant="outline" className={`${styles.actionButton} ${styles.outlineAction}`} onClick={() => setIsEditOpen(true)}>
-                            <Pencil size={16} />
-                            Edit Policy
-                        </Button>
-                        <Button variant="outline" className={`${styles.actionButton} ${styles.outlineAction}`}>
-                            <Mail size={16} />
-                            Email Options
-                        </Button>
-                        <Button variant="outline" className={`${styles.actionButton} ${styles.outlineAction}`}>
-                            <FileDown size={16} />
-                            Download Dec Page
-                        </Button>
-                        <Button variant="primary" className={styles.actionButton}>
-                            <Download size={16} />
-                            Download AI Report
-                        </Button>
-                    </div>
+                        </button>
+                    )}
+
+                    {/* Email Report */}
+                    {reportRow && (
+                        <button
+                            className={styles.secondaryBtn}
+                            onClick={() => setShowEmailModal(true)}
+                            title="Email report to client"
+                        >
+                            <Mail size={15} />
+                            Email Report
+                        </button>
+                    )}
                 </div>
             </div>
 
-            {/* Prominent Flag Alert Banner */}
+            <div className={styles.commandSection}>
+                <PolicyStatusBar
+                    isEnriched={isEnriched}
+                    enrichmentCount={enrichments.length}
+                    lastEnrichedDate={lastEnrichedDate}
+                    flagsChecked={flagsChecked}
+                    lastCheckedDate={lastCheckedDate}
+                    openFlagCount={flagSummary.total}
+                    highestSeverity={flagSummary.critical > 0 ? 'critical' : flagSummary.high > 0 ? 'high' : flagSummary.warning > 0 ? 'warning' : flagSummary.info > 0 ? 'info' : null}
+                    enrichStep={enrichStep}
+                    onEnrich={handleEnrich}
+                    onRunFlagCheck={handleFlagCheck}
+                    flagCheckRunning={flagCheckRunning}
+                />
+            </div>
+
+            {/* ── Flag Alert ── */}
             {openFlags.length > 0 && (
-                <div className={styles.flagBannerWrapper}>
+                <div className={styles.commandSection}>
                     <FlagAlertBanner flags={openFlags} onViewFlags={() => setActiveTab('flags')} />
                 </div>
             )}
@@ -494,6 +674,42 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                     }}
                 />
             )}
+
+            {/* Full Workup Modal */}
+            <FullWorkupModal
+                isOpen={isWorkupOpen}
+                onClose={() => setIsWorkupOpen(false)}
+                policyIds={[id]}
+                onComplete={async () => {
+                    // Refresh enrichment, flags, and report data
+                    const [enrichData, flagData, reportData] = await Promise.all([
+                        getPropertyEnrichments(id),
+                        fetchFlagsByPolicyId(id),
+                        getLatestReportForPolicy(id),
+                    ]);
+                    setEnrichments(enrichData);
+                    setOpenFlags(flagData.filter(f => (!f.status && !f.resolved_at) || f.status === 'open'));
+                    setAllFlags(flagData);
+                    if (reportData) setReportRow(reportData);
+                }}
+            />
+
+            {/* Email Compose Modal */}
+            <EmailComposeModal
+                isOpen={showEmailModal}
+                onClose={() => setShowEmailModal(false)}
+                defaultTo={policyDetailRaw?.client_email || ''}
+                defaultTemplateId="report_delivery"
+                defaultVariables={{
+                    clientName: policyDetailRaw?.named_insured || '',
+                    agentName: 'Alsop Insurance',
+                    policyNumber: policyDetailRaw?.policy_number || declaration?.policy_number || '',
+                    propertyAddress: policyDetailRaw?.property_address || '',
+                }}
+                policyId={id}
+                clientId={policyDetailRaw?.client_id || ''}
+                reportId={reportRow?.id || ''}
+            />
         </div>
     );
 }

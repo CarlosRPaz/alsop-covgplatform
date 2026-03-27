@@ -39,7 +39,7 @@
 
 .primary {
     background: var(--accent-primary);
-    color: #fff;
+    color: var(--text-inverse);
 }
 
 .primary:hover {
@@ -84,7 +84,7 @@
 }
 
 .outline:hover {
-    border-color: rgba(59, 63, 240, 0.3);
+    border-color: var(--accent-primary);
     color: var(--text-accent);
     background: var(--accent-primary-muted);
 }

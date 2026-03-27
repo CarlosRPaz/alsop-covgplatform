@@ -1,11 +1,14 @@
 // ─── Shadow Tokens ───
-// Minimal usage per UI_GUIDELINES.md: borders > shadows
+// Light-mode shadows — soft and subtle
 
-// Focus ring (for keyboard navigation)
+// Focus ring (keyboard navigation)
 $focus-ring: 0 0 0 3px var(--accent-primary-muted);
 
-// Overlay shadow (modals, command palette only)
-$shadow-overlay: 0 8px 32px rgba(0, 0, 0, 0.4);
+// Shadows
+$shadow-sm: var(--shadow-sm);
+$shadow-md: var(--shadow-md);
+$shadow-lg: var(--shadow-lg);
+$shadow-overlay: var(--shadow-overlay);
 
-// Subtle shadow (rare: dropdown menus)
-$shadow-dropdown: 0 10px 40px -10px rgba(0, 0, 0, 0.3);
+// Legacy aliases
+$shadow-dropdown: var(--shadow-lg);

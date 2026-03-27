@@ -126,6 +126,10 @@ export interface CommitResult {
     imported: number;
     skipped: number;
     errors: string[];
+    flags_created?: number;
+    new_clients_created?: number;
+    terms_created?: number;
+    terms_updated?: number;
 }
 
 // ---------------------------------------------------------------------------

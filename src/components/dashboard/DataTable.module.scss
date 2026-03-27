@@ -8,6 +8,8 @@
 
 .tableWrapper {
     overflow-x: auto;
+    overflow-y: auto;
+    max-height: 70vh;
     width: 100%;
 
     /* Thicker horizontal scrollbar for easier clicking */
@@ -21,18 +23,18 @@
     }
 
     &::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.25);
+        background: rgba(0, 0, 0, 0.15);
         border-radius: 8px;
         border: 12px solid var(--bg-surface);
     }
 
     &::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.4);
+        background: rgba(0, 0, 0, 0.25);
     }
 
     /* Firefox */
     scrollbar-width: auto;
-    scrollbar-color: rgba(255, 255, 255, 0.25) var(--bg-surface);
+    scrollbar-color: rgba(0, 0, 0, 0.15) var(--bg-surface);
 }
 
 .table {
@@ -47,6 +49,9 @@
 
 .thead {
     background-color: var(--bg-surface);
+    position: sticky;
+    top: 0;
+    z-index: 20;
 
     .th {
         padding: 0.625rem 1rem;
@@ -56,9 +61,7 @@
         letter-spacing: 0.03em;
         color: var(--text-mid);
         border-bottom: 1px solid var(--border-default);
-        position: sticky;
-        left: 0;
-        z-index: 10;
+        background-color: var(--bg-surface);
     }
 }
 
@@ -79,13 +82,13 @@
 }
 
 .clientLink {
-    color: #60a5fa;
+    color: var(--accent-primary);
     font-weight: 500;
     cursor: pointer;
     transition: all 150ms ease;
 
     &:hover {
-        color: #93bbfd;
+        color: var(--accent-primary-hover);
         text-decoration: underline;
     }
 }
@@ -131,13 +134,13 @@
     }
 
     &Gray {
-        background-color: rgba(255, 255, 255, 0.04);
+        background-color: var(--accent-primary-subtle);
         color: var(--text-muted);
     }
 }
 
 .flagBadge {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--accent-primary-subtle);
     border: 1px solid var(--border-default);
     color: var(--text-muted);
     font-size: 0.7rem;
@@ -152,6 +155,7 @@
     position: relative;
     max-width: 320px;
     width: 100%;
+    margin-top: 0.75rem;
 }
 
 .searchIcon {
@@ -176,7 +180,7 @@
 
     &:focus {
         outline: none;
-        border-color: rgba(59, 63, 240, 0.4);
+        border-color: var(--accent-primary);
         box-shadow: 0 0 0 3px var(--accent-primary-muted);
     }
 
@@ -222,7 +226,7 @@
     background: var(--bg-surface-overlay);
     border: 1px solid var(--border-default);
     border-radius: var(--radius-lg);
-    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--shadow-overlay);
     animation: popupSlideIn 150ms ease-out;
 }
 
@@ -321,7 +325,7 @@
     color: var(--text-accent);
 
     &:hover {
-        background: rgba(59, 63, 240, 0.18);
+        background: var(--accent-primary-muted);
     }
 }
 
@@ -350,7 +354,7 @@
 
     &:focus {
         outline: none;
-        border-color: rgba(59, 63, 240, 0.4);
+        border-color: var(--accent-primary);
         background: var(--bg-surface-raised);
         box-shadow: 0 0 0 3px var(--accent-primary-muted);
     }
@@ -418,7 +422,7 @@
     white-space: nowrap;
 
     &:hover {
-        border-color: rgba(255, 255, 255, 0.1);
+        border-color: var(--border-strong);
         background: var(--bg-surface-overlay);
         color: var(--text-high);
     }
@@ -426,11 +430,11 @@
 
 .pillButtonActive {
     background: var(--accent-primary-muted);
-    border-color: rgba(59, 63, 240, 0.3);
+    border-color: var(--accent-primary);
     color: var(--text-accent);
 
     &:hover {
-        background: rgba(59, 63, 240, 0.18);
+        background: var(--accent-primary-muted);
     }
 }
 
@@ -454,7 +458,7 @@
     gap: 0.5rem;
     padding: 0.375rem 0.75rem;
     background: var(--accent-primary-muted);
-    border: 1px solid rgba(59, 63, 240, 0.2);
+    border: 1px solid var(--accent-primary);
     border-radius: var(--radius-full);
     font-size: 0.8rem;
     font-weight: 500;
@@ -486,7 +490,7 @@
     background: var(--bg-surface-overlay);
     border: 1px solid var(--border-default);
     border-radius: var(--radius-lg);
-    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--shadow-overlay);
     z-index: 50;
     overflow: hidden;
     animation: dropdownSlide 150ms ease-out;
@@ -726,7 +730,7 @@
     white-space: nowrap;
 
     &:hover {
-        border-color: rgba(255, 255, 255, 0.1);
+        border-color: var(--border-strong);
         background: var(--bg-surface-overlay);
     }
 }
@@ -741,7 +745,7 @@
     background: var(--bg-surface-overlay);
     border: 1px solid var(--border-default);
     border-radius: var(--radius-md);
-    box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--shadow-lg);
     z-index: 50;
     overflow: hidden;
     animation: dropdownSlide 120ms ease-out;
@@ -776,7 +780,7 @@
     font-weight: 600;
 
     &:hover {
-        background: rgba(59, 63, 240, 0.18);
+        background: var(--accent-primary-muted);
     }
 }
 
@@ -809,7 +813,7 @@
     white-space: nowrap;
 
     &:hover:not(:disabled) {
-        border-color: rgba(59, 63, 240, 0.3);
+        border-color: var(--accent-primary);
         color: var(--text-accent);
         background: var(--accent-primary-muted);
     }
@@ -834,26 +838,68 @@
 }
 
 .flagCritical {
-    background: rgba(239, 68, 68, 0.15);
-    color: #ef4444;
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    background: var(--bg-error-subtle);
+    color: var(--status-error);
+    border: 1px solid var(--status-error);
 }
 
 .flagWarning {
-    background: rgba(245, 158, 11, 0.15);
-    color: #f59e0b;
-    border: 1px solid rgba(245, 158, 11, 0.3);
+    background: var(--bg-warning-subtle);
+    color: var(--status-warning);
+    border: 1px solid var(--status-warning);
 }
 
 .flagInfo {
-    background: rgba(59, 130, 246, 0.15);
-    color: #3b82f6;
-    border: 1px solid rgba(59, 130, 246, 0.3);
+    background: var(--bg-info-subtle);
+    color: var(--status-info);
+    border: 1px solid var(--status-info);
 }
 
 .flagCountNone {
-    color: var(--text-dim);
+    color: var(--text-muted);
     font-size: 0.75rem;
+}
+
+/* Compact Flag Badge — single icon + count, consistent row height */
+.flagCompactBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: var(--radius-full);
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: default;
+    transition: opacity 0.15s ease;
+    /* Default muted */
+    background: var(--accent-primary-subtle);
+    color: var(--text-muted);
+}
+
+.flagCompactBadge:hover {
+    opacity: 0.85;
+}
+
+.flagCompactCritical {
+    background: var(--bg-error-subtle);
+    color: var(--status-error);
+}
+
+.flagCompactHigh {
+    background: var(--bg-warning-subtle);
+    color: var(--enrichment-high);
+}
+
+.flagCompactWarning {
+    background: var(--bg-warning-subtle);
+    color: var(--status-warning);
+}
+
+.flagCompactInfo {
+    background: var(--bg-info-subtle);
+    color: var(--status-info);
 }
 
 /* Flag Pill Badges — shows individual flag titles */
@@ -876,33 +922,33 @@
     text-overflow: ellipsis;
     max-width: 140px;
     /* Default (no severity match) */
-    background: rgba(100, 116, 139, 0.12);
-    color: #94a3b8;
-    border: 1px solid rgba(100, 116, 139, 0.2);
+    background: var(--accent-primary-subtle);
+    color: var(--text-muted);
+    border: 1px solid var(--border-default);
 }
 
 .flagPillCritical {
-    background: rgba(239, 68, 68, 0.12);
-    color: #f87171;
-    border-color: rgba(239, 68, 68, 0.25);
+    background: var(--bg-error-subtle);
+    color: var(--status-error);
+    border-color: var(--status-error);
 }
 
 .flagPillHigh {
-    background: rgba(249, 115, 22, 0.12);
-    color: #fb923c;
-    border-color: rgba(249, 115, 22, 0.25);
+    background: var(--bg-warning-subtle);
+    color: var(--status-warning);
+    border-color: var(--status-warning);
 }
 
 .flagPillWarning {
-    background: rgba(245, 158, 11, 0.12);
-    color: #fbbf24;
-    border-color: rgba(245, 158, 11, 0.25);
+    background: var(--bg-warning-subtle);
+    color: var(--status-warning);
+    border-color: var(--status-warning);
 }
 
 .flagPillInfo {
-    background: rgba(59, 130, 246, 0.12);
-    color: #60a5fa;
-    border-color: rgba(59, 130, 246, 0.25);
+    background: var(--bg-info-subtle);
+    color: var(--status-info);
+    border-color: var(--status-info);
 }
 
 .flagPillMore {
@@ -912,6 +958,6 @@
     border-radius: 4px;
     font-size: 0.6rem;
     font-weight: 600;
-    color: #94a3b8;
-    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-muted);
+    background: var(--accent-primary-subtle);
 }

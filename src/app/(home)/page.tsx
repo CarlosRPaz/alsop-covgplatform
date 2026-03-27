@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import { Button } from '@/components/ui/Button/Button';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
@@ -8,6 +7,10 @@ import {
   ChevronRight, Lock, Eye, Brain, CheckCircle, HelpCircle,
   ArrowRight, Star, Users, Building2
 } from 'lucide-react';
+import { AnimatedHeadline } from '@/components/ui/AnimatedHeadline';
+import { AnimatedStagger } from '@/components/ui/AnimatedStagger';
+import { SmoothScrollLink } from '@/components/ui/SmoothScrollLink';
+import { HeroCarousel } from '@/components/ui/HeroCarousel';
 import styles from './page.module.scss';
 
 // ─── Data ───
@@ -101,9 +104,12 @@ export default function Home() {
                 <Shield size={14} />
                 <span>Built by Alsop & Associates · 40 years in California</span>
               </div>
-              <h1 className={styles.heroHeadline}>
-                Uncover the gaps<br />in your coverage.
-              </h1>
+              <AnimatedHeadline
+                text="Most homes are underinsured. Find out if you have gaps in your coverage."
+                className={styles.heroHeadline}
+                delayMs={300}
+                staggerMs={140}
+              />
               <p className={styles.heroSub}>
                 Upload your insurance declarations page and get an AI-powered gap analysis — in minutes, not days.
               </p>
@@ -114,12 +120,12 @@ export default function Home() {
                     <ArrowRight size={18} />
                   </Button>
                 </Link>
-                <a href="#how-it-works" className={styles.ghostCta}>
+                <SmoothScrollLink href="#how-it-works" className={styles.ghostCta}>
                   See how it works
                   <ChevronRight size={16} />
-                </a>
+                </SmoothScrollLink>
               </div>
-              <div className={styles.heroProof}>
+              <AnimatedStagger className={styles.heroProof} delayMs={500} staggerMs={150}>
                 <div className={styles.proofItem}>
                   <Lock size={14} />
                   <span>Encrypted & secure</span>
@@ -132,17 +138,10 @@ export default function Home() {
                   <CheckCircle size={14} />
                   <span>Free to use</span>
                 </div>
-              </div>
+              </AnimatedStagger>
             </div>
             <div className={styles.heroImage}>
-              <Image
-                src="/images/hero-home.png"
-                alt="A warm, well-protected home at dusk"
-                fill
-                priority
-                style={{ objectFit: 'cover' }}
-                quality={90}
-              />
+              <HeroCarousel />
               <div className={styles.heroImageOverlay} />
             </div>
           </div>
@@ -181,7 +180,7 @@ export default function Home() {
               <h2>Three steps to smarter coverage.</h2>
               <p>No paperwork. No phone calls. Just upload and go.</p>
             </div>
-            <div className={styles.stepsRow}>
+            <AnimatedStagger className={styles.stepsRow} staggerMs={150}>
               {steps.map((step, i) => (
                 <div key={i} className={styles.stepCard}>
                   <div className={styles.stepTop}>
@@ -194,7 +193,7 @@ export default function Home() {
                   <p>{step.desc}</p>
                 </div>
               ))}
-            </div>
+            </AnimatedStagger>
           </div>
         </section>
 
@@ -206,7 +205,7 @@ export default function Home() {
               <h2>A comprehensive analysis — not just a summary.</h2>
               <p>Every report is built to help you and your agent take action.</p>
             </div>
-            <div className={styles.delivGrid}>
+            <AnimatedStagger className={styles.delivGrid} staggerMs={100} distance={30}>
               {deliverables.map((d, i) => (
                 <div key={i} className={styles.delivCard}>
                   <div className={styles.delivIconWrap}>
@@ -218,7 +217,7 @@ export default function Home() {
                   </div>
                 </div>
               ))}
-            </div>
+            </AnimatedStagger>
           </div>
         </section>
 
@@ -229,7 +228,7 @@ export default function Home() {
               <span className={styles.sectionLabel}>Why It Matters</span>
               <h2>Most coverage gaps are invisible — until it&apos;s too late.</h2>
             </div>
-            <div className={styles.whyGrid}>
+            <AnimatedStagger className={styles.whyGrid} staggerMs={100} distance={30}>
               {whyItems.map((w, i) => (
                 <div key={i} className={styles.whyCard}>
                   <AlertTriangle size={20} className={styles.whyIcon} />
@@ -239,7 +238,7 @@ export default function Home() {
                   </div>
                 </div>
               ))}
-            </div>
+            </AnimatedStagger>
           </div>
         </section>
 
@@ -251,7 +250,7 @@ export default function Home() {
               <h2>Designed to work with leading data providers.</h2>
               <p>We&apos;re building Gap Guard to integrate with the most trusted sources in insurance intelligence.</p>
             </div>
-            <div className={styles.partnerGrid}>
+            <AnimatedStagger className={styles.partnerGrid} staggerMs={120} distance={25}>
               {dataProviders.map((p, i) => (
                 <div key={i} className={styles.partnerCard}>
                   <Building2 size={24} className={styles.partnerIcon} />
@@ -259,7 +258,7 @@ export default function Home() {
                   <span className={styles.partnerDesc}>{p.desc}</span>
                 </div>
               ))}
-            </div>
+            </AnimatedStagger>
             <p className={styles.partnerDisclaimer}>
               Data provider integrations are planned and under development. Names shown represent the data ecosystem Gap Guard is being designed to work with.
             </p>
@@ -273,7 +272,7 @@ export default function Home() {
               <span className={styles.sectionLabel}>What Users Are Saying</span>
               <h2>Trusted by homeowners and agents alike.</h2>
             </div>
-            <div className={styles.testGrid}>
+            <AnimatedStagger className={styles.testGrid} staggerMs={150} distance={30}>
               {testimonials.map((t, i) => (
                 <div key={i} className={styles.testCard}>
                   <div className={styles.testStars}>
@@ -286,7 +285,7 @@ export default function Home() {
                   </div>
                 </div>
               ))}
-            </div>
+            </AnimatedStagger>
             <p className={styles.finePrint}>Sample testimonials shown during beta period.</p>
           </div>
         </section>
@@ -298,7 +297,7 @@ export default function Home() {
               <span className={styles.sectionLabel}>Security & Privacy</span>
               <h2>Your data is handled with care.</h2>
             </div>
-            <div className={styles.securityRow}>
+            <AnimatedStagger className={styles.securityRow} staggerMs={120} distance={25}>
               <div className={styles.securityItem}>
                 <Lock size={20} />
                 <div>
@@ -327,7 +326,7 @@ export default function Home() {
                   <p>AI is assistive — recommendations should always be reviewed.</p>
                 </div>
               </div>
-            </div>
+            </AnimatedStagger>
             <p className={styles.legalNote}>
               This tool provides informational guidance and is not legal or financial advice. Recommendations should be reviewed with a licensed insurance professional.
             </p>
@@ -342,14 +341,14 @@ export default function Home() {
               <span className={styles.sectionLabel}>FAQ</span>
               <h2>Frequently asked questions.</h2>
             </div>
-            <div className={styles.faqList}>
+            <AnimatedStagger className={styles.faqList} staggerMs={80} distance={15}>
               {faqs.map((f, i) => (
                 <details key={i} className={styles.faqItem}>
                   <summary>{f.q}</summary>
                   <p>{f.a}</p>
                 </details>
               ))}
-            </div>
+            </AnimatedStagger>
           </div>
         </section>
 

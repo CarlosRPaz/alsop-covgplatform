@@ -113,29 +113,202 @@ export default function SettingsPage() {
     );
 }
 
-// ─── Account Section ─────────────────────────────────────────
+// ─── Account Section (full inline editing) ─────────────────────
 function AccountSection({ profile }: { profile: UserProfile | null }) {
+    const [editing, setEditing] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [saveMsg, setSaveMsg] = useState('');
+    const isAgent = profile?.role === 'admin' || profile?.role === 'service';
+    const [editFirst, setEditFirst] = useState(profile?.first_name || '');
+    const [editLast, setEditLast] = useState(profile?.last_name || '');
+    const [editEmail, setEditEmail] = useState(profile?.email || '');
+    const [editPhone, setEditPhone] = useState(profile?.phone || '');
+
+    // Password state
+    const [changingPw, setChangingPw] = useState(false);
+    const [newPw, setNewPw] = useState('');
+    const [confirmPw, setConfirmPw] = useState('');
+    const [pwSaving, setPwSaving] = useState(false);
+    const [pwMsg, setPwMsg] = useState('');
+
+    const handleSave = async () => {
+        if (!profile) return;
+        setSaving(true);
+        setSaveMsg('');
+
+        const { error } = await supabase
+            .from('accounts')
+            .update({
+                first_name: editFirst.trim(),
+                last_name: editLast.trim(),
+                phone: editPhone.trim(),
+                email: editEmail.trim(),
+            })
+            .eq('id', profile.id);
+
+        if (error) {
+            setSaveMsg('Failed to save. Please try again.');
+            setSaving(false);
+            setTimeout(() => setSaveMsg(''), 3000);
+            return;
+        }
+
+        if (editEmail.trim() !== profile.email) {
+            const { error: authErr } = await supabase.auth.updateUser({ email: editEmail.trim() });
+            if (authErr) {
+                setSaveMsg('Saved, but email change failed: ' + authErr.message);
+            } else {
+                setSaveMsg('Saved! Check your new email for a confirmation link.');
+            }
+        } else {
+            setSaveMsg('Account updated!');
+        }
+        setEditing(false);
+        setSaving(false);
+        setTimeout(() => setSaveMsg(''), 5000);
+    };
+
+    const handleCancel = () => {
+        setEditFirst(profile?.first_name || '');
+        setEditLast(profile?.last_name || '');
+        setEditEmail(profile?.email || '');
+        setEditPhone(profile?.phone || '');
+        setEditing(false);
+    };
+
+    const handlePasswordChange = async () => {
+        if (newPw.length < 6) { setPwMsg('Password must be at least 6 characters.'); return; }
+        if (newPw !== confirmPw) { setPwMsg('Passwords do not match.'); return; }
+        setPwSaving(true); setPwMsg('');
+        const { error } = await supabase.auth.updateUser({ password: newPw });
+        if (error) { setPwMsg('Failed: ' + error.message); }
+        else { setPwMsg('Password changed!'); setNewPw(''); setConfirmPw(''); setChangingPw(false); }
+        setPwSaving(false);
+        setTimeout(() => setPwMsg(''), 4000);
+    };
+
+    const inputStyle: React.CSSProperties = {
+        background: 'var(--bg-surface-raised)',
+        border: '1px solid var(--border-default)',
+        borderRadius: '6px',
+        padding: '0.4rem 0.6rem',
+        fontSize: '0.8rem',
+        color: 'var(--text-high)',
+        width: '100%',
+        maxWidth: '240px',
+        outline: 'none',
+    };
+
     return (
         <div>
             <SectionHeader title="Account" description="Your personal and security settings" />
 
+            {/* Save/error message */}
+            {saveMsg && (
+                <div style={{
+                    padding: '0.5rem 0.75rem', fontSize: '0.78rem', fontWeight: 500, borderRadius: '6px', marginBottom: '1rem',
+                    color: saveMsg.includes('Failed') ? 'var(--status-error)' : 'var(--bg-success-subtle)',
+                    background: saveMsg.includes('Failed') ? 'var(--bg-error-subtle)' : 'var(--bg-success-subtle)',
+                }}>
+                    {saveMsg}
+                </div>
+            )}
+
             <SettingGroup title="Personal Information" icon={User}>
-                <SettingRow label="Display Name" value={profile ? `${profile.first_name} ${profile.last_name}` : '—'} actionLabel="Edit on Profile" actionHref="/profile" />
-                <SettingRow label="Email" value={profile?.email || '—'} note="Contact your admin to change" />
-                <SettingRow label="Phone" value={profile?.phone || 'Not set'} actionLabel="Edit on Profile" actionHref="/profile" />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0.375rem 0.875rem 0' }}>
+                    {!editing ? (
+                        <button onClick={() => setEditing(true)} style={{
+                            fontSize: '0.72rem', color: 'var(--accent-primary)', background: 'none',
+                            border: 'none', fontWeight: 500, cursor: 'pointer',
+                        }}>
+                            Edit
+                        </button>
+                    ) : (
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button onClick={handleSave} disabled={saving} style={{
+                                fontSize: '0.72rem', color: 'var(--status-success)', background: 'none',
+                                border: 'none', fontWeight: 600, cursor: 'pointer',
+                            }}>
+                                {saving ? 'Saving...' : 'Save'}
+                            </button>
+                            <button onClick={handleCancel} style={{
+                                fontSize: '0.72rem', color: 'var(--text-muted)', background: 'none',
+                                border: 'none', fontWeight: 500, cursor: 'pointer',
+                            }}>
+                                Cancel
+                            </button>
+                        </div>
+                    )}
+                </div>
+                {editing ? (
+                    <>
+                        <EditableRow label="First Name" value={editFirst} onChange={setEditFirst} inputStyle={inputStyle} />
+                        <EditableRow label="Last Name" value={editLast} onChange={setEditLast} inputStyle={inputStyle} />
+                        <EditableRow label="Email" value={editEmail} onChange={setEditEmail} inputStyle={inputStyle} type="email" />
+                        <EditableRow label="Phone" value={editPhone} onChange={setEditPhone} inputStyle={inputStyle} type="tel" />
+                    </>
+                ) : (
+                    <>
+                        <SettingRow label="Display Name" value={profile ? `${profile.first_name} ${profile.last_name}` : '—'} />
+                        <SettingRow label="Email" value={profile?.email || '—'} />
+                        <SettingRow label="Phone" value={profile?.phone || 'Not set'} />
+                    </>
+                )}
             </SettingGroup>
 
             <SettingGroup title="Security" icon={Key}>
-                <SettingRow label="Password" value="••••••••" actionLabel="Reset Password" placeholder />
-                <SettingRow label="Two-Factor Authentication" value="Not enabled" actionLabel="Enable" placeholder />
+                {pwMsg && (
+                    <div style={{
+                        padding: '0.4rem 0.875rem', fontSize: '0.75rem', fontWeight: 500,
+                        color: pwMsg.includes('Failed') || pwMsg.includes('must') || pwMsg.includes('match') ? 'var(--status-error)' : 'var(--status-success)',
+                        background: pwMsg.includes('Failed') || pwMsg.includes('must') || pwMsg.includes('match') ? 'var(--bg-error-subtle)' : 'var(--bg-success-subtle)',
+                    }}>
+                        {pwMsg}
+                    </div>
+                )}
+                {changingPw ? (
+                    <div style={{ padding: '0.625rem 0.875rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                            <EditableRow label="New Password" value={newPw} onChange={setNewPw} inputStyle={inputStyle} type="password" />
+                            <EditableRow label="Confirm" value={confirmPw} onChange={setConfirmPw} inputStyle={inputStyle} type="password" />
+                            <div style={{ display: 'flex', gap: '0.5rem', paddingLeft: '160px' }}>
+                                <button onClick={handlePasswordChange} disabled={pwSaving} style={{
+                                    fontSize: '0.72rem', color: 'var(--status-success)', background: 'none',
+                                    border: 'none', fontWeight: 600, cursor: 'pointer',
+                                }}>
+                                    {pwSaving ? 'Saving...' : 'Save Password'}
+                                </button>
+                                <button onClick={() => { setChangingPw(false); setNewPw(''); setConfirmPw(''); setPwMsg(''); }} style={{
+                                    fontSize: '0.72rem', color: 'var(--text-muted)', background: 'none',
+                                    border: 'none', fontWeight: 500, cursor: 'pointer',
+                                }}>
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <SettingRow label="Password" value="••••••••" actionLabel="Change" onAction={() => setChangingPw(true)} />
+                )}
+                <SettingRow label="Two-Factor Auth" value="Not enabled" actionLabel="Enable" placeholder />
                 <SettingRow label="Active Sessions" value="1 active session" note="Current session" />
             </SettingGroup>
 
-            <SettingGroup title="Email Signature" icon={Mail}>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', padding: '0.5rem 0' }}>
-                    Configure your email signature for outbound communications. <em>Coming soon.</em>
-                </div>
-            </SettingGroup>
+            {isAgent && (
+                <SettingGroup title="Email Signature" icon={Mail}>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', padding: '0.5rem 0.875rem' }}>
+                        Configure your email signature for outbound communications. <em>Coming soon.</em>
+                    </div>
+                </SettingGroup>
+            )}
+
+            <div style={{
+                padding: '0.625rem 0.75rem', fontSize: '0.72rem', color: 'var(--text-muted)',
+                background: 'var(--bg-info-subtle)', border: '1px solid var(--border-default)',
+                borderRadius: '8px', marginTop: '0.5rem',
+            }}>
+                <strong>Security:</strong> Email changes require confirmation via a link sent to your new address.
+            </div>
         </div>
     );
 }
@@ -188,12 +361,12 @@ function AdminSection() {
 
             <div style={{
                 padding: '0.75rem 1rem',
-                background: 'rgba(239, 68, 68, 0.06)',
-                border: '1px solid rgba(239, 68, 68, 0.12)',
+                background: 'var(--bg-error-subtle)',
+                border: '1px solid rgba(191,25,50,0.12)',
                 borderRadius: '8px',
                 marginBottom: '1.25rem',
                 fontSize: '0.75rem',
-                color: '#fca5a5',
+                color: 'var(--status-error)',
             }}>
                 ⚠️ Changes in this section affect all users. Proceed with care.
             </div>
@@ -234,12 +407,12 @@ function SettingGroup({ title, icon: Icon, children }: { title: string; icon: Re
     return (
         <div style={{ marginBottom: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.625rem' }}>
-                <Icon size={14} style={{ color: '#818cf8' }} />
+                <Icon size={14} style={{ color: 'var(--accent-secondary)' }} />
                 <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-mid)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</span>
             </div>
             <div style={{
-                background: 'rgba(255,255,255,0.02)',
-                border: '1px solid rgba(255,255,255,0.04)',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-default)',
                 borderRadius: '8px',
                 overflow: 'hidden',
             }}>
@@ -249,34 +422,35 @@ function SettingGroup({ title, icon: Icon, children }: { title: string; icon: Re
     );
 }
 
-function SettingRow({ label, value, note, actionLabel, actionHref, placeholder }: {
+function SettingRow({ label, value, note, actionLabel, actionHref, placeholder, onAction }: {
     label: string;
     value: React.ReactNode;
     note?: string;
     actionLabel?: string;
     actionHref?: string;
     placeholder?: boolean;
+    onAction?: () => void;
 }) {
     return (
         <div style={{
             display: 'flex',
             alignItems: 'center',
             padding: '0.625rem 0.875rem',
-            borderBottom: '1px solid rgba(255,255,255,0.03)',
+            borderBottom: '1px solid var(--border-subtle)',
             gap: '0.75rem',
         }}>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-high)', fontWeight: 500, width: '160px', flexShrink: 0 }}>{label}</span>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-mid)', flex: 1 }}>
                 {value}
-                {note && <span style={{ color: '#64748b', fontSize: '0.72rem', marginLeft: '0.5rem' }}>({note})</span>}
+                {note && <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem', marginLeft: '0.5rem' }}>({note})</span>}
             </span>
             {actionLabel && (
                 actionHref ? (
-                    <a href={actionHref} style={{ fontSize: '0.72rem', color: '#818cf8', textDecoration: 'none', fontWeight: 500, cursor: 'pointer', flexShrink: 0 }}>{actionLabel}</a>
+                    <a href={actionHref} style={{ fontSize: '0.72rem', color: 'var(--accent-primary)', textDecoration: 'none', fontWeight: 500, cursor: 'pointer', flexShrink: 0 }}>{actionLabel}</a>
                 ) : (
-                    <button style={{
+                    <button onClick={onAction} style={{
                         fontSize: '0.72rem',
-                        color: placeholder ? '#475569' : '#818cf8',
+                        color: placeholder ? 'var(--text-muted)' : 'var(--accent-primary)',
                         background: 'none',
                         border: 'none',
                         fontWeight: 500,
@@ -292,6 +466,32 @@ function SettingRow({ label, value, note, actionLabel, actionHref, placeholder }
     );
 }
 
+function EditableRow({ label, value, onChange, inputStyle, type = 'text' }: {
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
+    inputStyle: React.CSSProperties;
+    type?: string;
+}) {
+    return (
+        <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0.5rem 0.875rem',
+            borderBottom: '1px solid var(--border-subtle)',
+            gap: '0.75rem',
+        }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-high)', fontWeight: 500, width: '160px', flexShrink: 0 }}>{label}</span>
+            <input
+                type={type}
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                style={inputStyle}
+            />
+        </div>
+    );
+}
+
 function ToggleRow({ label, description, defaultOn }: { label: string; description: string; defaultOn?: boolean }) {
     const [on, setOn] = useState(defaultOn || false);
     return (
@@ -299,12 +499,12 @@ function ToggleRow({ label, description, defaultOn }: { label: string; descripti
             display: 'flex',
             alignItems: 'center',
             padding: '0.625rem 0.875rem',
-            borderBottom: '1px solid rgba(255,255,255,0.03)',
+            borderBottom: '1px solid var(--border-subtle)',
             gap: '0.75rem',
         }}>
             <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-high)', fontWeight: 500, marginBottom: '0.15rem' }}>{label}</div>
-                <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{description}</div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{description}</div>
             </div>
             <button
                 onClick={() => setOn(!on)}
@@ -312,8 +512,8 @@ function ToggleRow({ label, description, defaultOn }: { label: string; descripti
                     width: '36px',
                     height: '20px',
                     borderRadius: '10px',
-                    background: on ? '#6366f1' : 'rgba(255,255,255,0.08)',
-                    border: '1px solid ' + (on ? '#818cf8' : 'rgba(255,255,255,0.12)'),
+                    background: on ? 'var(--accent-primary)' : 'var(--bg-surface-raised)',
+                    border: '1px solid ' + (on ? 'var(--accent-primary-hover)' : 'var(--border-default)'),
                     padding: '2px',
                     cursor: 'pointer',
                     position: 'relative',
@@ -325,7 +525,7 @@ function ToggleRow({ label, description, defaultOn }: { label: string; descripti
                     width: '14px',
                     height: '14px',
                     borderRadius: '50%',
-                    background: on ? '#fff' : '#64748b',
+                    background: on ? '#fff' : 'var(--text-muted)',
                     transition: 'all 0.2s',
                     transform: on ? 'translateX(16px)' : 'translateX(0)',
                 }} />

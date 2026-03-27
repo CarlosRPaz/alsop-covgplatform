@@ -18,8 +18,9 @@
 
 .card:hover {
     background: var(--bg-surface-raised);
-    border-color: rgba(99, 102, 241, 0.2);
+    border-color: var(--accent-primary);
     transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
 }
 
 .clickable {
@@ -27,7 +28,7 @@
 }
 
 .clickable:hover {
-    border-left: 2px solid rgba(99, 102, 241, 0.5);
+    border-left: 2px solid var(--accent-primary);
 }
 
 .iconWrapper {
@@ -36,7 +37,7 @@
     justify-content: center;
     width: 2.25rem;
     height: 2.25rem;
-    border-radius: 0.5rem;
+    border-radius: var(--radius-md);
     flex-shrink: 0;
 }
 

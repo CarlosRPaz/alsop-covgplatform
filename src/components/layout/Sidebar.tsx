@@ -1,11 +1,14 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import styles from './Sidebar.module.scss';
 import { supabase } from '@/lib/supabaseClient';
 import { useSidebar } from './SidebarContext';
+import { SidebarSearch } from './SidebarSearch';
+import { SidebarRecent } from './SidebarRecent';
+import { type UserRole } from '@/lib/auth';
 import {
     LayoutDashboard,
     FileText,
@@ -13,34 +16,41 @@ import {
     LogOut,
     UserCircle,
     Shield,
-    Home,
     ChevronsLeft,
     ChevronsRight,
     Flag,
+    Briefcase,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
-export function Sidebar() {
+interface SidebarProps {
+    userRole?: UserRole | null;
+}
+
+export function Sidebar({ userRole }: SidebarProps) {
     const pathname = usePathname();
     const router = useRouter();
     const { collapsed, toggle } = useSidebar();
-    const [userId, setUserId] = useState<string | null>(null);
 
-    useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user) setUserId(session.user.id);
-        });
-    }, []);
+    const isAgent = userRole === 'admin' || userRole === 'service';
+    const isClient = userRole === 'customer';
 
-    const navItems = [
-        { label: 'Home', href: '/', icon: Home },
+    // Agent nav items
+    const agentNavItems = [
         { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
         { label: 'Flags', href: '/flags', icon: Flag },
         { label: 'Submit Declaration', href: '/submit', icon: FileText },
     ];
 
+    // Client nav items
+    const clientNavItems = [
+        { label: 'My Portal', href: '/portal', icon: Briefcase },
+        { label: 'Submit Declaration', href: '/submit', icon: FileText },
+    ];
+
+    const navItems = isClient ? clientNavItems : agentNavItems;
+
     const accountItems = [
-        { label: 'My Profile', href: '/profile', icon: UserCircle },
         { label: 'Settings', href: '/settings', icon: Settings },
     ];
 
@@ -53,7 +63,7 @@ export function Sidebar() {
         <aside className={clsx(styles.sidebar, collapsed && styles.collapsed)}>
             <div className={styles.brandRow}>
                 <Link href="/" className={styles.brand} style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <Shield size={22} style={{ color: '#3b82f6', flexShrink: 0 }} />
+                    <Shield size={22} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
                     {!collapsed && <span className={styles.brandText}>Gap Guard</span>}
                 </Link>
                 <button className={styles.collapseBtn} onClick={toggle} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
@@ -61,10 +71,20 @@ export function Sidebar() {
                 </button>
             </div>
 
+            {/* Global Search — agents only */}
+            {isAgent && (
+                <div style={{ padding: '0.75rem 0 0.25rem' }}>
+                    <SidebarSearch collapsed={collapsed} />
+                </div>
+            )}
+
+            {/* Recently Visited — agents only */}
+            {isAgent && <SidebarRecent collapsed={collapsed} />}
+
             <nav className={styles.nav}>
-                {!collapsed && <div className={styles.sectionTitle}>Main Menu</div>}
+                {!collapsed && <div className={styles.sectionTitle}>{isClient ? 'Menu' : 'Main Menu'}</div>}
                 {navItems.map((item) => {
-                    const isActive = pathname === item.href;
+                    const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
                     return (
                         <Link
                             key={item.label}

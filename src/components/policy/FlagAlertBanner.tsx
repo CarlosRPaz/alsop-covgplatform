@@ -59,12 +59,15 @@ export function FlagAlertBanner({ flags, onViewFlags }: FlagAlertBannerProps) {
         info: styles.accentBarInfo,
     }[highestSeverity];
 
-    // Banner border class
-    const bannerClass = [
-        styles.banner,
-        highestSeverity === 'warning' ? styles.bannerWarning : '',
-        highestSeverity === 'info' ? styles.bannerInfo : '',
-    ]
+    // Banner severity class — drives entire theme
+    const severityMap: Record<string, string> = {
+        critical: styles.bannerCritical,
+        high: styles.bannerHigh,
+        warning: styles.bannerWarning,
+        info: styles.bannerInfo,
+    };
+
+    const bannerClass = [styles.banner, severityMap[highestSeverity] || styles.bannerCritical]
         .filter(Boolean)
         .join(' ');
 
@@ -94,7 +97,12 @@ export function FlagAlertBanner({ flags, onViewFlags }: FlagAlertBannerProps) {
     const remainingCount = openFlags.length - previewFlags.length;
 
     return (
-        <div className={bannerClass}>
+        <div 
+            className={bannerClass}
+            onClick={onViewFlags}
+            style={{ cursor: 'pointer' }}
+            title="View all flags"
+        >
             <div className={`${styles.accentBar} ${accentClass}`} />
 
             <div className={styles.body}>
