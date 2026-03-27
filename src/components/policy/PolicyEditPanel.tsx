@@ -327,6 +327,8 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
                                 >
                                     <option value="active">Active</option>
                                     <option value="pending_review">Pending Review</option>
+                                    <option value="in_progress">In Progress</option>
+                                    <option value="reviewed">Reviewed</option>
                                     <option value="unknown">Unknown</option>
                                     <option value="cancelled">Cancelled</option>
                                     <option value="expired">Expired</option>

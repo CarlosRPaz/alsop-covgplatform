@@ -68,12 +68,12 @@ export const env = {
 
     /** Default From address for app-generated email. */
     get EMAIL_FROM_DEFAULT(): string {
-        return process.env.EMAIL_FROM_DEFAULT || 'reports@cfpplatform.com';
+        return process.env.EMAIL_FROM_DEFAULT || 'reports@coveragechecknow.com';
     },
 
     /** Default Reply-To address. */
     get EMAIL_REPLY_TO_DEFAULT(): string {
-        return process.env.EMAIL_REPLY_TO_DEFAULT || 'support@cfpplatform.com';
+        return process.env.EMAIL_REPLY_TO_DEFAULT || 'support@coveragechecknow.com';
     },
 
     /** Dev redirect target (used when EMAIL_SEND_MODE=redirect). */

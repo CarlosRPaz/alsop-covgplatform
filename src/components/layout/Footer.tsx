@@ -110,8 +110,8 @@ export function Footer() {
                         <ul className={styles.linkList}>
                             <li className={styles.contactItem}>
                                 <Mail className={styles.contactIcon} />
-                                <a href="mailto:support@cfpplatform.com" className={styles.contactLink}>
-                                    support@alsopcovgplatform.com
+                                <a href="mailto:support@coveragechecknow.com" className={styles.contactLink}>
+                                    support@coveragechecknow.com
                                 </a>
                             </li>
                             <li className={styles.contactItem}>

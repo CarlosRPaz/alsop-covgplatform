@@ -1049,9 +1049,14 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                                     row.status === 'unknown' && styles.badgeGray,
                                                     row.status === 'active' && styles.badgeApproved,
                                                     row.status === 'expired' && styles.badgeRejected,
-                                                    row.status === 'pending' && styles.badgePending
+                                                    row.status === 'pending' && styles.badgePending,
+                                                    row.status === 'pending_review' && styles.badgePending,
+                                                    row.status === 'in_progress' && styles.badgePending,
+                                                    row.status === 'reviewed' && styles.badgeApproved,
+                                                    row.status === 'cancelled' && styles.badgeRejected,
+                                                    row.status === 'non_renewed' && styles.badgeGray,
                                                 )}>
-                                                    {row.status}
+                                                    {row.status?.replace(/_/g, ' ')}
                                                 </span>
                                             ) : col.key === 'flag_count' ? (
                                                 (() => {

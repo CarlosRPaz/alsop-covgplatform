@@ -2,7 +2,7 @@
  * Email Service — Core email sending infrastructure for CFP Platform.
  *
  * Architecture:
- * - Google Workspace = human inboxes (support@, admin@, reports@)
+ * - Google Workspace = human inboxes (support@coveragechecknow.com, admin@, reports@)
  * - Postmark = app-generated transactional email
  *
  * Safety system:
@@ -182,11 +182,11 @@ export function getDevRedirectTarget(): string {
 }
 
 export function getDefaultFrom(): string {
-    return process.env.EMAIL_FROM_DEFAULT || 'reports@cfpplatform.com';
+    return process.env.EMAIL_FROM_DEFAULT || 'reports@coveragechecknow.com';
 }
 
 export function getDefaultReplyTo(): string {
-    return process.env.EMAIL_REPLY_TO_DEFAULT || 'support@cfpplatform.com';
+    return process.env.EMAIL_REPLY_TO_DEFAULT || 'support@coveragechecknow.com';
 }
 
 export function getEmailSystemStatus(): EmailSystemStatus {
