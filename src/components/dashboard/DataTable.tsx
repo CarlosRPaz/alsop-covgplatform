@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/Card/Card';
 import styles from './DataTable.module.scss';
 import { clsx } from 'clsx';
 import { fetchDashboardPolicies, DashboardPolicy } from '@/lib/api';
-import { ArrowUpDown, Search, ChevronDown, ChevronUp, Columns, ArrowUp, ArrowDown, EyeOff, X, GripVertical, Flag, ChevronFirst, ChevronLast, Download, Satellite, Zap } from 'lucide-react';
+import { ArrowUpDown, Search, ChevronDown, ChevronUp, Columns, ArrowUp, ArrowDown, EyeOff, X, GripVertical, Flag, ChevronFirst, ChevronLast, Download, Satellite, Zap, MoreVertical, Filter, CircleDot } from 'lucide-react';
 import { Button } from '@/components/ui/Button/Button';
 import { useRouter } from 'next/navigation';
 import { FullWorkupModal } from './FullWorkupModal';
@@ -14,6 +14,20 @@ import { FullWorkupModal } from './FullWorkupModal';
 const LS_VISIBLE_COLUMNS = 'cfp_datatable_visibleColumns_v2';
 const LS_COLUMN_ORDER = 'cfp_datatable_columnOrder_v2';
 const LS_SELECTED_FLAGS = 'cfp_datatable_selectedFlags';
+const LS_SELECTED_STATUSES = 'cfp_datatable_selectedStatuses';
+const LS_ENRICHMENT_FILTER = 'cfp_datatable_enrichmentFilter';
+
+// All known policy statuses for the status filter
+const ALL_STATUSES = [
+    { value: 'active', label: 'Active', color: '#22c55e' },
+    { value: 'pending_review', label: 'Pending Review', color: '#f59e0b' },
+    { value: 'in_progress', label: 'In Progress', color: '#3b82f6' },
+    { value: 'reviewed', label: 'Reviewed', color: '#22c55e' },
+    { value: 'unknown', label: 'Unknown', color: '#64748b' },
+    { value: 'cancelled', label: 'Cancelled', color: '#ef4444' },
+    { value: 'expired', label: 'Expired', color: '#ef4444' },
+    { value: 'non_renewed', label: 'Non-Renewed', color: '#64748b' },
+] as const;
 
 // Helpers
 function loadFromStorage<T>(key: string, fallback: T): T {
@@ -230,6 +244,16 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
     const [flagSeverityFilter, setFlagSeverityFilter] = useState<string>('all');
     const [flagSearch, setFlagSearch] = useState('');
 
+    // Status Filtering State
+    const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
+    const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
+    const statusMenuRef = useRef<HTMLDivElement>(null);
+
+    // Enrichment Filtering State
+    const [enrichmentFilter, setEnrichmentFilter] = useState<'all' | 'enriched' | 'not_enriched'>('all');
+    const [isEnrichmentMenuOpen, setIsEnrichmentMenuOpen] = useState(false);
+    const enrichmentMenuRef = useRef<HTMLDivElement>(null);
+
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -261,6 +285,16 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
         const savedFlags = loadFromStorage<string[] | null>(LS_SELECTED_FLAGS, null);
         if (savedFlags) setSelectedFlags(new Set(savedFlags));
 
+        // Selected statuses
+        const savedStatuses = loadFromStorage<string[] | null>(LS_SELECTED_STATUSES, null);
+        if (savedStatuses) setSelectedStatuses(new Set(savedStatuses));
+
+        // Enrichment filter
+        const savedEnrichment = loadFromStorage<string | null>(LS_ENRICHMENT_FILTER, null);
+        if (savedEnrichment && ['all', 'enriched', 'not_enriched'].includes(savedEnrichment)) {
+            setEnrichmentFilter(savedEnrichment as 'all' | 'enriched' | 'not_enriched');
+        }
+
         setPrefsLoaded(true);
     }, []);
 
@@ -279,6 +313,16 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
         if (!prefsLoaded) return;
         saveToStorage(LS_SELECTED_FLAGS, Array.from(selectedFlags));
     }, [selectedFlags, prefsLoaded]);
+
+    useEffect(() => {
+        if (!prefsLoaded) return;
+        saveToStorage(LS_SELECTED_STATUSES, Array.from(selectedStatuses));
+    }, [selectedStatuses, prefsLoaded]);
+
+    useEffect(() => {
+        if (!prefsLoaded) return;
+        saveToStorage(LS_ENRICHMENT_FILTER, enrichmentFilter);
+    }, [enrichmentFilter, prefsLoaded]);
 
     useEffect(() => {
         setLoading(true);
@@ -305,7 +349,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery, selectedFlags, columnSearchQueries]);
+    }, [searchQuery, selectedFlags, selectedStatuses, enrichmentFilter, columnSearchQueries]);
 
     // Click-outside handler for Status, Columns, and Rows-per-page menus
     useEffect(() => {
@@ -316,19 +360,36 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
             if (isColumnMenuOpen && columnMenuRef.current && !columnMenuRef.current.contains(e.target as Node)) {
                 setIsColumnMenuOpen(false);
             }
+            if (isStatusMenuOpen && statusMenuRef.current && !statusMenuRef.current.contains(e.target as Node)) {
+                setIsStatusMenuOpen(false);
+            }
+            if (isEnrichmentMenuOpen && enrichmentMenuRef.current && !enrichmentMenuRef.current.contains(e.target as Node)) {
+                setIsEnrichmentMenuOpen(false);
+            }
             if (isRowsPerPageMenuOpen && rowsPerPageMenuRef.current && !rowsPerPageMenuRef.current.contains(e.target as Node) && rowsPerPageMenuTopRef.current && !rowsPerPageMenuTopRef.current.contains(e.target as Node)) {
                 setIsRowsPerPageMenuOpen(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isFlagMenuOpen, isColumnMenuOpen, isRowsPerPageMenuOpen]);
+    }, [isFlagMenuOpen, isColumnMenuOpen, isStatusMenuOpen, isEnrichmentMenuOpen, isRowsPerPageMenuOpen]);
 
     const handleSort = (key: keyof DashboardPolicy, direction: 'asc' | 'desc' | null) => {
         if (direction === null) {
             setSortConfig(null);
         } else {
             setSortConfig({ key, direction });
+        }
+    };
+
+    // Single-click sort cycling: none → asc → desc → none
+    const handleHeaderSortClick = (key: keyof DashboardPolicy) => {
+        if (!sortConfig || sortConfig.key !== key) {
+            setSortConfig({ key, direction: 'asc' });
+        } else if (sortConfig.direction === 'asc') {
+            setSortConfig({ key, direction: 'desc' });
+        } else {
+            setSortConfig(null);
         }
     };
 
@@ -352,9 +413,21 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
         setSelectedFlags(newSet);
     };
 
+    const toggleStatus = (status: string) => {
+        const newSet = new Set(selectedStatuses);
+        if (newSet.has(status)) {
+            newSet.delete(status);
+        } else {
+            newSet.add(status);
+        }
+        setSelectedStatuses(newSet);
+    };
+
+    // Right-click or kebab icon opens column popup
     const handleColumnHeaderClick = (e: React.MouseEvent, columnKey: string) => {
         e.stopPropagation();
-        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        e.preventDefault();
+        const rect = (e.currentTarget as HTMLElement).closest('th')!.getBoundingClientRect();
         setPopupPosition({
             top: rect.bottom + 8,
             left: Math.min(rect.left, window.innerWidth - 280)
@@ -367,6 +440,18 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
             ...prev,
             [columnKey]: value
         }));
+    };
+
+    // Check if any filters are active (for the active filters bar)
+    const hasActiveFilters = selectedFlags.size > 0 || flagSeverityFilter !== 'all' || selectedStatuses.size > 0 || enrichmentFilter !== 'all' || Object.values(columnSearchQueries).some(v => v);
+
+    const clearAllFilters = () => {
+        setSelectedFlags(new Set());
+        setFlagSeverityFilter('all');
+        setSelectedStatuses(new Set());
+        setEnrichmentFilter('all');
+        setColumnSearchQueries({});
+        setSearchQuery('');
     };
 
     // Export CSV - exports currently filtered & sorted data
@@ -499,8 +584,20 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
             }
         }
 
+        // Status filter (from status pill multi-select)
+        if (selectedStatuses.size > 0) {
+            result = result.filter(item => selectedStatuses.has(item.status));
+        }
+
+        // Enrichment filter
+        if (enrichmentFilter === 'enriched') {
+            result = result.filter(item => item.is_enriched);
+        } else if (enrichmentFilter === 'not_enriched') {
+            result = result.filter(item => !item.is_enriched);
+        }
+
         return result;
-    }, [data, searchQuery, selectedFlags, flagSeverityFilter, columnSearchQueries, initialExpirationFilter, initialStatusFilter]);
+    }, [data, searchQuery, selectedFlags, selectedStatuses, enrichmentFilter, flagSeverityFilter, columnSearchQueries, initialExpirationFilter, initialStatusFilter]);
 
     const sortedData = useMemo(() => {
         if (!sortConfig) return filteredData;
@@ -617,7 +714,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                     </span>
                 </div>
             )}
-            {/* Controls - Redesigned to match reference */}
+            {/* Controls Bar */}
             <div className={styles.controlsBar}>
                 <div className={styles.searchContainer}>
                     <Search className={styles.searchIcon} />
@@ -628,20 +725,61 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
+                    {searchQuery && (
+                        <button className={styles.searchClear} onClick={() => setSearchQuery('')}>
+                            <X size={14} />
+                        </button>
+                    )}
                 </div>
 
                 <div className={styles.controlButtons}>
-                    {/* Active Filters Indicator */}
-                    {activeColumnFilters > 0 && (
-                        <div className={styles.activeFiltersTag}>
-                            <span>{activeColumnFilters} filter{activeColumnFilters > 1 ? 's' : ''}</span>
-                            <button onClick={() => setColumnSearchQueries({})}>
-                                <X size={12} />
-                            </button>
-                        </div>
-                    )}
+                    {/* Status Filter Pill */}
+                    <div className="relative" ref={statusMenuRef}>
+                        <button
+                            onClick={() => setIsStatusMenuOpen(prev => !prev)}
+                            className={clsx(
+                                styles.pillButton,
+                                selectedStatuses.size > 0 && styles.pillButtonActive
+                            )}
+                        >
+                            <CircleDot size={16} />
+                            <span>Status</span>
+                            {selectedStatuses.size > 0 && (
+                                <span className={styles.pillBadge}>{selectedStatuses.size}</span>
+                            )}
+                            <ChevronDown size={14} />
+                        </button>
 
-                    {/* Status/Flag Filter - Pill Button Style */}
+                        {isStatusMenuOpen && (
+                            <div className={styles.dropdownMenu}>
+                                <div className={styles.dropdownHeader}>
+                                    <span>Filter by Status</span>
+                                    {selectedStatuses.size > 0 && (
+                                        <button onClick={() => setSelectedStatuses(new Set())} className={styles.clearLink}>
+                                            clear all
+                                        </button>
+                                    )}
+                                </div>
+                                <div className={styles.statusGrid}>
+                                    {ALL_STATUSES.map(s => (
+                                        <button
+                                            key={s.value}
+                                            className={clsx(
+                                                styles.statusChip,
+                                                selectedStatuses.has(s.value) && styles.statusChipActive
+                                            )}
+                                            onClick={() => toggleStatus(s.value)}
+                                        >
+                                            <span className={styles.statusDot} style={{ backgroundColor: s.color }} />
+                                            <span>{s.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Flag Filter Pill */}
                     <div className="relative" ref={flagMenuRef}>
                         <button
                             onClick={() => setIsFlagMenuOpen(prev => !prev)}
@@ -669,37 +807,18 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                     )}
                                 </div>
 
-                                {/* Severity radio chips */}
-                                <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                    <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.35rem', letterSpacing: '0.04em' }}>Severity</div>
-                                    <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
+                                {/* Severity chips */}
+                                <div className={styles.severitySection}>
+                                    <div className={styles.severitySectionLabel}>Severity</div>
+                                    <div className={styles.severityChips}>
                                         {['all', 'critical', 'high', 'warning', 'info'].map(sev => (
                                             <button
                                                 key={sev}
+                                                className={clsx(
+                                                    styles.severityChip,
+                                                    flagSeverityFilter === sev && styles[`severityChip_${sev}`]
+                                                )}
                                                 onClick={() => setFlagSeverityFilter(sev)}
-                                                style={{
-                                                    padding: '2px 8px',
-                                                    border: 'none',
-                                                    borderRadius: '4px',
-                                                    fontSize: '0.7rem',
-                                                    fontWeight: 600,
-                                                    cursor: 'pointer',
-                                                    textTransform: 'capitalize',
-                                                    background: flagSeverityFilter === sev
-                                                        ? sev === 'critical' ? 'rgba(239,68,68,0.15)'
-                                                            : sev === 'high' ? 'rgba(249,115,22,0.15)'
-                                                                : sev === 'warning' ? 'rgba(234,179,8,0.15)'
-                                                                    : sev === 'info' ? 'rgba(59,130,246,0.15)'
-                                                                        : 'rgba(59,130,246,0.15)'
-                                                        : 'transparent',
-                                                    color: flagSeverityFilter === sev
-                                                        ? sev === 'critical' ? '#f87171'
-                                                            : sev === 'high' ? '#fb923c'
-                                                                : sev === 'warning' ? '#facc15'
-                                                                    : sev === 'info' ? '#60a5fa'
-                                                                        : '#60a5fa'
-                                                        : '#64748b',
-                                                }}
                                             >
                                                 {sev === 'all' ? 'All' : sev}
                                             </button>
@@ -708,46 +827,84 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                 </div>
 
                                 {/* Flag code search */}
-                                <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                <div className={styles.flagSearchSection}>
                                     <input
                                         type="text"
                                         placeholder="Search flag types..."
                                         value={flagSearch}
                                         onChange={e => setFlagSearch(e.target.value)}
-                                        style={{
-                                            width: '100%',
-                                            background: 'rgba(255,255,255,0.04)',
-                                            border: '1px solid rgba(255,255,255,0.08)',
-                                            borderRadius: '4px',
-                                            padding: '4px 8px',
-                                            fontSize: '0.75rem',
-                                            color: '#e2e8f0',
-                                            outline: 'none',
-                                        }}
+                                        className={styles.flagSearchInput}
                                     />
                                 </div>
 
                                 {/* Flag code checkboxes */}
-                                {allFlags.filter(f => !flagSearch || f.toLowerCase().includes(flagSearch.toLowerCase())).length === 0 && (
-                                    <div className={styles.dropdownEmpty}>No flags found</div>
-                                )}
-                                {allFlags
-                                    .filter(f => !flagSearch || f.toLowerCase().includes(flagSearch.toLowerCase()))
-                                    .map(flag => (
-                                        <label key={flag} className={styles.dropdownItem}>
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedFlags.has(flag)}
-                                                onChange={() => toggleFlag(flag)}
-                                            />
-                                            <span style={{ textTransform: 'capitalize' }}>{flag.replace(/_/g, ' ').toLowerCase()}</span>
-                                        </label>
-                                    ))}
+                                <div className={styles.flagCheckboxList}>
+                                    {allFlags.filter(f => !flagSearch || f.toLowerCase().includes(flagSearch.toLowerCase())).length === 0 && (
+                                        <div className={styles.dropdownEmpty}>No flags found</div>
+                                    )}
+                                    {allFlags
+                                        .filter(f => !flagSearch || f.toLowerCase().includes(flagSearch.toLowerCase()))
+                                        .map(flag => (
+                                            <label key={flag} className={styles.dropdownItem}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedFlags.has(flag)}
+                                                    onChange={() => toggleFlag(flag)}
+                                                />
+                                                <span>{flag.replace(/_/g, ' ').toLowerCase()}</span>
+                                            </label>
+                                        ))}
+                                </div>
                             </div>
                         )}
                     </div>
 
-                    {/* Columns - Pill Button Style */}
+                    {/* Enrichment Filter Pill */}
+                    <div className="relative" ref={enrichmentMenuRef}>
+                        <button
+                            onClick={() => setIsEnrichmentMenuOpen(prev => !prev)}
+                            className={clsx(
+                                styles.pillButton,
+                                enrichmentFilter !== 'all' && styles.pillButtonActive
+                            )}
+                        >
+                            <Satellite size={16} />
+                            <span>Enriched</span>
+                            {enrichmentFilter !== 'all' && (
+                                <span className={styles.pillBadge}>1</span>
+                            )}
+                            <ChevronDown size={14} />
+                        </button>
+
+                        {isEnrichmentMenuOpen && (
+                            <div className={styles.dropdownMenu} style={{ minWidth: '180px' }}>
+                                <div className={styles.dropdownHeader}>
+                                    <span>Enrichment</span>
+                                </div>
+                                {[
+                                    { value: 'all' as const, label: 'All Policies' },
+                                    { value: 'enriched' as const, label: 'Enriched Only' },
+                                    { value: 'not_enriched' as const, label: 'Not Enriched' },
+                                ].map(opt => (
+                                    <button
+                                        key={opt.value}
+                                        className={clsx(
+                                            styles.popupOption,
+                                            enrichmentFilter === opt.value && styles.popupOptionActive
+                                        )}
+                                        onClick={() => {
+                                            setEnrichmentFilter(opt.value);
+                                            setIsEnrichmentMenuOpen(false);
+                                        }}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Columns */}
                     <div className="relative" ref={columnMenuRef}>
                         <button
                             onClick={() => setIsColumnMenuOpen(prev => !prev)}
@@ -819,99 +976,64 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                 </div>
             </div>
 
-            {/* Top Pagination Controls */}
-            <div className={styles.paginationBar}>
-                <div className={styles.paginationInfo}>
-                    Showing <strong>{sortedData.length === 0 ? 0 : startIndex + 1}</strong>–<strong>{Math.min(startIndex + rowsPerPage, sortedData.length)}</strong> of <strong>{sortedData.length}</strong> results
-                </div>
-
-                <div className={styles.paginationControls}>
-                    <div className={styles.rowsPerPage} ref={rowsPerPageMenuTopRef}>
-                        <button
-                            className={styles.rowsPerPageButton}
-                            onClick={() => setIsRowsPerPageMenuOpen(prev => !prev)}
-                        >
-                            <span>{rowsPerPage} per page</span>
-                            <ChevronDown size={14} />
-                        </button>
-
-                        {isRowsPerPageMenuOpen && (
-                            <div className={styles.rowsPerPageMenu}>
-                                {[5, 10, 25, 50, 100].map(option => (
-                                    <button
-                                        key={option}
-                                        className={clsx(
-                                            styles.rowsPerPageOption,
-                                            rowsPerPage === option && styles.rowsPerPageOptionActive
-                                        )}
-                                        onClick={() => {
-                                            setRowsPerPage(option);
-                                            setCurrentPage(1);
-                                            setIsRowsPerPageMenuOpen(false);
-                                        }}
-                                    >
-                                        {option}
-                                    </button>
-                                ))}
-                            </div>
+            {/* Active Filters Bar */}
+            {hasActiveFilters && (
+                <div className={styles.activeFiltersBar}>
+                    <Filter size={14} className={styles.activeFiltersIcon} />
+                    <div className={styles.activeFiltersChips}>
+                        {/* Status chips */}
+                        {Array.from(selectedStatuses).map(status => {
+                            const statusInfo = ALL_STATUSES.find(s => s.value === status);
+                            return (
+                                <span key={`status-${status}`} className={styles.filterChip}>
+                                    <span className={styles.filterChipDot} style={{ backgroundColor: statusInfo?.color || '#64748b' }} />
+                                    {statusInfo?.label || status}
+                                    <button onClick={() => toggleStatus(status)} className={styles.filterChipX}><X size={11} /></button>
+                                </span>
+                            );
+                        })}
+                        {/* Severity chip */}
+                        {flagSeverityFilter !== 'all' && (
+                            <span className={styles.filterChip}>
+                                Severity: {flagSeverityFilter}
+                                <button onClick={() => setFlagSeverityFilter('all')} className={styles.filterChipX}><X size={11} /></button>
+                            </span>
                         )}
+                        {/* Flag chips */}
+                        {Array.from(selectedFlags).map(flag => (
+                            <span key={`flag-${flag}`} className={styles.filterChip}>
+                                {flag.replace(/_/g, ' ').toLowerCase()}
+                                <button onClick={() => toggleFlag(flag)} className={styles.filterChipX}><X size={11} /></button>
+                            </span>
+                        ))}
+                        {/* Enrichment chip */}
+                        {enrichmentFilter !== 'all' && (
+                            <span className={styles.filterChip}>
+                                {enrichmentFilter === 'enriched' ? 'Enriched Only' : 'Not Enriched'}
+                                <button onClick={() => setEnrichmentFilter('all')} className={styles.filterChipX}><X size={11} /></button>
+                            </span>
+                        )}
+                        {/* Column search chips */}
+                        {Object.entries(columnSearchQueries).filter(([, v]) => v).map(([key, value]) => {
+                            const col = columnOrder.find(c => c.key === key);
+                            return (
+                                <span key={`col-${key}`} className={styles.filterChip}>
+                                    {col?.label || key}: &ldquo;{value}&rdquo;
+                                    <button onClick={() => handleColumnSearch(key, '')} className={styles.filterChipX}><X size={11} /></button>
+                                </span>
+                            );
+                        })}
                     </div>
-
-                    <span className={styles.pageIndicator}>
-                        Page {currentPage} of {Math.max(1, totalPages)}
+                    <button className={styles.clearAllLink} onClick={clearAllFilters}>Clear all</button>
+                    <span className={styles.filterResultCount}>
+                        {filteredData.length} of {data.length}
                     </span>
-
-                    <div className={styles.pageButtons}>
-                        <button
-                            className={styles.pageButton}
-                            disabled={currentPage === 1}
-                            onClick={() => setCurrentPage(1)}
-                            title="First page"
-                        >
-                            <ChevronFirst size={16} />
-                        </button>
-                        <button
-                            className={styles.pageButton}
-                            disabled={currentPage === 1}
-                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                        >
-                            Previous
-                        </button>
-                        <button
-                            className={styles.pageButton}
-                            disabled={currentPage >= totalPages}
-                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                        >
-                            Next
-                        </button>
-                        <button
-                            className={styles.pageButton}
-                            disabled={currentPage >= totalPages}
-                            onClick={() => setCurrentPage(totalPages)}
-                            title="Last page"
-                        >
-                            <ChevronLast size={16} />
-                        </button>
-                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Bulk Action Bar */}
             {selectedRows.size > 0 && (
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '1rem',
-                    padding: '0.625rem 1rem',
-                    marginBottom: '0.5rem',
-                    background: 'rgba(99, 102, 241, 0.08)',
-                    border: '1px solid rgba(99, 102, 241, 0.2)',
-                    borderRadius: 'var(--radius-lg)',
-                    fontSize: '0.8125rem',
-                    color: '#818cf8',
-                    fontWeight: 600,
-                    animation: 'fadeIn 150ms ease-out',
-                }}>
+                <div className={styles.bulkActionBar}>
                     <span>{selectedRows.size} selected</span>
                     <button
                         onClick={exportSelectedCSV}
@@ -929,20 +1051,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                         <Zap size={14} />
                         <span>Full Analysis</span>
                     </button>
-                    <button
-                        onClick={() => setSelectedRows(new Set())}
-                        style={{
-                            background: 'none',
-                            border: 'none',
-                            color: '#818cf8',
-                            cursor: 'pointer',
-                            fontSize: '0.8rem',
-                            fontWeight: 500,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                        }}
-                    >
+                    <button onClick={() => setSelectedRows(new Set())} className={styles.bulkClearBtn}>
                         <X size={14} /> Clear
                     </button>
                 </div>
@@ -971,20 +1080,22 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                             columnSearchQueries[col.key] && styles.thFiltered,
                                             draggedColumn === col.key && styles.thDragging
                                         )}
-                                        onClick={(e) => handleColumnHeaderClick(e, col.key)}
+                                        onClick={() => handleHeaderSortClick(col.key as keyof DashboardPolicy)}
                                         style={{ minWidth: col.width }}
                                         draggable
                                         onDragStart={(e) => handleDragStart(e, col.key)}
                                         onDragOver={(e) => handleDragOver(e, col.key)}
                                         onDragEnd={handleDragEnd}
                                     >
-                                        <div className="flex items-center cursor-pointer select-none">
+                                        <div className={styles.thInner}>
                                             <span>{col.label}</span>
-                                            <div className="ml-1 w-4 h-4 flex items-center justify-center">
+                                            <div className={styles.sortIcon}>
                                                 {sortConfig?.key === col.key ? (
-                                                    sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />
+                                                    sortConfig.direction === 'asc'
+                                                        ? <ArrowUp size={14} className={styles.sortActive} />
+                                                        : <ArrowDown size={14} className={styles.sortActive} />
                                                 ) : (
-                                                    <ArrowUpDown size={12} className="opacity-30" />
+                                                    <ArrowUpDown size={12} className={styles.sortInactive} />
                                                 )}
                                             </div>
                                             {columnSearchQueries[col.key] && (
@@ -992,6 +1103,13 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                                     <Search size={10} />
                                                 </div>
                                             )}
+                                            <button
+                                                className={styles.headerKebab}
+                                                onClick={(e) => handleColumnHeaderClick(e, col.key)}
+                                                title="Column options"
+                                            >
+                                                <MoreVertical size={14} />
+                                            </button>
                                         </div>
                                     </th>
                                 ))}

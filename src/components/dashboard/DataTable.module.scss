@@ -961,3 +961,336 @@
     color: var(--text-muted);
     background: var(--accent-primary-subtle);
 }
+
+// ── Search Clear Button ──
+.searchClear {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: var(--bg-surface-raised);
+    color: var(--text-mid);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 150ms ease;
+
+    &:hover {
+        background: var(--bg-surface-overlay);
+        color: var(--text-high);
+    }
+}
+
+// ── Status Filter Grid ──
+.statusGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    padding: 0.5rem 0.75rem;
+}
+
+.statusChip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.625rem;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-mid);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 150ms ease;
+    text-align: left;
+
+    &:hover {
+        background: var(--bg-surface-raised);
+        border-color: var(--border-strong);
+    }
+}
+
+.statusChipActive {
+    background: var(--accent-primary-muted);
+    border-color: var(--accent-primary);
+    color: var(--text-accent);
+}
+
+.statusDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+// ── Severity Chips (Flags Dropdown) ──
+.severitySection {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border-default);
+}
+
+.severitySectionLabel {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-bottom: 0.35rem;
+    letter-spacing: 0.04em;
+}
+
+.severityChips {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+}
+
+.severityChip {
+    padding: 2px 8px;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-transform: capitalize;
+    background: transparent;
+    color: var(--text-muted);
+    transition: all 150ms ease;
+}
+
+.severityChip_all {
+    background: rgba(99, 102, 241, 0.15);
+    color: #818cf8;
+}
+
+.severityChip_critical {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+}
+
+.severityChip_high {
+    background: rgba(249, 115, 22, 0.15);
+    color: #fb923c;
+}
+
+.severityChip_warning {
+    background: rgba(234, 179, 8, 0.15);
+    color: #facc15;
+}
+
+.severityChip_info {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+}
+
+// ── Flag Search Section ──
+.flagSearchSection {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border-default);
+}
+
+.flagSearchInput {
+    width: 100%;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    color: var(--text-high);
+    outline: none;
+    transition: all 150ms ease;
+
+    &:focus {
+        border-color: var(--accent-primary);
+        box-shadow: 0 0 0 2px var(--accent-primary-muted);
+    }
+
+    &::placeholder {
+        color: var(--text-muted);
+    }
+}
+
+.flagCheckboxList {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+// ── Active Filters Bar ──
+.activeFiltersBar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.625rem;
+    background: var(--accent-primary-muted);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: var(--radius-lg);
+    font-size: 0.75rem;
+    animation: dropdownSlide 150ms ease-out;
+}
+
+.activeFiltersIcon {
+    color: var(--text-accent);
+    flex-shrink: 0;
+}
+
+.activeFiltersChips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+}
+
+.filterChip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0.2rem 0.5rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-full);
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-mid);
+    white-space: nowrap;
+    text-transform: capitalize;
+}
+
+.filterChipDot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.filterChipX {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0;
+    margin-left: 2px;
+    transition: color 150ms ease;
+
+    &:hover {
+        color: var(--status-error);
+    }
+}
+
+.clearAllLink {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-accent);
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+    white-space: nowrap;
+    flex-shrink: 0;
+
+    &:hover {
+        text-decoration: underline;
+    }
+}
+
+.filterResultCount {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+// ── Bulk Action Bar ──
+.bulkActionBar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.625rem 1rem;
+    margin-bottom: 0.5rem;
+    background: var(--accent-primary-muted);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: var(--radius-lg);
+    font-size: 0.8125rem;
+    color: var(--text-accent);
+    font-weight: 600;
+    animation: dropdownSlide 150ms ease-out;
+}
+
+.bulkClearBtn {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: none;
+    border: none;
+    color: var(--text-accent);
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 500;
+
+    &:hover {
+        text-decoration: underline;
+    }
+}
+
+// ── Column Header Inner Layout ──
+.thInner {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    gap: 2px;
+}
+
+.sortIcon {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.sortActive {
+    color: var(--accent-primary);
+}
+
+.sortInactive {
+    opacity: 0.3;
+    color: var(--text-muted);
+}
+
+.headerKebab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    opacity: 0;
+    transition: all 150ms ease;
+    margin-left: auto;
+
+    &:hover {
+        background: var(--bg-surface-overlay);
+        color: var(--text-high);
+    }
+}
+
+// Show kebab on header hover
+.thClickable:hover .headerKebab {
+    opacity: 1;
+}
