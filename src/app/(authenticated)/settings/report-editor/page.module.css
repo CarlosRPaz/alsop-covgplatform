@@ -1,0 +1,420 @@
+/* ══════════════════════════════════════════════════════════
+   Report Template Editor
+   ══════════════════════════════════════════════════════════ */
+
+.container {
+    max-width: 1100px;
+    margin: 1.5rem auto;
+    padding: 0 1.5rem;
+    font-family: var(--font-inter), 'Inter', system-ui, sans-serif;
+}
+
+/* ── Header ── */
+.headerBar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+}
+
+.backLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted, #94a3b8);
+    text-decoration: none;
+    margin-bottom: 0.35rem;
+    transition: color 0.15s;
+}
+.backLink:hover { color: var(--accent-primary, #6366f1); }
+
+.pageTitle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text-high, #0f172a);
+    margin-bottom: 0.2rem;
+}
+
+.titleIcon {
+    color: var(--accent-primary, #6366f1);
+}
+
+.pageSubtitle {
+    font-size: 0.8rem;
+    color: var(--text-muted, #94a3b8);
+    max-width: 520px;
+    line-height: 1.45;
+}
+
+.headerActions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-top: 1.5rem;
+}
+
+.resetBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-light, #e2e8f0);
+    background: transparent;
+    color: var(--text-muted, #94a3b8);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.resetBtn:hover { border-color: #ef4444; color: #ef4444; }
+
+.saveBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 6px;
+    border: none;
+    background: var(--accent-primary, #6366f1);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.saveBtn:hover { opacity: 0.9; }
+
+/* ── Summary Strip ── */
+.summaryStrip {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.summaryItem {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--bg-surface, #fff);
+    border: 1px solid var(--border-light, #e2e8f0);
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+}
+
+.summaryCount {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text-high, #0f172a);
+}
+
+.summaryLabel {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-muted, #94a3b8);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+/* ── Editor Layout ── */
+.editorLayout {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+/* ── Section List ── */
+.sectionList {
+    /* left column */
+}
+
+.listTitle {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-high, #0f172a);
+    margin-bottom: 0.15rem;
+}
+
+.listSubtitle {
+    font-size: 0.7rem;
+    color: var(--text-muted, #94a3b8);
+    margin-bottom: 0.75rem;
+}
+
+.cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+/* ── Section Card ── */
+.sectionCard {
+    background: var(--bg-surface, #fff);
+    border: 1px solid var(--border-light, #e2e8f0);
+    border-radius: 8px;
+    transition: all 0.15s;
+    cursor: grab;
+}
+
+.sectionCard:hover {
+    border-color: var(--accent-primary, #6366f1);
+    box-shadow: 0 1px 6px rgba(99, 102, 241, 0.08);
+}
+
+.cardDisabled {
+    opacity: 0.5;
+}
+
+.cardDragging {
+    opacity: 0.4;
+    transform: scale(0.98);
+}
+
+.cardTop {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.75rem;
+}
+
+.dragHandle {
+    color: var(--text-muted, #cbd5e1);
+    cursor: grab;
+    flex-shrink: 0;
+}
+
+.cardInfo {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    cursor: pointer;
+    min-width: 0;
+}
+
+.cardLabel {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-high, #0f172a);
+}
+
+.chevron {
+    color: var(--text-muted, #94a3b8);
+}
+
+.cardActions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+
+.scopeTag {
+    font-size: 0.58rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.12rem 0.45rem;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.scopeClient {
+    background: rgba(99, 102, 241, 0.1);
+    color: #6366f1;
+}
+.scopeClient:hover { background: rgba(99, 102, 241, 0.18); }
+
+.scopeInternal {
+    background: rgba(245, 158, 11, 0.1);
+    color: #d97706;
+}
+.scopeInternal:hover { background: rgba(245, 158, 11, 0.18); }
+
+.toggleBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.toggleOn {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+}
+.toggleOn:hover { background: rgba(16, 185, 129, 0.18); }
+
+.toggleOff {
+    background: var(--bg-surface-alt, #f1f5f9);
+    color: var(--text-muted, #94a3b8);
+}
+.toggleOff:hover { background: rgba(239, 68, 68, 0.08); color: #ef4444; }
+
+.cardExpanded {
+    padding: 0 0.75rem 0.6rem 2.5rem;
+}
+
+.cardDescription {
+    font-size: 0.76rem;
+    color: var(--text-secondary, #64748b);
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* ── Preview Panel ── */
+.previewPanel {
+    position: sticky;
+    top: 1.5rem;
+}
+
+.previewTitle {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-secondary, #64748b);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.5rem;
+}
+
+.previewDoc {
+    background: #fff;
+    border: 1px solid var(--border-light, #e2e8f0);
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.previewHeader {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.previewBrand {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    background: linear-gradient(135deg, #6366f1, #818cf8);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.4rem;
+    font-weight: 800;
+}
+
+.previewBrandName {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.previewSection {
+    margin-bottom: 0.6rem;
+}
+
+.previewSectionLabel {
+    font-size: 0.5rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6366f1;
+    margin-bottom: 0.2rem;
+}
+
+.previewSectionBar {
+    height: 2px;
+    background: #f1f5f9;
+    margin-bottom: 0.3rem;
+}
+
+.previewInternal {
+    opacity: 0.5;
+    border-left: 2px solid #f59e0b;
+    padding-left: 0.4rem;
+}
+
+.previewSkeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.skelLine {
+    height: 6px;
+    background: #f1f5f9;
+    border-radius: 3px;
+}
+
+.previewEmpty {
+    text-align: center;
+    padding: 1.5rem 0;
+    font-size: 0.72rem;
+    color: #94a3b8;
+}
+
+.previewDivider {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.75rem 0 0.5rem;
+    font-size: 0.5rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #f59e0b;
+}
+
+.previewDivider::before,
+.previewDivider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(245, 158, 11, 0.2);
+}
+
+.previewFooter {
+    margin-top: 0.6rem;
+    padding-top: 0.4rem;
+    border-top: 1px solid #f1f5f9;
+    font-size: 0.5rem;
+    font-weight: 700;
+    color: #6366f1;
+    text-align: center;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .editorLayout {
+        grid-template-columns: 1fr;
+    }
+
+    .previewPanel {
+        position: static;
+    }
+
+    .headerBar {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .headerActions {
+        margin-top: 0;
+    }
+}

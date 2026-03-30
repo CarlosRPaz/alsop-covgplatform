@@ -3,7 +3,16 @@ import { getSupabaseAdmin } from '@/lib/supabaseClient';
 import { getPolicyDetailById, fetchFlagsByPolicyId, PolicyDetail, PolicyFlagRow } from '@/lib/api';
 
 /**
- * Expected schema from the GPT-4o report synthesizer (v2 — beta-ready).
+ * Expected schema from the GPT-4o report synthesizer (v3 — compact client-facing).
+ *
+ * Changes from v2:
+ *  - executive_summary: tighter (2-4 sentences)
+ *  - top_concerns: shorter explanations
+ *  - coverage_review: shorter observations
+ *  - property_observations: retained for agent-only internal review
+ *  - data_gaps / recommendations / action_items: retained for backwards compat,
+ *    but the client report merges them into "Next Steps"
+ *  - internal_notes: NEW — agent-only observations
  */
 interface AIReportInsights {
     executive_summary: string;
@@ -43,6 +52,7 @@ interface AIReportInsights {
         type: 'confirm' | 'discuss' | 'update' | 'verify';
         urgency: 'before_renewal' | 'at_renewal' | 'when_convenient';
     }>;
+    internal_notes: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -103,43 +113,42 @@ export async function POST(req: NextRequest) {
                 property_observations: [],
                 data_gaps: [],
                 recommendations: [],
-                action_items: []
+                action_items: [],
+                internal_notes: ""
             });
         }
 
         const systemPrompt = `
-You are creating a professional, client-facing policy review report for an insurance brokerage.
-This report will be shared with or discussed alongside the client during a renewal or coverage review conversation.
+You are creating a COMPACT, CLIENT-FACING coverage analysis report for an insurance brokerage.
+This report will be shared with the client. It must be clear, professional, and concise.
 
-AUDIENCE: Insurance agents and their clients. The tone must be professional, clear, and consultative — NOT internal underwriting language.
+AUDIENCE: Homeowners and policyholders. Use plain language. No jargon.
 
-REPORT PURPOSE:
-- Help the client understand their current coverage
-- Highlight potential gaps, weaknesses, or areas that need attention  
-- Identify things that should be confirmed or verified before renewal
-- Suggest coverage improvements the client should consider
-- Give the agent clear talking points for a productive renewal conversation
+WRITING RULES:
+1. Be CONCISE. Every word must earn its place.
+2. executive_summary: MAX 3 sentences. Lead with the single most important finding. End with overall risk posture.
+3. renewal_snapshot: 1-2 sentences about timing and urgency. Keep it tight.
+4. top_concerns: Each explanation should be 1 sentence max. Evidence should be a brief data point, not a paragraph.
+5. coverage_review observations: Keep to 10-15 words per observation. No filler.
+6. recommendations: Each should be a single clear sentence. Actionable, not advisory essays.
+7. action_items: Short, direct checklist items. "Verify roof age with inspector" not "It would be advisable to verify..."
+8. data_gaps: Only include if genuinely impactful to the client conversation. Skip trivial gaps.
+9. property_observations: Include observations with real value only. Skip generic/obvious items.
+10. internal_notes: Put agent-only observations, raw enrichment conflicts, and technical notes HERE. This field is NOT shown to clients.
 
 CRITICAL RULES:
-1. DO NOT invent facts or hallucinate coverages. Only cite what is in the JSON context.
-2. If property enrichments (satellite AI, street view AI) conflict with policy data, flag it as something to verify — NOT as an error.
-3. Keep language accessible. Avoid jargon like "underwriting posture" or "binding authority". Use plain language.
-4. Every finding MUST cite its source (e.g., "policy declaration", "property data", "automated review", "satellite imagery").
-5. Recommendations must be framed as discussion points, not mandates. Use "Consider", "We recommend discussing", "This may warrant review".
-6. Prioritize by impact to the client: 1 = urgent (could affect a claim right now), 2 = important for renewal, 3 = worth considering.
-7. Output strict JSON matching the required schema.
-
-RENEWAL CONTEXT: Write as if this report will be discussed with the client at their next renewal meeting. Focus on what they need to know, what questions to ask, and what actions to take.
+- DO NOT invent facts. Only cite what is in the JSON context.
+- If enrichments conflict with policy data, flag it as something to verify, not as an error.
+- Cite sources: "policy declaration", "satellite imagery", "property data", etc.
+- Frame recommendations as discussion points: "Consider", "We recommend discussing", "Worth reviewing".
+- Prioritize by client impact: 1 = urgent, 2 = before renewal, 3 = when convenient.
+- Output strict JSON matching the required schema.
 
 VALUATION DATA GUIDANCE:
-- If square footage data is available (field_key "best_sqft" in enrichments), mention it as a supporting property fact in coverage_review or property_observations.
-- If a replacement cost estimate is available (field_key "rc_estimate_fallback"), use it CAREFULLY:
-  - Always note that it is an internal estimate, not a vendor-certified valuation.
-  - Frame it as: "Based on available property data, the estimated replacement cost is approximately $X. This is an internal estimate and should be verified with an approved vendor."
-  - If the estimate differs significantly from the policy's dwelling coverage, flag it as a discussion point — NOT as an error.
-- NEVER present a fallback estimate as authoritative or vendor-grade.
+- If replacement cost estimate is available, frame as: "Based on available data, estimated replacement cost is approximately $X. This should be verified with an approved vendor."
+- NEVER present estimates as authoritative.
 
-Data Payload Context:
+Data Context:
 ${JSON.stringify(dataPayload, null, 2)}
 `;
 
@@ -154,35 +163,35 @@ ${JSON.stringify(dataPayload, null, 2)}
                 temperature: 0.1,
                 messages: [
                     { role: 'system', content: systemPrompt },
-                    { role: 'user', content: 'Generate the structured report insights based on the provided context. Be thorough and cite sources for every finding.' }
+                    { role: 'user', content: 'Generate the structured report. Be concise — the client report should feel tight and premium, not verbose.' }
                 ],
                 response_format: {
                     type: 'json_schema',
                     json_schema: {
-                        name: 'report_insights_v2',
+                        name: 'report_insights_v3',
                         strict: true,
                         schema: {
                             type: 'object',
                             properties: {
                                 executive_summary: {
                                     type: 'string',
-                                    description: '3-4 sentence overview of the policy review. State urgency if renewal is approaching. Mention the most critical finding.'
+                                    description: '2-3 sentence overview. Lead with the biggest finding. State overall risk. Max 50 words.'
                                 },
                                 renewal_snapshot: {
                                     type: 'string',
-                                    description: 'Concise summary of policy timing, renewal urgency, overall risk posture, and the key metric an agent needs to know right now.'
+                                    description: '1-2 sentences on timing and urgency. Max 30 words.'
                                 },
                                 top_concerns: {
                                     type: 'array',
-                                    description: 'Highest priority flags or discrepancies, explained and sourced.',
+                                    description: 'Top 3-5 findings, sorted by severity. Keep explanations to 1 sentence.',
                                     items: {
                                         type: 'object',
                                         properties: {
-                                            topic: { type: 'string', description: 'Short title of the concern' },
-                                            explanation: { type: 'string', description: 'Clear explanation of why this matters' },
+                                            topic: { type: 'string', description: 'Short headline (5-8 words)' },
+                                            explanation: { type: 'string', description: 'One concise sentence explaining why this matters' },
                                             severity: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
-                                            source: { type: 'string', description: 'Where this was detected: policy, flag_engine, enrichment, inferred' },
-                                            evidence: { type: 'string', description: 'Specific data point or comparison that supports this concern' }
+                                            source: { type: 'string', description: 'Data source: policy, satellite, property data, etc.' },
+                                            evidence: { type: 'string', description: 'Brief data point supporting this concern' }
                                         },
                                         required: ['topic', 'explanation', 'severity', 'source', 'evidence'],
                                         additionalProperties: false
@@ -190,14 +199,14 @@ ${JSON.stringify(dataPayload, null, 2)}
                                 },
                                 coverage_review: {
                                     type: 'array',
-                                    description: 'Assessment of each coverage line from the policy.',
+                                    description: 'Assessment per coverage line. Keep observations to 10-15 words.',
                                     items: {
                                         type: 'object',
                                         properties: {
-                                            coverage: { type: 'string', description: 'Coverage name (Dwelling, Other Structures, Personal Property, etc.)' },
-                                            current_value: { type: 'string', description: 'Current limit or value from the policy' },
-                                            observation: { type: 'string', description: 'Brief note about this coverage line' },
-                                            adequacy: { type: 'string', enum: ['adequate', 'review', 'gap', 'unknown'], description: 'Assessment of coverage adequacy' }
+                                            coverage: { type: 'string', description: 'Coverage name' },
+                                            current_value: { type: 'string', description: 'Current limit from the policy' },
+                                            observation: { type: 'string', description: 'Brief note (10-15 words max)' },
+                                            adequacy: { type: 'string', enum: ['adequate', 'review', 'gap', 'unknown'] }
                                         },
                                         required: ['coverage', 'current_value', 'observation', 'adequacy'],
                                         additionalProperties: false
@@ -205,14 +214,14 @@ ${JSON.stringify(dataPayload, null, 2)}
                                 },
                                 property_observations: {
                                     type: 'array',
-                                    description: 'Structured observations from property enrichment data.',
+                                    description: 'Structured property observations from enrichment data. Include only high-value items.',
                                     items: {
                                         type: 'object',
                                         properties: {
-                                            observation: { type: 'string', description: 'What was observed' },
-                                            source: { type: 'string', description: 'Data source (Google Maps, USDA, satellite AI, street view AI, etc.)' },
-                                            confidence: { type: 'string', description: 'Confidence level (high, medium, low)' },
-                                            discrepancy: { type: 'string', description: 'If this conflicts with policy data, describe the discrepancy. Empty string if no conflict.' }
+                                            observation: { type: 'string', description: 'What was observed (1 sentence)' },
+                                            source: { type: 'string', description: 'Named data source' },
+                                            confidence: { type: 'string', description: 'high, medium, or low' },
+                                            discrepancy: { type: 'string', description: 'Any conflict with policy data. Empty string if none.' }
                                         },
                                         required: ['observation', 'source', 'confidence', 'discrepancy'],
                                         additionalProperties: false
@@ -220,13 +229,13 @@ ${JSON.stringify(dataPayload, null, 2)}
                                 },
                                 data_gaps: {
                                     type: 'array',
-                                    description: 'Missing or unverifiable information that could affect underwriting.',
+                                    description: 'Missing data that impacts the coverage conversation. Only include material gaps.',
                                     items: {
                                         type: 'object',
                                         properties: {
-                                            field: { type: 'string', description: 'What data is missing or needs verification' },
-                                            impact: { type: 'string', description: 'How this gap affects coverage assessment' },
-                                            suggestion: { type: 'string', description: 'What the agent should do to resolve this' }
+                                            field: { type: 'string' },
+                                            impact: { type: 'string', description: 'Brief impact (1 sentence)' },
+                                            suggestion: { type: 'string', description: 'What to do about it' }
                                         },
                                         required: ['field', 'impact', 'suggestion'],
                                         additionalProperties: false
@@ -234,14 +243,14 @@ ${JSON.stringify(dataPayload, null, 2)}
                                 },
                                 recommendations: {
                                     type: 'array',
-                                    description: 'Actionable next steps, prioritized and categorized.',
+                                    description: 'Actionable next steps. Each is 1 clear sentence.',
                                     items: {
                                         type: 'object',
                                         properties: {
-                                            text: { type: 'string', description: 'Clear, concise recommendation' },
+                                            text: { type: 'string', description: 'Clear, concise recommendation (1 sentence)' },
                                             category: { type: 'string', enum: ['discuss', 'verify', 'review', 'consider_coverage'] },
-                                            priority: { type: 'number', description: '1 = immediate, 2 = before renewal, 3 = future consideration' },
-                                            source: { type: 'string', description: 'What data point or finding drives this recommendation' }
+                                            priority: { type: 'number', description: '1 = immediate, 2 = before renewal, 3 = future' },
+                                            source: { type: 'string', description: 'What drives this recommendation' }
                                         },
                                         required: ['text', 'category', 'priority', 'source'],
                                         additionalProperties: false
@@ -249,20 +258,24 @@ ${JSON.stringify(dataPayload, null, 2)}
                                 },
                                 action_items: {
                                     type: 'array',
-                                    description: 'Concrete checklist items for the agent-client renewal conversation.',
+                                    description: 'Concrete checklist items for the renewal conversation.',
                                     items: {
                                         type: 'object',
                                         properties: {
-                                            item: { type: 'string', description: 'A specific action to take or discuss' },
+                                            item: { type: 'string', description: 'Short, direct action item' },
                                             type: { type: 'string', enum: ['confirm', 'discuss', 'update', 'verify'] },
                                             urgency: { type: 'string', enum: ['before_renewal', 'at_renewal', 'when_convenient'] }
                                         },
                                         required: ['item', 'type', 'urgency'],
                                         additionalProperties: false
                                     }
+                                },
+                                internal_notes: {
+                                    type: 'string',
+                                    description: 'Agent-only notes: technical observations, enrichment conflicts, raw data insights. NOT shown to clients.'
                                 }
                             },
-                            required: ['executive_summary', 'renewal_snapshot', 'top_concerns', 'coverage_review', 'property_observations', 'data_gaps', 'recommendations', 'action_items'],
+                            required: ['executive_summary', 'renewal_snapshot', 'top_concerns', 'coverage_review', 'property_observations', 'data_gaps', 'recommendations', 'action_items', 'internal_notes'],
                             additionalProperties: false
                         }
                     }
@@ -312,7 +325,7 @@ async function saveAndReturnReport(policyId: string, clientId: string | undefine
     try {
         await supabase.from('activity_events').insert({
             event_type: 'report.generated',
-            title: 'Policy review report generated',
+            title: 'Coverage analysis report generated',
             detail: `Report created for policy review`,
             policy_id: policyId,
             client_id: clientId || null,

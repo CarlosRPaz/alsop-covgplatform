@@ -257,7 +257,7 @@ WHERE code = 'MISSING_PHONE';
 -- ============================================================================
 -- 3. VERIFICATION
 -- ============================================================================
--- SELECT code, label, trigger_logic IS NOT NULL AS has_logic,
---        data_fields_checked IS NOT NULL AS has_fields
--- FROM public.flag_definitions
--- ORDER BY code;
+SELECT code, label, trigger_logic IS NOT NULL AS has_logic,
+       data_fields_checked IS NOT NULL AS has_fields
+FROM public.flag_definitions
+ORDER BY code;

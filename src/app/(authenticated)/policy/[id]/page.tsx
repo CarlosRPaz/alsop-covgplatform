@@ -7,10 +7,10 @@ import styles from './page.module.css';
 import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
 import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload } from 'lucide-react';
-import { getPolicyDetailById, mapPolicyDetailToDeclaration, generateAIReport, Declaration, AIReportData, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, uploadDecPageToPolicy } from '@/lib/api';
+import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, uploadDecPageToPolicy } from '@/lib/api';
 import { PolicyStatusBar } from '@/components/policy/PolicyStatusBar';
 import { PolicyDashboard } from '@/components/policy/PolicyDashboard';
-import { AIReport } from '@/components/policy/AIReport';
+import { AgentReviewPanel } from '@/components/policy/AIReport';
 import { PolicyFiles } from '@/components/policy/PolicyFiles';
 import { PolicyFlags } from '@/components/policy/PolicyFlags';
 import { FlagAlertBanner } from '@/components/policy/FlagAlertBanner';
@@ -41,7 +41,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     const toast = useToast();
 
     const [declaration, setDeclaration] = useState<Declaration | undefined>(undefined);
-    const [aiReport, setAiReport] = useState<AIReportData | undefined>(undefined);
+
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('review');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -118,7 +118,6 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                     setPolicyDetailRaw(detail);
                     const decl = mapPolicyDetailToDeclaration(detail);
                     setDeclaration(decl);
-                    setAiReport(generateAIReport(decl));
                 }
             } catch (error) {
                 console.error("Failed to fetch policy data", error);
@@ -242,7 +241,11 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                 return (
                     <div className={styles.content}>
                         <PolicyDashboard declaration={declaration!} enrichments={enrichments} policyDetail={policyDetailRaw || undefined} />
-                        {aiReport && <AIReport data={aiReport} />}
+                        <AgentReviewPanel
+                            reportRow={reportRow}
+                            enrichments={enrichments}
+                            reportLink={reportRow ? `/report/${reportRow.id}` : undefined}
+                        />
                     </div>
                 );
             case 'flags':
@@ -275,7 +278,6 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                             getPolicyDetailById(id).then(detail => {
                                 if (detail) {
                                     setDeclaration(mapPolicyDetailToDeclaration(detail));
-                                    setAiReport(generateAIReport(mapPolicyDetailToDeclaration(detail)));
                                 }
                             });
                         }} />
@@ -669,7 +671,6 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                         if (detail) {
                             setPolicyDetailRaw(detail);
                             setDeclaration(mapPolicyDetailToDeclaration(detail));
-                            setAiReport(generateAIReport(mapPolicyDetailToDeclaration(detail)));
                         }
                     }}
                 />
