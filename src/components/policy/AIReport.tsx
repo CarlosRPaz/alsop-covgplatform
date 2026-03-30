@@ -39,10 +39,6 @@ export function AgentReviewPanel({ reportRow, reportLink }: AgentReviewPanelProp
         actions.push({ text: `${g.field}: ${g.suggestion}`, type: 'verify', urgency: 'before_renewal' });
     });
 
-    // Sort: now → before_renewal → future
-    const urgencyOrder: Record<string, number> = { now: 0, before_renewal: 1, future: 2 };
-    actions.sort((a, b) => (urgencyOrder[a.urgency] ?? 2) - (urgencyOrder[b.urgency] ?? 2));
-
     // Property observations (agent-only)
     const propertyObs = (ai?.property_observations || []).filter((o: any) => o.discrepancy);
     const internalNotes = ai?.internal_notes || '';
@@ -62,8 +58,6 @@ export function AgentReviewPanel({ reportRow, reportLink }: AgentReviewPanelProp
         );
     }
 
-    const urgencyLabel = (u: string) => u === 'now' ? 'Now' : u === 'before_renewal' ? 'Before Renewal' : 'When Convenient';
-    const urgencyColor = (u: string) => u === 'now' ? '#ef4444' : u === 'before_renewal' ? '#f59e0b' : '#6366f1';
     const typeIcon = (t: string) => {
         switch (t) {
             case 'verify': return '🔍';
@@ -83,6 +77,10 @@ export function AgentReviewPanel({ reportRow, reportLink }: AgentReviewPanelProp
         return acc;
     }, {} as Record<string, typeof actions>);
 
+    const nowItems = grouped['now'] || [];
+    const beforeRenewalItems = grouped['before_renewal'] || [];
+    const futureItems = grouped['future'] || [];
+
     return (
         <Card className={styles.container}>
             <div className={styles.header}>
@@ -96,58 +94,97 @@ export function AgentReviewPanel({ reportRow, reportLink }: AgentReviewPanelProp
                 )}
             </div>
 
-            <div className={styles.reviewGrid}>
-                {/* ── Grouped Actions ── */}
-                {Object.entries(grouped).map(([urgency, items]) => (
-                    <div key={urgency} className={styles.reviewSection}>
-                        <div className={styles.reviewSectionHeader} style={{ color: urgencyColor(urgency) }}>
-                            <span className={styles.urgencyDot} style={{ background: urgencyColor(urgency) }} />
-                            {urgencyLabel(urgency)}
-                            <span className={styles.countBadge}>{items.length}</span>
-                        </div>
-                        <div className={styles.actionList}>
-                            {items.map((item, idx) => (
-                                <div key={idx} className={styles.actionItem}>
-                                    <span className={styles.actionIcon}>{typeIcon(item.type)}</span>
-                                    <span className={styles.actionText}>{item.text}</span>
-                                </div>
-                            ))}
-                        </div>
+            <div className={styles.boardGrid}>
+                {/* ── Column 1: Immediate Action ── */}
+                <div className={styles.boardColumn}>
+                    <div className={styles.columnHeader} style={{ color: '#ef4444' }}>
+                        <span className={styles.urgencyDot} style={{ background: '#ef4444' }} />
+                        Immediate Action
+                        <span className={styles.countBadge}>{nowItems.length + propertyObs.length}</span>
                     </div>
-                ))}
-
-                {/* ── Discrepancies (only ones with conflicts) ── */}
-                {propertyObs.length > 0 && (
-                    <div className={styles.reviewSection}>
-                        <div className={styles.reviewSectionHeader} style={{ color: '#f59e0b' }}>
-                            <AlertTriangle size={13} />
-                            Data Conflicts
-                            <span className={styles.countBadge}>{propertyObs.length}</span>
-                        </div>
-                        <div className={styles.actionList}>
-                            {propertyObs.map((obs: any, idx: number) => (
-                                <div key={idx} className={styles.conflictItem}>
-                                    <div className={styles.conflictText}>{obs.observation}</div>
-                                    <div className={styles.conflictDetail}>
-                                        <AlertTriangle size={10} />
-                                        {obs.discrepancy}
+                    <div className={styles.columnBody}>
+                        {nowItems.map((item, idx) => (
+                            <div key={idx} className={styles.actionCard}>
+                                <span className={styles.actionIcon}>{typeIcon(item.type)}</span>
+                                <span className={styles.actionText}>{item.text}</span>
+                            </div>
+                        ))}
+                        
+                        {propertyObs.length > 0 && (
+                            <div className={styles.conflictGroup}>
+                                <div className={styles.sectionDivider}>
+                                    <AlertTriangle size={11} />
+                                    Data Conflicts
+                                </div>
+                                {propertyObs.map((obs: any, idx: number) => (
+                                    <div key={idx} className={styles.conflictCard}>
+                                        <div className={styles.actionText}>{obs.observation}</div>
+                                        <div className={styles.conflictDetail}>
+                                            <AlertTriangle size={10} />
+                                            {obs.discrepancy}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                                ))}
+                            </div>
+                        )}
 
-                {/* ── Internal Notes ── */}
-                {internalNotes && (
-                    <div className={styles.reviewSection}>
-                        <div className={styles.reviewSectionHeader}>
-                            <MessageSquare size={13} />
-                            AI Notes
-                        </div>
-                        <div className={styles.internalNotes}>{internalNotes}</div>
+                        {nowItems.length === 0 && propertyObs.length === 0 && (
+                            <div className={styles.emptyCard}>All clear</div>
+                        )}
                     </div>
-                )}
+                </div>
+
+                {/* ── Column 2: Before Renewal ── */}
+                <div className={styles.boardColumn}>
+                    <div className={styles.columnHeader} style={{ color: '#f59e0b' }}>
+                        <span className={styles.urgencyDot} style={{ background: '#f59e0b' }} />
+                        Before Renewal
+                        <span className={styles.countBadge}>{beforeRenewalItems.length}</span>
+                    </div>
+                    <div className={styles.columnBody}>
+                        {beforeRenewalItems.map((item, idx) => (
+                            <div key={idx} className={styles.actionCard}>
+                                <span className={styles.actionIcon}>{typeIcon(item.type)}</span>
+                                <span className={styles.actionText}>{item.text}</span>
+                            </div>
+                        ))}
+
+                        {beforeRenewalItems.length === 0 && (
+                            <div className={styles.emptyCard}>Nothing pending</div>
+                        )}
+                    </div>
+                </div>
+
+                {/* ── Column 3: Review & Notes ── */}
+                <div className={styles.boardColumn}>
+                    <div className={styles.columnHeader} style={{ color: '#6366f1' }}>
+                        <span className={styles.urgencyDot} style={{ background: '#6366f1' }} />
+                        Review & Notes
+                        <span className={styles.countBadge}>{futureItems.length + (internalNotes ? 1 : 0)}</span>
+                    </div>
+                    <div className={styles.columnBody}>
+                        {futureItems.map((item, idx) => (
+                            <div key={idx} className={styles.actionCard}>
+                                <span className={styles.actionIcon}>{typeIcon(item.type)}</span>
+                                <span className={styles.actionText}>{item.text}</span>
+                            </div>
+                        ))}
+
+                        {internalNotes && (
+                            <div className={styles.notesCard}>
+                                <div className={styles.notesHeader}>
+                                    <MessageSquare size={11} />
+                                    AI Notes
+                                </div>
+                                {internalNotes}
+                            </div>
+                        )}
+
+                        {futureItems.length === 0 && !internalNotes && (
+                            <div className={styles.emptyCard}>No general notes</div>
+                        )}
+                    </div>
+                </div>
             </div>
         </Card>
     );
