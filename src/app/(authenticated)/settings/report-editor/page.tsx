@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import {
     FileText, GripVertical, Eye, EyeOff, ChevronDown, ChevronRight,
-    Save, RotateCcw, ArrowLeft, Loader2, Check
+    Save, RotateCcw, ArrowLeft, Check
 } from 'lucide-react';
 import Link from 'next/link';
 import styles from './page.module.css';
@@ -14,7 +14,6 @@ interface ReportSection {
     label: string;
     description: string;
     enabled: boolean;
-    clientFacing: boolean;  // true = included in client PDF, false = agent-only
     order: number;
 }
 
@@ -24,7 +23,6 @@ const DEFAULT_SECTIONS: ReportSection[] = [
         label: 'Executive Summary',
         description: 'Concise 2-4 sentence overview of the most important findings and overall risk posture.',
         enabled: true,
-        clientFacing: true,
         order: 0,
     },
     {
@@ -32,7 +30,6 @@ const DEFAULT_SECTIONS: ReportSection[] = [
         label: 'Key Findings',
         description: 'Top 3-5 concerns sorted by severity, with headline + brief explanation + evidence.',
         enabled: true,
-        clientFacing: true,
         order: 1,
     },
     {
@@ -40,7 +37,6 @@ const DEFAULT_SECTIONS: ReportSection[] = [
         label: 'Coverage Review',
         description: 'Compact table of coverage lines with current limits, adequacy status, and short observation notes.',
         enabled: true,
-        clientFacing: true,
         order: 2,
     },
     {
@@ -48,40 +44,14 @@ const DEFAULT_SECTIONS: ReportSection[] = [
         label: 'Next Steps',
         description: 'Merged recommendations, action items, and data gaps grouped by urgency: Review Now, At Renewal, Confirm & Update.',
         enabled: true,
-        clientFacing: true,
         order: 3,
-    },
-    {
-        id: 'property_observations',
-        label: 'Property Observations',
-        description: 'Satellite/street-view observations with confidence levels. Discrepancies with policy data are highlighted.',
-        enabled: true,
-        clientFacing: false,
-        order: 4,
-    },
-    {
-        id: 'data_gaps',
-        label: 'Data Gaps',
-        description: 'Missing information that could affect coverage assessment, with suggested agent actions.',
-        enabled: true,
-        clientFacing: false,
-        order: 5,
-    },
-    {
-        id: 'internal_notes',
-        label: 'Internal Agent Notes',
-        description: 'AI-generated agent-only notes, raw enrichment conflicts, and technical observations. Never shown to clients.',
-        enabled: true,
-        clientFacing: false,
-        order: 6,
     },
     {
         id: 'sources',
         label: 'Sources & Credits',
         description: 'Footer listing real named data sources used in the analysis. Filtered to exclude internal labels.',
         enabled: true,
-        clientFacing: true,
-        order: 7,
+        order: 4,
     },
 ];
 
@@ -93,10 +63,6 @@ export default function ReportEditorPage() {
 
     const toggleEnabled = useCallback((id: string) => {
         setSections(prev => prev.map(s => s.id === id ? { ...s, enabled: !s.enabled } : s));
-    }, []);
-
-    const toggleClientFacing = useCallback((id: string) => {
-        setSections(prev => prev.map(s => s.id === id ? { ...s, clientFacing: !s.clientFacing } : s));
     }, []);
 
     const toggleExpand = useCallback((id: string) => {
@@ -139,8 +105,7 @@ export default function ReportEditorPage() {
         setDraggedId(null);
     };
 
-    const clientSections = sections.filter(s => s.enabled && s.clientFacing);
-    const internalSections = sections.filter(s => s.enabled && !s.clientFacing);
+    const activeSections = sections.filter(s => s.enabled);
 
     return (
         <div className={styles.container}>
@@ -156,7 +121,7 @@ export default function ReportEditorPage() {
                         Report Template Editor
                     </h1>
                     <p className={styles.pageSubtitle}>
-                        Control which sections appear in client-facing reports vs. internal-only views. Drag to reorder, toggle visibility, and set client/agent scope.
+                        Control which sections appear in client-facing reports. Drag to reorder and toggle visibility.
                     </p>
                 </div>
                 <div className={styles.headerActions}>
@@ -174,25 +139,26 @@ export default function ReportEditorPage() {
             {/* Summary Strip */}
             <div className={styles.summaryStrip}>
                 <div className={styles.summaryItem}>
-                    <span className={styles.summaryCount}>{sections.filter(s => s.enabled).length}</span>
-                    <span className={styles.summaryLabel}>Active Sections</span>
+                    <span className={styles.summaryCount}>{activeSections.length}</span>
+                    <span className={styles.summaryLabel}>Active</span>
                 </div>
                 <div className={styles.summaryItem}>
-                    <span className={styles.summaryCount} style={{ color: '#6366f1' }}>{clientSections.length}</span>
-                    <span className={styles.summaryLabel}>Client-Facing</span>
+                    <span className={styles.summaryCount}>{sections.length - activeSections.length}</span>
+                    <span className={styles.summaryLabel}>Hidden</span>
                 </div>
-                <div className={styles.summaryItem}>
-                    <span className={styles.summaryCount} style={{ color: '#f59e0b' }}>{internalSections.length}</span>
-                    <span className={styles.summaryLabel}>Internal Only</span>
-                </div>
+            </div>
+
+            {/* Note about agent-only data */}
+            <div className={styles.agentNote}>
+                <strong>Note:</strong> Agent-only insights (property observations, data gaps, AI notes) are shown automatically in the <em>Agent Action Items</em> panel on the policy page. They are never included in client reports.
             </div>
 
             {/* Main Content */}
             <div className={styles.editorLayout}>
                 {/* ── Section List ── */}
                 <div className={styles.sectionList}>
-                    <h2 className={styles.listTitle}>Report Sections</h2>
-                    <p className={styles.listSubtitle}>Drag to reorder · Toggle sections on/off · Set scope</p>
+                    <h2 className={styles.listTitle}>Client Report Sections</h2>
+                    <p className={styles.listSubtitle}>Drag to reorder · Toggle sections on/off</p>
 
                     <div className={styles.cards}>
                         {sections.map(section => {
@@ -222,15 +188,6 @@ export default function ReportEditorPage() {
                                         </div>
 
                                         <div className={styles.cardActions}>
-                                            {/* Scope Tag */}
-                                            <button
-                                                className={`${styles.scopeTag} ${section.clientFacing ? styles.scopeClient : styles.scopeInternal}`}
-                                                onClick={() => toggleClientFacing(section.id)}
-                                                title={section.clientFacing ? 'Click to make internal-only' : 'Click to make client-facing'}
-                                            >
-                                                {section.clientFacing ? 'Client' : 'Internal'}
-                                            </button>
-
                                             {/* Enabled Toggle */}
                                             <button
                                                 className={`${styles.toggleBtn} ${section.enabled ? styles.toggleOn : styles.toggleOff}`}
@@ -263,10 +220,10 @@ export default function ReportEditorPage() {
                             <span className={styles.previewBrandName}>Coverage Analysis Report</span>
                         </div>
 
-                        {clientSections.length === 0 ? (
-                            <div className={styles.previewEmpty}>No client-facing sections enabled.</div>
+                        {activeSections.length === 0 ? (
+                            <div className={styles.previewEmpty}>No sections enabled.</div>
                         ) : (
-                            clientSections.map((s, i) => (
+                            activeSections.map((s) => (
                                 <div key={s.id} className={styles.previewSection}>
                                     <div className={styles.previewSectionLabel}>{s.label}</div>
                                     <div className={styles.previewSectionBar} />
@@ -277,24 +234,6 @@ export default function ReportEditorPage() {
                                     </div>
                                 </div>
                             ))
-                        )}
-
-                        {/* Internal sections preview */}
-                        {internalSections.length > 0 && (
-                            <>
-                                <div className={styles.previewDivider}>
-                                    <span>Agent-Only (Not in Client PDF)</span>
-                                </div>
-                                {internalSections.map((s, i) => (
-                                    <div key={s.id} className={`${styles.previewSection} ${styles.previewInternal}`}>
-                                        <div className={styles.previewSectionLabel}>{s.label}</div>
-                                        <div className={styles.previewSkeleton}>
-                                            <div className={styles.skelLine} style={{ width: '80%' }} />
-                                            <div className={styles.skelLine} style={{ width: '55%' }} />
-                                        </div>
-                                    </div>
-                                ))}
-                            </>
                         )}
 
                         <div className={styles.previewFooter}>CoverageCheckNow</div>
