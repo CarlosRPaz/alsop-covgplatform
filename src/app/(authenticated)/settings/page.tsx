@@ -5,17 +5,18 @@ import { getUserProfile, UserProfile, isAdmin } from '@/lib/auth';
 import { supabase } from '@/lib/supabaseClient';
 import {
     Settings as SettingsIcon, User, Bell, Palette, Shield, ChevronRight,
-    Mail, Key, Monitor, Globe, Database, Lock, Loader2, Satellite
+    Mail, Key, Monitor, Globe, Database, Lock, Loader2, Satellite, FileText
 } from 'lucide-react';
 import DataSourcesCatalog from '@/components/settings/DataSourcesCatalog';
 
-type Section = 'account' | 'notifications' | 'display' | 'admin' | 'data_sources';
+type Section = 'account' | 'notifications' | 'display' | 'admin' | 'data_sources' | 'report_editor';
 
 const SECTIONS = [
     { id: 'account' as Section, label: 'Account', icon: User, description: 'Name, email, password' },
     { id: 'notifications' as Section, label: 'Notifications', icon: Bell, description: 'Email & alert preferences' },
     { id: 'display' as Section, label: 'Display', icon: Palette, description: 'Theme & layout preferences' },
     { id: 'data_sources' as Section, label: 'Data Sources', icon: Satellite, description: 'Enrichment pipeline catalog', agentOnly: true },
+    { id: 'report_editor' as Section, label: 'Report Editor', icon: FileText, description: 'Report template & section controls', adminOnly: true },
     { id: 'admin' as Section, label: 'Admin Settings', icon: Shield, description: 'Branding, integrations, global config', adminOnly: true },
 ];
 
@@ -42,7 +43,7 @@ export default function SettingsPage() {
     const showAdmin = profile && isAdmin(profile.role);
 
     return (
-        <div style={{ maxWidth: activeSection === 'data_sources' ? '1200px' : '900px', margin: '2rem auto', padding: '0 1.5rem', transition: 'max-width 0.3s ease' }}>
+        <div style={{ maxWidth: activeSection === 'data_sources' || activeSection === 'report_editor' ? '1200px' : '900px', margin: '2rem auto', padding: '0 1.5rem', transition: 'max-width 0.3s ease' }}>
             {/* Header */}
             <div style={{ marginBottom: '1.5rem' }}>
                 <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-high)', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -107,6 +108,7 @@ export default function SettingsPage() {
                     {activeSection === 'notifications' && <NotificationsSection />}
                     {activeSection === 'display' && <DisplaySection />}
                     {activeSection === 'data_sources' && <DataSourcesCatalog />}
+                    {activeSection === 'report_editor' && <ReportEditorSection />}
                     {activeSection === 'admin' && <AdminSection />}
                 </div>
             </div>
@@ -540,6 +542,189 @@ function ToggleRow({ label, description, defaultOn }: { label: string; descripti
                     transform: on ? 'translateX(16px)' : 'translateX(0)',
                 }} />
             </button>
+        </div>
+    );
+}
+
+// ─── Report Editor Section ──────────────────────────────────────
+interface ReportSectionConfig {
+    id: string;
+    label: string;
+    description: string;
+    enabled: boolean;
+    clientFacing: boolean;
+    order: number;
+}
+
+const DEFAULT_REPORT_SECTIONS: ReportSectionConfig[] = [
+    { id: 'executive_summary', label: 'Executive Summary', description: '2-4 sentence overview of findings and risk posture.', enabled: true, clientFacing: true, order: 0 },
+    { id: 'key_findings', label: 'Key Findings', description: 'Top 3-5 concerns sorted by severity.', enabled: true, clientFacing: true, order: 1 },
+    { id: 'coverage_review', label: 'Coverage Review', description: 'Compact table of coverage lines with limits and adequacy status.', enabled: true, clientFacing: true, order: 2 },
+    { id: 'next_steps', label: 'Next Steps', description: 'Merged recommendations, action items, and data gaps by urgency.', enabled: true, clientFacing: true, order: 3 },
+    { id: 'property_observations', label: 'Property Observations', description: 'Satellite/street-view observations with confidence levels.', enabled: true, clientFacing: false, order: 4 },
+    { id: 'data_gaps', label: 'Data Gaps', description: 'Missing data with agent action suggestions.', enabled: true, clientFacing: false, order: 5 },
+    { id: 'internal_notes', label: 'Internal Agent Notes', description: 'AI-generated agent-only notes. Never shown to clients.', enabled: true, clientFacing: false, order: 6 },
+    { id: 'sources', label: 'Sources & Credits', description: 'Named data sources used in the analysis.', enabled: true, clientFacing: true, order: 7 },
+];
+
+function ReportEditorSection() {
+    const [sections, setSections] = useState<ReportSectionConfig[]>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('report_template_config');
+            if (saved) try { return JSON.parse(saved); } catch { /* ignore */ }
+        }
+        return DEFAULT_REPORT_SECTIONS;
+    });
+    const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [saved, setSaved] = useState(false);
+    const [draggedId, setDraggedId] = useState<string | null>(null);
+
+    const handleSave = () => {
+        localStorage.setItem('report_template_config', JSON.stringify(sections));
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+    };
+
+    const handleDragOver = (e: React.DragEvent, targetId: string) => {
+        e.preventDefault();
+        if (!draggedId || draggedId === targetId) return;
+        setSections(prev => {
+            const copy = [...prev];
+            const fromIdx = copy.findIndex(s => s.id === draggedId);
+            const toIdx = copy.findIndex(s => s.id === targetId);
+            if (fromIdx === -1 || toIdx === -1) return prev;
+            const [removed] = copy.splice(fromIdx, 1);
+            copy.splice(toIdx, 0, removed);
+            return copy.map((s, i) => ({ ...s, order: i }));
+        });
+    };
+
+    const clientSections = sections.filter(s => s.enabled && s.clientFacing);
+    const internalSections = sections.filter(s => s.enabled && !s.clientFacing);
+
+    const eyeOn = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
+    const eyeOff = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>;
+    const grip = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>;
+
+    return (
+        <div>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <div>
+                    <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-high)', marginBottom: '0.15rem' }}>Report Template Editor</h2>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Control sections in client-facing reports vs internal-only views. Drag to reorder.</p>
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <button onClick={() => setSections(DEFAULT_REPORT_SECTIONS)} style={{ padding: '0.35rem 0.65rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer' }}>Reset</button>
+                    <button onClick={handleSave} style={{ padding: '0.35rem 0.75rem', borderRadius: '6px', border: 'none', background: '#6366f1', color: '#fff', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>{saved ? '✓ Saved' : 'Save'}</button>
+                </div>
+            </div>
+
+            {/* Summary */}
+            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
+                {[
+                    { count: sections.filter(s => s.enabled).length, label: 'Active', color: 'var(--text-high)' },
+                    { count: clientSections.length, label: 'Client-Facing', color: '#6366f1' },
+                    { count: internalSections.length, label: 'Internal', color: '#f59e0b' },
+                ].map((s, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'var(--bg-surface-alt, #1a1d25)', border: '1px solid var(--border-default)', borderRadius: '6px', padding: '0.35rem 0.65rem' }}>
+                        <span style={{ fontSize: '1rem', fontWeight: 800, color: s.color }}>{s.count}</span>
+                        <span style={{ fontSize: '0.6rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{s.label}</span>
+                    </div>
+                ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '1.25rem' }}>
+                {/* Section cards */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                    {sections.map(section => (
+                        <div
+                            key={section.id}
+                            draggable
+                            onDragStart={() => setDraggedId(section.id)}
+                            onDragOver={(e) => handleDragOver(e, section.id)}
+                            onDragEnd={() => setDraggedId(null)}
+                            style={{
+                                background: 'var(--bg-surface-alt, #1a1d25)',
+                                border: `1px solid ${draggedId === section.id ? '#6366f1' : 'var(--border-default)'}`,
+                                borderRadius: '7px',
+                                opacity: section.enabled ? 1 : 0.45,
+                                transition: 'all 0.15s',
+                                cursor: 'grab',
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.5rem 0.65rem' }}>
+                                <span style={{ color: 'var(--text-muted)', cursor: 'grab', flexShrink: 0 }}>{grip}</span>
+                                <span onClick={() => setExpandedId(expandedId === section.id ? null : section.id)} style={{ flex: 1, fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-high)', cursor: 'pointer' }}>{section.label}</span>
+
+                                {/* Scope tag */}
+                                <button
+                                    onClick={() => setSections(prev => prev.map(s => s.id === section.id ? { ...s, clientFacing: !s.clientFacing } : s))}
+                                    style={{
+                                        fontSize: '0.55rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+                                        padding: '0.1rem 0.4rem', borderRadius: '4px', border: 'none', cursor: 'pointer',
+                                        background: section.clientFacing ? 'rgba(99,102,241,0.12)' : 'rgba(245,158,11,0.12)',
+                                        color: section.clientFacing ? '#818cf8' : '#fbbf24',
+                                    }}
+                                >
+                                    {section.clientFacing ? 'Client' : 'Internal'}
+                                </button>
+
+                                {/* Toggle */}
+                                <button
+                                    onClick={() => setSections(prev => prev.map(s => s.id === section.id ? { ...s, enabled: !s.enabled } : s))}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        width: '26px', height: '26px', borderRadius: '5px', border: 'none', cursor: 'pointer',
+                                        background: section.enabled ? 'rgba(16,185,129,0.12)' : 'var(--bg-surface-alt, #2a2d35)',
+                                        color: section.enabled ? '#34d399' : 'var(--text-muted)',
+                                    }}
+                                >
+                                    {section.enabled ? eyeOn : eyeOff}
+                                </button>
+                            </div>
+
+                            {expandedId === section.id && (
+                                <div style={{ padding: '0 0.65rem 0.45rem 2.25rem' }}>
+                                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.45, margin: 0 }}>{section.description}</p>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+
+                {/* Preview */}
+                <div style={{ position: 'sticky', top: '1.5rem' }}>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>Template Preview</div>
+                    <div style={{ background: '#fff', border: '1px solid var(--border-default)', borderRadius: '8px', padding: '0.75rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.5rem', paddingBottom: '0.35rem', borderBottom: '1px solid #f1f5f9' }}>
+                            <div style={{ width: '18px', height: '18px', borderRadius: '4px', background: 'linear-gradient(135deg,#6366f1,#818cf8)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.35rem', fontWeight: 800 }}>CCN</div>
+                            <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#0f172a' }}>Coverage Analysis Report</span>
+                        </div>
+                        {clientSections.map(s => (
+                            <div key={s.id} style={{ marginBottom: '0.4rem' }}>
+                                <div style={{ fontSize: '0.45rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6366f1', marginBottom: '0.12rem' }}>{s.label}</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.12rem' }}>
+                                    <div style={{ height: '5px', background: '#f1f5f9', borderRadius: '2px', width: '88%' }} />
+                                    <div style={{ height: '5px', background: '#f1f5f9', borderRadius: '2px', width: '65%' }} />
+                                </div>
+                            </div>
+                        ))}
+                        {internalSections.length > 0 && (
+                            <>
+                                <div style={{ fontSize: '0.42rem', fontWeight: 700, textTransform: 'uppercase', color: '#f59e0b', margin: '0.5rem 0 0.25rem', textAlign: 'center' }}>— Agent Only —</div>
+                                {internalSections.map(s => (
+                                    <div key={s.id} style={{ marginBottom: '0.3rem', borderLeft: '2px solid #f59e0b', paddingLeft: '0.3rem', opacity: 0.5 }}>
+                                        <div style={{ fontSize: '0.42rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6366f1', marginBottom: '0.08rem' }}>{s.label}</div>
+                                        <div style={{ height: '4px', background: '#f1f5f9', borderRadius: '2px', width: '75%' }} />
+                                    </div>
+                                ))}
+                            </>
+                        )}
+                        <div style={{ marginTop: '0.4rem', paddingTop: '0.25rem', borderTop: '1px solid #f1f5f9', fontSize: '0.42rem', fontWeight: 700, color: '#6366f1', textAlign: 'center' }}>CoverageCheckNow</div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
