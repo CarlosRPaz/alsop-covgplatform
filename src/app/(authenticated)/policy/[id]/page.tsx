@@ -642,6 +642,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                     onEnrich={handleEnrich}
                     onRunFlagCheck={handleFlagCheck}
                     flagCheckRunning={flagCheckRunning}
+                    enrichments={enrichments}
                 />
             </div>
 

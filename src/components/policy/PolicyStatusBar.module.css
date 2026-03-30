@@ -8,9 +8,10 @@
     background: var(--bg-surface);
     border: 1px solid var(--border-default);
     border-radius: var(--radius-lg);
-    overflow: hidden;
+    overflow: visible;
     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    position: relative;
 }
 
 /* Escalate when pending — Executive Red theme */
@@ -190,6 +191,152 @@
     to { transform: rotate(360deg); }
 }
 
+/* ── Data Points Button ── */
+.dataPointsBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+
+.dataPointsBtn:hover {
+    background: rgba(16, 185, 129, 0.08);
+    padding: 0 0.25rem;
+    margin: 0 -0.25rem;
+}
+
+.dataPointsBtn svg {
+    color: var(--text-muted);
+    transition: color 0.15s;
+}
+
+.dataPointsBtn:hover svg {
+    color: #10b981;
+}
+
+/* ── Data Points Dropdown ── */
+.dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    min-width: 460px;
+    max-width: 580px;
+    background: var(--bg-surface, #fff);
+    border: 1px solid var(--border-default);
+    border-radius: 10px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06);
+    z-index: 100;
+    overflow: hidden;
+    animation: dropdownIn 0.15s ease-out;
+}
+
+@keyframes dropdownIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdownHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 0.85rem;
+    border-bottom: 1px solid var(--border-default);
+    background: var(--bg-surface-alt, #f8fafc);
+}
+
+.dropdownTitle {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-high, #0f172a);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.dropdownCount {
+    font-size: 0.68rem;
+    font-weight: 600;
+}
+
+.dropdownBody {
+    max-height: 360px;
+    overflow-y: auto;
+    padding: 0.25rem 0;
+}
+
+.dropdownGroup {
+    padding: 0.15rem 0;
+}
+
+.dropdownGroupLabel {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.85rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: #10b981;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border-light, #f1f5f9);
+}
+
+.dropdownRow {
+    display: grid;
+    grid-template-columns: 160px 1fr 90px;
+    gap: 0.35rem;
+    padding: 0.3rem 0.85rem;
+    font-size: 0.75rem;
+    align-items: center;
+    border-bottom: 1px solid var(--border-light, #f1f5f9);
+    transition: background 0.1s;
+}
+
+.dropdownRow:last-child {
+    border-bottom: none;
+}
+
+.dropdownRow:hover {
+    background: rgba(99, 102, 241, 0.03);
+}
+
+.dropdownRowMissing {
+    grid-template-columns: 160px 1fr;
+    opacity: 0.6;
+}
+
+.dropdownKey {
+    display: flex;
+    align-items: center;
+    font-weight: 600;
+    color: var(--text-primary, #1e293b);
+    text-transform: capitalize;
+    white-space: nowrap;
+}
+
+.dropdownValue {
+    color: var(--text-secondary, #475569);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dropdownSource {
+    font-size: 0.62rem;
+    color: var(--text-muted, #94a3b8);
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
     .bar {
@@ -206,4 +353,11 @@
         height: 4px;
         bottom: auto;
     }
+
+    .dropdown {
+        min-width: unset;
+        left: -10px;
+        right: -10px;
+    }
 }
+
