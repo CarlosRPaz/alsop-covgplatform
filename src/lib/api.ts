@@ -286,6 +286,11 @@ export interface FlagDefinition {
     is_active: boolean;
     default_action_path?: string;
     rule_version?: string;
+    trigger_logic?: string;
+    data_fields_checked?: string;
+    dec_page_section?: string;
+    suppression_rules?: string;
+    notes?: string;
     created_at: string;
 }
 
@@ -311,6 +316,11 @@ export interface FlagDefinitionRow {
     is_active: boolean;
     default_action_path?: string | null;
     rule_version?: string | null;
+    trigger_logic?: string | null;
+    data_fields_checked?: string | null;
+    dec_page_section?: string | null;
+    suppression_rules?: string | null;
+    notes?: string | null;
 }
 
 
@@ -2387,6 +2397,41 @@ export async function fetchAllFlagDefinitions(): Promise<FlagDefinition[]> {
         const msg = err instanceof Error ? err.message : String(err);
         logger.error('API', 'Unexpected error fetching flag definitions', { error: msg });
         return [];
+    }
+}
+
+
+/**
+ * Update a flag definition by code. Admin-only operation.
+ * Only allows updating editable columns (not code or entity_scope).
+ */
+export async function updateFlagDefinition(
+    code: string,
+    updates: Partial<Pick<FlagDefinition,
+        'label' | 'description' | 'default_severity' | 'category' |
+        'auto_resolve' | 'is_manual_allowed' | 'is_active' |
+        'trigger_logic' | 'data_fields_checked' | 'dec_page_section' |
+        'suppression_rules' | 'notes'
+    >>
+): Promise<FlagDefinition | null> {
+    try {
+        const { data, error } = await supabase
+            .from('flag_definitions')
+            .update(updates)
+            .eq('code', code)
+            .select('*')
+            .single();
+
+        if (error) {
+            logger.error('API', 'Error updating flag definition', { code, message: error.message });
+            return null;
+        }
+
+        return data as FlagDefinition;
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error('API', 'Unexpected error updating flag definition', { code, error: msg });
+        return null;
     }
 }
 
