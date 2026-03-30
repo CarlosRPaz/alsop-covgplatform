@@ -150,21 +150,21 @@ function AuthGate() {
     return (
         <div style={{
             width: '100%', maxWidth: '480px', margin: '0 auto',
-            background: 'var(--bg-dark-surface)',
-            border: '1px solid var(--border-dark)',
-            borderRadius: '1.25rem',
+            background: 'var(--bg-surface-raised)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-xl)',
             padding: '2.5rem',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            boxShadow: 'var(--shadow-overlay)',
         }}>
             {/* Brand */}
             <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                    <Shield size={28} style={{ color: 'var(--bg-dark-accent)' }} />
-                    <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-dark-high)', letterSpacing: '-0.02em' }}>
+                    <Shield size={28} style={{ color: 'var(--accent-primary)' }} />
+                    <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-high)', letterSpacing: '-0.02em' }}>
                         CoverageCheckNow
                     </span>
                 </div>
-                <p style={{ color: 'var(--text-dark-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
                     Sign in to submit your declaration
                 </p>
             </div>
@@ -172,17 +172,17 @@ function AuthGate() {
             {/* Tab Toggle */}
             <div style={{
                 display: 'flex',
-                background: 'rgba(15,23,42,0.5)',
-                borderRadius: '0.75rem', padding: '4px',
+                background: 'var(--accent-primary-muted)',
+                borderRadius: 'var(--radius-lg)', padding: '4px',
                 marginBottom: '1.75rem',
-                border: '1px solid var(--border-dark)',
+                border: '1px solid var(--border-default)',
             }}>
                 <button onClick={() => resetForm(false)} style={{
                     flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
                     padding: '0.625rem 1rem', border: 'none',
-                    background: !isSignUp ? 'var(--accent-primary-muted)' : 'transparent',
-                    color: !isSignUp ? 'var(--text-dark-high)' : 'var(--text-dark-muted)',
-                    fontSize: '0.875rem', fontWeight: 500, borderRadius: '0.5rem', cursor: 'pointer',
+                    background: !isSignUp ? 'var(--accent-primary)' : 'transparent',
+                    color: !isSignUp ? 'var(--text-inverse)' : 'var(--text-muted)',
+                    fontSize: '0.875rem', fontWeight: 600, borderRadius: 'var(--radius-md)', cursor: 'pointer',
                     transition: 'all 0.2s ease',
                 }}>
                     <LogIn size={16} /> Sign In
@@ -190,9 +190,9 @@ function AuthGate() {
                 <button onClick={() => resetForm(true)} style={{
                     flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
                     padding: '0.625rem 1rem', border: 'none',
-                    background: isSignUp ? 'var(--accent-primary-muted)' : 'transparent',
-                    color: isSignUp ? 'var(--text-dark-high)' : 'var(--text-dark-muted)',
-                    fontSize: '0.875rem', fontWeight: 500, borderRadius: '0.5rem', cursor: 'pointer',
+                    background: isSignUp ? 'var(--accent-primary)' : 'transparent',
+                    color: isSignUp ? 'var(--text-inverse)' : 'var(--text-muted)',
+                    fontSize: '0.875rem', fontWeight: 600, borderRadius: 'var(--radius-md)', cursor: 'pointer',
                     transition: 'all 0.2s ease',
                 }}>
                     <UserPlus size={16} /> Sign Up
@@ -205,9 +205,9 @@ function AuthGate() {
                     <div style={{
                         padding: '0.75rem 1rem',
                         background: 'var(--bg-error-subtle)',
-                        border: '1px solid rgba(191,25,50,0.25)',
-                        borderRadius: '0.625rem',
-                        color: '#fca5a5', fontSize: '0.875rem',
+                        border: '1px solid rgba(191,25,50,0.2)',
+                        borderRadius: 'var(--radius-md)',
+                        color: 'var(--status-error)', fontSize: '0.875rem', fontWeight: 500,
                     }}>
                         {error}
                     </div>
@@ -216,9 +216,9 @@ function AuthGate() {
                     <div style={{
                         padding: '0.75rem 1rem',
                         background: 'var(--bg-success-subtle)',
-                        border: '1px solid rgba(43,155,75,0.25)',
-                        borderRadius: '0.625rem',
-                        color: '#86efac', fontSize: '0.875rem',
+                        border: '1px solid rgba(43,155,75,0.2)',
+                        borderRadius: 'var(--radius-md)',
+                        color: 'var(--status-success)', fontSize: '0.875rem', fontWeight: 500,
                     }}>
                         {success}
                     </div>
@@ -257,7 +257,7 @@ function AuthGate() {
             </form>
 
             {/* Toggle */}
-            <div style={{ textAlign: 'center', marginTop: '1.5rem', color: 'var(--text-dark-muted)', fontSize: '0.875rem' }}>
+            <div style={{ textAlign: 'center', marginTop: '1.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
                 {isSignUp ? (
                     <>
                         Already have an account?{' '}
@@ -293,7 +293,7 @@ function InputField({ icon, type, placeholder, value, onChange, required, autoCo
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <span style={{
                 position: 'absolute', left: '0.875rem',
-                color: 'var(--text-dark-muted)',
+                color: 'var(--text-muted)',
                 pointerEvents: 'none', zIndex: 1, display: 'flex',
             }}>
                 {icon}
@@ -308,10 +308,10 @@ function InputField({ icon, type, placeholder, value, onChange, required, autoCo
                 style={{
                     width: '100%',
                     padding: '0.75rem 0.875rem 0.75rem 2.75rem',
-                    background: 'var(--bg-dark-base)',
-                    border: '1px solid var(--border-dark)',
-                    borderRadius: '0.625rem',
-                    color: 'var(--text-dark-high)',
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--text-high)',
                     fontSize: '0.95rem',
                     outline: 'none',
                     transition: 'all 0.2s ease',
@@ -320,3 +320,4 @@ function InputField({ icon, type, placeholder, value, onChange, required, autoCo
         </div>
     );
 }
+
