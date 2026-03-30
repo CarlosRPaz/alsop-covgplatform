@@ -2,26 +2,51 @@
 
 import React from 'react';
 import { Card } from '../ui/Card/Card';
-import { Eye, AlertTriangle, Database, FileText, ExternalLink, MessageSquare } from 'lucide-react';
-import { PolicyReportRow, PropertyEnrichment } from '@/lib/api';
+import { Eye, AlertTriangle, MessageSquare, ExternalLink, Zap, CheckCircle2 } from 'lucide-react';
+import { PolicyReportRow } from '@/lib/api';
 import styles from './AIReport.module.css';
 
 interface AgentReviewPanelProps {
-    /** Live report data from policy_reports table */
     reportRow?: PolicyReportRow | null;
-    /** Enrichments for raw data display */
-    enrichments?: PropertyEnrichment[];
-    /** Link to the full client-facing report */
     reportLink?: string;
 }
 
-export function AgentReviewPanel({ reportRow, enrichments = [], reportLink }: AgentReviewPanelProps) {
+export function AgentReviewPanel({ reportRow, reportLink }: AgentReviewPanelProps) {
     const ai = reportRow?.ai_insights;
-    const propertyObs = ai?.property_observations || [];
-    const dataGaps = ai?.data_gaps || [];
-    const internalNotes = ai?.internal_notes || '';
 
-    const hasContent = propertyObs.length > 0 || dataGaps.length > 0 || internalNotes || enrichments.length > 0;
+    // Merge recommendations + action_items + data_gaps into unified action list
+    const actions: Array<{ text: string; type: string; urgency: string }> = [];
+
+    // Recommendations → actions
+    (ai?.recommendations || []).forEach((r: any) => {
+        actions.push({
+            text: r.text,
+            type: r.category,
+            urgency: r.priority === 1 ? 'now' : r.priority === 2 ? 'before_renewal' : 'future',
+        });
+    });
+
+    // Action items → actions
+    (ai?.action_items || []).forEach((a: any) => {
+        // Skip duplicates (if rec text ≈ action item text)
+        if (!actions.some(x => x.text.toLowerCase().includes(a.item.toLowerCase().slice(0, 20)))) {
+            actions.push({ text: a.item, type: a.type, urgency: a.urgency === 'before_renewal' ? 'before_renewal' : a.urgency === 'at_renewal' ? 'before_renewal' : 'future' });
+        }
+    });
+
+    // Data gaps → actions (framed as things to verify)
+    (ai?.data_gaps || []).forEach((g: any) => {
+        actions.push({ text: `${g.field}: ${g.suggestion}`, type: 'verify', urgency: 'before_renewal' });
+    });
+
+    // Sort: now → before_renewal → future
+    const urgencyOrder: Record<string, number> = { now: 0, before_renewal: 1, future: 2 };
+    actions.sort((a, b) => (urgencyOrder[a.urgency] ?? 2) - (urgencyOrder[b.urgency] ?? 2));
+
+    // Property observations (agent-only)
+    const propertyObs = (ai?.property_observations || []).filter((o: any) => o.discrepancy);
+    const internalNotes = ai?.internal_notes || '';
+    const hasContent = actions.length > 0 || propertyObs.length > 0 || internalNotes;
 
     if (!hasContent && !reportRow) {
         return (
@@ -31,107 +56,96 @@ export function AgentReviewPanel({ reportRow, enrichments = [], reportLink }: Ag
                     <h2>Internal Review</h2>
                 </div>
                 <div className={styles.emptyState}>
-                    <p>No report data yet. Generate a report to populate the internal review with property observations, data gaps, and agent notes.</p>
+                    <p>Generate a report to populate agent suggestions and review data.</p>
                 </div>
             </Card>
         );
     }
 
+    const urgencyLabel = (u: string) => u === 'now' ? 'Now' : u === 'before_renewal' ? 'Before Renewal' : 'When Convenient';
+    const urgencyColor = (u: string) => u === 'now' ? '#ef4444' : u === 'before_renewal' ? '#f59e0b' : '#6366f1';
+    const typeIcon = (t: string) => {
+        switch (t) {
+            case 'verify': return '🔍';
+            case 'discuss': return '💬';
+            case 'review': return '📋';
+            case 'confirm': return '✓';
+            case 'update': return '✏️';
+            default: return '→';
+        }
+    };
+
+    // Group actions by urgency
+    const grouped = actions.reduce((acc, a) => {
+        const key = a.urgency;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(a);
+        return acc;
+    }, {} as Record<string, typeof actions>);
+
     return (
         <Card className={styles.container}>
             <div className={styles.header}>
-                <Eye className={styles.aiIcon} size={20} />
-                <h2>Internal Review</h2>
+                <Zap className={styles.aiIcon} size={18} />
+                <h2>Agent Action Items</h2>
                 {reportLink && (
                     <a href={reportLink} className={styles.reportLink} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink size={13} />
-                        <span>Client Report</span>
+                        <ExternalLink size={12} />
+                        View Client Report
                     </a>
                 )}
             </div>
 
             <div className={styles.reviewGrid}>
-                {/* Property Observations (from AI analysis — agent-only) */}
+                {/* ── Grouped Actions ── */}
+                {Object.entries(grouped).map(([urgency, items]) => (
+                    <div key={urgency} className={styles.reviewSection}>
+                        <div className={styles.reviewSectionHeader} style={{ color: urgencyColor(urgency) }}>
+                            <span className={styles.urgencyDot} style={{ background: urgencyColor(urgency) }} />
+                            {urgencyLabel(urgency)}
+                            <span className={styles.countBadge}>{items.length}</span>
+                        </div>
+                        <div className={styles.actionList}>
+                            {items.map((item, idx) => (
+                                <div key={idx} className={styles.actionItem}>
+                                    <span className={styles.actionIcon}>{typeIcon(item.type)}</span>
+                                    <span className={styles.actionText}>{item.text}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+
+                {/* ── Discrepancies (only ones with conflicts) ── */}
                 {propertyObs.length > 0 && (
                     <div className={styles.reviewSection}>
-                        <div className={styles.reviewSectionHeader}>
-                            <Eye size={15} />
-                            <span>Property Observations</span>
+                        <div className={styles.reviewSectionHeader} style={{ color: '#f59e0b' }}>
+                            <AlertTriangle size={13} />
+                            Data Conflicts
                             <span className={styles.countBadge}>{propertyObs.length}</span>
                         </div>
-                        <div className={styles.reviewList}>
+                        <div className={styles.actionList}>
                             {propertyObs.map((obs: any, idx: number) => (
-                                <div key={idx} className={`${styles.reviewItem} ${obs.discrepancy ? styles.reviewItemWarn : ''}`}>
-                                    <div className={styles.reviewItemText}>{obs.observation}</div>
-                                    <div className={styles.reviewItemMeta}>
-                                        <span className={styles.sourcePill}>{obs.source}</span>
-                                        <span className={`${styles.confBadge} ${styles[`conf_${obs.confidence}`]}`}>
-                                            {obs.confidence}
-                                        </span>
+                                <div key={idx} className={styles.conflictItem}>
+                                    <div className={styles.conflictText}>{obs.observation}</div>
+                                    <div className={styles.conflictDetail}>
+                                        <AlertTriangle size={10} />
+                                        {obs.discrepancy}
                                     </div>
-                                    {obs.discrepancy && (
-                                        <div className={styles.discrepancyBanner}>
-                                            <AlertTriangle size={12} />
-                                            {obs.discrepancy}
-                                        </div>
-                                    )}
                                 </div>
                             ))}
                         </div>
                     </div>
                 )}
 
-                {/* Data Gaps — agent action items */}
-                {dataGaps.length > 0 && (
-                    <div className={styles.reviewSection}>
-                        <div className={styles.reviewSectionHeader}>
-                            <AlertTriangle size={15} />
-                            <span>Data Gaps</span>
-                            <span className={styles.countBadge}>{dataGaps.length}</span>
-                        </div>
-                        <div className={styles.reviewList}>
-                            {dataGaps.map((gap: any, idx: number) => (
-                                <div key={idx} className={styles.reviewItem}>
-                                    <div className={styles.reviewItemText}>
-                                        <strong>{gap.field}:</strong> {gap.impact}
-                                    </div>
-                                    <div className={styles.reviewItemAction}>{gap.suggestion}</div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Internal Notes (agent-only AI content) */}
+                {/* ── Internal Notes ── */}
                 {internalNotes && (
                     <div className={styles.reviewSection}>
                         <div className={styles.reviewSectionHeader}>
-                            <MessageSquare size={15} />
-                            <span>Agent Notes</span>
+                            <MessageSquare size={13} />
+                            AI Notes
                         </div>
                         <div className={styles.internalNotes}>{internalNotes}</div>
-                    </div>
-                )}
-
-                {/* Raw Enrichment Data */}
-                {enrichments.length > 0 && (
-                    <div className={styles.reviewSection}>
-                        <div className={styles.reviewSectionHeader}>
-                            <Database size={15} />
-                            <span>Enrichment Data</span>
-                            <span className={styles.countBadge}>{enrichments.length}</span>
-                        </div>
-                        <div className={styles.enrichTable}>
-                            {enrichments
-                                .filter(e => e.field_key !== 'property_image') // skip image row
-                                .map((e, idx) => (
-                                    <div key={idx} className={styles.enrichRow}>
-                                        <span className={styles.enrichKey}>{e.field_key.replace(/_/g, ' ')}</span>
-                                        <span className={styles.enrichValue}>{e.field_value}</span>
-                                        <span className={styles.enrichSource}>{e.source_name}</span>
-                                    </div>
-                                ))}
-                        </div>
                     </div>
                 )}
             </div>

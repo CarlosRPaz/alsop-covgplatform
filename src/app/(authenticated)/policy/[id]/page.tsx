@@ -243,7 +243,6 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                         <PolicyDashboard declaration={declaration!} enrichments={enrichments} policyDetail={policyDetailRaw || undefined} />
                         <AgentReviewPanel
                             reportRow={reportRow}
-                            enrichments={enrichments}
                             reportLink={reportRow ? `/report/${reportRow.id}` : undefined}
                         />
                     </div>

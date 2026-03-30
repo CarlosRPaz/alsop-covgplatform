@@ -636,7 +636,7 @@ function ReportEditorSection() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '1.25rem' }}>
                 {/* Section cards */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     {sections.map(section => (
                         <div
                             key={section.id}
@@ -645,25 +645,26 @@ function ReportEditorSection() {
                             onDragOver={(e) => handleDragOver(e, section.id)}
                             onDragEnd={() => setDraggedId(null)}
                             style={{
-                                background: 'var(--bg-surface-alt, #1a1d25)',
+                                background: 'var(--bg-surface)',
                                 border: `1px solid ${draggedId === section.id ? '#6366f1' : 'var(--border-default)'}`,
+                                borderLeft: `3px solid ${section.clientFacing ? '#6366f1' : '#f59e0b'}`,
                                 borderRadius: '7px',
-                                opacity: section.enabled ? 1 : 0.45,
+                                opacity: section.enabled ? 1 : 0.4,
                                 transition: 'all 0.15s',
                                 cursor: 'grab',
                             }}
                         >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.5rem 0.65rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 0.75rem' }}>
                                 <span style={{ color: 'var(--text-muted)', cursor: 'grab', flexShrink: 0 }}>{grip}</span>
-                                <span onClick={() => setExpandedId(expandedId === section.id ? null : section.id)} style={{ flex: 1, fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-high)', cursor: 'pointer' }}>{section.label}</span>
+                                <span onClick={() => setExpandedId(expandedId === section.id ? null : section.id)} style={{ flex: 1, fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-high)', cursor: 'pointer' }}>{section.label}</span>
 
                                 {/* Scope tag */}
                                 <button
                                     onClick={() => setSections(prev => prev.map(s => s.id === section.id ? { ...s, clientFacing: !s.clientFacing } : s))}
                                     style={{
-                                        fontSize: '0.55rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
-                                        padding: '0.1rem 0.4rem', borderRadius: '4px', border: 'none', cursor: 'pointer',
-                                        background: section.clientFacing ? 'rgba(99,102,241,0.12)' : 'rgba(245,158,11,0.12)',
+                                        fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+                                        padding: '0.15rem 0.5rem', borderRadius: '4px', border: 'none', cursor: 'pointer',
+                                        background: section.clientFacing ? 'rgba(99,102,241,0.15)' : 'rgba(245,158,11,0.15)',
                                         color: section.clientFacing ? '#818cf8' : '#fbbf24',
                                     }}
                                 >
@@ -675,8 +676,8 @@ function ReportEditorSection() {
                                     onClick={() => setSections(prev => prev.map(s => s.id === section.id ? { ...s, enabled: !s.enabled } : s))}
                                     style={{
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        width: '26px', height: '26px', borderRadius: '5px', border: 'none', cursor: 'pointer',
-                                        background: section.enabled ? 'rgba(16,185,129,0.12)' : 'var(--bg-surface-alt, #2a2d35)',
+                                        width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--border-default)', cursor: 'pointer',
+                                        background: section.enabled ? 'rgba(16,185,129,0.1)' : 'transparent',
                                         color: section.enabled ? '#34d399' : 'var(--text-muted)',
                                     }}
                                 >
@@ -685,8 +686,8 @@ function ReportEditorSection() {
                             </div>
 
                             {expandedId === section.id && (
-                                <div style={{ padding: '0 0.65rem 0.45rem 2.25rem' }}>
-                                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.45, margin: 0 }}>{section.description}</p>
+                                <div style={{ padding: '0 0.75rem 0.5rem 2.4rem' }}>
+                                    <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>{section.description}</p>
                                 </div>
                             )}
                         </div>
