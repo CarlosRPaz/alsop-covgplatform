@@ -644,15 +644,7 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
                                 </div>
                             )}
 
-                            {/* Coordinates */}
-                            {latitude && longitude && (
-                                <div className={styles.field}>
-                                    <label>Coordinates:</label>
-                                    <span style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                                        {Number(latitude).toFixed(5)}, {Number(longitude).toFixed(5)}
-                                    </span>
-                                </div>
-                            )}
+
 
                             {/* Satellite Image */}
                             {propertyImage && (
