@@ -1,5 +1,8 @@
 .chartContainer {
     width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
 }
 
 .chartHeader {
@@ -51,6 +54,8 @@
     display: flex;
     flex-direction: column;
     gap: 0;
+    flex: 1;
+    min-height: 0;
 }
 
 .weekBlock {
@@ -265,6 +270,8 @@
     gap: 3px;
     margin-top: 0.75rem;
     width: 100%;
+    flex: 1;
+    min-height: 0;
 }
 
 .gridDaysHeader {
@@ -286,10 +293,11 @@
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 3px;
+    flex: 1;
 }
 
 .gridCell {
-    height: 40px;
+    min-height: 40px;
     border-radius: 3px;
     display: flex;
     flex-direction: column;
@@ -308,16 +316,16 @@
 }
 
 .gridCellDate {
-    font-size: 0.5rem;
+    font-size: clamp(0.55rem, 0.8vw, 0.75rem);
     font-weight: 600;
     position: absolute;
-    top: 2px;
-    left: 3px;
+    top: 4px;
+    left: 5px;
     line-height: 1;
 }
 
 .gridCellCount {
-    font-size: 0.8rem;
+    font-size: clamp(0.9rem, 1.4vw, 1.25rem);
     font-weight: 700;
     line-height: 1;
 }

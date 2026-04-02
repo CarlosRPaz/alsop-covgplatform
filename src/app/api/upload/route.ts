@@ -221,7 +221,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
                     success: true,
                     message: 'Duplicate document recognized. Linking to existing record.',
                     data: {
-                        submissionId: dupRow?.id || existingDuplicate.id,
+                        submissionId: existingDuplicate.id, // Always return the parent ID that actually gets processed!
                         storagePath: '',
                         fileName: file.name,
                         fileSize: file.size,

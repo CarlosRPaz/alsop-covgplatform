@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Upload, Loader2 } from 'lucide-react';
+import { FileText, Upload, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle } from 'lucide-react';
 import { fetchActivityFeed, ActivityFeedItem } from '@/lib/api';
 import styles from './ActivityTab.module.css';
 
@@ -15,15 +15,15 @@ function formatTimeAgo(dateStr: string): string {
     const diffDays = Math.floor(diffMs / 86_400_000);
 
     if (diffMin < 1) return 'Just now';
-    if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`;
-    if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? '' : 's'} ago`;
-    if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
-    return date.toLocaleDateString();
+    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffHr < 24) return `${diffHr}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 function getStatusLabel(status: string): string {
     switch (status) {
-        case 'done': return 'Processed';
+        case 'done': return 'Parsed';
         case 'queued': return 'Queued';
         case 'processing': return 'Processing';
         case 'failed': return 'Failed';
@@ -31,13 +31,18 @@ function getStatusLabel(status: string): string {
     }
 }
 
-function getStatusColor(status: string): string {
+function StatusIcon({ status }: { status: string }) {
     switch (status) {
-        case 'done': return '#10b981';     // Green
-        case 'queued': return '#f59e0b';   // Amber
-        case 'processing': return '#3b82f6'; // Blue
-        case 'failed': return '#ef4444';   // Red
-        default: return '#6b7280';
+        case 'done':
+            return <CheckCircle2 size={14} className={styles.statusIconDone} />;
+        case 'failed':
+            return <XCircle size={14} className={styles.statusIconFailed} />;
+        case 'processing':
+            return <Loader2 size={14} className={`${styles.statusIconProcessing} ${styles.spinSlow}`} />;
+        case 'queued':
+            return <Clock size={14} className={styles.statusIconQueued} />;
+        default:
+            return <AlertTriangle size={14} className={styles.statusIconDefault} />;
     }
 }
 
@@ -57,7 +62,7 @@ export function ActivityTab() {
         <div className={styles.container}>
             <div className={styles.header}>
                 <h2 className={styles.title}>Recent Activity</h2>
-                <p className={styles.subtitle}>Declaration uploads and processing events</p>
+                <span className={styles.count}>{activities.length} events</span>
             </div>
 
             {loading ? (
@@ -72,78 +77,79 @@ export function ActivityTab() {
                 </div>
             ) : (
                 <div className={styles.timeline}>
-                    {activities.map((activity) => {
-                        const statusColor = getStatusColor(activity.status);
+                    {activities.map((activity, idx) => {
                         const fileName = activity.file_path
                             ? activity.file_path.split('/').pop() || 'Document'
                             : 'Declaration';
 
                         return (
-                            <div key={activity.id} className={styles.activityItem}>
-                                <div
-                                    className={styles.iconWrapper}
-                                    style={{ backgroundColor: `${statusColor}15` }}
-                                >
-                                    <FileText className={styles.icon} style={{ color: statusColor }} />
+                            <div key={`${activity.id}-${idx}`} className={styles.row}>
+                                {/* Status icon */}
+                                <div className={styles.statusCol}>
+                                    <StatusIcon status={activity.status} />
                                 </div>
-                                <div className={styles.content}>
-                                    <div className={styles.activityTitle}>
-                                        Declaration Uploaded
+
+                                {/* Main info — single line on desktop, wraps on mobile */}
+                                <div className={styles.mainCol}>
+                                    <span className={`${styles.statusLabel} ${styles[activity.status] || ''}`}>
+                                        {getStatusLabel(activity.status)}
+                                    </span>
+                                    <span className={styles.divider}>—</span>
+                                    {activity.insured_name ? (
                                         <span
-                                            className={styles.statusChip}
-                                            style={{
-                                                backgroundColor: `${statusColor}18`,
-                                                color: statusColor,
+                                            className={styles.clickableLink}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                activity.client_id && router.push(`/client/${activity.client_id}`);
                                             }}
                                         >
-                                            {getStatusLabel(activity.status)}
+                                            {activity.insured_name}
                                         </span>
-                                    </div>
-
-                                    <div className={styles.description}>
-                                        {activity.insured_name && (
+                                    ) : activity.policy_number ? (
+                                        <span
+                                            className={styles.clickableLink}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                activity.policy_id && router.push(`/policy/${activity.policy_id}`);
+                                            }}
+                                        >
+                                            {activity.policy_number}
+                                        </span>
+                                    ) : (
+                                        <span className={styles.fileName}>{fileName}</span>
+                                    )}
+                                    {activity.insured_name && activity.policy_number && (
+                                        <>
+                                            <span className={styles.divider}>·</span>
                                             <span
                                                 className={styles.clickableLink}
-                                                onClick={() =>
-                                                    activity.client_id &&
-                                                    router.push(`/client/${activity.client_id}`)
-                                                }
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    activity.policy_id && router.push(`/policy/${activity.policy_id}`);
+                                                }}
                                             >
-                                                {activity.insured_name}
+                                                {activity.policy_number}
                                             </span>
-                                        )}
-                                        {activity.insured_name && activity.policy_number && (
-                                            <span> · </span>
-                                        )}
-                                        {activity.policy_number && (
-                                            <>
-                                                {!activity.insured_name && ''}
-                                                <span>Policy </span>
-                                                <span
-                                                    className={styles.clickableLink}
-                                                    onClick={() =>
-                                                        activity.policy_id &&
-                                                        router.push(`/policy/${activity.policy_id}`)
-                                                    }
-                                                >
-                                                    {activity.policy_number}
-                                                </span>
-                                            </>
-                                        )}
-                                        {!activity.insured_name && !activity.policy_number && (
-                                            <span>{fileName}</span>
-                                        )}
-                                    </div>
+                                        </>
+                                    )}
+                                </div>
 
-                                    <div className={styles.meta}>
-                                        <span className={styles.timestamp}>
-                                            {formatTimeAgo(activity.created_at)}
-                                        </span>
-                                        <span className={styles.separator}>•</span>
-                                        <span className={styles.user}>
-                                            Uploaded by {activity.uploaded_by}
-                                        </span>
+                                {/* Uploader */}
+                                <div className={styles.uploaderCol}>
+                                    {activity.uploaded_by}
+                                </div>
+
+                                {/* Error details if failed */}
+                                {activity.status === 'failed' && activity.error_message && (
+                                    <div className={styles.errorCol}>
+                                        <AlertTriangle size={12} />
+                                        <span>{activity.error_message}</span>
                                     </div>
+                                )}
+
+                                {/* Timestamp */}
+                                <div className={styles.timeCol}>
+                                    {formatTimeAgo(activity.created_at)}
                                 </div>
                             </div>
                         );

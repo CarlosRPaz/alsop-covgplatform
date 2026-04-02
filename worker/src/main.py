@@ -267,7 +267,7 @@ def process_job(job: dict) -> None:
 
     finally:
         # Safety-net: guarantee the job is NOT left in 'processing'
-        force_release_job(job_id, attempts, max_attempts)
+        force_release_job(job_id, submission_id, attempts, max_attempts)
 
 
 # ---------------------------------------------------------------------------

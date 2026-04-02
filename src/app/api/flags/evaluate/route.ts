@@ -11,14 +11,16 @@ import { logger } from '@/lib/logger';
  *
  * Schema-resilient: works with both old and new policy_flags schemas.
  *
+ * Priority values: high | medium | low (3-tier system)
+ *
  * Body: { policy_id: string }
  */
 
-const RULE_VERSION = '1.0.0';
+const RULE_VERSION = '2.0.0';
 
 interface FlagCheck {
     code: string;
-    severity: string;
+    severity: string; // DB column name — stores priority values: 'high' | 'medium' | 'low'
     title: string;
     category: string;
     entity_scope: 'policy' | 'client' | 'policy_term';
@@ -57,9 +59,33 @@ function isZeroOrMissing(val: unknown): boolean {
     }
 }
 
+function parseNumeric(val: unknown): number | null {
+    if (val === null || val === undefined) return null;
+    const cleaned = String(val).replace(/[$,]/g, '').trim();
+    const n = parseFloat(cleaned);
+    return isNaN(n) ? null : n;
+}
+
 function getEnrichmentValue(ctx: EvalCtx, fieldKey: string): string | null {
     const e = ctx.enrichments.find(en => en.field_key === fieldKey);
     return e?.field_value || null;
+}
+
+/** Check if address indicates a condo/unit-style property */
+function isCondoOrUnit(ctx: EvalCtx): boolean {
+    const addr = String(get(ctx, 'property_location') || get(ctx, 'property_address_raw') || ctx.policy.property_address_raw || '').toLowerCase();
+    const unitPatterns = ['unit ', 'unit#', 'apt ', 'apt#', 'ste ', 'suite ', 'spc ', 'space ', '#', 'condo'];
+    return unitPatterns.some(p => addr.includes(p));
+}
+
+/** Check if enrichment data indicates other structures exist on the property */
+function hasOtherStructuresEvidence(ctx: EvalCtx): boolean {
+    const solarDetected = getEnrichmentValue(ctx, 'ai_solar_panels') === 'detected';
+    const poolDetected = getEnrichmentValue(ctx, 'ai_pool') === 'detected';
+    const deckDetected = getEnrichmentValue(ctx, 'ai_deck') === 'detected';
+    const shedDetected = getEnrichmentValue(ctx, 'ai_shed') === 'detected';
+    const garageDetected = getEnrichmentValue(ctx, 'ai_detached_garage') === 'detected';
+    return solarDetected || poolDetected || deckDetected || shedDetected || garageDetected;
 }
 
 // ── Check functions ──────────────────────────────────────────
@@ -77,38 +103,6 @@ function checkNoDic(ctx: EvalCtx): string | null {
     return null;
 }
 
-function checkRenewalUpcoming(ctx: EvalCtx): string | null {
-    const exp = (ctx.term.expiration_date || ctx.data.policy_period_end) as string | null;
-    if (!exp) return null;
-    try {
-        const expDate = new Date(exp);
-        const now = new Date();
-        const diffMs = expDate.getTime() - now.getTime();
-        const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-        if (days >= 0 && days <= 21) {
-            return `Policy term expires in ${days} day${days !== 1 ? 's' : ''} (${expDate.toLocaleDateString()}).`;
-        }
-    } catch { /* ignore */ }
-    return null;
-}
-
-function checkPersonalPropertyZeroOwner(ctx: EvalCtx): string | null {
-    const occ = String(get(ctx, 'occupancy') || '').toLowerCase();
-    if (!occ.includes('owner')) return null;
-    const val = get(ctx, 'limit_personal_property');
-    if (val === null || val === undefined) return null;
-    if (isZeroOrMissing(val)) return 'Personal property (Coverage C) is $0 for owner-occupied property.';
-    return null;
-}
-
-function checkDwellingRcNotIncluded(ctx: EvalCtx): string | null {
-    const rc = get(ctx, 'limit_dwelling_replacement_cost');
-    if (!rc) return null;
-    const s = String(rc).toLowerCase().trim();
-    if (['not included', 'no', 'false', 'excluded'].includes(s)) return 'Dwelling replacement cost is not included.';
-    return null;
-}
-
 function checkDwellingRcLowOrdinance(ctx: EvalCtx): string | null {
     const rc = get(ctx, 'limit_dwelling_replacement_cost');
     if (!rc) return null;
@@ -123,22 +117,6 @@ function checkDwellingRcLowOrdinance(ctx: EvalCtx): string | null {
     return null;
 }
 
-function checkOtherStructuresZero(ctx: EvalCtx): string | null {
-    const val = get(ctx, 'limit_other_structures');
-    if (val === null || val === undefined) return null;
-    if (isZeroOrMissing(val)) return 'Other structures coverage is $0.';
-    return null;
-}
-
-function checkMortgageeDwellingZero(ctx: EvalCtx): string | null {
-    const mortgagee = get(ctx, 'mortgagee_1_name');
-    if (!mortgagee) return null;
-    const dwelling = get(ctx, 'limit_dwelling');
-    if (!dwelling) return 'Mortgagee is present but dwelling coverage is missing.';
-    if (isZeroOrMissing(dwelling)) return 'Mortgagee is present but dwelling coverage is $0.';
-    return null;
-}
-
 function checkFairRentalValue(ctx: EvalCtx): string | null {
     const val = get(ctx, 'limit_fair_rental_value');
     if (!val) return 'Fair rental value coverage is missing.';
@@ -146,38 +124,178 @@ function checkFairRentalValue(ctx: EvalCtx): string | null {
     return null;
 }
 
-function checkEcmPremium(ctx: EvalCtx): string | null {
-    const val = get(ctx, 'total_annual_premium') || ctx.term.annual_premium;
-    if (!val) return 'Annual premium is missing.';
-    if (isZeroOrMissing(val)) return 'Annual premium is $0.';
-    return null;
-}
-
 // ── Rule registry ────────────────────────────────────────────
 
 const FLAG_CHECKS: FlagCheck[] = [
-    { code: 'MISSING_POLICY_NUMBER', severity: 'critical', title: 'Missing Policy Number', category: 'data_quality', entity_scope: 'policy', auto_resolve: true, check: (ctx) => { if (!ctx.policy.policy_number) return 'Policy number is missing.'; return null; } },
-    { code: 'MISSING_PROPERTY_LOCATION', severity: 'critical', title: 'Missing Property Location', category: 'data_quality', entity_scope: 'policy', auto_resolve: true, check: checkMissingField('property_location', 'Property location') },
-    { code: 'MISSING_DWELLING_LIMIT', severity: 'critical', title: 'Missing Dwelling Limit', category: 'data_quality', entity_scope: 'policy', auto_resolve: true, check: checkMissingField('limit_dwelling', 'Dwelling coverage limit') },
-    { code: 'MISSING_ORDINANCE_OR_LAW', severity: 'critical', title: 'Missing Ordinance or Law', category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, check: checkMissingField('limit_ordinance_or_law', 'Ordinance or law coverage') },
-    { code: 'MISSING_EXTENDED_DWELLING', severity: 'critical', title: 'Missing Extended Dwelling Coverage', category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, check: checkMissingField('limit_extended_dwelling_coverage', 'Extended dwelling coverage') },
-    { code: 'MISSING_DWELLING_REPLACEMENT_COST', severity: 'critical', title: 'Missing Dwelling Replacement Cost', category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, check: checkMissingField('limit_dwelling_replacement_cost', 'Dwelling replacement cost') },
-    { code: 'MISSING_PERSONAL_PROPERTY_REPLACEMENT_COST', severity: 'critical', title: 'Missing Personal Property RC', category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, check: checkMissingField('limit_personal_property_replacement_cost', 'Personal property replacement cost') },
-    { code: 'MISSING_FENCES_COVERAGE', severity: 'critical', title: 'Missing Fences Coverage', category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, check: checkMissingField('limit_fences', 'Fences coverage') },
-    { code: 'MISSING_PERSONAL_PROPERTY_COVERAGE_C', severity: 'critical', title: 'Missing Personal Property (Cov C)', category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, check: checkMissingField('limit_personal_property', 'Personal property (Coverage C)') },
-    { code: 'MORTGAGEE_PRESENT_DWELLING_ZERO', severity: 'critical', title: 'Mortgagee Present, Dwelling $0', category: 'coverage_gap', entity_scope: 'policy', auto_resolve: false, check: checkMortgageeDwellingZero },
-    { code: 'NO_DIC', severity: 'high', title: 'DIC Not on File', category: 'dic', entity_scope: 'policy', auto_resolve: false, check: checkNoDic },
-    { code: 'RENEWAL_UPCOMING', severity: 'high', title: 'Renewal Upcoming', category: 'renewal', entity_scope: 'policy', auto_resolve: true, check: checkRenewalUpcoming },
-    { code: 'DWELLING_RC_NOT_INCLUDED', severity: 'high', title: 'Dwelling RC Not Included', category: 'coverage_gap', entity_scope: 'policy', auto_resolve: false, check: checkDwellingRcNotIncluded },
-    { code: 'DWELLING_RC_INCLUDED_LOW_ORDINANCE', severity: 'high', title: 'RC Included, Low Ordinance/Law', category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, check: checkDwellingRcLowOrdinance },
-    { code: 'FAIR_RENTAL_VALUE_ZERO_OR_MISSING', severity: 'high', title: 'Fair Rental Value Zero or Missing', category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, check: checkFairRentalValue },
-    { code: 'ECM_PREMIUM_MISSING_OR_ZERO', severity: 'high', title: 'Premium Missing or Zero', category: 'data_quality', entity_scope: 'policy', auto_resolve: true, check: checkEcmPremium },
-    { code: 'OTHER_STRUCTURES_ZERO', severity: 'warning', title: 'Other Structures $0', category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, check: checkOtherStructuresZero },
-    { code: 'PERSONAL_PROPERTY_ZERO_OWNER_OCCUPIED', severity: 'warning', title: 'Personal Property $0 (Owner-Occupied)', category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, check: checkPersonalPropertyZeroOwner },
+    // ── Data Quality ──
+    {
+        code: 'MISSING_POLICY_NUMBER', severity: 'high', title: 'Missing Policy Number',
+        category: 'data_quality', entity_scope: 'policy', auto_resolve: true,
+        check: (ctx) => { if (!ctx.policy.policy_number) return 'Policy number is missing.'; return null; }
+    },
+    {
+        code: 'MISSING_PROPERTY_LOCATION', severity: 'high', title: 'Missing Property Location',
+        category: 'data_quality', entity_scope: 'policy', auto_resolve: true,
+        check: checkMissingField('property_location', 'Property location')
+    },
+    {
+        // MODIFIED: Add condo/unit suppression
+        code: 'MISSING_DWELLING_LIMIT', severity: 'high', title: 'Missing Dwelling Limit',
+        category: 'data_quality', entity_scope: 'policy', auto_resolve: true,
+        check: (ctx) => {
+            if (isCondoOrUnit(ctx)) return null; // Suppress for condos/units
+            if (isMissing(get(ctx, 'limit_dwelling'))) return 'Dwelling coverage limit is missing or empty.';
+            return null;
+        }
+    },
+
+    // ── Coverage Gaps ──
+    {
+        code: 'MISSING_ORDINANCE_OR_LAW', severity: 'medium', title: 'Missing Ordinance or Law',
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        check: checkMissingField('limit_ordinance_or_law', 'Ordinance or law coverage')
+    },
+    {
+        code: 'MISSING_EXTENDED_DWELLING', severity: 'medium', title: 'Missing Extended Dwelling Coverage',
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        check: checkMissingField('limit_extended_dwelling_coverage', 'Extended dwelling coverage')
+    },
+    {
+        code: 'MISSING_DWELLING_REPLACEMENT_COST', severity: 'medium', title: 'Missing Dwelling Replacement Cost',
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        check: checkMissingField('limit_dwelling_replacement_cost', 'Dwelling replacement cost')
+    },
+    {
+        // MODIFIED: No mobile/manufactured suppression — evaluate for all
+        code: 'MISSING_PERSONAL_PROPERTY_REPLACEMENT_COST', severity: 'medium', title: 'Missing Personal Property RC',
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        check: checkMissingField('limit_personal_property_replacement_cost', 'Personal property replacement cost')
+    },
+    {
+        // MODIFIED: Only fire when fences field was actually parsed/present in coverage data
+        code: 'MISSING_FENCES_COVERAGE', severity: 'low', title: 'Missing Fences Coverage',
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        check: (ctx) => {
+            // Only flag if the parser actually produced a fences field (even if empty)
+            // Avoids noise when the dec page didn't have a fences section at all
+            const hasField = 'limit_fences' in ctx.data;
+            if (!hasField) return null;
+            if (isMissing(get(ctx, 'limit_fences'))) return 'Fences coverage is missing or empty.';
+            return null;
+        }
+    },
+
+    // ── DIC ──
+    {
+        // MODIFIED: auto_resolve = true so new uploads clear it
+        code: 'NO_DIC', severity: 'high', title: 'DIC Not on File',
+        category: 'dic', entity_scope: 'policy', auto_resolve: true,
+        check: checkNoDic
+    },
+
+    // ── Coverage Gap Analysis ──
+    {
+        code: 'DWELLING_RC_INCLUDED_LOW_ORDINANCE', severity: 'medium', title: 'RC Included, Low Ordinance/Law',
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        check: checkDwellingRcLowOrdinance
+    },
+    {
+        code: 'FAIR_RENTAL_VALUE_ZERO_OR_MISSING', severity: 'high', title: 'Fair Rental Value Zero or Missing',
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        check: checkFairRentalValue
+    },
+    {
+        code: 'INFLATION_GUARD_NOT_INCLUDED', severity: 'medium', title: 'Inflation Guard Not Included',
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        check: (ctx) => {
+            const val = get(ctx, 'limit_inflation_guard');
+            if (val === null || val === undefined) return 'Inflation guard coverage is missing.';
+            const s = String(val).toLowerCase().trim();
+            if (['not included', 'no', 'false', 'excluded', '0', '$0', '$0.00', 'none', ''].includes(s)) {
+                return 'Inflation guard is not included.';
+            }
+            return null;
+        }
+    },
+
+    // ── Other Structures — only fire when enrichment confirms structures exist ──
+    {
+        code: 'OTHER_STRUCTURES_ZERO', severity: 'high', title: 'Other Structures $0',
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        check: (ctx) => {
+            const val = get(ctx, 'limit_other_structures');
+            if (val === null || val === undefined) return null;
+            if (!isZeroOrMissing(val)) return null;
+            // Only flag if enrichment data suggests structures actually exist
+            if (!hasOtherStructuresEvidence(ctx)) return null;
+            return 'Other structures coverage is $0, but property analysis detected structures (solar panels, pool, deck, shed, or detached garage).';
+        }
+    },
+
+    // ── NEW: Personal Property Threshold Flags ──
+    {
+        code: 'PERSONAL_PROPERTY_LOW_OWNER_OCCUPIED', severity: 'medium',
+        title: 'Personal Property Below 30% of Dwelling (Owner-Occupied)',
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        check: (ctx) => {
+            const occ = String(get(ctx, 'occupancy') || '').toLowerCase();
+            if (!occ.includes('owner')) return null;
+            const pp = parseNumeric(get(ctx, 'limit_personal_property'));
+            const dw = parseNumeric(get(ctx, 'limit_dwelling'));
+            if (pp === null || dw === null || dw <= 0) return null;
+            const ratio = pp / dw;
+            if (ratio < 0.30) {
+                return `Personal property coverage ($${pp.toLocaleString()}) is ${(ratio * 100).toFixed(1)}% of dwelling limit ($${dw.toLocaleString()}), below the recommended 30% threshold for owner-occupied properties.`;
+            }
+            return null;
+        }
+    },
+    {
+        code: 'PERSONAL_PROPERTY_LOW_TENANT_OCCUPIED', severity: 'low',
+        title: 'Personal Property Below 10% of Dwelling (Tenant-Occupied)',
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        check: (ctx) => {
+            const occ = String(get(ctx, 'occupancy') || '').toLowerCase();
+            if (!occ.includes('tenant') && !occ.includes('rental') && !occ.includes('renter')) return null;
+            const pp = parseNumeric(get(ctx, 'limit_personal_property'));
+            const dw = parseNumeric(get(ctx, 'limit_dwelling'));
+            if (pp === null || dw === null || dw <= 0) return null;
+            const ratio = pp / dw;
+            if (ratio < 0.10) {
+                return `Personal property coverage ($${pp.toLocaleString()}) is ${(ratio * 100).toFixed(1)}% of dwelling limit ($${dw.toLocaleString()}), below the recommended 10% threshold for tenant-occupied properties.`;
+            }
+            return null;
+        }
+    },
+
+    // ── NEW: Missing Perils Insured (replaces always-fire PERILS_INSURED_AGAINST) ──
+    {
+        code: 'MISSING_PERILS_INSURED', severity: 'high',
+        title: 'Missing Perils Insured Against',
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        check: (ctx) => {
+            const val = get(ctx, 'perils_insured_against');
+            if (isMissing(val)) return 'The "Perils Insured Against" section is missing. This is a key coverage element that should be present on every policy.';
+            return null;
+        }
+    },
+
+    // ── NEW: Missing Debris Removal ──
+    {
+        code: 'MISSING_DEBRIS_REMOVAL', severity: 'high',
+        title: 'Missing Debris Removal',
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        check: (ctx) => {
+            const val = get(ctx, 'limit_debris_removal');
+            if (isMissing(val)) return 'Debris removal coverage is missing or not present on the declarations page.';
+            return null;
+        }
+    },
+
     // ── Enrichment-Aware Checks (AI Vision → Coverage Inconsistencies) ──
     {
         code: 'SOLAR_PANELS_NOT_COVERED',
-        severity: 'warning',
+        severity: 'medium',
         title: 'Solar Panels Detected — Coverage Gap Possible',
         category: 'property_observation',
         entity_scope: 'policy',
@@ -193,7 +311,7 @@ const FLAG_CHECKS: FlagCheck[] = [
     },
     {
         code: 'POOL_LIABILITY_GAP',
-        severity: 'warning',
+        severity: 'medium',
         title: 'Pool Detected — Verify Liability Coverage',
         category: 'property_observation',
         entity_scope: 'policy',
@@ -201,7 +319,6 @@ const FLAG_CHECKS: FlagCheck[] = [
         check: (ctx) => {
             const val = getEnrichmentValue(ctx, 'ai_pool');
             if (val !== 'detected') return null;
-            // Pool detected — check if Other Structures covers it and if there's adequate liability
             const otherStructures = get(ctx, 'limit_other_structures');
             if (isMissing(otherStructures) || isZeroOrMissing(otherStructures)) {
                 return 'Satellite imagery detected a swimming pool, but Other Structures coverage is $0 or missing. Pools and related structures (decking, fencing) typically require Other Structures coverage and may need a liability review.';
@@ -211,7 +328,7 @@ const FLAG_CHECKS: FlagCheck[] = [
     },
     {
         code: 'ROOF_CONDITION_CONCERN',
-        severity: 'warning',
+        severity: 'medium',
         title: 'Roof Condition Concern',
         category: 'property_observation',
         entity_scope: 'policy',
@@ -226,17 +343,34 @@ const FLAG_CHECKS: FlagCheck[] = [
             return null;
         }
     },
-    // ── Always-Active Agent Suggestions ──
+
+    // ── NEW: Young Roof Without RC (replaces old ROOF_AGE_OVER_25_WITH_RC_INCLUDED) ──
     {
-        code: 'PERILS_INSURED_AGAINST',
-        severity: 'high',
-        title: 'Review Perils Insured Against',
-        category: 'agent_suggestion',
+        code: 'YOUNG_ROOF_WITHOUT_RC', severity: 'medium',
+        title: 'Young Roof Without Replacement Cost',
+        category: 'coverage_gap',
         entity_scope: 'policy',
         auto_resolve: false,
-        check: () => {
-            // Always fires — this is an agent opportunity to discuss perils basis with the client
-            return 'Review the "Perils Insured Against" section with the client. This is a key opportunity to discuss coverage basis (named perils vs. open perils) and identify potential upgrades.';
+        check: (ctx) => {
+            // Get year built from enrichment
+            const yearBuiltStr = getEnrichmentValue(ctx, 'year_built') || getEnrichmentValue(ctx, 'ai_year_built');
+            if (!yearBuiltStr) return null;
+            const yearBuilt = parseInt(yearBuiltStr, 10);
+            if (isNaN(yearBuilt)) return null;
+
+            const currentYear = new Date().getFullYear();
+            const age = currentYear - yearBuilt;
+
+            // Only flag if structure is less than 25 years old
+            if (age >= 25) return null;
+
+            // Check if RC is NOT included
+            const rc = get(ctx, 'limit_dwelling_replacement_cost');
+            if (!rc) return null; // Can't determine if RC is included
+            const rcStr = String(rc).toLowerCase().trim();
+            if (rcStr.includes('included') || rcStr.includes('yes') || rcStr === 'true') return null; // RC is included, no issue
+
+            return `Property is ${age} years old (built ${yearBuilt}), which qualifies for Replacement Cost coverage, but RC is currently not included. Consider adding RC coverage for this relatively new structure.`;
         }
     },
 ];
@@ -247,8 +381,6 @@ function buildFlagKey(scope: string, entityId: string, code: string): string {
 }
 
 // ── Schema detection ─────────────────────────────────────────
-// Detect if the new schema (with status, flag_key columns) exists
-// by trying a lightweight query. Cache the result.
 let schemaHasStatus: boolean | null = null;
 
 async function detectSchema(sb: ReturnType<typeof getSupabaseAdmin>): Promise<boolean> {
@@ -282,7 +414,7 @@ export async function POST(request: NextRequest) {
         const summary = { created: 0, refreshed: 0, resolved: 0, checked: 0, fired: 0 };
         const newSchema = await detectSchema(sb);
 
-        logger.info('API', `Flag evaluation starting for policy ${policyId}`, { newSchema });
+        logger.info('API', `Flag evaluation v${RULE_VERSION} starting for policy ${policyId}`, { newSchema });
 
         // 1. Fetch policy
         const { data: policy, error: pErr } = await sb
@@ -417,7 +549,6 @@ export async function POST(request: NextRequest) {
                         if (insErr) {
                             errors.push(`Insert error for ${rule.code}: ${insErr.message}`);
                         } else if (newFlag) {
-                            // Try to write flag_event (may not exist)
                             try {
                                 await sb.from('flag_events').insert({
                                     flag_id: newFlag.id,
@@ -432,7 +563,6 @@ export async function POST(request: NextRequest) {
                     // ── Old schema path: use resolved_at for status ──
                     const now = new Date().toISOString();
 
-                    // Check if an unresolved flag already exists for this code + policy
                     const { data: existing, error: lookupErr } = await sb
                         .from('policy_flags')
                         .select('id')
@@ -447,7 +577,6 @@ export async function POST(request: NextRequest) {
                     }
 
                     if (existing) {
-                        // Already exists, skip
                         summary.refreshed++;
                     } else {
                         const { data: newFlag, error: insErr } = await sb.from('policy_flags').insert({
@@ -515,7 +644,7 @@ export async function POST(request: NextRequest) {
                         const { error: insErr } = await sb.from('policy_flags').insert({
                             flag_key: flagKey,
                             code: 'DUPLICATE_ID_IN_TABLE',
-                            severity: 'warning',
+                            severity: 'medium',
                             title: 'Possible Duplicate Policy',
                             message: msg,
                             category: 'duplicate',
@@ -536,7 +665,6 @@ export async function POST(request: NextRequest) {
                         summary.refreshed++;
                     }
                 } else {
-                    // Old schema
                     const { data: existing } = await sb
                         .from('policy_flags')
                         .select('id')
@@ -549,7 +677,7 @@ export async function POST(request: NextRequest) {
                         const { error: insErr } = await sb.from('policy_flags').insert({
                             policy_id: policyId,
                             code: 'DUPLICATE_ID_IN_TABLE',
-                            severity: 'warning',
+                            severity: 'medium',
                             title: 'Possible Duplicate Policy',
                             message: msg,
                             source: 'system',

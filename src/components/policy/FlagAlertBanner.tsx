@@ -10,18 +10,16 @@ interface FlagAlertBannerProps {
     onViewFlags: () => void;
 }
 
-const SEVERITY_COLORS: Record<string, string> = {
-    critical: '#ef4444',
-    high: '#f97316',
-    warning: '#eab308',
-    info: '#3b82f6',
+const PRIORITY_COLORS: Record<string, string> = {
+    high: '#ef4444',
+    medium: '#f59e0b',
+    low: '#3b82f6',
 };
 
-const SEVERITY_ORDER: Record<string, number> = {
-    critical: 0,
-    high: 1,
-    warning: 2,
-    info: 3,
+const PRIORITY_ORDER: Record<string, number> = {
+    high: 0,
+    medium: 1,
+    low: 2,
 };
 
 export function FlagAlertBanner({ flags, onViewFlags }: FlagAlertBannerProps) {
@@ -39,59 +37,53 @@ export function FlagAlertBanner({ flags, onViewFlags }: FlagAlertBannerProps) {
     });
 
     // Determine highest severity for accent color
-    const hasCritical = (counts['critical'] || 0) > 0;
+    const hasCritical = false; // No more critical tier
     const hasHigh = (counts['high'] || 0) > 0;
-    const hasWarning = (counts['warning'] || 0) > 0;
+    const hasMedium = (counts['medium'] || 0) > 0;
 
-    const highestSeverity = hasCritical
-        ? 'critical'
-        : hasHigh
-            ? 'high'
-            : hasWarning
-                ? 'warning'
-                : 'info';
+    const highestPriority = hasHigh
+        ? 'high'
+        : hasMedium
+            ? 'medium'
+            : 'low';
 
     // Accent bar class
     const accentClass = {
-        critical: styles.accentBarCritical,
-        high: styles.accentBarHigh,
-        warning: styles.accentBarWarning,
-        info: styles.accentBarInfo,
-    }[highestSeverity];
+        high: styles.accentBarCritical,
+        medium: styles.accentBarHigh,
+        low: styles.accentBarInfo,
+    }[highestPriority];
 
     // Banner severity class — drives entire theme
     const severityMap: Record<string, string> = {
-        critical: styles.bannerCritical,
-        high: styles.bannerHigh,
-        warning: styles.bannerWarning,
-        info: styles.bannerInfo,
+        high: styles.bannerCritical,
+        medium: styles.bannerHigh,
+        low: styles.bannerInfo,
     };
 
-    const bannerClass = [styles.banner, severityMap[highestSeverity] || styles.bannerCritical]
+    const bannerClass = [styles.banner, severityMap[highestPriority] || styles.bannerCritical]
         .filter(Boolean)
         .join(' ');
 
     // Severity chips to render
     const chipEntries = Object.entries(counts)
-        .sort((a, b) => (SEVERITY_ORDER[a[0]] ?? 99) - (SEVERITY_ORDER[b[0]] ?? 99));
+        .sort((a, b) => (PRIORITY_ORDER[a[0]] ?? 99) - (PRIORITY_ORDER[b[0]] ?? 99));
 
     const chipClass: Record<string, string> = {
-        critical: styles.chipCritical,
-        high: styles.chipHigh,
-        warning: styles.chipWarning,
-        info: styles.chipInfo,
+        high: styles.chipCritical,
+        medium: styles.chipHigh,
+        low: styles.chipInfo,
     };
 
     const chipIcon: Record<string, React.ReactNode> = {
-        critical: <AlertCircle size={11} />,
-        high: <AlertTriangle size={11} />,
-        warning: <AlertTriangle size={11} />,
-        info: <Info size={11} />,
+        high: <AlertCircle size={11} />,
+        medium: <AlertTriangle size={11} />,
+        low: <Info size={11} />,
     };
 
     // Top flag previews — sorted by severity, show up to 3
     const sortedFlags = [...openFlags].sort(
-        (a, b) => (SEVERITY_ORDER[a.severity] ?? 99) - (SEVERITY_ORDER[b.severity] ?? 99)
+        (a, b) => (PRIORITY_ORDER[a.severity] ?? 99) - (PRIORITY_ORDER[b.severity] ?? 99)
     );
     const previewFlags = sortedFlags.slice(0, 3);
     const remainingCount = openFlags.length - previewFlags.length;
@@ -142,7 +134,7 @@ export function FlagAlertBanner({ flags, onViewFlags }: FlagAlertBannerProps) {
                                     <span className={styles.flagPreview}>
                                         <span
                                             className={styles.flagPreviewDot}
-                                            style={{ background: SEVERITY_COLORS[f.severity] || '#64748b' }}
+                                            style={{ background: PRIORITY_COLORS[f.severity] || '#64748b' }}
                                         />
                                         <span className={styles.flagPreviewText}>{f.title}</span>
                                     </span>

@@ -28,7 +28,7 @@ const DEFAULT_SECTIONS: ReportSection[] = [
     {
         id: 'key_findings',
         label: 'Key Findings',
-        description: 'Top 3-5 concerns sorted by severity, with headline + brief explanation + evidence.',
+        description: 'Top 3-5 concerns sorted by priority, with headline + brief explanation + evidence.',
         enabled: true,
         order: 1,
     },

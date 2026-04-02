@@ -21,7 +21,7 @@ export default function FlagDefinitionsClient({ initialDefinitions, isAdmin = tr
     const [definitions, setDefinitions] = useState<FlagDefinition[]>(initialDefinitions);
     const [searchTerm, setSearchTerm] = useState('');
     const [categoryFilter, setCategoryFilter] = useState<string>('all');
-    const [severityFilter, setSeverityFilter] = useState<string>('all');
+    const [priorityFilter, setPriorityFilter] = useState<string>('all');
     const [statusFilter, setStatusFilter] = useState<string>('all');
 
     const [selectedFlag, setSelectedFlag] = useState<FlagDefinition | null>(null);
@@ -41,26 +41,25 @@ export default function FlagDefinitionsClient({ initialDefinitions, isAdmin = tr
                 (def.trigger_logic || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (def.data_fields_checked || '').toLowerCase().includes(searchTerm.toLowerCase());
             const matchesCat = categoryFilter === 'all' || def.category === categoryFilter;
-            const matchesSev = severityFilter === 'all' || def.default_severity === severityFilter;
+            const matchesSev = priorityFilter === 'all' || def.default_severity === priorityFilter;
             const matchesStatus = statusFilter === 'all' ||
                 (statusFilter === 'active' && def.is_active) ||
                 (statusFilter === 'deferred' && !def.is_active);
 
             return matchesSearch && matchesCat && matchesSev && matchesStatus;
         });
-    }, [definitions, searchTerm, categoryFilter, severityFilter, statusFilter]);
+    }, [definitions, searchTerm, categoryFilter, priorityFilter, statusFilter]);
 
     // Summary counts
     const totalCount = definitions.length;
     const activeCount = definitions.filter(d => d.is_active).length;
     const deferredCount = definitions.filter(d => !d.is_active).length;
 
-    const getSeverityDetails = (sev: string) => {
+    const getPriorityDetails = (sev: string) => {
         switch (sev.toLowerCase()) {
-            case 'critical': return { icon: <ShieldAlert size={14} />, colorClass: styles.sevCritical };
-            case 'high': return { icon: <AlertTriangle size={14} />, colorClass: styles.sevHigh };
-            case 'warning': return { icon: <AlertCircle size={14} />, colorClass: styles.sevWarning };
-            case 'info': return { icon: <InfoIcon size={14} />, colorClass: styles.sevInfo };
+            case 'high': return { icon: <ShieldAlert size={14} />, colorClass: styles.sevCritical };
+            case 'medium': return { icon: <AlertTriangle size={14} />, colorClass: styles.sevHigh };
+            case 'low': return { icon: <InfoIcon size={14} />, colorClass: styles.sevInfo };
             default: return { icon: <InfoIcon size={14} />, colorClass: styles.sevInfo };
         }
     };
@@ -196,12 +195,11 @@ export default function FlagDefinitionsClient({ initialDefinitions, isAdmin = tr
                         {categories.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
 
-                    <select className={styles.filterDropdown} value={severityFilter} onChange={e => setSeverityFilter(e.target.value)}>
-                        <option value="all">All Severities</option>
-                        <option value="critical">Critical</option>
+                    <select className={styles.filterDropdown} value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)}>
+                        <option value="all">All Priorities</option>
                         <option value="high">High</option>
-                        <option value="warning">Warning</option>
-                        <option value="info">Info</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
                     </select>
 
                     <select className={styles.filterDropdown} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
@@ -221,11 +219,11 @@ export default function FlagDefinitionsClient({ initialDefinitions, isAdmin = tr
                         <table className={styles.flagsTable}>
                             <thead>
                                 <tr>
-                                    <th>Code</th>
                                     <th>Label</th>
                                     <th>Category</th>
-                                    <th>Severity</th>
+                                    <th>Priority</th>
                                     <th>Status</th>
+                                    <th>Logic / Description</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -235,7 +233,7 @@ export default function FlagDefinitionsClient({ initialDefinitions, isAdmin = tr
                                     </tr>
                                 )}
                                 {filteredDefs.map(def => {
-                                    const dev = getSeverityDetails(def.default_severity);
+                                    const dev = getPriorityDetails(def.default_severity);
                                     const isSelected = selectedFlag?.code === def.code;
                                     const hasLogic = !!def.trigger_logic;
 
@@ -245,7 +243,6 @@ export default function FlagDefinitionsClient({ initialDefinitions, isAdmin = tr
                                             className={`${styles.flagRow} ${isSelected ? styles.selectedRow : ''}`}
                                             onClick={() => handleSelectFlag(def)}
                                         >
-                                            <td><code className={styles.codeBadge}>{def.code}</code></td>
                                             <td className={styles.boldCell}>
                                                 {def.label}
                                                 {!hasLogic && <span className={styles.undocBadge} title="Missing trigger logic">⚠</span>}
@@ -259,10 +256,15 @@ export default function FlagDefinitionsClient({ initialDefinitions, isAdmin = tr
                                                 </div>
                                             </td>
                                             <td>
-                                                {def.is_active ?
-                                                    <span className={styles.statusActive}>Active</span> :
-                                                    <span className={styles.statusDeferred}>Deferred</span>
+                                                {def.is_active ? 
+                                                    <span className={styles.statusActive}>Active</span> : 
+                                                    <span className={styles.statusDeferred}>Inactive</span>
                                                 }
+                                            </td>
+                                            <td className={styles.logicCell} title={def.trigger_logic || def.description || ''}>
+                                                <div className={styles.logicPreview}>
+                                                    {def.trigger_logic || def.description || <span className={styles.undocBadge} title="Missing trigger logic">⚠ Undocumented</span>}
+                                                </div>
                                             </td>
                                         </tr>
                                     );
@@ -367,21 +369,20 @@ export default function FlagDefinitionsClient({ initialDefinitions, isAdmin = tr
                                         )}
                                     </div>
                                     <div className={styles.detailBlock}>
-                                        <label>Severity</label>
+                                        <label>Priority</label>
                                         {isEditing ? (
                                             <select
                                                 className={styles.editSelect}
-                                                value={editDraft?.default_severity || 'info'}
+                                                value={editDraft?.default_severity || 'low'}
                                                 onChange={e => updateDraft('default_severity', e.target.value as FlagDefinition['default_severity'])}
                                             >
-                                                <option value="critical">Critical</option>
                                                 <option value="high">High</option>
-                                                <option value="warning">Warning</option>
-                                                <option value="info">Info</option>
+                                                <option value="medium">Medium</option>
+                                                <option value="low">Low</option>
                                             </select>
                                         ) : (
-                                            <div className={`${styles.sevBadge} ${getSeverityDetails(selectedFlag.default_severity).colorClass}`} style={{ display: 'inline-flex' }}>
-                                                {getSeverityDetails(selectedFlag.default_severity).icon}
+                                            <div className={`${styles.sevBadge} ${getPriorityDetails(selectedFlag.default_severity).colorClass}`} style={{ display: 'inline-flex' }}>
+                                                {getPriorityDetails(selectedFlag.default_severity).icon}
                                                 <span className={styles.sevText}>{selectedFlag.default_severity}</span>
                                             </div>
                                         )}

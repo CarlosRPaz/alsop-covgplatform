@@ -118,6 +118,10 @@ export interface ParseResult {
     batch_id: string;
     stats: ImportStats;
     rows: ImportRow[];
+    /** How many rows are included in this response (may be truncated) */
+    rows_preview_count?: number;
+    /** Total rows parsed (may be larger than rows.length) */
+    rows_total_count?: number;
     error?: string;
 }
 
@@ -159,5 +163,50 @@ export async function commitImport(batchId: string, token: string): Promise<Comm
         body: JSON.stringify({ batchId }),
     });
 
+    return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Progress polling
+// ---------------------------------------------------------------------------
+
+export interface BatchProgress {
+    progress_pct: number;
+    progress_message: string;
+    status: string;
+}
+
+export async function pollBatchProgress(batchId: string, token: string): Promise<BatchProgress> {
+    const res = await fetch(`/api/csv-import/progress?batchId=${encodeURIComponent(batchId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Batch flag re-evaluation
+// ---------------------------------------------------------------------------
+
+export interface BatchEvalResult {
+    success: boolean;
+    total_policies?: number;
+    evaluated?: number;
+    stale_flags_deleted?: number;
+    flags_created?: number;
+    flags_refreshed?: number;
+    flags_resolved?: number;
+    message?: string;
+    error?: string;
+}
+
+export async function batchReEvaluateFlags(batchId: string, token: string): Promise<BatchEvalResult> {
+    const res = await fetch('/api/flags/batch-evaluate', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ batch_id: batchId }),
+    });
     return res.json();
 }

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { getUserProfile, UserProfile, isAdmin } from '@/lib/auth';
 import { supabase } from '@/lib/supabaseClient';
+import { useSidebar } from '@/components/layout/SidebarContext';
 import {
     Settings as SettingsIcon, User, Bell, Palette, Shield, ChevronRight,
     Mail, Key, Monitor, Globe, Database, Lock, Loader2, Satellite, FileText
@@ -24,6 +25,7 @@ export default function SettingsPage() {
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [activeSection, setActiveSection] = useState<Section>('account');
+    const { isMobile } = useSidebar();
 
     useEffect(() => {
         getUserProfile().then(p => {
@@ -43,7 +45,7 @@ export default function SettingsPage() {
     const showAdmin = profile && isAdmin(profile.role);
 
     return (
-        <div style={{ maxWidth: activeSection === 'data_sources' || activeSection === 'report_editor' ? '1200px' : '900px', margin: '2rem auto', padding: '0 1.5rem', transition: 'max-width 0.3s ease' }}>
+        <div style={{ maxWidth: activeSection === 'data_sources' || activeSection === 'report_editor' ? '1200px' : '900px', margin: isMobile ? '1rem auto' : '2rem auto', padding: isMobile ? '0 0.5rem' : '0 1.5rem', transition: 'max-width 0.3s ease' }}>
             {/* Header */}
             <div style={{ marginBottom: '1.5rem' }}>
                 <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-high)', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -53,14 +55,21 @@ export default function SettingsPage() {
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Manage your preferences and account configuration</p>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '1.25rem', minHeight: '500px' }}>
-                {/* Left nav */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '220px 1fr', gap: isMobile ? '0.75rem' : '1.25rem', minHeight: isMobile ? 'auto' : '500px' }}>
+                {/* Left nav — horizontal scroll on mobile, vertical sidebar on desktop */}
                 <nav style={{
                     background: 'var(--bg-surface)',
                     border: '1px solid var(--border-default)',
                     borderRadius: 'var(--radius-lg)',
                     padding: '0.5rem',
                     height: 'fit-content',
+                    ...(isMobile ? {
+                        display: 'flex',
+                        overflowX: 'auto',
+                        gap: '0.25rem',
+                        WebkitOverflowScrolling: 'touch',
+                        scrollbarWidth: 'none',
+                    } : {}),
                 }}>
                     {SECTIONS.map(s => {
                         if (s.adminOnly && !showAdmin) return null;
@@ -74,9 +83,9 @@ export default function SettingsPage() {
                                 style={{
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '0.625rem',
-                                    width: '100%',
-                                    padding: '0.625rem 0.75rem',
+                                    gap: '0.5rem',
+                                    width: isMobile ? 'auto' : '100%',
+                                    padding: isMobile ? '0.5rem 0.75rem' : '0.625rem 0.75rem',
                                     border: 'none',
                                     borderRadius: '6px',
                                     background: isActive ? 'var(--accent-primary-muted)' : 'transparent',
@@ -86,7 +95,9 @@ export default function SettingsPage() {
                                     cursor: 'pointer',
                                     textAlign: 'left',
                                     transition: 'all 0.15s',
-                                    marginBottom: '0.125rem',
+                                    marginBottom: isMobile ? '0' : '0.125rem',
+                                    whiteSpace: 'nowrap',
+                                    flexShrink: 0,
                                 }}
                             >
                                 <Icon size={15} />
@@ -332,7 +343,7 @@ function NotificationsSection() {
             <SectionHeader title="Notifications" description="Control how and when you receive alerts" />
 
             <SettingGroup title="Email Notifications" icon={Mail}>
-                <ToggleRow label="Flag Alerts" description="Get emailed when new critical or high severity flags are created" defaultOn />
+                <ToggleRow label="Flag Alerts" description="Get emailed when new high priority flags are created" defaultOn />
                 <ToggleRow label="Renewal Reminders" description="Get reminded about upcoming policy renewals" defaultOn />
                 <ToggleRow label="System Updates" description="Receive platform news and feature updates" />
             </SettingGroup>
@@ -557,7 +568,7 @@ interface ReportSectionConfig {
 
 const DEFAULT_REPORT_SECTIONS: ReportSectionConfig[] = [
     { id: 'executive_summary', label: 'Executive Summary', description: '2-4 sentence overview of findings and risk posture.', enabled: true, order: 0 },
-    { id: 'key_findings', label: 'Key Findings', description: 'Top 3-5 concerns sorted by severity.', enabled: true, order: 1 },
+    { id: 'key_findings', label: 'Key Findings', description: 'Top 3-5 concerns sorted by priority.', enabled: true, order: 1 },
     { id: 'coverage_review', label: 'Coverage Review', description: 'Compact table of coverage lines with limits and adequacy status.', enabled: true, order: 2 },
     { id: 'next_steps', label: 'Next Steps', description: 'Merged recommendations, action items, and data gaps by urgency.', enabled: true, order: 3 },
     { id: 'sources', label: 'Sources & Credits', description: 'Named data sources used in the analysis.', enabled: true, order: 4 },

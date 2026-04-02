@@ -5,8 +5,8 @@ import "./globals.scss";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "CFP Declaration Platform",
-  description: "Premium CRUD platform for CFP Declarations",
+  title: "Check Home Insurance Coverage — Insurance Policy Intelligence Platform",
+  description: "Policy analysis, flag management, and coverage intelligence for Alsop Insurance Agency.",
 };
 
 export default function RootLayout({

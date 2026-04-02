@@ -2,8 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { InfoCards } from '@/components/dashboard/InfoCards';
-import { KPIStats } from '@/components/dashboard/KPIStats';
+import { AgentDashboardStats } from '@/components/dashboard/AgentDashboardStats';
 import { DataTable } from '@/components/dashboard/DataTable';
 import { DashboardChart } from '@/components/dashboard/DashboardChart';
 import { ActivityTab } from '@/components/dashboard/ActivityTab';
@@ -13,6 +12,7 @@ import { Tabs } from '@/components/ui/Tabs/Tabs';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button/Button';
 import { Plus, Upload, Zap } from 'lucide-react';
+import { useSidebar } from '@/components/layout/SidebarContext';
 
 
 const tabs = [
@@ -24,7 +24,9 @@ export default function DashboardPage() {
     const searchParams = useSearchParams();
     const [isCSVModalOpen, setIsCSVModalOpen] = useState(false);
     const [isEnrichModalOpen, setIsEnrichModalOpen] = useState(false);
+    const [selectedTablePolicyIds, setSelectedTablePolicyIds] = useState<string[]>([]);
     const tableSectionRef = useRef<HTMLDivElement>(null);
+    const { isMobile } = useSidebar();
 
     // Read URL params for drill-down filtering
     const expirationFrom = searchParams.get('expiration_from') || '';
@@ -87,7 +89,7 @@ export default function DashboardPage() {
                 return (
                     <section>
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 mt-4">
-                            <h2 className="text-xl font-bold font-heading" style={{ color: 'var(--text-high)' }}>All Policies</h2>
+                            <h2 className="text-xl font-bold font-heading" style={{ color: 'var(--text-high)' }}>All Active Policies</h2>
                             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1rem' }}>
                                 <Link href="/submit">
                                     <Button size="sm" variant="primary">
@@ -120,6 +122,7 @@ export default function DashboardPage() {
                             initialExpirationFilter={expirationFilter}
                             initialStatusFilter={statusFilter}
                             filterLabel={filterLabel}
+                            onSelectionChange={setSelectedTablePolicyIds}
                         />
                     </section>
                 );
@@ -131,10 +134,10 @@ export default function DashboardPage() {
     };
 
     return (
-        <main className="min-h-screen bg-gray-50">
-            <div className="mx-auto px-6 py-8">
+        <main>
+            <div style={{ padding: isMobile ? '0.25rem 0' : '2rem 1.5rem' }}>
                 {/* Header */}
-                <header className="flex flex-col md:flex-row md:items-center justify-between gap-3" style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
+                <header className="flex flex-col md:flex-row md:items-center justify-between gap-3" style={{ marginTop: isMobile ? '0.5rem' : '1.5rem', marginBottom: isMobile ? '0.75rem' : '1.5rem' }}>
                     <div>
                         <h1 className="text-2xl font-bold text-slate-900 mb-1">Agent Dashboard</h1>
                         <p className="text-sm text-slate-500">Overview of all policies and their status</p>
@@ -144,30 +147,23 @@ export default function DashboardPage() {
                 {/* ═══ Overview Section: Left (Cards + Rings) | Right (Charts) ═══ */}
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '1.25rem',
-                    marginBottom: '1.5rem',
+                    gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+                    alignItems: 'stretch',
+                    gap: isMobile ? '0.75rem' : '1.25rem',
+                    marginBottom: isMobile ? '0.75rem' : '1.5rem',
                 }}>
-                    {/* ── Left Column: Stat Cards + KPI Rings ── */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        <InfoCards />
-                        <div style={{
-                            background: 'var(--bg-surface)',
-                            borderRadius: 'var(--radius-lg)',
-                            border: '1px solid var(--border-default)',
-                            padding: '1rem',
-                        }}>
-                            <KPIStats />
-                        </div>
-                    </div>
+                    {/* ── Left Column: Actionable Unified Dashboard Header ── */}
+                    <AgentDashboardStats />
 
                     {/* ── Right Column: Stacked Charts ── */}
                     <div style={{
                         background: 'var(--bg-surface)',
                         borderRadius: 'var(--radius-lg)',
                         border: '1px solid var(--border-default)',
-                        padding: '1.25rem',
+                        padding: isMobile ? '0.75rem' : '1.25rem',
                         overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
                     }}>
                         <DashboardChart />
                     </div>
@@ -192,6 +188,7 @@ export default function DashboardPage() {
             <BatchEnrichModal
                 isOpen={isEnrichModalOpen}
                 onClose={() => setIsEnrichModalOpen(false)}
+                selectedPolicyIds={selectedTablePolicyIds}
             />
         </main>
     );

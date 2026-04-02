@@ -54,20 +54,19 @@ export function ClientPolicyList({ clientId }: ClientPolicyListProps) {
                         </tr>
                     </thead>
                     <tbody>
-                        {policies.map((policy) => {
+                        {policies.map((policy, idx) => {
                             const flagCount = policy.flag_count || 0;
-                            const sev = policy.highest_severity || 'info';
+                            const sev = policy.highest_severity || 'low';
                             const sevColors: Record<string, { bg: string; color: string; border: string }> = {
-                                critical: { bg: 'rgba(239,68,68,0.12)', color: '#f87171', border: 'rgba(239,68,68,0.25)' },
-                                high:     { bg: 'rgba(249,115,22,0.12)', color: '#fb923c', border: 'rgba(249,115,22,0.25)' },
-                                warning:  { bg: 'rgba(234,179,8,0.12)', color: '#facc15', border: 'rgba(234,179,8,0.25)' },
-                                info:     { bg: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: 'rgba(59,130,246,0.25)' },
+                                high:     { bg: 'rgba(239,68,68,0.12)', color: '#f87171', border: 'rgba(239,68,68,0.25)' },
+                                medium:   { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24', border: 'rgba(245,158,11,0.25)' },
+                                low:      { bg: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: 'rgba(59,130,246,0.25)' },
                             };
-                            const sc = sevColors[sev] || sevColors.info;
+                            const sc = sevColors[sev] || sevColors.low;
 
                             return (
                             <tr
-                                key={policy.id}
+                                key={`${policy.id}-${idx}`}
                                 className={`${styles.tr} ${styles.clickable}`}
                                 onClick={() => router.push(`/policy/${policy.id}`)}
                             >

@@ -109,6 +109,21 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                 submissionId: result.data?.submissionId,
             });
 
+            // Track pending uploads globally for toast notifications
+            if (result.data?.submissionId) {
+                try {
+                    const key = 'cfp_pending_dec_uploads';
+                    const stored = sessionStorage.getItem(key);
+                    const pending = stored ? JSON.parse(stored) : [];
+                    if (!pending.includes(result.data.submissionId)) {
+                        pending.push(result.data.submissionId);
+                        sessionStorage.setItem(key, JSON.stringify(pending));
+                    }
+                } catch (e) {
+                    console.error('Failed to update session storage for dec page tracking', e);
+                }
+            }
+
             // Reset file after successful upload
             setFile(null);
             if (formRef.current) formRef.current.reset();

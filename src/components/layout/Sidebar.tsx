@@ -14,12 +14,12 @@ import {
     FileText,
     Settings,
     LogOut,
-    UserCircle,
     Shield,
     ChevronsLeft,
     ChevronsRight,
     Flag,
     Briefcase,
+    X,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -30,7 +30,7 @@ interface SidebarProps {
 export function Sidebar({ userRole }: SidebarProps) {
     const pathname = usePathname();
     const router = useRouter();
-    const { collapsed, toggle } = useSidebar();
+    const { collapsed, toggle, mobileOpen, closeMobile, isMobile } = useSidebar();
 
     const isAgent = userRole === 'admin' || userRole === 'service';
     const isClient = userRole === 'customer';
@@ -59,79 +59,109 @@ export function Sidebar({ userRole }: SidebarProps) {
         router.push('/');
     };
 
-    return (
-        <aside className={clsx(styles.sidebar, collapsed && styles.collapsed)}>
-            <div className={styles.brandRow}>
-                <Link href="/" className={styles.brand} style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <Shield size={22} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-                    {!collapsed && <span className={styles.brandText}>CoverageCheckNow</span>}
-                </Link>
-                <button className={styles.collapseBtn} onClick={toggle} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
-                    {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
-                </button>
-            </div>
+    const handleNavClick = () => {
+        // Close mobile sidebar on navigation
+        if (isMobile) {
+            closeMobile();
+        }
+    };
 
-            {/* Global Search — agents only */}
-            {isAgent && (
-                <div style={{ padding: '0.75rem 0 0.25rem' }}>
-                    <SidebarSearch collapsed={collapsed} />
-                </div>
+    // Determine sidebar visibility class
+    const sidebarClasses = clsx(
+        styles.sidebar,
+        collapsed && !isMobile && styles.collapsed,
+        isMobile && styles.mobile,
+        isMobile && mobileOpen && styles.mobileOpen,
+    );
+
+    return (
+        <>
+            {/* Backdrop overlay for mobile */}
+            {isMobile && mobileOpen && (
+                <div className={styles.backdrop} onClick={closeMobile} />
             )}
 
-            {/* Recently Visited — agents only */}
-            {isAgent && <SidebarRecent collapsed={collapsed} />}
+            <aside className={sidebarClasses}>
+                <div className={styles.brandRow}>
+                    <Link href="/" className={styles.brand} style={{ textDecoration: 'none', color: 'inherit' }} onClick={handleNavClick}>
+                        <Shield size={22} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                        {(!collapsed || isMobile) && <span className={styles.brandText}>CoverageCheckNow</span>}
+                    </Link>
+                    {isMobile ? (
+                        <button className={styles.collapseBtn} onClick={closeMobile} title="Close menu">
+                            <X size={18} />
+                        </button>
+                    ) : (
+                        <button className={styles.collapseBtn} onClick={toggle} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+                            {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
+                        </button>
+                    )}
+                </div>
 
-            <nav className={styles.nav}>
-                {!collapsed && <div className={styles.sectionTitle}>{isClient ? 'Menu' : 'Main Menu'}</div>}
-                {navItems.map((item) => {
-                    const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
-                    return (
-                        <Link
-                            key={item.label}
-                            href={item.href}
-                            className={clsx(styles.navItem, isActive && styles.active)}
-                            title={collapsed ? item.label : undefined}
-                        >
-                            <item.icon />
-                            {!collapsed && <span>{item.label}</span>}
-                        </Link>
-                    );
-                })}
-
-                {!collapsed && <div className={styles.sectionTitle} style={{ marginTop: '2rem' }}>Account</div>}
-                {collapsed && <div style={{ marginTop: '1.5rem' }} />}
-                {accountItems.map((item) => {
-                    const isActive = pathname.startsWith(item.href) && item.href !== '#';
-                    return (
-                        <Link
-                            key={item.label}
-                            href={item.href}
-                            className={clsx(styles.navItem, isActive && styles.active)}
-                            title={collapsed ? item.label : undefined}
-                        >
-                            <item.icon />
-                            {!collapsed && <span>{item.label}</span>}
-                        </Link>
-                    );
-                })}
-            </nav>
-
-            <div className={styles.footer}>
-                <button
-                    onClick={handleLogout}
-                    className={styles.navItem}
-                    style={{ border: 'none', background: 'none', cursor: 'pointer', width: '100%' }}
-                    title={collapsed ? 'Logout' : undefined}
-                >
-                    <LogOut />
-                    {!collapsed && <span>Logout</span>}
-                </button>
-                {!collapsed && (
-                    <div style={{ marginTop: '1rem' }}>
-                        &copy; 2026 Alsop Inc
+                {/* Global Search — agents only */}
+                {isAgent && (
+                    <div style={{ padding: '0.75rem 0 0.25rem' }}>
+                        <SidebarSearch collapsed={collapsed && !isMobile} />
                     </div>
                 )}
-            </div>
-        </aside>
+
+                {/* Recently Visited — agents only */}
+                {isAgent && <SidebarRecent collapsed={collapsed && !isMobile} />}
+
+                <nav className={styles.nav}>
+                    {(!collapsed || isMobile) && <div className={styles.sectionTitle}>{isClient ? 'Menu' : 'Main Menu'}</div>}
+                    {navItems.map((item) => {
+                        const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+                        return (
+                            <Link
+                                key={item.label}
+                                href={item.href}
+                                className={clsx(styles.navItem, isActive && styles.active)}
+                                title={collapsed && !isMobile ? item.label : undefined}
+                                onClick={handleNavClick}
+                            >
+                                <item.icon />
+                                {(!collapsed || isMobile) && <span>{item.label}</span>}
+                            </Link>
+                        );
+                    })}
+
+                    {(!collapsed || isMobile) && <div className={styles.sectionTitle} style={{ marginTop: '2rem' }}>Account</div>}
+                    {collapsed && !isMobile && <div style={{ marginTop: '1.5rem' }} />}
+                    {accountItems.map((item) => {
+                        const isActive = pathname.startsWith(item.href) && item.href !== '#';
+                        return (
+                            <Link
+                                key={item.label}
+                                href={item.href}
+                                className={clsx(styles.navItem, isActive && styles.active)}
+                                title={collapsed && !isMobile ? item.label : undefined}
+                                onClick={handleNavClick}
+                            >
+                                <item.icon />
+                                {(!collapsed || isMobile) && <span>{item.label}</span>}
+                            </Link>
+                        );
+                    })}
+                </nav>
+
+                <div className={styles.footer}>
+                    <button
+                        onClick={() => { handleLogout(); handleNavClick(); }}
+                        className={styles.navItem}
+                        style={{ border: 'none', background: 'none', cursor: 'pointer', width: '100%' }}
+                        title={collapsed && !isMobile ? 'Logout' : undefined}
+                    >
+                        <LogOut />
+                        {(!collapsed || isMobile) && <span>Logout</span>}
+                    </button>
+                    {(!collapsed || isMobile) && (
+                        <div style={{ marginTop: '1rem' }}>
+                            &copy; 2026 Alsop Inc
+                        </div>
+                    )}
+                </div>
+            </aside>
+        </>
     );
 }

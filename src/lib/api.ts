@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { logger } from './logger';
+import { INACTIVE_STATUSES, ACTIVE_STATUS_FILTER } from './policyFilters';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -279,7 +280,7 @@ export interface FlagDefinition {
     label: string;
     description?: string;
     category: string;
-    default_severity: 'critical' | 'high' | 'warning' | 'info';
+    default_severity: 'high' | 'medium' | 'low';
     entity_scope: string;
     auto_resolve: boolean;
     is_manual_allowed: boolean;
@@ -348,7 +349,7 @@ export interface DashboardPolicy {
     annual_premium?: string;
     // Flag summary (joined)
     flag_count: number;
-    highest_severity?: 'info' | 'warning' | 'critical' | 'high';
+    highest_severity?: 'high' | 'medium' | 'low';
     flags: Array<{ code: string; title: string; severity: string }>;
     // Metadata
     created_at?: string;
@@ -598,66 +599,100 @@ export async function fetchDeclarationsByClientId(clientId: string): Promise<Dec
  */
 export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
     try {
-        // Use Supabase's embedded resource syntax to join related tables.
-        // policies → clients (via client_id), policy_terms (via policy_id)
-        const { data, error } = await supabase
-            .from('policies')
-            .select(`
-                id,
-                policy_number,
-                property_address_raw,
-                property_address_norm,
-                carrier_name,
-                status,
-                created_at,
-                client_id,
-                clients!inner (
-                    id,
-                    named_insured,
-                    email,
-                    phone,
-                    mailing_address_raw,
-                    is_demo
-                ),
-                policy_terms (
-                    id,
-                    effective_date,
-                    expiration_date,
-                    annual_premium,
-                    is_current
-                )
-            `)
-            .eq('clients.is_demo', false)
-            .order('created_at', { ascending: false });
+        const PAGE_SIZE = 1000;
+        const IN_CHUNK = 200;
 
-        if (error) {
-            logger.error('API', 'Error fetching dashboard policies', {
-                message: error.message,
-                code: error.code,
-                details: error.details,
-            });
-            return [];
+        // Paginate through ALL policies (Supabase default limit is 1000)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let allData: any[] = [];
+        let page = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+            const from = page * PAGE_SIZE;
+            const to = from + PAGE_SIZE - 1;
+
+            let query = supabase
+                .from('policies')
+                .select(`
+                    id,
+                    policy_number,
+                    property_address_raw,
+                    property_address_norm,
+                    carrier_name,
+                    status,
+                    created_at,
+                    client_id,
+                    clients!inner (
+                        id,
+                        named_insured,
+                        email,
+                        phone,
+                        mailing_address_raw,
+                        is_demo
+                    ),
+                    policy_terms (
+                        id,
+                        effective_date,
+                        expiration_date,
+                        annual_premium,
+                        is_current
+                    )
+                `)
+                .eq('clients.is_demo', false);
+
+            for (const inactiveStatus of INACTIVE_STATUSES) {
+                query = query.neq('status', inactiveStatus);
+            }
+
+            const { data: pageData, error } = await query
+                .order('created_at', { ascending: false })
+                .order('id', { ascending: true })
+                .range(from, to);
+
+            if (error) {
+                logger.error('API', 'Error fetching dashboard policies', {
+                    message: error.message,
+                    code: error.code,
+                    details: error.details,
+                    page,
+                });
+                break;
+            }
+
+            if (!pageData || pageData.length === 0) {
+                hasMore = false;
+            } else {
+                allData = allData.concat(pageData);
+                hasMore = pageData.length === PAGE_SIZE;
+                page++;
+            }
         }
 
-        if (!data || data.length === 0) {
+        if (allData.length === 0) {
             logger.info('API', 'No policies found for dashboard');
             return [];
         }
 
-        // Batch-fetch flag counts for all policies (avoids N+1)
-        const policyIds = data.map((r: { id: string }) => r.id);
+        logger.info('API', `Loaded ${allData.length} policies across ${page + 1} page(s)`);
+
+        // Batch-fetch flag counts for all policies (chunked to avoid URL limits)
+        const policyIds = allData.map((r: { id: string }) => r.id);
         const flagMap = await fetchFlagSummaryForPolicies(policyIds);
 
-        // Batch-fetch enrichment status (avoids N+1)
+        // Batch-fetch enrichment status (chunked to avoid URL limits)
         const enrichedSet = new Set<string>();
         try {
-            const { data: enrichRows } = await supabase
-                .from('property_enrichments')
-                .select('policy_id')
-                .in('policy_id', policyIds);
-            if (enrichRows) {
-                for (const row of enrichRows) {
-                    enrichedSet.add(row.policy_id);
+            for (let i = 0; i < policyIds.length; i += IN_CHUNK) {
+                const chunk = policyIds.slice(i, i + IN_CHUNK);
+                const { data: enrichRows } = await supabase
+                    .from('property_enrichments')
+                    .select('policy_id')
+                    .in('policy_id', chunk);
+                if (enrichRows) {
+                    for (const row of enrichRows) {
+                        enrichedSet.add(row.policy_id);
+                    }
                 }
             }
         } catch {
@@ -666,7 +701,7 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
 
         // Map the joined result to DashboardPolicy
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return data.map((row: any) => {
+        return allData.map((row: any) => {
             // clients is an object (inner join, one-to-one via FK)
             const client = row.clients;
             // policy_terms is an array; find the current term
@@ -1156,9 +1191,9 @@ export async function fetchPoliciesByClientId(clientId: string): Promise<Dashboa
 
             // Flags
             const openFlags = (row.policy_flags || []).filter((f: any) => f.status !== 'dismissed');
-            const severityOrder: Record<string, number> = { critical: 0, high: 1, warning: 2, info: 3 };
+            const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
             const sortedFlags = [...openFlags].sort((a: any, b: any) =>
-                (severityOrder[a.severity] ?? 9) - (severityOrder[b.severity] ?? 9)
+                (priorityOrder[a.severity] ?? 9) - (priorityOrder[b.severity] ?? 9)
             );
             const highestSev = sortedFlags.length > 0 ? sortedFlags[0].severity : undefined;
 
@@ -1274,7 +1309,7 @@ export async function fetchAIReport(id: string): Promise<AIReportData> {
 // Policy Flags
 // ---------------------------------------------------------------------------
 
-const SEVERITY_ORDER: Record<string, number> = { critical: 4, high: 3, warning: 2, info: 1 };
+const PRIORITY_ORDER: Record<string, number> = { high: 3, medium: 2, low: 1 };
 
 /**
  * Batch-fetch flag summary (count + highest severity + flag details) for a list of policy IDs.
@@ -1286,45 +1321,52 @@ async function fetchFlagSummaryForPolicies(
     const result = new Map<string, { count: number; severity?: string; flags: Array<{ code: string; title: string; severity: string }> }>();
     if (policyIds.length === 0) return result;
 
+    const IN_CHUNK = 200;
+
     try {
-        // Try fetching with status filter first (new schema)
-        // Fall back to resolved_at IS NULL if status column doesn't exist
-        let { data, error } = await supabase
-            .from('policy_flags')
-            .select('id, policy_id, severity, status, code, title')
-            .in('policy_id', policyIds)
-            .eq('status', 'open');
+        // Chunk the .in() query to handle large policy sets (2500+)
+        for (let i = 0; i < policyIds.length; i += IN_CHUNK) {
+            const chunk = policyIds.slice(i, i + IN_CHUNK);
 
-        if (error) {
-            // Fallback: old schema — use resolved_at IS NULL
-            const fallback = await supabase
+            // Try fetching with status filter first (new schema)
+            // Fall back to resolved_at IS NULL if status column doesn't exist
+            let { data, error } = await supabase
                 .from('policy_flags')
-                .select('id, policy_id, severity, code, title, resolved_at')
-                .in('policy_id', policyIds)
-                .is('resolved_at', null);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            data = fallback.data as any;
-            error = fallback.error;
-        }
+                .select('id, policy_id, severity, status, code, title')
+                .in('policy_id', chunk)
+                .eq('status', 'open');
 
-        if (error || !data) {
-            logger.warn('API', 'Could not fetch flag summaries', { message: error?.message });
-            return result;
-        }
-
-        for (const flag of data) {
-            const existing = result.get(flag.policy_id) || { count: 0, severity: undefined, flags: [] };
-            existing.count++;
-            existing.flags.push({
-                code: flag.code || 'UNKNOWN',
-                title: flag.title || flag.code || 'Flag',
-                severity: flag.severity || 'info',
-            });
-            const sev = flag.severity as string;
-            if (!existing.severity || (SEVERITY_ORDER[sev] || 0) > (SEVERITY_ORDER[existing.severity] || 0)) {
-                existing.severity = sev;
+            if (error) {
+                // Fallback: old schema — use resolved_at IS NULL
+                const fallback = await supabase
+                    .from('policy_flags')
+                    .select('id, policy_id, severity, code, title, resolved_at')
+                    .in('policy_id', chunk)
+                    .is('resolved_at', null);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                data = fallback.data as any;
+                error = fallback.error;
             }
-            result.set(flag.policy_id, existing);
+
+            if (error || !data) {
+                logger.warn('API', 'Could not fetch flag summaries', { message: error?.message, chunk: i });
+                continue;
+            }
+
+            for (const flag of data) {
+                const existing = result.get(flag.policy_id) || { count: 0, severity: undefined, flags: [] };
+                existing.count++;
+                existing.flags.push({
+                    code: flag.code || 'UNKNOWN',
+                    title: flag.title || flag.code || 'Flag',
+                    severity: flag.severity || 'low',
+                });
+                const sev = flag.severity as string;
+                if (!existing.severity || (PRIORITY_ORDER[sev] || 0) > (PRIORITY_ORDER[existing.severity] || 0)) {
+                    existing.severity = sev;
+                }
+                result.set(flag.policy_id, existing);
+            }
         }
     } catch (err) {
         logger.warn('API', 'Unexpected error fetching flag summaries', {
@@ -1359,7 +1401,7 @@ export async function fetchFlagsByPolicyId(policyId: string): Promise<PolicyFlag
             const aStat = statusOrder[getStatus(a)] ?? 0;
             const bStat = statusOrder[getStatus(b)] ?? 0;
             if (aStat !== bStat) return aStat - bStat;
-            return (SEVERITY_ORDER[b.severity] || 0) - (SEVERITY_ORDER[a.severity] || 0);
+            return (PRIORITY_ORDER[b.severity] || 0) - (PRIORITY_ORDER[a.severity] || 0);
         });
     } catch (err) {
         logger.error('API', 'Unexpected error fetching flags', {
@@ -1390,7 +1432,7 @@ export async function fetchFlagsByClientId(clientId: string): Promise<PolicyFlag
             const aStat = statusOrder[getStatus(a)] ?? 0;
             const bStat = statusOrder[getStatus(b)] ?? 0;
             if (aStat !== bStat) return aStat - bStat;
-            return (SEVERITY_ORDER[b.severity] || 0) - (SEVERITY_ORDER[a.severity] || 0);
+            return (PRIORITY_ORDER[b.severity] || 0) - (PRIORITY_ORDER[a.severity] || 0);
         });
     } catch (err) {
         return [];
@@ -1726,7 +1768,7 @@ export async function fetchAllOpenFlags(filters?: {
                 ...row,
                 policy_number: row.policies?.policy_number || null,
             })).sort((a, b) => {
-                return (SEVERITY_ORDER[b.severity] || 0) - (SEVERITY_ORDER[a.severity] || 0);
+                return (PRIORITY_ORDER[b.severity] || 0) - (PRIORITY_ORDER[a.severity] || 0);
             });
     } catch {
         return [];
@@ -1749,33 +1791,49 @@ export interface FlaggedPolicyGroup {
     client_id?: string;
     flags: PolicyFlagRow[];
     total_flags: number;
-    critical_count: number;
     high_count: number;
-    warning_count: number;
-    info_count: number;
+    medium_count: number;
+    low_count: number;
     max_severity: string;
 }
 
 export async function fetchFlaggedPoliciesGrouped(): Promise<FlaggedPolicyGroup[]> {
     try {
-        const { data, error } = await supabase
-            .from('policy_flags')
-            .select(`
-                *,
-                policies(
-                    id, policy_number, carrier_name, client_id,
-                    clients(named_insured, is_demo),
-                    policy_terms(expiration_date, office, sold_by, is_current)
-                )
-            `)
-            .eq('status', 'open')
-            .order('created_at', { ascending: false })
-            .limit(2000);
+        let allData: any[] = [];
+        let r_start = 0;
+        const limit = 1000;
+        let hasMore = true;
 
-        if (error || !data) {
-            console.error('fetchFlaggedPoliciesGrouped error:', error);
-            return [];
+        while (hasMore) {
+            const { data, error } = await supabase
+                .from('policy_flags')
+                .select(`
+                    *,
+                    policies(
+                        id, policy_number, carrier_name, status, client_id,
+                        clients(named_insured, is_demo),
+                        policy_terms(expiration_date, office, sold_by, is_current)
+                    )
+                `)
+                .eq('status', 'open')
+                .order('created_at', { ascending: false })
+                .order('id', { ascending: true })
+                .range(r_start, r_start + limit - 1);
+
+            if (error) {
+                console.error('fetchFlaggedPoliciesGrouped error:', error);
+                break;
+            }
+            if (!data || data.length === 0) {
+                hasMore = false;
+            } else {
+                allData = allData.concat(data);
+                if (data.length < limit) hasMore = false;
+                r_start += limit;
+            }
         }
+
+        const data = allData;
 
         // Group by policy_id
         const groupMap = new Map<string, FlaggedPolicyGroup>();
@@ -1787,6 +1845,9 @@ export async function fetchFlaggedPoliciesGrouped(): Promise<FlaggedPolicyGroup[
             // Skip flags from demo clients
             const policy = row.policies || {};
             if (policy.clients?.is_demo) continue;
+
+            // Skip flags from inactive policies (expired, cancelled, non_renewed)
+            if (policy.status && (INACTIVE_STATUSES as readonly string[]).includes(policy.status)) continue;
 
             if (!groupMap.has(policyId)) {
                 const client = policy.clients || {};
@@ -1805,15 +1866,16 @@ export async function fetchFlaggedPoliciesGrouped(): Promise<FlaggedPolicyGroup[
                     client_id: policy.client_id || row.client_id || undefined,
                     flags: [],
                     total_flags: 0,
-                    critical_count: 0,
                     high_count: 0,
-                    warning_count: 0,
-                    info_count: 0,
-                    max_severity: 'info',
+                    medium_count: 0,
+                    low_count: 0,
+                    max_severity: 'low',
                 });
             }
 
             const group = groupMap.get(policyId)!;
+            // Deduplicate: skip if we already have this flag ID in the group
+            if (group.flags.some((existing: any) => existing.id === row.id)) continue;
             group.flags.push({
                 ...row,
                 policy_number: row.policies?.policy_number || row.policy_number || null,
@@ -1821,30 +1883,28 @@ export async function fetchFlaggedPoliciesGrouped(): Promise<FlaggedPolicyGroup[
             group.total_flags++;
 
             switch (row.severity) {
-                case 'critical': group.critical_count++; break;
                 case 'high': group.high_count++; break;
-                case 'warning': group.warning_count++; break;
-                default: group.info_count++; break;
+                case 'medium': group.medium_count++; break;
+                default: group.low_count++; break;
             }
         }
 
         // compute max_severity for each group
         for (const group of groupMap.values()) {
-            if (group.critical_count > 0) group.max_severity = 'critical';
-            else if (group.high_count > 0) group.max_severity = 'high';
-            else if (group.warning_count > 0) group.max_severity = 'warning';
-            else group.max_severity = 'info';
+            if (group.high_count > 0) group.max_severity = 'high';
+            else if (group.medium_count > 0) group.max_severity = 'medium';
+            else group.max_severity = 'low';
 
-            // Sort flags within each group by severity
+            // Sort flags within each group by priority
             group.flags.sort((a, b) =>
-                (SEVERITY_ORDER[b.severity] || 0) - (SEVERITY_ORDER[a.severity] || 0)
+                (PRIORITY_ORDER[b.severity] || 0) - (PRIORITY_ORDER[a.severity] || 0)
             );
         }
 
-        // Sort groups: highest severity first, then nearest expiration, then most flags
+        // Sort groups: highest priority first, then nearest expiration, then most flags
         const groups = Array.from(groupMap.values());
         groups.sort((a, b) => {
-            const sevDiff = (SEVERITY_ORDER[b.max_severity] || 0) - (SEVERITY_ORDER[a.max_severity] || 0);
+            const sevDiff = (PRIORITY_ORDER[b.max_severity] || 0) - (PRIORITY_ORDER[a.max_severity] || 0);
             if (sevDiff !== 0) return sevDiff;
 
             // Nearest expiration first (nulls last)
@@ -2068,6 +2128,7 @@ export interface ActivityFeedItem {
     status: string;
     created_at: string;
     file_path: string | null;
+    error_message?: string | null;
     // From dec_pages (joined)
     insured_name?: string;
     policy_number?: string;
@@ -2089,6 +2150,7 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
                 id,
                 status,
                 file_path,
+                error_message,
                 created_at,
                 account_id,
                 dec_pages (
@@ -2096,6 +2158,11 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
                     policy_number,
                     policy_id,
                     client_id
+                ),
+                accounts:account_id (
+                    first_name,
+                    last_name,
+                    role
                 )
             `)
             .order('created_at', { ascending: false })
@@ -2115,17 +2182,34 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
             const dp = Array.isArray(dpRaw)
                 ? (dpRaw.length > 0 ? dpRaw[0] : null)
                 : (dpRaw || null);
+
+            // Resolve uploader name from accounts join
+            const acct = row.accounts;
+            let uploaderName = 'Unknown';
+            if (acct) {
+                const first = acct.first_name || '';
+                const last = acct.last_name || '';
+                const fullName = `${first} ${last}`.trim();
+                if (fullName) {
+                    uploaderName = fullName;
+                } else {
+                    // Fallback to role label
+                    uploaderName = acct.role === 'agent' ? 'Agent' : acct.role === 'customer' ? 'Client' : 'User';
+                }
+            }
+
             return {
                 id: row.id,
                 type: 'upload' as const,
                 status: row.status,
                 created_at: row.created_at,
                 file_path: row.file_path,
+                error_message: row.error_message,
                 insured_name: dp?.insured_name || undefined,
                 policy_number: dp?.policy_number || undefined,
                 policy_id: dp?.policy_id || undefined,
                 client_id: dp?.client_id || undefined,
-                uploaded_by: 'Agent',  // TODO: join accounts table for real name
+                uploaded_by: uploaderName,
             };
         });
     } catch (err) {
@@ -2425,6 +2509,23 @@ export async function updateFlagDefinition(
         if (error) {
             logger.error('API', 'Error updating flag definition', { code, message: error.message });
             return null;
+        }
+
+        // CASCADE: Update all existing occurrences of this flag
+        const flagUpdates: Record<string, unknown> = {};
+        if (updates.default_severity !== undefined) flagUpdates.severity = updates.default_severity;
+        if (updates.label !== undefined) flagUpdates.title = updates.label;
+        if (updates.description !== undefined) flagUpdates.message = updates.description;
+
+        if (Object.keys(flagUpdates).length > 0) {
+            const { error: cascadeError } = await supabase
+                .from('policy_flags')
+                .update(flagUpdates)
+                .eq('code', code);
+            
+            if (cascadeError) {
+                logger.error('API', 'Error cascading flag definition updates to policy_flags', { code, error: cascadeError.message });
+            }
         }
 
         return data as FlagDefinition;

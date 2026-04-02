@@ -198,6 +198,22 @@
     font-weight: 500;
 }
 
+.logicCell {
+    max-width: 320px;
+}
+
+.logicPreview {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    font-size: 0.82rem;
+}
+
 /* Badges */
 .codeBadge {
     background: var(--bg-core);

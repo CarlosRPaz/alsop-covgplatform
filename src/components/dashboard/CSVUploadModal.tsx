@@ -8,7 +8,7 @@ import {
     AlertTriangle, Copy, ArrowLeft,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
-import { parseCSVFile, commitImport, ParseResult, ImportRow } from '@/lib/csvImport';
+import { parseCSVFile, commitImport, pollBatchProgress, batchReEvaluateFlags, ParseResult, ImportRow, BatchEvalResult } from '@/lib/csvImport';
 import styles from './CSVUploadModal.module.scss';
 
 interface CSVUploadModalProps {
@@ -45,33 +45,47 @@ export function CSVUploadModal({ isOpen, onClose, onImportComplete }: CSVUploadM
     const [commitResult, setCommitResult] = useState<{ imported: number; skipped: number; errors: string[]; flags_created?: number; new_clients_created?: number; terms_created?: number; terms_updated?: number } | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [expandedSection, setExpandedSection] = useState<string | null>('valid');
-    const [progressPhase, setProgressPhase] = useState(0);
+    const [progressPct, setProgressPct] = useState(0);
+    const [progressMsg, setProgressMsg] = useState('');
     const [elapsed, setElapsed] = useState(0);
+    const [reEvalStatus, setReEvalStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+    const [reEvalResult, setReEvalResult] = useState<BatchEvalResult | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Cycle through progress phases and count elapsed time
+    // Poll batch progress during importing step
+    useEffect(() => {
+        if (step !== 'importing' || !parseResult?.batch_id) return;
+
+        const interval = setInterval(async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session?.access_token) return;
+
+                const progress = await pollBatchProgress(parseResult.batch_id, session.access_token);
+                setProgressPct(progress.progress_pct || 0);
+                setProgressMsg(progress.progress_message || '');
+
+                // If the batch is completed, the commit response handler will take over
+            } catch {
+                // Ignore polling errors
+            }
+        }, 2000);
+
+        return () => clearInterval(interval);
+    }, [step, parseResult?.batch_id]);
+
+    // Count elapsed time during parsing and importing
     useEffect(() => {
         if (step !== 'parsing' && step !== 'importing') {
-            setProgressPhase(0);
             setElapsed(0);
             return;
         }
-        setProgressPhase(0);
         setElapsed(0);
-
-        const phases = step === 'parsing' ? PARSE_PHASES : IMPORT_PHASES;
-        const phaseInterval = setInterval(() => {
-            setProgressPhase(p => (p + 1) % phases.length);
-        }, 2200);
-
         const elapsedInterval = setInterval(() => {
             setElapsed(e => e + 1);
         }, 1000);
 
-        return () => {
-            clearInterval(phaseInterval);
-            clearInterval(elapsedInterval);
-        };
+        return () => clearInterval(elapsedInterval);
     }, [step]);
 
     const resetState = useCallback(() => {
@@ -82,6 +96,10 @@ export function CSVUploadModal({ isOpen, onClose, onImportComplete }: CSVUploadM
         setCommitResult(null);
         setError(null);
         setExpandedSection('valid');
+        setProgressPct(0);
+        setProgressMsg('');
+        setReEvalStatus('idle');
+        setReEvalResult(null);
     }, []);
 
     const handleClose = () => {
@@ -346,9 +364,9 @@ export function CSVUploadModal({ isOpen, onClose, onImportComplete }: CSVUploadM
                 <ProgressPanel
                     title={`Parsing ${selectedFile?.name || 'CSV'}…`}
                     phases={PARSE_PHASES}
-                    currentPhase={progressPhase}
                     elapsed={elapsed}
                     accentColor="#22c55e"
+                    mode="animated"
                 />
             )}
 
@@ -366,6 +384,12 @@ export function CSVUploadModal({ isOpen, onClose, onImportComplete }: CSVUploadM
                             display: 'flex', alignItems: 'center', marginLeft: 'auto',
                         }}>
                             {parseResult.stats.total} total rows
+                        {parseResult.rows_preview_count != null && parseResult.rows_total_count != null &&
+                            parseResult.rows_preview_count < parseResult.rows_total_count && (
+                            <span style={{ marginLeft: '0.5rem', color: 'var(--text-accent)', fontWeight: 500 }}>
+                                (showing {parseResult.rows_preview_count} of {parseResult.rows_total_count})
+                            </span>
+                        )}
                         </span>
                     </div>
 
@@ -420,9 +444,11 @@ export function CSVUploadModal({ isOpen, onClose, onImportComplete }: CSVUploadM
                 <ProgressPanel
                     title={`Importing ${parseResult?.stats.valid || ''} rows…`}
                     phases={IMPORT_PHASES}
-                    currentPhase={progressPhase}
                     elapsed={elapsed}
                     accentColor="#3b82f6"
+                    mode="progress"
+                    progressPct={progressPct}
+                    progressMsg={progressMsg}
                 />
             )}
 
@@ -474,6 +500,79 @@ export function CSVUploadModal({ isOpen, onClose, onImportComplete }: CSVUploadM
                                 <>
                                     <span style={{ color: 'var(--text-muted)' }}>Flags created</span>
                                     <span style={{ color: '#f87171', fontWeight: 600 }}>{commitResult.flags_created}</span>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Enrichment note */}
+                        {/* Re-evaluate flags section */}
+                        <div style={{
+                            width: '100%', marginTop: '0.75rem',
+                            padding: '0.75rem 0.875rem',
+                            background: reEvalStatus === 'done' ? 'rgba(34, 197, 94, 0.06)' : 'rgba(245, 158, 11, 0.06)',
+                            border: `1px solid ${reEvalStatus === 'done' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(245, 158, 11, 0.15)'}`,
+                            borderRadius: 'var(--radius-sm)',
+                            fontSize: '0.75rem', color: 'var(--text-mid)',
+                            lineHeight: 1.5,
+                        }}>
+                            {reEvalStatus === 'idle' && (
+                                <>
+                                    <strong style={{ color: '#f59e0b' }}>⚑ Flag Re-evaluation:</strong>{' '}
+                                    The import used a lightweight flag engine. Click below to re-evaluate all imported policies with the full flag rules.
+                                    This only updates CSV-sourced flags — enrichment and manual flags are untouched.
+                                    <div style={{ marginTop: '0.5rem' }}>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={async () => {
+                                                if (!parseResult?.batch_id) return;
+                                                setReEvalStatus('running');
+                                                try {
+                                                    const { data: { session } } = await supabase.auth.getSession();
+                                                    if (!session?.access_token) {
+                                                        setReEvalStatus('error');
+                                                        setReEvalResult({ success: false, error: 'Session expired' });
+                                                        return;
+                                                    }
+                                                    const result = await batchReEvaluateFlags(parseResult.batch_id, session.access_token);
+                                                    if (result.success) {
+                                                        setReEvalStatus('done');
+                                                        setReEvalResult(result);
+                                                    } else {
+                                                        setReEvalStatus('error');
+                                                        setReEvalResult(result);
+                                                    }
+                                                } catch {
+                                                    setReEvalStatus('error');
+                                                    setReEvalResult({ success: false, error: 'Request failed' });
+                                                }
+                                            }}
+                                            style={{ fontSize: '0.75rem', fontWeight: 600, color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)' }}
+                                        >
+                                            <AlertTriangle size={12} style={{ marginRight: '0.25rem' }} />
+                                            Re-evaluate Flags ({commitResult.imported} policies)
+                                        </Button>
+                                    </div>
+                                </>
+                            )}
+                            {reEvalStatus === 'running' && (
+                                <>
+                                    <strong style={{ color: '#f59e0b' }}>⏳ Re-evaluating flags…</strong>{' '}
+                                    Running full flag engine on {commitResult.imported} policies. This may take a moment.
+                                </>
+                            )}
+                            {reEvalStatus === 'done' && reEvalResult && (
+                                <>
+                                    <strong style={{ color: '#22c55e' }}>✓ Flags re-evaluated</strong>
+                                    <div style={{ marginTop: '0.25rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                        {reEvalResult.stale_flags_deleted} stale flags removed · {reEvalResult.flags_created} new flags created · {reEvalResult.flags_refreshed} refreshed · {reEvalResult.flags_resolved} resolved
+                                    </div>
+                                </>
+                            )}
+                            {reEvalStatus === 'error' && (
+                                <>
+                                    <strong style={{ color: '#ef4444' }}>✗ Flag re-evaluation failed:</strong>{' '}
+                                    {reEvalResult?.error || 'Unknown error'}
                                 </>
                             )}
                         </div>
@@ -542,28 +641,44 @@ const tdStyle: React.CSSProperties = {
 function ProgressPanel({
     title,
     phases,
-    currentPhase,
     elapsed,
     accentColor,
+    mode = 'animated',
+    progressPct,
+    progressMsg,
 }: {
     title: string;
     phases: string[];
-    currentPhase: number;
     elapsed: number;
     accentColor: string;
+    mode?: 'animated' | 'progress';
+    progressPct?: number;
+    progressMsg?: string;
 }) {
+    const [animatedPhase, setAnimatedPhase] = useState(0);
+
+    useEffect(() => {
+        if (mode !== 'animated') return;
+        const interval = setInterval(() => {
+            setAnimatedPhase(p => (p + 1) % phases.length);
+        }, 2200);
+        return () => clearInterval(interval);
+    }, [mode, phases.length]);
+
     const formatTime = (s: number) => {
         const m = Math.floor(s / 60);
         const sec = s % 60;
         return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
     };
 
+    const displayPct = mode === 'progress' ? (progressPct ?? 0) : undefined;
+    const displayMsg = mode === 'progress' ? (progressMsg || 'Starting…') : phases[animatedPhase];
+
     return (
         <div style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center',
             padding: '2rem 1.5rem', gap: '1.25rem',
         }}>
-            {/* Inline keyframes */}
             <style>{`
                 @keyframes csv-progress-bar {
                     0% { transform: translateX(-100%); }
@@ -587,59 +702,76 @@ function ProgressPanel({
                 {title}
             </span>
 
-            {/* Animated progress bar */}
+            {/* Progress bar */}
             <div style={{
                 width: '100%', height: '4px',
                 background: 'var(--bg-surface)', borderRadius: '4px',
                 overflow: 'hidden', position: 'relative',
             }}>
-                <div style={{
-                    position: 'absolute', top: 0, left: 0,
-                    width: '33%', height: '100%',
-                    background: `linear-gradient(90deg, transparent, ${accentColor}, transparent)`,
-                    borderRadius: '4px',
-                    animation: 'csv-progress-bar 1.4s ease-in-out infinite',
-                }} />
+                {mode === 'progress' && displayPct != null ? (
+                    <div style={{
+                        position: 'absolute', top: 0, left: 0,
+                        width: `${displayPct}%`, height: '100%',
+                        background: accentColor,
+                        borderRadius: '4px',
+                        transition: 'width 0.5s ease',
+                    }} />
+                ) : (
+                    <div style={{
+                        position: 'absolute', top: 0, left: 0,
+                        width: '33%', height: '100%',
+                        background: `linear-gradient(90deg, transparent, ${accentColor}, transparent)`,
+                        borderRadius: '4px',
+                        animation: 'csv-progress-bar 1.4s ease-in-out infinite',
+                    }} />
+                )}
             </div>
 
-            {/* Step pipeline dots */}
-            <div style={{
-                display: 'flex', alignItems: 'center', gap: '0.5rem',
-            }}>
-                {phases.map((_, i) => {
-                    const isActive = i === currentPhase;
-                    const isPast = i < currentPhase;
-                    return (
-                        <div
-                            key={i}
-                            style={{
-                                width: isActive ? '10px' : '6px',
-                                height: isActive ? '10px' : '6px',
-                                borderRadius: '50%',
-                                background: isPast
-                                    ? accentColor
-                                    : isActive
-                                        ? accentColor
-                                        : 'var(--border-default)',
-                                opacity: isPast ? 0.4 : 1,
-                                transition: 'all 0.3s ease',
-                                animation: isActive ? 'csv-pulse 1.2s ease-in-out infinite' : 'none',
-                            }}
-                        />
-                    );
-                })}
-            </div>
+            {/* Percentage (progress mode only) */}
+            {mode === 'progress' && displayPct != null && (
+                <span style={{
+                    fontSize: '1.5rem', fontWeight: 700, color: accentColor,
+                    fontVariantNumeric: 'tabular-nums',
+                }}>
+                    {displayPct}%
+                </span>
+            )}
 
-            {/* Current phase text */}
+            {/* Phase dots (animated mode only) */}
+            {mode === 'animated' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {phases.map((_, i) => {
+                        const isActive = i === animatedPhase;
+                        const isPast = i < animatedPhase;
+                        return (
+                            <div
+                                key={i}
+                                style={{
+                                    width: isActive ? '10px' : '6px',
+                                    height: isActive ? '10px' : '6px',
+                                    borderRadius: '50%',
+                                    background: isPast || isActive ? accentColor : 'var(--border-default)',
+                                    opacity: isPast ? 0.4 : 1,
+                                    transition: 'all 0.3s ease',
+                                    animation: isActive ? 'csv-pulse 1.2s ease-in-out infinite' : 'none',
+                                }}
+                            />
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Current status text */}
             <span
-                key={currentPhase}
+                key={mode === 'progress' ? displayMsg : animatedPhase}
                 style={{
                     fontSize: '0.8125rem', color: 'var(--text-mid)',
                     animation: 'csv-fade-in 0.3s ease-out',
                     minHeight: '1.25rem',
+                    textAlign: 'center',
                 }}
             >
-                {phases[currentPhase]}
+                {displayMsg}
             </span>
 
             {/* Elapsed time */}

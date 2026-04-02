@@ -8,6 +8,21 @@
 //   Green Bee (success)  ·  Orange Peel (warning)  ·  True Red (error)
 //   Rose Quartz (soft alert bg)  ·  Lemon Drop (highlight bg)
 
+// ─── Breakpoints (mobile-first: min-width) ───
+$bp-sm: 640px;   // Large phones / landscape
+$bp-md: 768px;   // Tablets
+$bp-lg: 1024px;  // Small laptops
+$bp-xl: 1280px;  // Desktops
+
+// ─── Responsive Mixins ───
+@mixin above-sm { @media (min-width: $bp-sm) { @content; } }
+@mixin above-md { @media (min-width: $bp-md) { @content; } }
+@mixin above-lg { @media (min-width: $bp-lg) { @content; } }
+@mixin above-xl { @media (min-width: $bp-xl) { @content; } }
+@mixin below-sm { @media (max-width: #{$bp-sm - 1}) { @content; } }
+@mixin below-md { @media (max-width: #{$bp-md - 1}) { @content; } }
+@mixin below-lg { @media (max-width: #{$bp-lg - 1}) { @content; } }
+
 :root {
     // ── Backgrounds ──
     --bg-base: #F0EDE5;              // Egret — warm off-white page bg

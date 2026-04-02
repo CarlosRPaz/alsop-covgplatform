@@ -9,12 +9,14 @@ import { Footer } from "@/components/layout/Footer";
 import { GlobalSearch } from "@/components/layout/GlobalSearch";
 import { SidebarProvider, useSidebar } from "@/components/layout/SidebarContext";
 import { ToastProvider } from "@/components/ui/Toast/Toast";
+import { DecPageObserver } from "@/components/layout/DecPageObserver";
+import { Menu } from 'lucide-react';
 
 // Routes that customers are allowed to access
 const CLIENT_ALLOWED_ROUTES = ['/portal', '/submit', '/profile', '/settings', '/policy'];
 
 function AuthenticatedContent({ children, userRole }: { children: React.ReactNode; userRole: UserRole | null }) {
-    const { collapsed } = useSidebar();
+    const { collapsed, isMobile, setMobileOpen } = useSidebar();
     const pathname = usePathname();
     const router = useRouter();
 
@@ -28,23 +30,24 @@ function AuthenticatedContent({ children, userRole }: { children: React.ReactNod
         }
     }, [userRole, pathname, router]);
 
+    const sidebarOffset = isMobile ? 0 : (collapsed ? 64 : 240);
+
     return (
         <div style={{ display: 'flex', flex: 1 }}>
             <Sidebar userRole={userRole} />
             <div style={{
                 flex: 1,
-                marginLeft: collapsed ? '64px' : '240px',
+                marginLeft: `${sidebarOffset}px`,
                 minWidth: 0,
                 overflowX: 'hidden',
                 backgroundColor: 'var(--background)',
                 display: 'flex',
                 flexDirection: 'column',
-                transition: 'margin-left 0.2s ease',
+                transition: isMobile ? 'none' : 'margin-left 0.2s ease',
             }}>
-                {/* Global Search Bar — agents only */}
-                {userRole !== 'customer' && (
+                {/* Top bar with hamburger (mobile) + global search */}
                 <div style={{
-                    padding: '0.75rem 2rem',
+                    padding: isMobile ? '0.375rem 0.5rem' : '0.75rem 2rem',
                     borderBottom: '1px solid var(--border-default)',
                     background: 'var(--bg-surface)',
                     position: 'sticky',
@@ -52,12 +55,50 @@ function AuthenticatedContent({ children, userRole }: { children: React.ReactNod
                     zIndex: 30,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'flex-end',
+                    gap: '0.75rem',
                 }}>
-                    <GlobalSearch />
+                    {/* Hamburger button — mobile only */}
+                    {isMobile && (
+                        <button
+                            onClick={() => setMobileOpen(true)}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '40px',
+                                height: '40px',
+                                background: 'transparent',
+                                border: '1px solid var(--border-default)',
+                                borderRadius: 'var(--radius-md)',
+                                color: 'var(--text-mid)',
+                                cursor: 'pointer',
+                                flexShrink: 0,
+                            }}
+                            aria-label="Open menu"
+                        >
+                            <Menu size={20} />
+                        </button>
+                    )}
+
+                    {/* Global Search Bar — agents only, takes remaining space */}
+                    {userRole !== 'customer' && (
+                        <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+                            <GlobalSearch />
+                        </div>
+                    )}
+
+                    {/* On mobile, if customer, still show brand */}
+                    {userRole === 'customer' && isMobile && (
+                        <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
+                            CoverageCheckNow
+                        </span>
+                    )}
                 </div>
-                )}
-                <div style={{ flex: 1, padding: '2rem' }}>
+
+                <div style={{
+                    flex: 1,
+                    padding: isMobile ? '0.5rem' : '2rem',
+                }}>
                     {children}
                 </div>
                 <Footer />
@@ -182,7 +223,7 @@ export default function AuthenticatedLayout({
                 justifyContent: 'center',
                 minHeight: '100vh',
                 backgroundColor: 'var(--background)',
-                color: 'rgba(255, 255, 255, 0.6)',
+                color: 'var(--text-muted)',
                 fontSize: '1rem',
             }}>
                 Loading...
@@ -200,23 +241,23 @@ export default function AuthenticatedLayout({
                 justifyContent: 'center',
                 minHeight: '100vh',
                 backgroundColor: 'var(--background)',
-                color: 'rgba(255, 255, 255, 0.8)',
-                padding: '2rem',
+                color: 'var(--text-mid)',
+                padding: '1.5rem',
                 textAlign: 'center',
             }}>
                 <div style={{
-                    background: 'rgba(30, 41, 59, 0.7)',
-                    backdropFilter: 'blur(16px)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: '1.25rem',
-                    padding: '3rem',
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 'var(--radius-xl)',
+                    padding: '2.5rem',
                     maxWidth: '520px',
+                    width: '100%',
                 }}>
                     <div style={{
                         width: '64px',
                         height: '64px',
                         borderRadius: '50%',
-                        background: 'rgba(239, 68, 68, 0.15)',
+                        background: 'var(--bg-error-subtle)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -225,43 +266,43 @@ export default function AuthenticatedLayout({
                     }}>
                         🔒
                     </div>
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.75rem' }}>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--text-high)' }}>
                         Access Restricted
                     </h2>
-                    <p style={{ color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: '1rem' }}>
+                    <p style={{ color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: '1rem' }}>
                         Your account does not have permission to access the dashboard.
-                        Only <strong style={{ color: 'rgba(255,255,255,0.7)' }}>admin</strong> and <strong style={{ color: 'rgba(255,255,255,0.7)' }}>service</strong> roles
+                        Only <strong style={{ color: 'var(--text-high)' }}>admin</strong> and <strong style={{ color: 'var(--text-high)' }}>service</strong> roles
                         are authorized.
                     </p>
                     {userRole && (
-                        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>
-                            Your role: <code style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: '4px' }}>{userRole}</code>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+                            Your role: <code style={{ background: 'var(--accent-primary-muted)', padding: '2px 8px', borderRadius: '4px', color: 'var(--accent-primary)' }}>{userRole}</code>
                         </p>
                     )}
                     {debugInfo && (
                         <p style={{
-                            color: '#fca5a5',
+                            color: 'var(--status-error)',
                             fontSize: '0.8rem',
                             marginBottom: '1.5rem',
-                            background: 'rgba(239, 68, 68, 0.08)',
+                            background: 'var(--bg-error-subtle)',
                             padding: '0.5rem 0.75rem',
-                            borderRadius: '0.5rem',
-                            border: '1px solid rgba(239, 68, 68, 0.15)',
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid rgba(191, 25, 50, 0.15)',
                             fontFamily: 'monospace',
                             wordBreak: 'break-word',
                         }}>
                             {debugInfo}
                         </p>
                     )}
-                    <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                         <button
                             onClick={() => router.push('/')}
                             style={{
                                 padding: '0.625rem 1.5rem',
-                                background: 'rgba(59, 130, 246, 0.15)',
-                                border: '1px solid rgba(59, 130, 246, 0.3)',
-                                borderRadius: '0.5rem',
-                                color: '#60a5fa',
+                                background: 'var(--accent-primary-muted)',
+                                border: '1px solid var(--accent-primary)',
+                                borderRadius: 'var(--radius-md)',
+                                color: 'var(--accent-primary)',
                                 cursor: 'pointer',
                                 fontSize: '0.9rem',
                                 fontWeight: 500,
@@ -277,9 +318,9 @@ export default function AuthenticatedLayout({
                             style={{
                                 padding: '0.625rem 1.5rem',
                                 background: 'transparent',
-                                border: '1px solid rgba(255, 255, 255, 0.15)',
-                                borderRadius: '0.5rem',
-                                color: 'rgba(255,255,255,0.6)',
+                                border: '1px solid var(--border-default)',
+                                borderRadius: 'var(--radius-md)',
+                                color: 'var(--text-mid)',
                                 cursor: 'pointer',
                                 fontSize: '0.9rem',
                                 fontWeight: 500,
@@ -296,6 +337,7 @@ export default function AuthenticatedLayout({
     return (
         <SidebarProvider>
             <ToastProvider>
+                <DecPageObserver />
                 <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
                 <AuthenticatedContent userRole={userRole}>{children}</AuthenticatedContent>
                 </div>
@@ -303,4 +345,3 @@ export default function AuthenticatedLayout({
         </SidebarProvider>
     );
 }
-

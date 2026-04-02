@@ -9,7 +9,7 @@ interface SeverityFlag {
     policyNumber: string;
     insuredName: string;
     flagType: string;
-    severity: 'critical' | 'high';
+    severity: 'high' | 'medium';
     description: string;
     dateAdded: string;
 }
@@ -20,7 +20,7 @@ const highSeverityFlags: SeverityFlag[] = [
         policyNumber: 'HO-555005-05',
         insuredName: 'Charles Thomas',
         flagType: 'Wildfire Zone',
-        severity: 'critical',
+        severity: 'high',
         description: 'Property located in extreme wildfire risk zone with recent fire history',
         dateAdded: '2024-01-28',
     },
@@ -38,7 +38,7 @@ const highSeverityFlags: SeverityFlag[] = [
         policyNumber: 'HO-555004-04',
         insuredName: 'Jennifer Anderson',
         flagType: 'Windstorm',
-        severity: 'critical',
+        severity: 'high',
         description: 'Coastal property in hurricane-prone area, requires enhanced coverage',
         dateAdded: '2024-01-26',
     },
@@ -69,7 +69,7 @@ export function HighSeverityTab() {
                 <div className={styles.headerContent}>
                     <AlertTriangle className={styles.headerIcon} />
                     <div>
-                        <h2 className={styles.title}>High Severity Flags</h2>
+                        <h2 className={styles.title}>High Priority Flags</h2>
                         <p className={styles.subtitle}>
                             Policies requiring immediate attention - {highSeverityFlags.length} total
                         </p>
@@ -83,7 +83,7 @@ export function HighSeverityTab() {
                         <div className={styles.flagHeader}>
                             <div className={styles.flagHeaderLeft}>
                                 <span
-                                    className={`${styles.severityBadge} ${flag.severity === 'critical' ? styles.critical : styles.high
+                                    className={`${styles.severityBadge} ${flag.severity === 'high' ? styles.critical : styles.high
                                         }`}
                                 >
                                     {flag.severity.toUpperCase()}

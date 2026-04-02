@@ -48,9 +48,9 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     const [copied, setCopied] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [policyDetailRaw, setPolicyDetailRaw] = useState<PolicyDetail | null>(null);
-    const [flagSummary, setFlagSummary] = useState<{ total: number; critical: number; high: number; warning: number; info: number }>(
-        { total: 0, critical: 0, high: 0, warning: 0, info: 0 }
-    );
+    const [flagSummary, setFlagSummary] = useState<{ total: number; high: number; medium: number; low: number }>({
+        total: 0, high: 0, medium: 0, low: 0
+    });
     const [openFlags, setOpenFlags] = useState<PolicyFlagRow[]>([]);
     const [allFlags, setAllFlags] = useState<PolicyFlagRow[]>([]);
     const [enrichments, setEnrichments] = useState<PropertyEnrichment[]>([]);
@@ -138,10 +138,9 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             setOpenFlags(open);
             setFlagSummary({
                 total: open.length,
-                critical: open.filter((f: PolicyFlagRow) => f.severity === 'critical').length,
                 high: open.filter((f: PolicyFlagRow) => f.severity === 'high').length,
-                warning: open.filter((f: PolicyFlagRow) => f.severity === 'warning').length,
-                info: open.filter((f: PolicyFlagRow) => f.severity === 'info').length,
+                medium: open.filter((f: PolicyFlagRow) => f.severity === 'medium').length,
+                low: open.filter((f: PolicyFlagRow) => f.severity === 'low').length,
             });
         });
 
@@ -223,10 +222,9 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             setOpenFlags(open);
             setFlagSummary({
                 total: open.length,
-                critical: open.filter((f: PolicyFlagRow) => f.severity === 'critical').length,
                 high: open.filter((f: PolicyFlagRow) => f.severity === 'high').length,
-                warning: open.filter((f: PolicyFlagRow) => f.severity === 'warning').length,
-                info: open.filter((f: PolicyFlagRow) => f.severity === 'info').length,
+                medium: open.filter((f: PolicyFlagRow) => f.severity === 'medium').length,
+                low: open.filter((f: PolicyFlagRow) => f.severity === 'low').length,
             });
         } catch (e) {
             console.error('Flag check failed:', e);
@@ -636,7 +634,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                     flagsChecked={flagsChecked}
                     lastCheckedDate={lastCheckedDate}
                     openFlagCount={flagSummary.total}
-                    highestSeverity={flagSummary.critical > 0 ? 'critical' : flagSummary.high > 0 ? 'high' : flagSummary.warning > 0 ? 'warning' : flagSummary.info > 0 ? 'info' : null}
+                    highestSeverity={flagSummary.high > 0 ? 'high' : flagSummary.medium > 0 ? 'medium' : flagSummary.low > 0 ? 'low' : null}
                     enrichStep={enrichStep}
                     onEnrich={handleEnrich}
                     onRunFlagCheck={handleFlagCheck}

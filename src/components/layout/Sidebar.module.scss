@@ -12,11 +12,39 @@
     overflow-y: auto;
     overflow-x: hidden;
     border-right: 1px solid var(--border-default);
-    transition: width 0.2s ease;
+    transition: width 0.2s ease, transform 0.25s ease;
 
     &.collapsed {
         width: var(--sidebar-collapsed-width, 64px);
     }
+
+    /* ── Mobile: off-screen drawer ── */
+    &.mobile {
+        width: 280px;
+        transform: translateX(-100%);
+        z-index: 100;
+        box-shadow: none;
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    &.mobileOpen {
+        transform: translateX(0);
+        box-shadow: var(--shadow-overlay);
+    }
+}
+
+/* ── Backdrop overlay ── */
+.backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 99;
+    animation: fadeInBackdrop 0.2s ease;
+}
+
+@keyframes fadeInBackdrop {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .brandRow {
@@ -36,6 +64,13 @@
         height: auto;
         padding-top: 0.75rem;
         padding-bottom: 0.5rem;
+    }
+
+    .mobile & {
+        justify-content: space-between;
+        flex-direction: row;
+        height: var(--topbar-height);
+        padding: 0 0.75rem;
     }
 }
 
@@ -111,6 +146,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-decoration: none;
+    min-height: 44px; /* touch target */
 
     &:hover {
         color: var(--text-high);
@@ -138,6 +174,16 @@
             margin-right: 0;
         }
     }
+
+    /* On mobile drawer, always show expanded style */
+    .mobile & {
+        justify-content: flex-start;
+        padding: 0.5rem 1.25rem;
+
+        svg {
+            margin-right: 0.625rem;
+        }
+    }
 }
 
 .footer {
@@ -149,5 +195,10 @@
     .collapsed & {
         padding: 0.75rem 0.35rem;
         text-align: center;
+    }
+
+    .mobile & {
+        padding: 1.25rem;
+        text-align: left;
     }
 }

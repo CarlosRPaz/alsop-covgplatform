@@ -41,6 +41,7 @@ export function KPIStats() {
     const router = useRouter();
     const [stats, setStats] = useState({
         highFlags: 0,
+        highPoliciesCount: 0,
         missingDicPolicies: 0,
         expiringSoon: 0,
         loading: true
@@ -49,12 +50,30 @@ export function KPIStats() {
     useEffect(() => {
         const load = async () => {
             try {
-                // 1. High Severity Flags — exact count of critical + high flags
-                const { count: flagsCount } = await supabase
-                    .from('policy_flags')
-                    .select('*', { count: 'exact', head: true })
-                    .in('severity', ['critical', 'high'])
-                    .eq('status', 'open');
+                // 1. High Severity Flags — calculate exact count of policies with high flags
+                let r_start = 0;
+                let hasMore = true;
+                let totalHighFlags = 0;
+                const uniqueHighPolicies = new Set<string>();
+
+                while (hasMore) {
+                    const { data, error } = await supabase
+                        .from('policy_flags')
+                        .select('policy_id')
+                        .in('severity', ['high', 'critical']) // Catch any legacy 'critical'
+                        .eq('status', 'open')
+                        .range(r_start, r_start + 999);
+                    
+                    if (error || !data || data.length === 0) break;
+                    
+                    totalHighFlags += data.length;
+                    data.forEach(d => {
+                        if (d.policy_id) uniqueHighPolicies.add(d.policy_id);
+                    });
+                    
+                    if (data.length < 1000) hasMore = false;
+                    r_start += 1000;
+                }
 
                 // 2. Missing DIC — count of POLICIES (not terms) missing DIC
                 // We count current terms where dic_exists = false, grouped by policy
@@ -84,7 +103,8 @@ export function KPIStats() {
                 const uniqueExpiringPolicies = new Set((expiringData || []).map(d => d.policy_id));
 
                 setStats({
-                    highFlags: flagsCount ?? 0,
+                    highFlags: totalHighFlags,
+                    highPoliciesCount: uniqueHighPolicies.size,
                     missingDicPolicies: uniquePolicies.size,
                     expiringSoon: uniqueExpiringPolicies.size,
                     loading: false
@@ -117,13 +137,13 @@ export function KPIStats() {
     return (
         <div className={styles.statsGrid}>
             <MetricCard
-                title="High Severity Flags"
-                value={stats.highFlags.toLocaleString()}
-                sublabel={stats.highFlags > 0 ? "Critical & high flags open" : "All clear"}
+                title="Policies w/ High Priority Flags"
+                value={stats.highPoliciesCount.toLocaleString()}
+                sublabel={stats.highPoliciesCount > 0 ? `${stats.highFlags.toLocaleString()} high priority flags open` : "All clear"}
                 icon={Flag}
-                color={stats.highFlags > 0 ? "#ef4444" : "#10b981"}
-                subIcon={stats.highFlags > 0 ? AlertTriangle : ArrowRight}
-                onClick={() => router.push('/flags?severity=critical')}
+                color={stats.highPoliciesCount > 0 ? "#ef4444" : "#10b981"}
+                subIcon={stats.highPoliciesCount > 0 ? AlertTriangle : ArrowRight}
+                onClick={() => router.push('/flags?priority=high')}
             />
             <MetricCard
                 title="Policies Missing DIC"

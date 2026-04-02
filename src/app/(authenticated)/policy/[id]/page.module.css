@@ -509,3 +509,87 @@
     padding: 0 1.5rem;
     margin-bottom: 0.75rem;
 }
+
+/* ── Mobile Responsive ── */
+@media (max-width: 767px) {
+    .propertyBanner {
+        height: 200px;
+        margin-bottom: 1rem;
+        border-radius: 0;
+    }
+
+    .bannerOverlay {
+        padding: 0.5rem;
+    }
+
+    .bannerTitle {
+        font-size: 1.25rem;
+    }
+
+    .bannerSubtitle {
+        font-size: 0.875rem;
+    }
+
+    .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0 0.5rem;
+    }
+
+    .actionCluster {
+        padding-top: 0;
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        gap: 0.375rem;
+    }
+
+    .title {
+        font-size: 1.2rem;
+    }
+
+    .commandSection {
+        padding: 0 0.5rem;
+    }
+
+    .content {
+        padding: 0 0.5rem 1rem 0.5rem;
+        gap: 1rem;
+    }
+
+    .tabsWrapper {
+        padding: 0 0.5rem;
+    }
+
+    .flagBannerWrapper {
+        padding: 0 0.5rem;
+    }
+
+    /* Modals */
+    .modalOverlay {
+        padding: 0.5rem;
+    }
+
+    .modalContent {
+        max-width: 95vw;
+        max-height: 80vh;
+    }
+
+    .modalImage {
+        max-height: 80vh;
+    }
+
+    /* Skeleton */
+    .skeletonContainer {
+        padding: 0.5rem;
+    }
+
+    .skeletonCards {
+        grid-template-columns: 1fr;
+    }
+
+    .skeletonBanner {
+        height: 120px;
+    }
+}

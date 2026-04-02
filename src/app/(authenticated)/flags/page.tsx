@@ -1,11 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import {
-    fetchFlaggedPoliciesGrouped,
-    FlaggedPolicyGroup,
-} from '@/lib/api';
+import { FlaggedPolicyGroup } from '@/lib/api';
+import { useFlags } from '@/hooks/useFlags';
 import { Button } from '@/components/ui/Button/Button';
 import {
     Flag,
@@ -30,18 +28,16 @@ import styles from './page.module.css';
 
 // ─── Constants ───
 
-const SEVERITY_COLORS: Record<string, string> = {
-    critical: '#ef4444',
-    high: '#f97316',
-    warning: '#eab308',
-    info: '#3b82f6',
+const PRIORITY_COLORS: Record<string, string> = {
+    high: '#ef4444',
+    medium: '#f59e0b',
+    low: '#3b82f6',
 };
 
-const SEVERITY_ICONS: Record<string, React.ReactNode> = {
-    critical: <AlertCircle size={13} />,
-    high: <AlertTriangle size={13} />,
-    warning: <AlertTriangle size={13} />,
-    info: <Info size={13} />,
+const PRIORITY_ICONS: Record<string, React.ReactNode> = {
+    high: <AlertCircle size={13} />,
+    medium: <AlertTriangle size={13} />,
+    low: <Info size={13} />,
 };
 
 const RENEWAL_FILTERS = [
@@ -75,33 +71,152 @@ function expirationClass(d?: string | null): string {
     return '';
 }
 
-// ─── Component ───
+const ROWS_PER_PAGE = 50;
+
+// ─── Memoized Policy Row ───
+
+interface PolicyRowProps {
+    group: FlaggedPolicyGroup;
+    isExpanded: boolean;
+    onToggle: (id: string) => void;
+    onNavigate: (id: string) => void;
+}
+
+const PolicyRow = React.memo(function PolicyRow({ group, isExpanded, onToggle, onNavigate }: PolicyRowProps) {
+    const sevColor = PRIORITY_COLORS[group.max_severity] || '#64748b';
+    const preview = group.flags.slice(0, 3);
+    const daysLeft = daysUntil(group.expiration_date);
+
+    return (
+        <div className={`${styles.policyRow} ${isExpanded ? styles.policyRowExpanded : ''}`}>
+            {/* Main row */}
+            <div className={styles.policyRowMain}>
+                <div className={styles.policyRowLeft} style={{ borderLeftColor: sevColor }} />
+                <button
+                    className={styles.expandBtn}
+                    onClick={() => onToggle(group.policy_id)}
+                    aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                >
+                    {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </button>
+                <div
+                    className={styles.policyRowBody}
+                    onClick={() => onNavigate(group.policy_id)}
+                >
+                    <div className={styles.policyMeta}>
+                        <span className={styles.policyNumber}>
+                            <Shield size={12} /> {group.policy_number}
+                        </span>
+                        <span className={styles.insuredName}>{group.named_insured}</span>
+                        {group.carrier_name && (
+                            <span className={styles.carrierName}>{group.carrier_name}</span>
+                        )}
+                        {group.office && (
+                            <span className={styles.officeBadge}>
+                                <Building2 size={11} /> {group.office}
+                            </span>
+                        )}
+                        {group.sold_by && (
+                            <span className={styles.agentBadge}>
+                                <User size={11} /> {group.sold_by}
+                            </span>
+                        )}
+                        <span className={`${styles.expDate} ${expirationClass(group.expiration_date)}`}>
+                            <Clock size={11} />
+                            {group.expiration_date
+                                ? `Rnwl ${formatDate(group.expiration_date)}${daysLeft !== null ? ` (${daysLeft < 0 ? 'expired' : `${daysLeft}d`})` : ''}`
+                                : 'No expiration'}
+                        </span>
+                    </div>
+                    <div className={styles.policyFlags}>
+                        <div className={styles.sevCounts}>
+                            <span className={styles.totalBadge}>{group.total_flags} {group.total_flags === 1 ? 'flag' : 'flags'}</span>
+                            {group.high_count > 0 && (
+                                <span className={styles.sevMini} style={{ color: PRIORITY_COLORS.high }}>
+                                    {PRIORITY_ICONS.high} {group.high_count}
+                                </span>
+                            )}
+                            {group.medium_count > 0 && (
+                                <span className={styles.sevMini} style={{ color: PRIORITY_COLORS.medium }}>
+                                    {PRIORITY_ICONS.medium} {group.medium_count}
+                                </span>
+                            )}
+                        </div>
+                        <div className={styles.flagPreview}>
+                            {preview.map((f, fi) => (
+                                <span
+                                    key={`${f.id}-preview-${fi}`}
+                                    className={styles.previewChip}
+                                    style={{ borderLeftColor: PRIORITY_COLORS[f.severity] || '#64748b' }}
+                                >
+                                    {f.title}
+                                </span>
+                            ))}
+                            {group.flags.length > 3 && (
+                                <span className={styles.moreChip}>+{group.flags.length - 3} more</span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Expanded detail */}
+            {isExpanded && (
+                <div className={styles.expandedPanel}>
+                    <div className={styles.expandedHeader}>
+                        <span>All open flags for {group.policy_number}</span>
+                        <button
+                            className={styles.openPolicyBtn}
+                            onClick={() => onNavigate(group.policy_id)}
+                        >
+                            Open Policy <ExternalLink size={12} />
+                        </button>
+                    </div>
+                    <div className={styles.expandedFlags}>
+                        {group.flags.map((f, fi) => (
+                            <div key={`${f.id}-detail-${fi}`} className={styles.expandedFlagRow}>
+                                <span
+                                    className={styles.flagSevBadge}
+                                    style={{ backgroundColor: `${PRIORITY_COLORS[f.severity]}18`, color: PRIORITY_COLORS[f.severity] }}
+                                >
+                                    {PRIORITY_ICONS[f.severity]} {f.severity}
+                                </span>
+                                <span className={styles.flagTitle}>{f.title}</span>
+                                {f.category && (
+                                    <span className={styles.flagCat}>{f.category.replace(/_/g, ' ')}</span>
+                                )}
+                                {f.message && (
+                                    <span className={styles.flagMsg}>{f.message}</span>
+                                )}
+                                {f.client_id && !f.policy_term_id && !f.policy_id && (
+                                    <span className={styles.clientFlagTag}>Client Flag</span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+});
+
+// ─── Main Component ───
 
 export default function FlagsPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const [groups, setGroups] = useState<FlaggedPolicyGroup[]>([]);
-    const [loading, setLoading] = useState(true);
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+    const { groups, loading, refresh } = useFlags();
 
     // Filters — initialized from URL query params
     const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
-    const [severityFilter, setSeverityFilter] = useState(searchParams.get('severity') || '');
+    const [priorityFilter, setPriorityFilter] = useState(searchParams.get('priority') || '');
     const [categoryFilter, setCategoryFilter] = useState(searchParams.get('category') || '');
     const [officeFilter, setOfficeFilter] = useState(searchParams.get('office') || '');
     const [renewalDays, setRenewalDays] = useState(searchParams.get('renewal_window') || '');
     const [codeFilter, setCodeFilter] = useState(searchParams.get('code') || '');
     const [expirationFrom, setExpirationFrom] = useState(searchParams.get('expiration_from') || '');
     const [expirationTo, setExpirationTo] = useState(searchParams.get('expiration_to') || '');
-
-    const loadData = useCallback(async () => {
-        setLoading(true);
-        const data = await fetchFlaggedPoliciesGrouped();
-        setGroups(data);
-        setLoading(false);
-    }, []);
-
-    useEffect(() => { loadData(); }, [loadData]);
 
     // Extract available offices + categories for filter dropdowns
     const { offices, categories } = useMemo(() => {
@@ -132,11 +247,11 @@ export default function FlagsPage() {
                 if (!matches) return false;
             }
 
-            // Severity
-            if (severityFilter && g.max_severity !== severityFilter) {
-                // Also check if any flag in the group matches the severity
-                const hasMatchingSeverity = g.flags.some(f => f.severity === severityFilter);
-                if (!hasMatchingSeverity) return false;
+            // Priority
+            if (priorityFilter && g.max_severity !== priorityFilter) {
+                // Also check if any flag in the group matches the priority
+                const hasMatchingPriority = g.flags.some(f => f.severity === priorityFilter);
+                if (!hasMatchingPriority) return false;
             }
 
             // Category
@@ -171,28 +286,52 @@ export default function FlagsPage() {
 
             return true;
         });
-    }, [groups, searchTerm, severityFilter, categoryFilter, officeFilter, codeFilter, renewalDays, expirationFrom, expirationTo]);
+    }, [groups, searchTerm, priorityFilter, categoryFilter, officeFilter, codeFilter, renewalDays, expirationFrom, expirationTo]);
 
     // Global totals (always from unfiltered for the summary bar)
     const totalFlags = groups.reduce((sum, g) => sum + g.total_flags, 0);
-    const totalCritical = groups.reduce((sum, g) => sum + g.critical_count, 0);
+    
+    const policiesWithHigh = groups.filter(g => g.high_count > 0).length;
     const totalHigh = groups.reduce((sum, g) => sum + g.high_count, 0);
-    const totalWarning = groups.reduce((sum, g) => sum + g.warning_count, 0);
-    const totalInfo = groups.reduce((sum, g) => sum + g.info_count, 0);
+    
+    const policiesWithMedium = groups.filter(g => g.medium_count > 0).length;
+    const totalMedium = groups.reduce((sum, g) => sum + g.medium_count, 0);
+    
+    const policiesWithLow = groups.filter(g => g.low_count > 0).length;
+    const totalLow = groups.reduce((sum, g) => sum + g.low_count, 0);
 
-    const toggleExpand = (id: string) => {
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const totalPages = Math.ceil(filtered.length / ROWS_PER_PAGE);
+    const paginatedRows = useMemo(() => {
+        const start = (currentPage - 1) * ROWS_PER_PAGE;
+        return filtered.slice(start, start + ROWS_PER_PAGE);
+    }, [filtered, currentPage]);
+
+    // Reset page when filters change
+    const prevFilteredLen = React.useRef(filtered.length);
+    if (filtered.length !== prevFilteredLen.current) {
+        prevFilteredLen.current = filtered.length;
+        if (currentPage !== 1) setCurrentPage(1);
+    }
+
+    const toggleExpand = useCallback((id: string) => {
         setExpandedIds(prev => {
             const next = new Set(prev);
             if (next.has(id)) next.delete(id);
             else next.add(id);
             return next;
         });
-    };
+    }, []);
 
-    const hasActiveFilters = searchTerm || severityFilter || categoryFilter || officeFilter || codeFilter || renewalDays || expirationFrom || expirationTo;
+    const navigateToPolicy = useCallback((id: string) => {
+        router.push(`/policy/${id}?tab=flags`);
+    }, [router]);
+
+    const hasActiveFilters = searchTerm || priorityFilter || categoryFilter || officeFilter || codeFilter || renewalDays || expirationFrom || expirationTo;
     const clearFilters = () => {
         setSearchTerm('');
-        setSeverityFilter('');
+        setPriorityFilter('');
         setCodeFilter('');
         setCategoryFilter('');
         setOfficeFilter('');
@@ -209,58 +348,58 @@ export default function FlagsPage() {
             <div className={styles.pageHeader}>
                 <div className={styles.headerLeft}>
                     <Flag size={22} />
-                    <h1>Flagged Policies</h1>
+                    <h1>Flagged Active Policies</h1>
                     <span className={styles.flagCount}>
-                        {filtered.length} {filtered.length === 1 ? 'policy' : 'policies'} · {totalFlags} flags
+                        {filtered.length} {filtered.length === 1 ? 'policy' : 'policies'} · {totalFlags} flags · active only
                     </span>
                 </div>
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                     <Button variant="outline" size="sm" onClick={() => router.push('/flags/definitions')}>
                         <ExternalLink size={14} style={{ marginRight: '0.375rem' }} /> Definitions
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={loadData}>
+                    <Button variant="ghost" size="sm" onClick={refresh}>
                         <RefreshCw size={14} style={{ marginRight: '0.375rem' }} /> Refresh
                     </Button>
                 </div>
             </div>
 
-            {/* Severity summary */}
+            {/* Priority summary */}
             <div className={styles.severitySummary}>
                 <button
-                    className={`${styles.sevCard} ${severityFilter === 'critical' ? styles.activeSevCard : ''}`}
-                    style={{ borderLeftColor: SEVERITY_COLORS.critical }}
-                    onClick={() => setSeverityFilter(severityFilter === 'critical' ? '' : 'critical')}
+                    className={`${styles.sevCard} ${priorityFilter === 'high' ? styles.activeSevCard : ''}`}
+                    style={{ borderLeftColor: PRIORITY_COLORS.high }}
+                    onClick={() => setPriorityFilter(priorityFilter === 'high' ? '' : 'high')}
                 >
-                    <AlertCircle size={16} color={SEVERITY_COLORS.critical} />
-                    <span className={styles.sevValue}>{totalCritical}</span>
-                    <span className={styles.sevLabel}>Critical</span>
+                    <AlertCircle size={16} color={PRIORITY_COLORS.high} />
+                    <span className={styles.sevValue}>{policiesWithHigh}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                        <span className={styles.sevLabel}>Policies (High)</span>
+                        <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>{totalHigh} flags</span>
+                    </div>
                 </button>
                 <button
-                    className={`${styles.sevCard} ${severityFilter === 'high' ? styles.activeSevCard : ''}`}
-                    style={{ borderLeftColor: SEVERITY_COLORS.high }}
-                    onClick={() => setSeverityFilter(severityFilter === 'high' ? '' : 'high')}
+                    className={`${styles.sevCard} ${priorityFilter === 'medium' ? styles.activeSevCard : ''}`}
+                    style={{ borderLeftColor: PRIORITY_COLORS.medium }}
+                    onClick={() => setPriorityFilter(priorityFilter === 'medium' ? '' : 'medium')}
                 >
-                    <AlertTriangle size={16} color={SEVERITY_COLORS.high} />
-                    <span className={styles.sevValue}>{totalHigh}</span>
-                    <span className={styles.sevLabel}>High</span>
+                    <AlertTriangle size={16} color={PRIORITY_COLORS.medium} />
+                    <span className={styles.sevValue}>{policiesWithMedium}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                        <span className={styles.sevLabel}>Policies (Medium)</span>
+                        <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>{totalMedium} flags</span>
+                    </div>
                 </button>
                 <button
-                    className={`${styles.sevCard} ${severityFilter === 'warning' ? styles.activeSevCard : ''}`}
-                    style={{ borderLeftColor: SEVERITY_COLORS.warning }}
-                    onClick={() => setSeverityFilter(severityFilter === 'warning' ? '' : 'warning')}
+                    className={`${styles.sevCard} ${priorityFilter === 'low' ? styles.activeSevCard : ''}`}
+                    style={{ borderLeftColor: PRIORITY_COLORS.low }}
+                    onClick={() => setPriorityFilter(priorityFilter === 'low' ? '' : 'low')}
                 >
-                    <AlertTriangle size={16} color={SEVERITY_COLORS.warning} />
-                    <span className={styles.sevValue}>{totalWarning}</span>
-                    <span className={styles.sevLabel}>Warning</span>
-                </button>
-                <button
-                    className={`${styles.sevCard} ${severityFilter === 'info' ? styles.activeSevCard : ''}`}
-                    style={{ borderLeftColor: '#3b82f6' }}
-                    onClick={() => setSeverityFilter(severityFilter === 'info' ? '' : 'info')}
-                >
-                    <Info size={16} color="#3b82f6" />
-                    <span className={styles.sevValue}>{totalInfo}</span>
-                    <span className={styles.sevLabel}>Info</span>
+                    <Info size={16} color={PRIORITY_COLORS.low} />
+                    <span className={styles.sevValue}>{policiesWithLow}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                        <span className={styles.sevLabel}>Policies (Low)</span>
+                        <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>{totalLow} flags</span>
+                    </div>
                 </button>
             </div>
 
@@ -323,9 +462,9 @@ export default function FlagsPage() {
                             Search: &ldquo;{searchTerm}&rdquo; <X size={11} />
                         </button>
                     )}
-                    {severityFilter && (
-                        <button className={styles.activeChip} onClick={() => setSeverityFilter('')}>
-                            Severity: {severityFilter} <X size={11} />
+                    {priorityFilter && (
+                        <button className={styles.activeChip} onClick={() => setPriorityFilter('')}>
+                            Priority: {priorityFilter} <X size={11} />
                         </button>
                     )}
                     {categoryFilter && (
@@ -379,129 +518,40 @@ export default function FlagsPage() {
                         )}
                     </div>
                 ) : (
-                    filtered.map(group => {
-                        const isExpanded = expandedIds.has(group.policy_id);
-                        const sevColor = SEVERITY_COLORS[group.max_severity] || '#64748b';
-                        const preview = group.flags.slice(0, 3);
-                        const daysLeft = daysUntil(group.expiration_date);
+                    <>
+                        {paginatedRows.map((group) => (
+                            <PolicyRow
+                                key={group.policy_id}
+                                group={group}
+                                isExpanded={expandedIds.has(group.policy_id)}
+                                onToggle={toggleExpand}
+                                onNavigate={navigateToPolicy}
+                            />
+                        ))}
 
-                        return (
-                            <div key={group.policy_id} className={`${styles.policyRow} ${isExpanded ? styles.policyRowExpanded : ''}`}>
-                                {/* Main row */}
-                                <div className={styles.policyRowMain}>
-                                    <div className={styles.policyRowLeft} style={{ borderLeftColor: sevColor }} />
-                                    <button
-                                        className={styles.expandBtn}
-                                        onClick={() => toggleExpand(group.policy_id)}
-                                        aria-label={isExpanded ? 'Collapse' : 'Expand'}
-                                    >
-                                        {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                                    </button>
-                                    <div
-                                        className={styles.policyRowBody}
-                                        onClick={() => router.push(`/policy/${group.policy_id}?tab=flags`)}
-                                    >
-                                        <div className={styles.policyMeta}>
-                                            <span className={styles.policyNumber}>
-                                                <Shield size={12} /> {group.policy_number}
-                                            </span>
-                                            <span className={styles.insuredName}>{group.named_insured}</span>
-                                            {group.carrier_name && (
-                                                <span className={styles.carrierName}>{group.carrier_name}</span>
-                                            )}
-                                            {group.office && (
-                                                <span className={styles.officeBadge}>
-                                                    <Building2 size={11} /> {group.office}
-                                                </span>
-                                            )}
-                                            {group.sold_by && (
-                                                <span className={styles.agentBadge}>
-                                                    <User size={11} /> {group.sold_by}
-                                                </span>
-                                            )}
-                                            <span className={`${styles.expDate} ${expirationClass(group.expiration_date)}`}>
-                                                <Clock size={11} />
-                                                {group.expiration_date
-                                                    ? `Rnwl ${formatDate(group.expiration_date)}${daysLeft !== null ? ` (${daysLeft < 0 ? 'expired' : `${daysLeft}d`})` : ''}`
-                                                    : 'No expiration'}
-                                            </span>
-                                        </div>
-                                        <div className={styles.policyFlags}>
-                                            <div className={styles.sevCounts}>
-                                                <span className={styles.totalBadge}>{group.total_flags} {group.total_flags === 1 ? 'flag' : 'flags'}</span>
-                                                {group.critical_count > 0 && (
-                                                    <span className={styles.sevMini} style={{ color: SEVERITY_COLORS.critical }}>
-                                                        {SEVERITY_ICONS.critical} {group.critical_count}
-                                                    </span>
-                                                )}
-                                                {group.high_count > 0 && (
-                                                    <span className={styles.sevMini} style={{ color: SEVERITY_COLORS.high }}>
-                                                        {SEVERITY_ICONS.high} {group.high_count}
-                                                    </span>
-                                                )}
-                                                {group.warning_count > 0 && (
-                                                    <span className={styles.sevMini} style={{ color: SEVERITY_COLORS.warning }}>
-                                                        {SEVERITY_ICONS.warning} {group.warning_count}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className={styles.flagPreview}>
-                                                {preview.map((f, i) => (
-                                                    <span
-                                                        key={f.id}
-                                                        className={styles.previewChip}
-                                                        style={{ borderLeftColor: SEVERITY_COLORS[f.severity] || '#64748b' }}
-                                                    >
-                                                        {f.title}
-                                                    </span>
-                                                ))}
-                                                {group.flags.length > 3 && (
-                                                    <span className={styles.moreChip}>+{group.flags.length - 3} more</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Expanded detail */}
-                                {isExpanded && (
-                                    <div className={styles.expandedPanel}>
-                                        <div className={styles.expandedHeader}>
-                                            <span>All open flags for {group.policy_number}</span>
-                                            <button
-                                                className={styles.openPolicyBtn}
-                                                onClick={() => router.push(`/policy/${group.policy_id}?tab=flags`)}
-                                            >
-                                                Open Policy <ExternalLink size={12} />
-                                            </button>
-                                        </div>
-                                        <div className={styles.expandedFlags}>
-                                            {group.flags.map(f => (
-                                                <div key={f.id} className={styles.expandedFlagRow}>
-                                                    <span
-                                                        className={styles.flagSevBadge}
-                                                        style={{ backgroundColor: `${SEVERITY_COLORS[f.severity]}18`, color: SEVERITY_COLORS[f.severity] }}
-                                                    >
-                                                        {SEVERITY_ICONS[f.severity]} {f.severity}
-                                                    </span>
-                                                    <span className={styles.flagTitle}>{f.title}</span>
-                                                    {f.category && (
-                                                        <span className={styles.flagCat}>{f.category.replace(/_/g, ' ')}</span>
-                                                    )}
-                                                    {f.message && (
-                                                        <span className={styles.flagMsg}>{f.message}</span>
-                                                    )}
-                                                    {f.client_id && !f.policy_term_id && !f.policy_id && (
-                                                        <span className={styles.clientFlagTag}>Client Flag</span>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
+                        {/* Pagination Controls */}
+                        {totalPages > 1 && (
+                            <div className={styles.pagination}>
+                                <button
+                                    className={styles.pageBtn}
+                                    disabled={currentPage === 1}
+                                    onClick={() => setCurrentPage(p => p - 1)}
+                                >
+                                    ← Previous
+                                </button>
+                                <span className={styles.pageInfo}>
+                                    Page {currentPage} of {totalPages} · Showing {((currentPage - 1) * ROWS_PER_PAGE) + 1}–{Math.min(currentPage * ROWS_PER_PAGE, filtered.length)} of {filtered.length}
+                                </span>
+                                <button
+                                    className={styles.pageBtn}
+                                    disabled={currentPage === totalPages}
+                                    onClick={() => setCurrentPage(p => p + 1)}
+                                >
+                                    Next →
+                                </button>
                             </div>
-                        );
-                    })
+                        )}
+                    </>
                 )}
             </div>
         </div>

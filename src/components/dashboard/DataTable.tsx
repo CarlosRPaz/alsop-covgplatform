@@ -4,8 +4,9 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/Card/Card';
 import styles from './DataTable.module.scss';
 import { clsx } from 'clsx';
-import { fetchDashboardPolicies, DashboardPolicy } from '@/lib/api';
-import { ArrowUpDown, Search, ChevronDown, ChevronUp, Columns, ArrowUp, ArrowDown, EyeOff, X, GripVertical, Flag, ChevronFirst, ChevronLast, Download, Satellite, Zap, MoreVertical, Filter, CircleDot } from 'lucide-react';
+import { DashboardPolicy } from '@/lib/api';
+import { usePolicies } from '@/hooks/usePolicies';
+import { ArrowUpDown, Search, ChevronDown, ChevronUp, Columns, ArrowUp, ArrowDown, EyeOff, X, GripVertical, Flag, ChevronFirst, ChevronLast, Download, Satellite, Zap, MoreVertical, Filter, CircleDot, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button/Button';
 import { useRouter } from 'next/navigation';
 import { FullWorkupModal } from './FullWorkupModal';
@@ -198,12 +199,14 @@ interface DataTableProps {
     initialExpirationFilter?: { from?: string; to?: string };
     initialStatusFilter?: string;
     filterLabel?: string;
+    onSelectionChange?: (selectedIds: string[]) => void;
 }
 
-export function DataTable({ initialSearch, initialExpirationFilter, initialStatusFilter, filterLabel }: DataTableProps = {}) {
+export function DataTable({ initialSearch, initialExpirationFilter, initialStatusFilter, filterLabel, onSelectionChange }: DataTableProps = {}) {
     const router = useRouter();
+    const { policies: swrData, loading: swrLoading, error: swrError, refresh: swrRefresh } = usePolicies();
     const [data, setData] = useState<DashboardPolicy[]>([]);
-    const [loading, setLoading] = useState(true);
+    const loading = swrLoading;
     const [error, setError] = useState<string | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: keyof DashboardPolicy; direction: 'asc' | 'desc' } | null>(
         { key: 'expiration_date', direction: 'asc' }
@@ -235,6 +238,14 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
 
     // Bulk Selection State
     const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+
+    // Sync selectedRows up to parent
+    useEffect(() => {
+        if (onSelectionChange) {
+            onSelectionChange(Array.from(selectedRows));
+        }
+    }, [selectedRows, onSelectionChange]);
+
     const [isWorkupOpen, setIsWorkupOpen] = useState(false);
 
     // Flag Filtering State
@@ -324,28 +335,34 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
         saveToStorage(LS_ENRICHMENT_FILTER, enrichmentFilter);
     }, [enrichmentFilter, prefsLoaded]);
 
+    // Sync SWR data into local state (for flag extraction & error handling)
     useEffect(() => {
-        setLoading(true);
-        setError(null);
-        fetchDashboardPolicies()
-            .then(fetchedData => {
-                setData(fetchedData);
-                // Extract unique flag codes from all policies
-                const codes = new Set<string>();
-                fetchedData.forEach(p => {
-                    if (p.flags) p.flags.forEach(f => codes.add(f.code));
-                });
-                setAllFlags(Array.from(codes).sort());
-                if (fetchedData.length === 0) {
-                    setError('No policies found. Upload and process declarations to see data here.');
-                }
-            })
-            .catch(err => {
-                console.error('DataTable fetch error:', err);
-                setError(`Failed to fetch data: ${err.message}`);
-            })
-            .finally(() => setLoading(false));
-    }, []);
+        if (swrData && swrData.length > 0) {
+            setData(swrData);
+            const codes = new Set<string>();
+            swrData.forEach(p => {
+                if (p.flags) p.flags.forEach(f => codes.add(f.code));
+            });
+            setAllFlags(Array.from(codes).sort());
+            setError(null);
+        } else if (!swrLoading && swrData && swrData.length === 0) {
+            setData([]);
+            setError('No policies found. Upload and process declarations to see data here.');
+        }
+        if (swrError) {
+            setError(`Failed to fetch data: ${swrError.message}`);
+        }
+    }, [swrData, swrLoading, swrError]);
+
+    // Listen for background dec page parsing completions to auto-refresh via SWR
+    useEffect(() => {
+        const handleDecPageParsed = () => {
+            console.log('[DataTable] Dec page parsed, auto-refreshing via SWR...');
+            swrRefresh();
+        };
+        window.addEventListener('decPageParsed', handleDecPageParsed);
+        return () => window.removeEventListener('decPageParsed', handleDecPageParsed);
+    }, [swrRefresh]);
 
     useEffect(() => {
         setCurrentPage(1);
@@ -681,35 +698,53 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '0.5rem 0.75rem',
+                    flexWrap: 'wrap',
+                    gap: '0.625rem',
+                    padding: '0.625rem 0.875rem',
                     marginBottom: '0.625rem',
-                    background: 'rgba(99, 102, 241, 0.06)',
-                    border: '1px solid rgba(99, 102, 241, 0.15)',
-                    borderRadius: '8px',
-                    fontSize: '0.75rem',
+                    background: 'var(--accent-primary-muted)',
+                    border: '1px solid var(--accent-primary)',
+                    borderRadius: 'var(--radius-lg)',
+                    fontSize: '0.8rem',
                 }}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#818cf8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
-                    <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        padding: '0.2rem 0.5rem',
-                        fontWeight: 500,
-                        color: '#c7d2fe',
-                        background: 'rgba(99, 102, 241, 0.12)',
-                        border: '1px solid rgba(99, 102, 241, 0.2)',
-                        borderRadius: '4px',
-                        textTransform: 'capitalize' as const,
-                        cursor: 'pointer',
-                    }}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                    </svg>
+
+                    <span style={{ fontWeight: 600, color: 'var(--text-high)', fontSize: '0.8rem' }}>
+                        Filtered:
+                    </span>
+
+                    <button
                         onClick={() => router.push('/dashboard')}
-                        role="button"
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.375rem',
+                            padding: '0.25rem 0.625rem',
+                            fontWeight: 600,
+                            color: 'var(--accent-primary)',
+                            background: 'var(--bg-surface)',
+                            border: '1px solid var(--accent-primary)',
+                            borderRadius: 'var(--radius-full)',
+                            fontSize: '0.75rem',
+                            cursor: 'pointer',
+                            transition: 'all 150ms ease',
+                        }}
                     >
                         {filterLabel}
-                        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                    </span>
-                    <span style={{ marginLeft: 'auto', fontSize: '0.68rem', color: '#64748b' }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+
+                    <span style={{
+                        marginLeft: 'auto',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        color: 'var(--text-muted)',
+                        whiteSpace: 'nowrap',
+                    }}>
                         Showing {filteredData.length} of {data.length} policies
                     </span>
                 </div>
@@ -807,11 +842,11 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                     )}
                                 </div>
 
-                                {/* Severity chips */}
+                                {/* Priority chips */}
                                 <div className={styles.severitySection}>
-                                    <div className={styles.severitySectionLabel}>Severity</div>
+                                    <div className={styles.severitySectionLabel}>Priority</div>
                                     <div className={styles.severityChips}>
-                                        {['all', 'critical', 'high', 'warning', 'info'].map(sev => (
+                                        {['all', 'high', 'medium', 'low'].map(sev => (
                                             <button
                                                 key={sev}
                                                 className={clsx(
@@ -1116,7 +1151,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                             </tr>
                         </thead>
                         <tbody>
-                            {paginatedData.map((row) => {
+                            {paginatedData.map((row, idx) => {
                                 const tooltipParts = [];
                                 if (row.annual_premium) tooltipParts.push(`Premium: $${Number(row.annual_premium).toLocaleString()}`);
                                 if (row.flag_count > 0) tooltipParts.push(`${row.flag_count} flag${row.flag_count > 1 ? 's' : ''}`);
@@ -1132,7 +1167,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
 
                                 return (
                                 <tr
-                                    key={row.id}
+                                    key={`${row.id}-${idx}`}
                                     className={`${styles.tr} cursor-pointer`}
                                     onClick={() => router.push(`/policy/${row.id}`)}
                                     title={tooltip}
@@ -1182,11 +1217,11 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                                     const count = flags?.length || row.flag_count || 0;
                                                     if (count === 0) return <span className={styles.flagCountNone}>—</span>;
 
-                                                    // Determine highest severity for coloring
-                                                    const sevOrder = ['critical', 'high', 'warning', 'info'];
+                                                    // Determine highest priority for coloring
+                                                    const sevOrder = ['high', 'medium', 'low'];
                                                     const highest = flags
-                                                        ? sevOrder.find(s => flags.some(f => f.severity === s)) || 'info'
-                                                        : (row.highest_severity || 'info');
+                                                        ? sevOrder.find(s => flags.some(f => f.severity === s)) || 'low'
+                                                        : (row.highest_severity || 'low');
 
                                                     // Build tooltip with all flag titles
                                                     const tip = flags
@@ -1197,10 +1232,9 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                                         <span
                                                             className={clsx(
                                                                 styles.flagCompactBadge,
-                                                                highest === 'critical' && styles.flagCompactCritical,
-                                                                highest === 'high' && styles.flagCompactHigh,
-                                                                highest === 'warning' && styles.flagCompactWarning,
-                                                                highest === 'info' && styles.flagCompactInfo,
+                                                                highest === 'high' && styles.flagCompactCritical,
+                                                                highest === 'medium' && styles.flagCompactWarning,
+                                                                highest === 'low' && styles.flagCompactInfo,
                                                             )}
                                                             title={tip}
                                                         >
@@ -1235,27 +1269,88 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                 );
                             })}
                             {loading && (
-                                <tr>
-                                    <td colSpan={visibleColumns.size} className="p-8 text-center text-slate-500">
-                                        <div className="flex flex-col items-center gap-2">
-                                            <div className="animate-spin h-6 w-6 border-2 border-blue-500 border-t-transparent rounded-full"></div>
-                                            <span>Loading from Supabase...</span>
-                                        </div>
-                                    </td>
-                                </tr>
+                                <>
+                                    {Array.from({ length: 8 }).map((_, i) => (
+                                        <tr key={`skel-${i}`} className={styles.tr} style={{ pointerEvents: 'none' }}>
+                                            <td className={styles.td} style={{ width: 40 }}>
+                                                <div style={{
+                                                    width: 16, height: 16, borderRadius: 3,
+                                                    background: 'var(--bg-elevated, #1e293b)',
+                                                    animation: 'shimmer 1.5s ease-in-out infinite',
+                                                    animationDelay: `${i * 0.07}s`,
+                                                }} />
+                                            </td>
+                                            {orderedVisibleColumns.map((col, ci) => (
+                                                <td key={col.key} className={styles.td}>
+                                                    <div style={{
+                                                        height: 14,
+                                                        width: ci === 0 ? '60%' : ci === 1 ? '80%' : '50%',
+                                                        borderRadius: 4,
+                                                        background: 'var(--bg-elevated, #1e293b)',
+                                                        opacity: 1 - (i * 0.08),
+                                                        animation: 'shimmer 1.5s ease-in-out infinite',
+                                                        animationDelay: `${i * 0.07 + ci * 0.03}s`,
+                                                    }} />
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                    <tr>
+                                        <td colSpan={orderedVisibleColumns.length + 1} style={{
+                                            padding: '0.75rem 1rem',
+                                            textAlign: 'center',
+                                            fontSize: '0.75rem',
+                                            color: 'var(--text-muted)',
+                                            letterSpacing: '0.02em',
+                                            borderTop: '1px solid var(--border-subtle)',
+                                        }}>
+                                            Loading policies…
+                                        </td>
+                                    </tr>
+                                    <style>{`
+                                        @keyframes shimmer {
+                                            0%, 100% { opacity: 0.15; }
+                                            50% { opacity: 0.35; }
+                                        }
+                                    `}</style>
+                                </>
                             )}
                             {!loading && error && (
                                 <tr>
-                                    <td colSpan={visibleColumns.size} className="p-8 text-center">
-                                        <div className="text-red-500 font-medium">{error}</div>
-                                        <div className="text-xs text-slate-400 mt-1">Check browser console for details</div>
+                                    <td colSpan={orderedVisibleColumns.length + 1} style={{
+                                        padding: '2.5rem 1rem',
+                                        textAlign: 'center',
+                                    }}>
+                                        <div style={{
+                                            display: 'flex', flexDirection: 'column',
+                                            alignItems: 'center', gap: '0.5rem',
+                                        }}>
+                                            <AlertCircle size={28} style={{ color: '#ef4444', opacity: 0.8 }} />
+                                            <span style={{ fontWeight: 600, fontSize: '0.875rem', color: '#ef4444' }}>
+                                                Unable to load policies
+                                            </span>
+                                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                                Please refresh the page or contact support if this persists.
+                                            </span>
+                                        </div>
                                     </td>
                                 </tr>
                             )}
                             {!loading && !error && paginatedData.length === 0 && (
                                 <tr>
-                                    <td colSpan={visibleColumns.size} className="p-8 text-center text-slate-500">
-                                        No results found
+                                    <td colSpan={orderedVisibleColumns.length + 1} style={{
+                                        padding: '2.5rem 1rem',
+                                        textAlign: 'center',
+                                    }}>
+                                        <div style={{
+                                            display: 'flex', flexDirection: 'column',
+                                            alignItems: 'center', gap: '0.5rem',
+                                        }}>
+                                            <Search size={24} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
+                                            <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                                                No policies match your current filters
+                                            </span>
+                                        </div>
                                     </td>
                                 </tr>
                             )}
@@ -1369,8 +1464,8 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                 onClose={() => { setIsWorkupOpen(false); setSelectedRows(new Set()); }}
                 policyIds={Array.from(selectedRows)}
                 onComplete={() => {
-                    // Refresh table data
-                    fetchDashboardPolicies().then(d => setData(d));
+                    // Refresh table data via SWR cache
+                    swrRefresh();
                 }}
             />
         </>

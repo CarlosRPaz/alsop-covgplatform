@@ -46,18 +46,16 @@ interface PolicyFlagsProps {
     clientId?: string;
 }
 
-const SEVERITY_ICONS: Record<string, React.ReactNode> = {
-    critical: <AlertCircle size={14} />,
-    high: <AlertTriangle size={14} />,
-    warning: <AlertTriangle size={14} />,
-    info: <Info size={14} />,
+const PRIORITY_ICONS: Record<string, React.ReactNode> = {
+    high: <AlertCircle size={14} />,
+    medium: <AlertTriangle size={14} />,
+    low: <Info size={14} />,
 };
 
-const SEVERITY_COLORS: Record<string, string> = {
-    critical: '#ef4444',
-    high: '#f97316',
-    warning: '#eab308',
-    info: '#3b82f6',
+const PRIORITY_COLORS: Record<string, string> = {
+    high: '#ef4444',
+    medium: '#f59e0b',
+    low: '#3b82f6',
 };
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -103,7 +101,7 @@ function FlagCard({
     const isResolved = effectiveStatus === 'resolved';
     const isDismissed = effectiveStatus === 'dismissed';
     const isLoading = loading === flag.id;
-    const sevColor = SEVERITY_COLORS[flag.severity] || '#64748b';
+    const sevColor = PRIORITY_COLORS[flag.severity] || '#64748b';
 
     const loadHistory = async () => {
         if (events.length > 0) {
@@ -132,7 +130,7 @@ function FlagCard({
                 <div className={styles.flagCardTopRow}>
                     <div className={styles.flagCardTopLeft}>
                         <span className={styles.severityBadge} style={{ backgroundColor: `${sevColor}18`, color: sevColor }}>
-                            {SEVERITY_ICONS[flag.severity]}
+                            {PRIORITY_ICONS[flag.severity]}
                             <span>{flag.severity}</span>
                         </span>
                         <span className={styles.flagTitle}>{flag.title}</span>
@@ -357,7 +355,7 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
     const termFlags = policyFlags.filter(f => !!f.policy_term_id);
 
     // ── Filter state ──
-    const [severityFilter, setSeverityFilter] = useState<string>('all');
+    const [priorityFilter, setPriorityFilter] = useState<string>('all');
     const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
     const [showCodeDropdown, setShowCodeDropdown] = useState(false);
     const [codeSearch, setCodeSearch] = useState('');
@@ -369,8 +367,8 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
     // Apply filters
     const applyFilters = (flags: PolicyFlagRow[]): PolicyFlagRow[] => {
         let result = flags;
-        if (severityFilter !== 'all') {
-            result = result.filter(f => f.severity === severityFilter);
+        if (priorityFilter !== 'all') {
+            result = result.filter(f => f.severity === priorityFilter);
         }
         if (selectedCodes.size > 0) {
             result = result.filter(f => selectedCodes.has(f.code));
@@ -381,7 +379,7 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
     const filteredPolicyOnlyFlags = applyFilters(policyOnlyFlags);
     const filteredTermFlags = applyFilters(termFlags);
     const filteredClientFlags = applyFilters(clientFlags);
-    const hasActiveFilters = severityFilter !== 'all' || selectedCodes.size > 0;
+    const hasActiveFilters = priorityFilter !== 'all' || selectedCodes.size > 0;
     const filteredCodes = codeSearch
         ? uniqueCodes.filter(c => c.toLowerCase().includes(codeSearch.toLowerCase()))
         : uniqueCodes;
@@ -396,14 +394,14 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
     };
 
     const clearFilters = () => {
-        setSeverityFilter('all');
+        setPriorityFilter('all');
         setSelectedCodes(new Set());
     };
 
     // Total open counts — treat null/missing status as 'open' (old schema)
     const isOpen = (f: PolicyFlagRow) => (!f.status && !f.resolved_at) || f.status === 'open';
     const totalOpen = allFlags.filter(isOpen).length;
-    const criticalCount = allFlags.filter(f => isOpen(f) && (f.severity === 'critical' || f.severity === 'high')).length;
+    const criticalCount = allFlags.filter(f => isOpen(f) && f.severity === 'high').length;
 
     const handleResolve = async (flagId: string) => {
         setActionLoading(flagId);
@@ -439,7 +437,7 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
         const def = manualDefs.find(d => d.code === addForm.code);
         const result = await createManualFlag({
             code: addForm.code,
-            severity: def?.default_severity || 'info',
+            severity: def?.default_severity || 'low',
             title: addForm.title,
             message: addForm.message || undefined,
             policy_id: addForm.scope === 'policy' ? policyId : null,
@@ -491,7 +489,7 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
                     </span>
                     {criticalCount > 0 && (
                         <span className={styles.criticalBadge}>
-                            <AlertCircle size={13} /> {criticalCount} critical/high
+                            <AlertCircle size={13} /> {criticalCount} high priority
                         </span>
                     )}
                 </div>
@@ -525,11 +523,11 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
                 <div className={styles.filterBar}>
                     {/* Severity chips */}
                     <div className={styles.filterGroup}>
-                        {['all', 'critical', 'high', 'warning', 'info'].map(sev => (
+                        {['all', 'high', 'medium', 'low'].map(sev => (
                             <button
                                 key={sev}
-                                className={`${styles.filterChip} ${severityFilter === sev ? styles.filterChipActive : ''} ${sev !== 'all' ? styles[`filterChip_${sev}`] || '' : ''}`}
-                                onClick={() => setSeverityFilter(sev)}
+                                className={`${styles.filterChip} ${priorityFilter === sev ? styles.filterChipActive : ''} ${sev !== 'all' ? styles[`filterChip_${sev}`] || '' : ''}`}
+                                onClick={() => setPriorityFilter(sev)}
                             >
                                 {sev === 'all' ? 'All' : sev.charAt(0).toUpperCase() + sev.slice(1)}
                             </button>

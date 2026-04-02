@@ -138,7 +138,7 @@ def fail_job(job_id: str, error_msg: str, error_detail: dict | None = None,
                       job_id, attempts, safe_error)
 
 
-def force_release_job(job_id: str, attempts: int, max_attempts: int | None = None) -> None:
+def force_release_job(job_id: str, submission_id: str, attempts: int, max_attempts: int | None = None) -> None:
     """
     Safety-net: if a job is STILL in 'processing' after process_job's
     try/except, force it back to 'queued' (or 'failed' if at max attempts).
@@ -182,6 +182,13 @@ def force_release_job(job_id: str, attempts: int, max_attempts: int | None = Non
                 "updated_at": now_iso,
             }
         ).eq("id", job_id).eq("status", "processing").execute()
+        
+        # Keep UI in sync
+        update_submission_status(
+            submission_id,
+            new_status,
+            error_message="Worker safely released job due to unknown error."
+        )
 
         logger.warning("Safety-net force-released job %s -> %s", job_id, new_status)
 
@@ -222,6 +229,15 @@ def requeue_stale_jobs() -> int:
                 "updated_at": now_iso,
             }
         ).eq("id", row["id"]).eq("status", "processing").execute()
+        
+        # Crucial sync: revert the submission back to queued so UI drops 'PROCESSING' state
+        if row.get("submission_id"):
+            update_submission_status(
+                row["submission_id"], 
+                "queued", 
+                error_message="Worker restarted while processing. Retrying..."
+            )
+
         logger.warning("Requeued stale job %s (submission=%s, attempts=%d, locked_at=%s)",
                         row["id"], row.get("submission_id"), row.get("attempts", 0), row.get("locked_at"))
 

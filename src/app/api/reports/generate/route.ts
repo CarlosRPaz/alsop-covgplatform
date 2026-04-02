@@ -20,7 +20,7 @@ interface AIReportInsights {
     top_concerns: Array<{
         topic: string;
         explanation: string;
-        severity: 'critical' | 'high' | 'medium' | 'low';
+        severity: 'high' | 'medium' | 'low';
         source: string;
         evidence: string;
     }>;
@@ -189,7 +189,7 @@ ${JSON.stringify(dataPayload, null, 2)}
                                         properties: {
                                             topic: { type: 'string', description: 'Short headline (5-8 words)' },
                                             explanation: { type: 'string', description: 'One concise sentence explaining why this matters' },
-                                            severity: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
+                                            severity: { type: 'string', enum: ['high', 'medium', 'low'] },
                                             source: { type: 'string', description: 'Data source: policy, satellite, property data, etc.' },
                                             evidence: { type: 'string', description: 'Brief data point supporting this concern' }
                                         },

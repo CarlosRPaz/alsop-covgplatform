@@ -13,6 +13,7 @@ import styles from './BatchEnrichModal.module.css';
 interface BatchEnrichModalProps {
     isOpen: boolean;
     onClose: () => void;
+    selectedPolicyIds?: string[];
 }
 
 interface CostBreakdown {
@@ -29,7 +30,7 @@ const COST_PER_REPORT = 0.03; // GPT-4o report generation
 type RunMode = 'enrichment' | 'full';
 type RunStatus = 'idle' | 'confirming' | 'running' | 'done' | 'error';
 
-export function BatchEnrichModal({ isOpen, onClose }: BatchEnrichModalProps) {
+export function BatchEnrichModal({ isOpen, onClose, selectedPolicyIds = [] }: BatchEnrichModalProps) {
     const [unenrichedCount, setUnenrichedCount] = useState<number>(0);
     const [loading, setLoading] = useState(true);
     const [runMode, setRunMode] = useState<RunMode>('enrichment');
@@ -37,27 +38,28 @@ export function BatchEnrichModal({ isOpen, onClose }: BatchEnrichModalProps) {
     const [progress, setProgress] = useState({ done: 0, total: 0 });
     const [runErrors, setRunErrors] = useState<string[]>([]);
 
-    // Fetch count of policies without enrichments
     const fetchCounts = useCallback(async () => {
         setLoading(true);
         try {
-            // Get policies that have no enrichment data
-            const { count: totalPolicies } = await supabase
-                .from('policies')
-                .select('id', { count: 'exact', head: true });
+            if (selectedPolicyIds.length === 0) {
+                setUnenrichedCount(0);
+                setLoading(false);
+                return;
+            }
 
+            // Get enriched subset within selection
             const { data: enrichedPolicies } = await supabase
                 .from('property_enrichments')
                 .select('policy_id')
-                .limit(10000);
+                .in('policy_id', selectedPolicyIds);
 
             const enrichedSet = new Set((enrichedPolicies || []).map(e => e.policy_id));
-            setUnenrichedCount((totalPolicies || 0) - enrichedSet.size);
+            setUnenrichedCount(selectedPolicyIds.length - enrichedSet.size);
         } catch {
             setUnenrichedCount(0);
         }
         setLoading(false);
-    }, []);
+    }, [selectedPolicyIds]);
 
     useEffect(() => {
         if (isOpen) {
@@ -85,18 +87,15 @@ export function BatchEnrichModal({ isOpen, onClose }: BatchEnrichModalProps) {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.access_token) return;
 
-        // Get unenriched policy IDs
-        const { data: allPolicies } = await supabase
-            .from('policies')
-            .select('id, property_address_raw');
-
         const { data: enrichedRows } = await supabase
             .from('property_enrichments')
             .select('policy_id')
-            .limit(10000);
+            .in('policy_id', selectedPolicyIds);
 
         const enrichedSet = new Set((enrichedRows || []).map(e => e.policy_id));
-        const toEnrich = (allPolicies || []).filter(p => !enrichedSet.has(p.id));
+        const toEnrich = selectedPolicyIds
+            .filter(id => !enrichedSet.has(id))
+            .map(id => ({ id }));
 
         setRunStatus('running');
         setProgress({ done: 0, total: toEnrich.length });
@@ -196,9 +195,10 @@ export function BatchEnrichModal({ isOpen, onClose }: BatchEnrichModalProps) {
                         <div className={styles.stat}>
                             <FileSearch size={16} className={styles.statIcon} />
                             <div>
-                                <span className={styles.statLabel}>Policies without enrichment</span>
+                                <span className={styles.statLabel}>Policies selected to enrich</span>
                                 <span className={styles.statValue}>
                                     {loading ? '…' : unenrichedCount.toLocaleString()}
+                                    {!loading && unenrichedCount === 0 && selectedPolicyIds.length === 0 && ' (No policies selected in table)'}
                                 </span>
                             </div>
                         </div>

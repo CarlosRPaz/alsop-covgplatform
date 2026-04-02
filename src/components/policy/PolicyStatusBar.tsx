@@ -47,7 +47,7 @@ interface PolicyStatusBarProps {
     lastEnrichedDate?: string | null;
     flagsChecked: boolean;
     openFlagCount: number;
-    highestSeverity?: 'critical' | 'high' | 'warning' | 'info' | null;
+    highestSeverity?: 'high' | 'medium' | 'low' | null;
     lastCheckedDate?: string | null;
     enrichStep?: string | null;
     onEnrich: () => void;
@@ -97,10 +97,9 @@ export function PolicyStatusBar({
     const extraItems = enrichments.filter(e => !EXPECTED_ENRICHMENT_KEYS.some(ex => ex.key === e.field_key) && e.field_key !== 'property_image');
 
     // Severity color
-    const severityColor = highestSeverity === 'critical' ? '#ef4444'
-        : highestSeverity === 'high' ? '#f97316'
-            : highestSeverity === 'warning' ? '#eab308'
-                : highestSeverity === 'info' ? '#3b82f6'
+    const severityColor = highestSeverity === 'high' ? '#ef4444'
+        : highestSeverity === 'medium' ? '#f59e0b'
+            : highestSeverity === 'low' ? '#3b82f6'
                     : '#64748b';
 
     const formatFieldKey = (key: string) => {

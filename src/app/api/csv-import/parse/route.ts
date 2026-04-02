@@ -5,6 +5,9 @@ import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
 import { HEADER_ALIASES, ImportRow, ImportStats, RowStatus } from '@/lib/csvImport';
 
+// Allow up to 2 minutes for large CSV parsing
+export const maxDuration = 120;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -279,28 +282,34 @@ export async function POST(request: NextRequest) {
         )];
 
         if (validPolicyNumbers.length > 0) {
-            const { data: existingPolicies } = await supabaseAdmin
-                .from('policies')
-                .select('policy_number, clients(named_insured)')
-                .in('policy_number', validPolicyNumbers);
+            // Chunk the .in() query to avoid PostgREST URL length limits
+            const POLICY_CHUNK = 200;
+            const existingMap = new Map<string, string>();
 
-            if (existingPolicies) {
-                const existingMap = new Map<string, string>();
-                for (const p of existingPolicies) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const clients = (p as any).clients;
-                    const name = clients?.named_insured || '';
-                    if (name) existingMap.set(p.policy_number, name);
-                }
+            for (let c = 0; c < validPolicyNumbers.length; c += POLICY_CHUNK) {
+                const chunk = validPolicyNumbers.slice(c, c + POLICY_CHUNK);
+                const { data: existingPolicies } = await supabaseAdmin
+                    .from('policies')
+                    .select('policy_number, clients(named_insured)')
+                    .in('policy_number', chunk);
 
-                for (const row of importRows) {
-                    if (row.status !== 'valid') continue;
-                    const existingName = existingMap.get(row.policy_number);
-                    if (existingName && existingName.toLowerCase() !== row.insured_name.toLowerCase()) {
-                        row.status = 'name_mismatch';
-                        row.existing_insured_name = existingName;
-                        row.errors.push(`Existing insured "${existingName}" ≠ CSV insured "${row.insured_name}"`);
+                if (existingPolicies) {
+                    for (const p of existingPolicies) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const clients = (p as any).clients;
+                        const name = clients?.named_insured || '';
+                        if (name) existingMap.set(p.policy_number, name);
                     }
+                }
+            }
+
+            for (const row of importRows) {
+                if (row.status !== 'valid') continue;
+                const existingName = existingMap.get(row.policy_number);
+                if (existingName && existingName.toLowerCase() !== row.insured_name.toLowerCase()) {
+                    row.status = 'name_mismatch';
+                    row.existing_insured_name = existingName;
+                    row.errors.push(`Existing insured "${existingName}" ≠ CSV insured "${row.insured_name}"`);
                 }
             }
         }
@@ -381,11 +390,22 @@ export async function POST(request: NextRequest) {
 
         logger.info('CSVImport', 'Parse complete', { batchId, stats });
 
+        // Return truncated rows for preview (first 200 of each status category)
+        const PREVIEW_LIMIT = 200;
+        const previewRows = [
+            ...importRows.filter(r => r.status === 'valid').slice(0, PREVIEW_LIMIT),
+            ...importRows.filter(r => r.status === 'name_mismatch').slice(0, PREVIEW_LIMIT),
+            ...importRows.filter(r => r.status === 'duplicate').slice(0, PREVIEW_LIMIT),
+            ...importRows.filter(r => r.status === 'invalid').slice(0, PREVIEW_LIMIT),
+        ].sort((a, b) => a.row_index - b.row_index);
+
         return NextResponse.json({
             success: true,
             batch_id: batchId,
             stats,
-            rows: importRows,
+            rows: previewRows,
+            rows_preview_count: previewRows.length,
+            rows_total_count: importRows.length,
         });
 
     } catch (err) {
