@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/Button/Button';
@@ -9,6 +9,26 @@ import Link from 'next/link';
 import styles from './page.module.css';
 
 export default function SignInPage() {
+    return (
+        <Suspense fallback={
+            <div className={styles.container}>
+                <div className={styles.formWrapper}>
+                    <div className={styles.brandHeader}>
+                        <div className={styles.brandLink}>
+                            <Shield size={32} className={styles.brandIcon} />
+                            <span className={styles.brandName}>CoverageCheckNow</span>
+                        </div>
+                        <p className={styles.brandTagline}>Loading...</p>
+                    </div>
+                </div>
+            </div>
+        }>
+            <SignInContent />
+        </Suspense>
+    );
+}
+
+function SignInContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [isSignUp, setIsSignUp] = useState(false);
