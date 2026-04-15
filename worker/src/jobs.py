@@ -200,7 +200,8 @@ def force_release_job(job_id: str, submission_id: str, attempts: int, max_attemp
 def requeue_stale_jobs() -> int:
     """
     Requeue jobs stuck in 'processing' longer than STALE_MINUTES.
-    Preserves attempt count. Returns count of requeued jobs.
+    Respects max_attempts: jobs at the limit are marked 'failed' instead.
+    Returns count of requeued/failed jobs.
     """
     sb = get_supabase()
     now = datetime.now(timezone.utc)
@@ -208,7 +209,7 @@ def requeue_stale_jobs() -> int:
 
     stale = (
         sb.table("ingestion_jobs")
-        .select("id, submission_id, attempts, locked_at")
+        .select("id, submission_id, attempts, max_attempts, locked_at")
         .eq("status", "processing")
         .lt("locked_at", cutoff)
         .execute()
@@ -218,38 +219,66 @@ def requeue_stale_jobs() -> int:
         return 0
 
     now_iso = now.isoformat()
+    count = 0
     for row in stale.data:
-        sb.table("ingestion_jobs").update(
-            {
-                "status": "queued",
-                "locked_at": None,
-                "locked_by": None,
-                "run_after": now_iso,
-                "last_error": f"Requeued: was stuck in processing since {row.get('locked_at')}",
-                "updated_at": now_iso,
-            }
-        ).eq("id", row["id"]).eq("status", "processing").execute()
-        
-        # Crucial sync: revert the submission back to queued so UI drops 'PROCESSING' state
-        if row.get("submission_id"):
-            update_submission_status(
-                row["submission_id"], 
-                "queued", 
-                error_message="Worker restarted while processing. Retrying..."
-            )
+        job_attempts = row.get("attempts", 0)
+        job_max = row.get("max_attempts") or MAX_ATTEMPTS
 
-        logger.warning("Requeued stale job %s (submission=%s, attempts=%d, locked_at=%s)",
-                        row["id"], row.get("submission_id"), row.get("attempts", 0), row.get("locked_at"))
+        if job_attempts >= job_max:
+            # Permanently failed — do NOT requeue
+            sb.table("ingestion_jobs").update(
+                {
+                    "status": "failed",
+                    "locked_at": None,
+                    "locked_by": None,
+                    "last_error": f"Permanently failed: was stuck in processing since {row.get('locked_at')} (attempts={job_attempts}/{job_max})",
+                    "updated_at": now_iso,
+                }
+            ).eq("id", row["id"]).eq("status", "processing").execute()
 
-    return len(stale.data)
+            if row.get("submission_id"):
+                update_submission_status(
+                    row["submission_id"],
+                    "failed",
+                    error_message=f"Processing timed out after {job_attempts} attempts."
+                )
+            logger.error("Stale job %s permanently failed (attempts=%d/%d)", row["id"], job_attempts, job_max)
+        else:
+            # Retryable — requeue
+            sb.table("ingestion_jobs").update(
+                {
+                    "status": "queued",
+                    "locked_at": None,
+                    "locked_by": None,
+                    "run_after": now_iso,
+                    "last_error": f"Requeued: was stuck in processing since {row.get('locked_at')}",
+                    "updated_at": now_iso,
+                }
+            ).eq("id", row["id"]).eq("status", "processing").execute()
+
+            if row.get("submission_id"):
+                update_submission_status(
+                    row["submission_id"],
+                    "queued",
+                    error_message="Worker restarted while processing. Retrying..."
+                )
+            logger.warning("Requeued stale job %s (submission=%s, attempts=%d, locked_at=%s)",
+                            row["id"], row.get("submission_id"), job_attempts, row.get("locked_at"))
+
+        count += 1
+
+    return count
 
 
 def update_submission_status(submission_id: str, status: str,
                              error_message: str | None = None,
                              error_detail: dict | None = None) -> None:
-    """Update the dec_page_submissions status."""
+    """Update the dec_page_submissions status with timestamp."""
     sb = get_supabase()
-    payload: dict = {"status": status}
+    payload: dict = {
+        "status": status,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
     if error_message is not None:
         payload["error_message"] = (error_message or "")[:2000]
     if error_detail is not None:

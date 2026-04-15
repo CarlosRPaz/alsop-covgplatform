@@ -20,6 +20,7 @@ import {
     Flag,
     Briefcase,
     X,
+    Mail,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -35,12 +36,17 @@ export function Sidebar({ userRole }: SidebarProps) {
     const isAgent = userRole === 'admin' || userRole === 'service';
     const isClient = userRole === 'customer';
 
-    // Agent nav items
     const agentNavItems = [
         { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
         { label: 'Flags', href: '/flags', icon: Flag },
+        { label: 'Email Center', href: '/email', icon: Mail },
         { label: 'Submit Declaration', href: '/submit', icon: FileText },
     ];
+
+    // Admin-only nav items
+    const adminNavItems = userRole === 'admin' ? [
+        { label: 'Submissions', href: '/admin/submissions', icon: FileText },
+    ] : [];
 
     // Client nav items
     const clientNavItems = [
@@ -49,6 +55,7 @@ export function Sidebar({ userRole }: SidebarProps) {
     ];
 
     const navItems = isClient ? clientNavItems : agentNavItems;
+    const bottomNavItems = isClient ? [] : adminNavItems;
 
     const accountItems = [
         { label: 'Settings', href: '/settings', icon: Settings },
@@ -126,6 +133,29 @@ export function Sidebar({ userRole }: SidebarProps) {
                         );
                     })}
 
+                    {/* Admin-only section */}
+                    {bottomNavItems.length > 0 && (
+                        <>
+                            {(!collapsed || isMobile) && <div className={styles.sectionTitle} style={{ marginTop: '1.5rem' }}>Admin</div>}
+                            {collapsed && !isMobile && <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.5rem' }} />}
+                            {bottomNavItems.map((item) => {
+                                const isActive = pathname.startsWith(item.href);
+                                return (
+                                    <Link
+                                        key={item.label}
+                                        href={item.href}
+                                        className={clsx(styles.navItem, isActive && styles.active)}
+                                        title={collapsed && !isMobile ? item.label : undefined}
+                                        onClick={handleNavClick}
+                                    >
+                                        <item.icon />
+                                        {(!collapsed || isMobile) && <span>{item.label}</span>}
+                                    </Link>
+                                );
+                            })}
+                        </>
+                    )}
+
                     {(!collapsed || isMobile) && <div className={styles.sectionTitle} style={{ marginTop: '2rem' }}>Account</div>}
                     {collapsed && !isMobile && <div style={{ marginTop: '1.5rem' }} />}
                     {accountItems.map((item) => {
@@ -156,8 +186,8 @@ export function Sidebar({ userRole }: SidebarProps) {
                         {(!collapsed || isMobile) && <span>Logout</span>}
                     </button>
                     {(!collapsed || isMobile) && (
-                        <div style={{ marginTop: '1rem' }}>
-                            &copy; 2026 Alsop Inc
+                        <div style={{ marginTop: '1rem', fontSize: '0.63rem', color: 'var(--text-muted)' }}>
+                            &copy; 2026 Alsop and Associates Insurance Agency
                         </div>
                     )}
                 </div>

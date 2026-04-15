@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card/Card';
 import { Button } from '@/components/ui/Button/Button';
 import styles from './CFPForm.module.scss';
-import { Upload, CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, ArrowRight, Loader2, FileText } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 
 /** Maximum file size: 10 MB */
@@ -13,6 +13,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = new Set(['.pdf']);
 
 type SubmitState = 'idle' | 'loading' | 'success' | 'error';
+type ProcessingStatus = 'uploading' | 'queued' | 'processing' | 'parsed' | 'failed' | null;
 
 interface UploadResult {
     message: string;
@@ -25,7 +26,13 @@ interface CFPFormProps {
     /** Authenticated user ID (required — this component should only render for authed users) */
     userId: string;
     /** User role — determines T&C visibility and post-submit routing */
-    userRole?: 'admin' | 'service' | 'user' | 'customer';
+    userRole?: 'admin' | 'service' | 'agent' | 'user' | 'customer';
+}
+
+function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function CFPForm({ userId, userRole }: CFPFormProps) {
@@ -34,42 +41,129 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
     const [file, setFile] = useState<File | null>(null);
     const [fileError, setFileError] = useState<string | null>(null);
     const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>(null);
     const [termsAccepted, setTermsAccepted] = useState(false);
+    const [isDragOver, setIsDragOver] = useState(false);
     const formRef = useRef<HTMLFormElement>(null);
+    const abortRef = useRef<AbortController | null>(null);
+    const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     const isAgent = userRole === 'admin' || userRole === 'service';
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (abortRef.current) abortRef.current.abort();
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+        };
+    }, []);
 
     const validateFile = (selectedFile: File): string | null => {
         const ext = '.' + selectedFile.name.split('.').pop()?.toLowerCase();
         if (!ALLOWED_EXTENSIONS.has(ext)) {
             return `Unsupported file type "${ext}". Please upload a PDF file.`;
         }
+        if (selectedFile.size === 0) {
+            return 'The selected file is empty (0 bytes). Please select a valid PDF.';
+        }
         if (selectedFile.size > MAX_FILE_SIZE) {
-            return `File size (${(selectedFile.size / 1024 / 1024).toFixed(1)}MB) exceeds the 10MB limit.`;
+            return `File size (${formatFileSize(selectedFile.size)}) exceeds the 10MB limit.`;
         }
         return null;
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileSelect = useCallback((selectedFile: File) => {
         setFileError(null);
+        const error = validateFile(selectedFile);
+        if (error) {
+            setFileError(error);
+            setFile(null);
+            return;
+        }
+        setFile(selectedFile);
+    }, []);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
-            const selectedFile = e.target.files[0];
-            const error = validateFile(selectedFile);
-            if (error) {
-                setFileError(error);
-                setFile(null);
-                return;
-            }
-            setFile(selectedFile);
+            handleFileSelect(e.target.files[0]);
         }
     };
+
+    // Drag and drop handlers
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragOver(true);
+    }, []);
+
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragOver(false);
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragOver(false);
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            handleFileSelect(e.dataTransfer.files[0]);
+        }
+    }, [handleFileSelect]);
+
+    // Poll for processing status after successful upload
+    const startPolling = useCallback((submissionId: string) => {
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+
+        const checkStatus = async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session?.access_token) return;
+
+                const res = await fetch(`/api/upload/status?ids=${submissionId}`, {
+                    headers: { 'Authorization': `Bearer ${session.access_token}` },
+                });
+                if (!res.ok) return;
+
+                const json = await res.json();
+                if (!json.success || !json.data?.[0]) return;
+
+                const status = json.data[0].status as ProcessingStatus;
+                setProcessingStatus(status);
+
+                if (status === 'parsed') {
+                    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                    window.dispatchEvent(new CustomEvent('decPageParsed'));
+                    // Auto-redirect agents after parse completes
+                    if (isAgent) {
+                        setTimeout(() => router.push('/dashboard'), 2000);
+                    }
+                } else if (status === 'failed') {
+                    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                }
+            } catch {
+                // Polling error — non-fatal, keep trying
+            }
+        };
+
+        // Check immediately, then every 3 seconds
+        checkStatus();
+        pollIntervalRef.current = setInterval(checkStatus, 3000);
+    }, [isAgent, router]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!file) return;
 
+        // Cancel any in-flight upload
+        if (abortRef.current) abortRef.current.abort();
+        abortRef.current = new AbortController();
+
         setSubmitState('loading');
         setUploadResult(null);
+        setUploadProgress(0);
+        setProcessingStatus('uploading');
 
         try {
             const formData = new FormData();
@@ -79,68 +173,115 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session?.access_token) {
                 setSubmitState('error');
+                setProcessingStatus(null);
                 setUploadResult({ message: 'Session expired. Please refresh the page and sign in again.' });
                 return;
             }
 
-            const response = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'Authorization': `Bearer ${session.access_token}`,
-                },
+            // Use XMLHttpRequest for upload progress tracking
+            const result = await new Promise<{ ok: boolean; data: Record<string, unknown> }>((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+
+                xhr.upload.addEventListener('progress', (event) => {
+                    if (event.lengthComputable) {
+                        const pct = Math.round((event.loaded / event.total) * 100);
+                        setUploadProgress(pct);
+                    }
+                });
+
+                xhr.addEventListener('load', () => {
+                    try {
+                        const json = JSON.parse(xhr.responseText);
+                        resolve({ ok: xhr.status >= 200 && xhr.status < 300, data: json });
+                    } catch {
+                        reject(new Error('Invalid server response'));
+                    }
+                });
+
+                xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+                xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
+
+                // Listen for abort signal
+                abortRef.current?.signal.addEventListener('abort', () => xhr.abort());
+
+                xhr.open('POST', '/api/upload');
+                xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`);
+                xhr.send(formData);
             });
 
-            const result = await response.json();
-
-            if (!response.ok || !result.success) {
+            if (!result.ok || !result.data.success) {
                 setSubmitState('error');
+                setProcessingStatus(null);
                 setUploadResult({
-                    message: result.message || 'Upload failed. Please try again.',
+                    message: (result.data.message as string) || 'Upload failed. Please try again.',
                 });
                 return;
             }
 
+            const responseData = result.data.data as Record<string, unknown> | undefined;
+            const submissionId = responseData?.submissionId as string | undefined;
+
             setSubmitState('success');
+            setProcessingStatus('queued');
             setUploadResult({
-                message: result.message,
-                fileName: result.data?.fileName,
-                submittedAt: result.data?.submittedAt,
-                submissionId: result.data?.submissionId,
+                message: result.data.message as string,
+                fileName: responseData?.fileName as string | undefined,
+                submittedAt: responseData?.submittedAt as string | undefined,
+                submissionId,
             });
 
             // Track pending uploads globally for toast notifications
-            if (result.data?.submissionId) {
+            if (submissionId) {
                 try {
                     const key = 'cfp_pending_dec_uploads';
                     const stored = sessionStorage.getItem(key);
                     const pending = stored ? JSON.parse(stored) : [];
-                    if (!pending.includes(result.data.submissionId)) {
-                        pending.push(result.data.submissionId);
+                    if (!pending.includes(submissionId)) {
+                        pending.push(submissionId);
                         sessionStorage.setItem(key, JSON.stringify(pending));
                     }
                 } catch (e) {
                     console.error('Failed to update session storage for dec page tracking', e);
                 }
+
+                // Start inline status polling
+                startPolling(submissionId);
             }
 
             // Reset file after successful upload
             setFile(null);
             if (formRef.current) formRef.current.reset();
-
-            // Auto-redirect agents to dashboard after brief delay
-            if (isAgent) {
-                setTimeout(() => {
-                    router.push('/dashboard');
-                }, 2500);
-            }
         } catch (err) {
+            if (err instanceof Error && err.message === 'Upload cancelled') {
+                setSubmitState('idle');
+                setProcessingStatus(null);
+                return;
+            }
             setSubmitState('error');
+            setProcessingStatus(null);
             setUploadResult({
                 message: err instanceof Error
                     ? `Network error: ${err.message}`
                     : 'An unexpected error occurred. Please check your connection and try again.',
             });
+        }
+    };
+
+    // Processing status label for success state
+    const getProcessingLabel = (): { text: string; color: string; icon: React.ReactNode } => {
+        switch (processingStatus) {
+            case 'uploading':
+                return { text: 'Uploading...', color: 'var(--accent-primary, #6366f1)', icon: <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> };
+            case 'queued':
+                return { text: 'Queued for processing...', color: 'var(--accent-warning, #f59e0b)', icon: <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> };
+            case 'processing':
+                return { text: 'Parsing declaration page...', color: 'var(--accent-primary, #6366f1)', icon: <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> };
+            case 'parsed':
+                return { text: 'Successfully processed!', color: 'var(--status-success, #22c55e)', icon: <CheckCircle size={16} /> };
+            case 'failed':
+                return { text: 'Processing failed', color: 'var(--status-error, #ef4444)', icon: <AlertCircle size={16} /> };
+            default:
+                return { text: 'Processing...', color: 'var(--text-muted)', icon: <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> };
         }
     };
 
@@ -168,61 +309,85 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                         width: '56px',
                         height: '56px',
                         borderRadius: '50%',
-                        background: 'rgba(34, 197, 94, 0.15)',
+                        background: 'var(--bg-success-subtle, rgba(34, 197, 94, 0.15))',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         margin: '0 auto 1.25rem',
                     }}>
-                        <CheckCircle size={28} style={{ color: '#22c55e' }} />
+                        <CheckCircle size={28} style={{ color: 'var(--status-success, #22c55e)' }} />
                     </div>
 
-                    <h3 style={{ color: '#22c55e', fontSize: '1.15rem', fontWeight: 700, marginBottom: '0.5rem' }}>
+                    <h3 style={{ color: 'var(--status-success, #22c55e)', fontSize: '1.15rem', fontWeight: 700, marginBottom: '0.5rem' }}>
                         Declaration Submitted Successfully
                     </h3>
 
                     {uploadResult.fileName && (
-                        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
                             {uploadResult.fileName}
                         </p>
                     )}
 
-                    {isAgent ? (
-                        /* Agent: redirect notice */
+                    {/* ─── Inline Processing Status ─── */}
+                    {(() => {
+                        const status = getProcessingLabel();
+                        return (
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.5rem',
+                                color: status.color,
+                                fontSize: '0.85rem',
+                                marginTop: '1rem',
+                                padding: '0.625rem 1rem',
+                                background: 'var(--bg-surface-raised, rgba(255,255,255,0.03))',
+                                border: '1px solid var(--border-subtle)',
+                                borderRadius: 'var(--radius-md, 0.5rem)',
+                            }}>
+                                {status.icon}
+                                {status.text}
+                                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                            </div>
+                        );
+                    })()}
+
+                    {isAgent && processingStatus === 'parsed' && (
                         <div style={{
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             gap: '0.5rem',
-                            color: 'rgba(255,255,255,0.4)',
+                            color: 'var(--text-muted)',
                             fontSize: '0.85rem',
-                            marginTop: '1rem',
+                            marginTop: '0.75rem',
                         }}>
                             <div style={{
                                 width: '16px', height: '16px',
-                                border: '2px solid rgba(59,130,246,0.4)',
-                                borderTopColor: '#3b82f6',
+                                border: '2px solid var(--border-default)',
+                                borderTopColor: 'var(--accent-primary, #3b82f6)',
                                 borderRadius: '50%',
                                 animation: 'spin 0.8s linear infinite',
                             }} />
                             Returning to dashboard...
-                            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
                         </div>
-                    ) : (
+                    )}
+
+                    {!isAgent && processingStatus === 'parsed' && (
                         /* Client: what happens next */
                         <div style={{
-                            background: 'rgba(59, 130, 246, 0.08)',
-                            border: '1px solid rgba(59, 130, 246, 0.15)',
+                            background: 'var(--bg-info-subtle, rgba(59, 130, 246, 0.08))',
+                            border: '1px solid var(--border-info, rgba(59, 130, 246, 0.15))',
                             borderRadius: '0.75rem',
                             padding: '1.25rem',
                             marginTop: '1.25rem',
                             textAlign: 'left',
                         }}>
-                            <p style={{ color: '#60a5fa', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.75rem' }}>
+                            <p style={{ color: 'var(--accent-primary, #60a5fa)', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.75rem' }}>
                                 What happens next?
                             </p>
-                            <ul style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem', lineHeight: 1.8, paddingLeft: '1.25rem', margin: 0 }}>
-                                <li>Your declaration is being securely processed</li>
+                            <ul style={{ color: 'var(--text-mid)', fontSize: '0.85rem', lineHeight: 1.8, paddingLeft: '1.25rem', margin: 0 }}>
+                                <li>Your declaration has been securely processed</li>
                                 <li>Our team will review your policy details</li>
                                 <li>You&apos;ll receive a comprehensive coverage analysis</li>
                                 <li>Your agent will reach out with findings and recommendations</li>
@@ -235,12 +400,15 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                         onClick={() => {
                             setSubmitState('idle');
                             setUploadResult(null);
+                            setProcessingStatus(null);
+                            setUploadProgress(0);
+                            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
                         }}
                         style={{
                             marginTop: '1.5rem',
                             background: 'transparent',
-                            border: '1px solid rgba(255,255,255,0.12)',
-                            color: 'rgba(255,255,255,0.4)',
+                            border: '1px solid var(--border-default)',
+                            color: 'var(--text-muted)',
                             padding: '0.5rem 1.25rem',
                             borderRadius: '6px',
                             cursor: 'pointer',
@@ -256,7 +424,12 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                 <form ref={formRef} onSubmit={handleSubmit}>
                     <div className={styles.formGroup}>
                         <label className={styles.label}>Upload Declarations Page (PDF only)</label>
-                        <div className={styles.fileInputContainer}>
+                        <div
+                            className={`${styles.fileInputContainer} ${isDragOver ? styles.dragover : ''}`}
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
+                        >
                             <input
                                 type="file"
                                 name="file"
@@ -266,7 +439,19 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                             />
                             <Upload className={styles.uploadIcon} size={24} />
                             <span className={styles.uploadText}>
-                                {file ? file.name : "Click to upload or drag and drop"}
+                                {file ? (
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <FileText size={16} />
+                                        {file.name}
+                                        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                                            ({formatFileSize(file.size)})
+                                        </span>
+                                    </span>
+                                ) : isDragOver ? (
+                                    'Drop your PDF here'
+                                ) : (
+                                    'Click to upload or drag and drop'
+                                )}
                             </span>
                             <span className={styles.uploadHint}>
                                 Supported format: PDF only (max 10MB)
@@ -274,7 +459,7 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                         </div>
                         {fileError && (
                             <p style={{
-                                color: '#fca5a5',
+                                color: 'var(--status-error, #fca5a5)',
                                 fontSize: '0.8rem',
                                 marginTop: '0.5rem',
                                 display: 'flex',
@@ -286,6 +471,36 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                             </p>
                         )}
                     </div>
+
+                    {/* Upload Progress Bar */}
+                    {submitState === 'loading' && uploadProgress > 0 && (
+                        <div style={{ marginBottom: '1rem' }}>
+                            <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                marginBottom: '0.375rem',
+                                fontSize: '0.8rem',
+                                color: 'var(--text-muted)',
+                            }}>
+                                <span>Uploading...</span>
+                                <span>{uploadProgress}%</span>
+                            </div>
+                            <div style={{
+                                height: '6px',
+                                background: 'var(--bg-surface-raised, rgba(255,255,255,0.06))',
+                                borderRadius: '3px',
+                                overflow: 'hidden',
+                            }}>
+                                <div style={{
+                                    height: '100%',
+                                    width: `${uploadProgress}%`,
+                                    background: 'var(--accent-primary, #6366f1)',
+                                    borderRadius: '3px',
+                                    transition: 'width 0.3s ease',
+                                }} />
+                            </div>
+                        </div>
+                    )}
 
                     {/* Terms and Conditions — clients only */}
                     {!isAgent && (
@@ -387,17 +602,17 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                             alignItems: 'flex-start',
                             gap: '0.75rem',
                             padding: '1rem 1.25rem',
-                            background: 'rgba(239, 68, 68, 0.1)',
-                            border: '1px solid rgba(239, 68, 68, 0.2)',
+                            background: 'var(--bg-error-subtle, rgba(239, 68, 68, 0.1))',
+                            border: '1px solid var(--border-error, rgba(239, 68, 68, 0.2))',
                             borderRadius: '0.75rem',
                             marginTop: '1rem',
                         }}>
-                            <AlertCircle size={20} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                            <AlertCircle size={20} style={{ color: 'var(--status-error, #ef4444)', flexShrink: 0, marginTop: '2px' }} />
                             <div>
-                                <p style={{ color: '#fca5a5', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.25rem' }}>
+                                <p style={{ color: 'var(--status-error, #fca5a5)', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.25rem' }}>
                                     Upload failed
                                 </p>
-                                <p style={{ color: 'rgba(252, 165, 165, 0.7)', fontSize: '0.8rem' }}>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                                     {uploadResult.message}
                                 </p>
                             </div>

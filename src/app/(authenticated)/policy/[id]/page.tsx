@@ -19,7 +19,7 @@ import { NotesPanel } from '@/components/shared/NotesPanel';
 import { DecPageReview } from '@/components/policy/DecPageReview';
 import { PolicyEditPanel } from '@/components/policy/PolicyEditPanel';
 import { FullWorkupModal } from '@/components/dashboard/FullWorkupModal';
-import { EmailComposeModal } from '@/components/email/EmailComposeModal';
+import { PolicyEmailComposer } from '@/components/email/PolicyEmailComposer';
 import { useRecentlyVisited } from '@/hooks/useRecentlyVisited';
 import { useToast } from '@/components/ui/Toast/Toast';
 import { getUserProfile, UserRole } from '@/lib/auth';
@@ -63,7 +63,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     const [decPageStoragePath, setDecPageStoragePath] = useState<string | null>(null);
     const [decPageLoading, setDecPageLoading] = useState(false);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
-    const [showEmailModal, setShowEmailModal] = useState(false);
+    const [showEmailComposer, setShowEmailComposer] = useState(false);
     const [userRole, setUserRole] = useState<UserRole | null>(null);
     const [roleLoading, setRoleLoading] = useState(true);
 
@@ -180,6 +180,13 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
 
     // Enrichment handler (shared between status bar)
     const handleEnrich = async () => {
+        // Guard: enrichment requires a property address
+        const address = policyDetailRaw?.property_address;
+        if (!address) {
+            toast.error('No property address on this policy — add an address before running enrichment.');
+            return;
+        }
+
         const steps = [
             'Fetching satellite image…',
             'Geocoding address…',
@@ -202,9 +209,10 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             const updated = await getPropertyEnrichments(id);
             setEnrichments(updated);
             setTimeout(() => setEnrichStep(null), 2000);
-        } catch (e) {
+        } catch (e: any) {
             clearInterval(timer);
-            console.error('Enrichment failed:', e);
+            const msg = e?.message || 'Enrichment failed';
+            toast.error(msg);
             setEnrichStep('✗ Failed — try again');
             setTimeout(() => setEnrichStep(null), 3000);
         }
@@ -489,7 +497,11 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                     <button className={styles.iconBtn} onClick={() => setIsEditOpen(true)} title="Edit Policy">
                         <Settings size={16} />
                     </button>
-                    <button className={styles.iconBtn} title="Email Options — coming soon" onClick={() => toast.info('Email Options — coming soon!')}>
+                    <button
+                        className={styles.iconBtn}
+                        onClick={() => setShowEmailComposer(true)}
+                        title="Compose Email"
+                    >
                         <Mail size={16} />
                     </button>
 
@@ -612,11 +624,10 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                         </button>
                     )}
 
-                    {/* Email Report */}
                     {reportRow && (
                         <button
                             className={styles.secondaryBtn}
-                            onClick={() => setShowEmailModal(true)}
+                            onClick={() => setShowEmailComposer(true)}
                             title="Email report to client"
                         >
                             <Mail size={15} />
@@ -693,21 +704,20 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                 }}
             />
 
-            {/* Email Compose Modal */}
-            <EmailComposeModal
-                isOpen={showEmailModal}
-                onClose={() => setShowEmailModal(false)}
-                defaultTo={policyDetailRaw?.client_email || ''}
-                defaultTemplateId="report_delivery"
-                defaultVariables={{
-                    clientName: policyDetailRaw?.named_insured || '',
-                    agentName: 'Alsop Insurance',
-                    policyNumber: policyDetailRaw?.policy_number || declaration?.policy_number || '',
-                    propertyAddress: policyDetailRaw?.property_address || '',
-                }}
+            {/* Premium Email Composer */}
+            <PolicyEmailComposer
+                isOpen={showEmailComposer}
+                onClose={() => setShowEmailComposer(false)}
                 policyId={id}
                 clientId={policyDetailRaw?.client_id || ''}
                 reportId={reportRow?.id || ''}
+                reportUrl={reportRow ? `${typeof window !== 'undefined' ? window.location.origin : ''}/report/${reportRow.id}` : undefined}
+                clientEmail={policyDetailRaw?.client_email || ''}
+                clientName={policyDetailRaw?.named_insured || declaration?.insured_name || ''}
+                policyNumber={policyDetailRaw?.policy_number || declaration?.policy_number || ''}
+                propertyAddress={policyDetailRaw?.property_address || ''}
+                agentName="Alsop and Associates Insurance Agency"
+                defaultTemplateId={reportRow ? 'report_delivery' : 'agent_outreach'}
             />
         </div>
     );

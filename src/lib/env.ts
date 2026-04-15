@@ -80,4 +80,16 @@ export const env = {
     get EMAIL_DEV_REDIRECT(): string {
         return process.env.EMAIL_DEV_REDIRECT || 'carlospaz@allstate.com';
     },
+
+    // ── Property Enrichment ──
+
+    /**
+     * ATTOM Data Solutions API key.
+     * Used for baseline property enrichment: sqft, year built, construction type, etc.
+     * Set this in .env.local to enable real property data. If absent, assessor
+     * enrichment is skipped gracefully (no mock data is written).
+     */
+    get ATTOM_API_KEY(): string | undefined {
+        return process.env.ATTOM_API_KEY;
+    },
 } as const;

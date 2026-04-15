@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
+import { normalizeInputs, calculateEstimate } from '@/lib/rce/InterimEstimator';
 import { logger } from '@/lib/logger';
 
 /**
@@ -99,7 +100,11 @@ function checkMissingField(key: string, label: string) {
 
 function checkNoDic(ctx: EvalCtx): string | null {
     const dic = ctx.term.dic_exists;
+    // Fire when DIC is explicitly false OR when it has never been set (null/undefined).
+    // A null value means the agent hasn't confirmed DIC — that is functionally unknown,
+    // not confirmed-present. We surface it so agents are prompted to verify.
     if (dic === false) return 'DIC coverage is not on file for this policy term.';
+    if (dic === null || dic === undefined) return 'DIC status has not been confirmed. Please verify whether DIC coverage is in place for this client.';
     return null;
 }
 
@@ -145,6 +150,51 @@ const FLAG_CHECKS: FlagCheck[] = [
         check: (ctx) => {
             if (isCondoOrUnit(ctx)) return null; // Suppress for condos/units
             if (isMissing(get(ctx, 'limit_dwelling'))) return 'Dwelling coverage limit is missing or empty.';
+            return null;
+        }
+    },
+
+    // ── Underwriting Insights (Estimates) ──
+    {
+        code: 'SEVERE_UNDERINSURANCE_ESTIMATE', severity: 'high', title: 'Severe Underinsurance (Modeled Estimate)',
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        check: (ctx) => {
+            const dw = parseNumeric(get(ctx, 'limit_dwelling') || get(ctx, 'limit_dwelling_coverage' /* older schema */));
+            if (!dw) return null; // No coverage A parsed
+
+            // Guard: do NOT fire this flag if structural data was produced by the old mock source.
+            // Mock data is random — a flag based on it would be misleading and wrong.
+            const sqftEnrichment = ctx.enrichments.find(e => e.field_key === 'living_area_sqft');
+            if (!sqftEnrichment) return null; // No sqft at all — insufficient to estimate
+            const isMockSource = (
+                !sqftEnrichment.notes ||
+                sqftEnrichment.notes.toLowerCase().includes('mock') ||
+                sqftEnrichment.notes.toLowerCase().includes('simulated')
+            );
+            if (isMockSource) return null; // Silently skip — mock data should never drive a flag
+
+            // Map the generic EvalCtx enrichments format into the format expected by the Normalizer
+            const mockEnrichments = ctx.enrichments.map(e => ({
+                policy_id: ctx.policy_id,
+                field_key: e.field_key,
+                field_value: e.field_value,
+                confidence: e.confidence,
+            }));
+
+            // Assemble base input
+            const rawAddress = String(get(ctx, 'property_location') || get(ctx, 'property_address_raw') || ctx.policy.property_address_raw || '');
+            const input = normalizeInputs({ id: ctx.policy_id, property_address_raw: rawAddress }, mockEnrichments);
+            const estimate = calculateEstimate(input);
+
+            if (!estimate) return null; // Insufficient data to calculate
+            // Only trigger on Medium/High confidence estimates where coverage A is drastically below minimum band
+            if (estimate.confidence === 'Low') return null;
+
+            // If Dwelling Limit is less than 85% of our MINIMUM estimated bound, flag it
+            if (dw < (estimate.rangeMin * 0.85)) {
+                return `Dwelling coverage ($${dw.toLocaleString()}) appears severely underinsured. The modeled CA interim rebuild min/max range is $${estimate.rangeMin.toLocaleString()} - $${estimate.rangeMax.toLocaleString()} (Confidence: ${estimate.confidence}). Consider procuring a verified e2Value / 360Value RCE to confirm.`;
+            }
+
             return null;
         }
     },

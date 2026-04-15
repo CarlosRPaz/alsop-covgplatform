@@ -1,172 +1,118 @@
-.container {
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-    width: 100%;
-    height: 100%;
-}
-
-.topRow {
-    display: flex;
-    gap: 1.25rem;
-}
-
-.summaryCard {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-light);
-    border-radius: 12px;
-    padding: 1.25rem 1.5rem;
-}
-
-.summaryTitle {
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    font-weight: 600;
-    color: var(--text-muted);
-    margin-bottom: 0.5rem;
-}
-
-.summaryValue {
-    font-size: 1.875rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    line-height: 1.2;
-}
-
-.summaryPending {
-    border-left: 4px solid #f59e0b;
-}
-
-.summaryTotal {
-    border-left: 4px solid #14b8a6;
-}
-
-/* Actionable Grid — fills remaining vertical space */
-.actionGrid {
+/* ── Compact KPI Strip ─────────────────────────────────────────── */
+.kpiStrip {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: 1fr 1fr;
-    gap: 1.25rem;
-    flex: 1;
-    min-height: 0;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0.75rem;
+    width: 100%;
 }
 
-/* Last card spans the remaining cell in the 3×2 grid: 5 cards in 3-col grid
-   means row1 = 3 cards, row2 = 2 cards + 1 empty. Keep it natural. */
-
-.actionCard {
+.kpiCard {
     display: flex;
     flex-direction: column;
     background: var(--bg-surface);
-    border: 1px solid var(--border-light);
-    border-radius: 12px;
-    padding: 1.25rem 1.5rem;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: 0.875rem 1rem;
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
     position: relative;
     overflow: hidden;
+    min-width: 0;
 }
 
-.actionCard:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
-    border-color: var(--card-color, var(--border-light));
-}
-
-.actionCard::before {
+.kpiCard::after {
     content: '';
     position: absolute;
-    top: 0; left: 0; right: 0; height: 3px;
+    bottom: 0; left: 0; right: 0;
+    height: 2.5px;
     background: var(--card-color);
     opacity: 0;
-    transition: opacity 0.2s;
+    transition: opacity 0.18s;
 }
 
-.actionCard:hover::before {
+.kpiCard:hover {
+    transform: translateY(-2px);
+    border-color: var(--card-color, var(--border-default));
+    box-shadow: 0 6px 20px rgba(0,0,0,0.07);
+}
+
+.kpiCard:hover::after {
     opacity: 1;
 }
 
-.cardHeader {
+.kpiTop {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
+    justify-content: space-between;
+    gap: 0.25rem;
+    margin-bottom: 0.5rem;
 }
 
-.iconBox {
+.kpiTitle {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    line-height: 1.2;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.kpiIcon {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
     background: var(--icon-bg);
     color: var(--card-color);
     flex-shrink: 0;
 }
 
-.cardTitle {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    line-height: 1.3;
+.kpiValue {
+    font-size: 1.625rem;
+    font-weight: 800;
+    color: var(--text-high);
+    line-height: 1;
+    margin-bottom: 0.3rem;
 }
 
-.cardValue {
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin-bottom: 0.5rem;
-    margin-top: auto;
+.kpiSub {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.cardSubtext {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-}
-
-.cardActionIcon {
-    opacity: 0.5;
-    transition: transform 0.2s;
-}
-
-.actionCard:hover .cardActionIcon {
-    transform: translateX(4px);
-    opacity: 1;
-    color: var(--card-color);
-}
-
-/* Loading State */
+/* ── Loading Skeletons ─────────────────────────────────────────── */
 .loadingSkeleton {
-    background: #e2e8f0;
-    background-image: linear-gradient(90deg, #e2e8f0 25%, #cbd5e1 50%, #e2e8f0 75%);
+    background: var(--border-subtle);
+    background-image: linear-gradient(90deg, var(--border-subtle) 25%, var(--border-default) 50%, var(--border-subtle) 75%);
     background-size: 400% 100%;
     animation: shimmer 1.5s infinite cubic-bezier(0.4, 0, 0.6, 1);
     border-radius: 4px;
 }
 
 .skeletonTitle {
-    height: 16px;
-    width: 60%;
-    margin-top: 2px;
-}
-
-.skeletonValue {
-    height: 28px;
-    width: 40%;
+    height: 10px;
+    width: 70%;
     margin-bottom: 0.5rem;
 }
 
-.skeletonSubtext {
-    height: 14px;
+.skeletonValue {
+    height: 26px;
+    width: 45%;
+    margin-bottom: 0.3rem;
+}
+
+.skeletonSub {
+    height: 10px;
     width: 80%;
 }
 
@@ -175,63 +121,24 @@
     100% { background-position: -100% 0; }
 }
 
-/* ── Tablet: 2-column grid ── */
-@media (max-width: 1024px) {
-    .actionGrid {
-        grid-template-columns: repeat(2, 1fr);
-        grid-template-rows: auto;
+/* ── Responsive: 3-col on tablet, 2-col on mobile ─────────────── */
+@media (max-width: 1100px) {
+    .kpiStrip {
+        grid-template-columns: repeat(3, 1fr);
     }
 }
 
-/* ── Mobile: single column, compact sizing ── */
 @media (max-width: 640px) {
-    .container {
-        gap: 0.75rem;
+    .kpiStrip {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
     }
 
-    .topRow {
-        flex-direction: column;
-        gap: 0.75rem;
+    .kpiCard {
+        padding: 0.75rem;
     }
 
-    .summaryCard {
-        padding: 1rem 1.25rem;
-    }
-
-    .summaryValue {
-        font-size: 1.5rem;
-    }
-
-    .actionGrid {
-        grid-template-columns: 1fr;
-        gap: 0.75rem;
-    }
-
-    .actionCard {
-        padding: 1rem 1.25rem;
-        flex-direction: row;
-        align-items: center;
-        gap: 1rem;
-    }
-
-    .cardHeader {
-        margin-bottom: 0;
-        flex-shrink: 0;
-    }
-
-    .cardValue {
-        font-size: 1.5rem;
-        margin-bottom: 0;
-        margin-top: 0;
-        margin-left: auto;
-        text-align: right;
-    }
-
-    .cardSubtext {
-        display: none;
-    }
-
-    .cardTitle {
-        font-size: 0.8rem;
+    .kpiValue {
+        font-size: 1.375rem;
     }
 }

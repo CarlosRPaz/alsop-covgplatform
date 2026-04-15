@@ -316,16 +316,16 @@
 }
 
 .gridCellDate {
-    font-size: clamp(0.55rem, 0.8vw, 0.75rem);
+    font-size: clamp(0.5rem, 0.7vw, 0.65rem);
     font-weight: 600;
     position: absolute;
-    top: 4px;
-    left: 5px;
+    top: 3px;
+    left: 4px;
     line-height: 1;
 }
 
 .gridCellCount {
-    font-size: clamp(0.9rem, 1.4vw, 1.25rem);
+    font-size: clamp(0.75rem, 1.2vw, 1rem);
     font-weight: 700;
     line-height: 1;
 }

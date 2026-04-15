@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/Button/Button';
 import { Shield, Mail, Lock, ArrowRight, UserPlus, LogIn, User, Phone } from 'lucide-react';
@@ -10,6 +10,7 @@ import styles from './page.module.css';
 
 export default function SignInPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [isSignUp, setIsSignUp] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -20,6 +21,31 @@ export default function SignInPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+    const [forgotMode, setForgotMode] = useState(false);
+    const [resetEmail, setResetEmail] = useState('');
+
+    // Auto-redirect if already authenticated
+    useEffect(() => {
+        async function checkExistingSession() {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+                const { data: account } = await supabase
+                    .from('accounts')
+                    .select('role')
+                    .eq('id', session.user.id)
+                    .single();
+                const redirect = searchParams.get('redirect');
+                if (redirect) {
+                    router.replace(redirect);
+                } else if (account?.role === 'customer') {
+                    router.replace('/portal');
+                } else {
+                    router.replace('/dashboard');
+                }
+            }
+        }
+        checkExistingSession();
+    }, [router, searchParams]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -108,8 +134,33 @@ export default function SignInPage() {
 
     const resetForm = (toSignUp: boolean) => {
         setIsSignUp(toSignUp);
+        setForgotMode(false);
         setError(null);
         setSuccess(null);
+    };
+
+    const handleForgotPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError(null);
+        setSuccess(null);
+        setLoading(true);
+
+        try {
+            const siteUrl = typeof window !== 'undefined' ? window.location.origin : '';
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(resetEmail || email, {
+                redirectTo: `${siteUrl}/auth/reset-password`,
+            });
+
+            if (resetError) {
+                setError(resetError.message);
+            } else {
+                setSuccess('Password reset email sent! Check your inbox (and spam folder) for a link to reset your password.');
+            }
+        } catch {
+            setError('An unexpected error occurred. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -271,7 +322,110 @@ export default function SignInPage() {
                         {isSignUp ? 'Create Account' : 'Sign In'}
                         <ArrowRight size={18} style={{ marginLeft: '0.5rem' }} />
                     </Button>
+
+                    {/* Forgot Password Link — sign-in mode only */}
+                    {!isSignUp && !forgotMode && (
+                        <div style={{ textAlign: 'center', marginTop: '0.25rem' }}>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setForgotMode(true);
+                                    setResetEmail(email);
+                                    setError(null);
+                                    setSuccess(null);
+                                }}
+                                className={styles.toggleLink}
+                                style={{ fontSize: '0.8rem' }}
+                            >
+                                Forgot your password?
+                            </button>
+                        </div>
+                    )}
                 </form>
+
+                {/* ─── Forgot Password Inline Form ─── */}
+                {forgotMode && (
+                    <form onSubmit={handleForgotPassword} style={{
+                        marginTop: '1.25rem',
+                        padding: '1.25rem',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: 'var(--radius-lg)',
+                        background: 'var(--bg-surface-raised)',
+                    }}>
+                        <h3 style={{
+                            fontSize: '0.9rem',
+                            fontWeight: 600,
+                            color: 'var(--text-high)',
+                            marginBottom: '0.5rem',
+                        }}>Reset Password</h3>
+                        <p style={{
+                            fontSize: '0.8rem',
+                            color: 'var(--text-muted)',
+                            marginBottom: '1rem',
+                            lineHeight: 1.5,
+                        }}>
+                            Enter your email and we&apos;ll send you a link to reset your password.
+                        </p>
+
+                        {error && (
+                            <div className={styles.errorAlert} style={{ marginBottom: '0.75rem' }}>
+                                {error}
+                            </div>
+                        )}
+                        {success && (
+                            <div className={styles.successAlert} style={{ marginBottom: '0.75rem' }}>
+                                {success}
+                            </div>
+                        )}
+
+                        <div className={styles.inputGroup} style={{ marginBottom: '1rem' }}>
+                            <div className={styles.inputWrapper}>
+                                <Mail size={18} className={styles.inputIcon} />
+                                <input
+                                    type="email"
+                                    value={resetEmail}
+                                    onChange={(e) => setResetEmail(e.target.value)}
+                                    placeholder="you@example.com"
+                                    className={styles.input}
+                                    required
+                                    autoComplete="email"
+                                    autoFocus
+                                />
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '0.75rem' }}>
+                            <Button
+                                type="submit"
+                                fullWidth
+                                isLoading={loading}
+                                className={styles.submitButton}
+                            >
+                                Send Reset Link
+                            </Button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setForgotMode(false);
+                                    setError(null);
+                                    setSuccess(null);
+                                }}
+                                style={{
+                                    padding: '0.625rem 1rem',
+                                    background: 'transparent',
+                                    border: '1px solid var(--border-default)',
+                                    borderRadius: 'var(--radius-md)',
+                                    color: 'var(--text-muted)',
+                                    fontSize: '0.85rem',
+                                    cursor: 'pointer',
+                                    whiteSpace: 'nowrap',
+                                }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                )}
 
                 {/* Footer Toggle */}
                 <div className={styles.toggleText}>

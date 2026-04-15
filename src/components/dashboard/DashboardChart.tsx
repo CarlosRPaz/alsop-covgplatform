@@ -54,27 +54,59 @@ export function DashboardChart() {
         if (typeof window === 'undefined') return 'chart';
         return (localStorage.getItem('cfp_renewal_viewMode') as 'chart' | 'grid') || 'chart';
     });
+    // 'all' = every upcoming renewal, 'unworked' = exclude already actioned policies
+    const [workFilter, setWorkFilter] = useState<'all' | 'unworked'>(() => {
+        if (typeof window === 'undefined') return 'all';
+        return (localStorage.getItem('cfp_renewal_workFilter') as 'all' | 'unworked') || 'all';
+    });
 
     const handleViewModeChange = (mode: 'chart' | 'grid') => {
         setViewMode(mode);
         try { localStorage.setItem('cfp_renewal_viewMode', mode); } catch {}
     };
 
+    const handleWorkFilterChange = (filter: 'all' | 'unworked') => {
+        setWorkFilter(filter);
+        try { localStorage.setItem('cfp_renewal_workFilter', filter); } catch {}
+    };
+
     useEffect(() => {
         async function fetchRenewals() {
+            setLoading(true);
             const dayBuckets = buildDayBuckets();
             const startDate = dayBuckets[0].date.toISOString().split('T')[0];
             const endDate = new Date(dayBuckets[dayBuckets.length - 1].date);
             endDate.setDate(endDate.getDate() + 1);
             const endDateStr = endDate.toISOString().split('T')[0];
 
+            // Statuses that mean the policy has already been worked/resolved
+            const WORKED_STATUSES = ['renewed', 'non_renewed', 'cancelled', 'expired'];
+
             try {
-                const { data, error } = await supabase
-                    .from('policy_terms')
-                    .select('expiration_date')
-                    .eq('is_current', true)
-                    .gte('expiration_date', startDate)
-                    .lt('expiration_date', endDateStr);
+                let data: { expiration_date: string }[] | null = null;
+                let error: { message: string } | null = null;
+
+                if (workFilter === 'unworked') {
+                    // Join to policies and exclude already-actioned statuses
+                    const result = await supabase
+                        .from('policy_terms')
+                        .select('expiration_date, policies!inner(status)')
+                        .eq('is_current', true)
+                        .gte('expiration_date', startDate)
+                        .lt('expiration_date', endDateStr)
+                        .not('policies.status', 'in', `(${WORKED_STATUSES.join(',')})`);
+                    data = result.data as { expiration_date: string }[] | null;
+                    error = result.error;
+                } else {
+                    const result = await supabase
+                        .from('policy_terms')
+                        .select('expiration_date')
+                        .eq('is_current', true)
+                        .gte('expiration_date', startDate)
+                        .lt('expiration_date', endDateStr);
+                    data = result.data;
+                    error = result.error;
+                }
 
                 if (error) {
                     console.error('Error fetching renewal data:', error);
@@ -106,7 +138,7 @@ export function DashboardChart() {
         }
 
         fetchRenewals();
-    }, []);
+    }, [workFilter]);
 
     const totalRenewals = useMemo(() => buckets.reduce((sum, b) => sum + b.count, 0), [buckets]);
     const maxValue = useMemo(() => Math.max(...buckets.map(b => b.count), 1), [buckets]);
@@ -208,7 +240,9 @@ export function DashboardChart() {
                 <div className={styles.chartTitle}>
                     <div className={styles.mainTitle}>Upcoming Renewals</div>
                     <div className={styles.subtitle}>
-                        {loading ? 'Loading...' : `${totalRenewals} policies expiring in the next 4 weeks`}
+                        {loading ? 'Loading...' : (
+                            <>{totalRenewals} {workFilter === 'unworked' ? 'unworked ' : ''}policies expiring in the next 4 weeks</>
+                        )}
                     </div>
                 </div>
                 <div className={styles.headerControls}>
@@ -217,6 +251,27 @@ export function DashboardChart() {
                             <div className={styles.legendDot} style={{ backgroundColor: '#6366f1' }}></div>
                             <span>Renewals</span>
                         </div>
+                    </div>
+                    {/* Work Filter Toggle */}
+                    <div className={styles.viewToggle}>
+                        <div
+                            className={styles.toggleIndicator}
+                            style={{ transform: workFilter === 'unworked' ? 'translateX(100%)' : 'translateX(0)' }}
+                        />
+                        <button
+                            className={`${styles.toggleBtn} ${workFilter === 'all' ? styles.toggleBtnActive : ''}`}
+                            onClick={() => handleWorkFilterChange('all')}
+                            title="Show all upcoming renewals"
+                        >
+                            All
+                        </button>
+                        <button
+                            className={`${styles.toggleBtn} ${workFilter === 'unworked' ? styles.toggleBtnActive : ''}`}
+                            onClick={() => handleWorkFilterChange('unworked')}
+                            title="Show only renewals not yet worked (excluding renewed, non-renewed, cancelled)"
+                        >
+                            Pending
+                        </button>
                     </div>
                     {/* View Toggle */}
                     <div className={styles.viewToggle}>

@@ -1,3 +1,24 @@
+/**
+ * ⚠️  DEPRECATED — DO NOT USE FOR NEW CODE PATHS
+ *
+ * This TypeScript ingestion module was the original lifecycle implementation.
+ * It has been superseded by the Python worker's lifecycle module:
+ *
+ *   worker/src/db/lifecycle.py   — Client/Policy/PolicyTerm upserts
+ *   worker/src/db/dec_pages.py   — dec_pages upsert
+ *   worker/src/db/flag_evaluator.py — flag evaluation
+ *
+ * The Python worker is the AUTHORITATIVE implementation for all dec page
+ * ingestion. This file is preserved for backward compatibility in case
+ * any existing code paths still reference it, but all new work should
+ * go through the Python worker pipeline.
+ *
+ * If you find an active import of this file, please migrate it to the
+ * worker pipeline or raise a flag.
+ *
+ * Last audited: 2026-04-15
+ */
+
 import { getSupabaseAdmin } from './supabaseClient';
 import { logger } from './logger';
 

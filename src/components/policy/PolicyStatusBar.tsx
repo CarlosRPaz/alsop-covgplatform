@@ -195,29 +195,45 @@ export function PolicyStatusBar({
                         </div>
 
                         <div className={styles.dropdownBody}>
-                            {/* Found items */}
-                            {(foundItems.length > 0 || extraItems.length > 0) && (
-                                <div className={styles.dropdownGroup}>
-                                    <div className={styles.dropdownGroupLabel}>
-                                        <CheckCircle2 size={11} style={{ color: '#10b981' }} />
-                                        Found
-                                    </div>
-                                    {[...foundItems, ...extraItems].map((e, i) => (
-                                        <div key={i} className={styles.dropdownRow}>
-                                            <span className={styles.dropdownKey}>
-                                                {confDot(e.confidence)}
-                                                {formatFieldKey(e.field_key)}
-                                            </span>
-                                            <span className={styles.dropdownValue} title={e.field_value || ''}>
-                                                {e.field_value && e.field_value.length > 30
-                                                    ? e.field_value.slice(0, 30) + '…'
-                                                    : e.field_value || '—'}
-                                            </span>
-                                            <span className={styles.dropdownSource}>{e.source_name}</span>
+                            {/* Found items grouped by source type */}
+                            {(() => {
+                                const allFound = [...foundItems, ...extraItems];
+                                if (allFound.length === 0) return null;
+
+                                const groups = allFound.reduce((acc, e) => {
+                                    const title = e.source_type === 'api' ? 'Verified External Data (ATTOM)' :
+                                                  e.source_type === 'ai_interpretation' ? 'AI Image Vision & Inference' :
+                                                  e.source_type === 'parser' ? 'Parsed from Policy Data' :
+                                                  e.source_type === 'public_data' ? 'Public Records' :
+                                                  e.source_type === 'premium' ? 'Premium Data' : 'Other Sources';
+                                    if (!acc[title]) acc[title] = [];
+                                    acc[title].push(e);
+                                    return acc;
+                                }, {} as Record<string, PropertyEnrichment[]>);
+
+                                return Object.entries(groups).map(([groupTitle, items], idx) => (
+                                    <div key={idx} className={styles.dropdownGroup}>
+                                        <div className={styles.dropdownGroupLabel}>
+                                            <CheckCircle2 size={11} style={{ color: '#10b981' }} />
+                                            {groupTitle}
                                         </div>
-                                    ))}
-                                </div>
-                            )}
+                                        {items.map((e, i) => (
+                                            <div key={i} className={styles.dropdownRow}>
+                                                <span className={styles.dropdownKey}>
+                                                    {confDot(e.confidence)}
+                                                    {formatFieldKey(e.field_key)}
+                                                </span>
+                                                <span className={styles.dropdownValue} title={e.field_value || ''}>
+                                                    {e.field_value && e.field_value.length > 30
+                                                        ? e.field_value.slice(0, 30) + '…'
+                                                        : e.field_value || '—'}
+                                                </span>
+                                                <span className={styles.dropdownSource}>{e.source_name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ));
+                            })()}
 
                             {/* Missing items */}
                             {missingItems.length > 0 && (

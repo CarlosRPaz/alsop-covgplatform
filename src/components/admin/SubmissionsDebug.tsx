@@ -3,178 +3,286 @@
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { fetchRecentSubmissions, SubmissionDebugRow } from "@/lib/api";
-import { FileText, AlertCircle, CheckCircle, Clock } from "lucide-react";
-import clsx from "clsx";
+import {
+    FileText, AlertCircle, CheckCircle, Clock, RefreshCw,
+    ChevronRight, X, Database, Loader2,
+} from "lucide-react";
 
-/**
- * Minimal admin debug UI to view recent document ingestion pipeline results.
- */
 export default function SubmissionsDebug() {
     const [submissions, setSubmissions] = useState<SubmissionDebugRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedJson, setSelectedJson] = useState<string | null>(null);
 
-    useEffect(() => {
-        async function loadData() {
-            try {
-                setLoading(true);
-                const data = await fetchRecentSubmissions(20);
-                setSubmissions(data);
-            } catch (err: any) {
-                setError(err.message || "Failed to load submissions");
-            } finally {
-                setLoading(false);
-            }
-        }
-        loadData();
-    }, []);
-
-    const renderStatusIcon = (status: string) => {
-        switch (status) {
-            case "parsed":
-            case "done":
-                return <CheckCircle className="w-4 h-4 text-green-500" />;
-            case "failed":
-                return <AlertCircle className="w-4 h-4 text-red-500" />;
-            case "processing":
-            case "queued":
-                return <Clock className="w-4 h-4 text-yellow-500" />;
-            default:
-                return <FileText className="w-4 h-4 text-[var(--color-primary-light)]" />;
+    const loadData = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            const data = await fetchRecentSubmissions(20);
+            setSubmissions(data);
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "Failed to load submissions");
+        } finally {
+            setLoading(false);
         }
     };
 
+    useEffect(() => { loadData(); }, []);
+
+    const statusConfig: Record<string, { color: string; bg: string; icon: React.ElementType }> = {
+        parsed: { color: 'var(--status-success)', bg: 'var(--bg-success-subtle)', icon: CheckCircle },
+        done: { color: 'var(--status-success)', bg: 'var(--bg-success-subtle)', icon: CheckCircle },
+        failed: { color: 'var(--status-error)', bg: 'var(--bg-error-subtle)', icon: AlertCircle },
+        processing: { color: 'var(--status-warning)', bg: 'rgba(234,179,8,0.08)', icon: Clock },
+        queued: { color: 'var(--text-muted)', bg: 'var(--bg-surface-raised)', icon: Clock },
+    };
+
+    const getStatus = (s: string) => statusConfig[s] || { color: 'var(--text-muted)', bg: 'var(--bg-surface-raised)', icon: FileText };
+
+    // Summary counts
+    const parsed = submissions.filter(s => s.status === 'parsed' || s.status === 'done').length;
+    const failed = submissions.filter(s => s.status === 'failed').length;
+    const processing = submissions.filter(s => s.status === 'processing' || s.status === 'queued').length;
+
     if (loading) {
         return (
-            <div className="flex justify-center py-12">
-                <div className="w-8 h-8 rounded-full border-2 border-[var(--color-primary)] border-t-transparent animate-spin"></div>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '40vh', gap: '0.75rem', color: 'var(--text-muted)' }}>
+                <Loader2 size={22} style={{ animation: 'spin 1s linear infinite' }} />
+                <span style={{ fontSize: '0.85rem' }}>Loading submissions…</span>
+                <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="p-4 bg-[var(--color-danger-500)]/10 text-[var(--color-danger-500)] rounded-md">
-                <p className="font-semibold">Error Loading Submissions</p>
-                <p className="text-sm">{error}</p>
+            <div style={{
+                maxWidth: 600, margin: '3rem auto', padding: '1.5rem',
+                background: 'var(--bg-error-subtle)', border: '1px solid rgba(191,25,50,0.2)',
+                borderRadius: 'var(--radius-lg)', textAlign: 'center',
+            }}>
+                <AlertCircle size={28} style={{ color: 'var(--status-error)', marginBottom: '0.75rem' }} />
+                <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-high)', marginBottom: '0.375rem' }}>Error Loading Submissions</p>
+                <p style={{ fontSize: '0.78rem', color: 'var(--status-error)' }}>{error}</p>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col gap-2">
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-light)] bg-clip-text text-transparent">
-                    Ingestion Flow Debug
-                </h1>
-                <p className="text-[var(--color-neutral-400)] text-sm">
-                    Showing the last 20 API / Worker submissions. Monitor document ingestion, PDF extraction, and missing fields.
-                </p>
+        <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '1.5rem' }}>
+
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                <div>
+                    <h1 style={{ fontSize: '1.375rem', fontWeight: 700, color: 'var(--text-high)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                        <Database size={20} style={{ color: 'var(--accent-primary)' }} />
+                        Submissions Pipeline
+                    </h1>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                        Last {submissions.length} ingestion jobs — document upload, PDF extraction, and parse results
+                    </p>
+                </div>
+                <button
+                    onClick={loadData}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: '0.375rem',
+                        padding: '0.5rem 0.875rem', borderRadius: '8px',
+                        background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
+                        color: 'var(--text-mid)', fontSize: '0.78rem', fontWeight: 500,
+                        cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                >
+                    <RefreshCw size={13} /> Refresh
+                </button>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-[var(--color-neutral-800)] bg-[var(--color-neutral-900)]/50 backdrop-blur-sm">
-                <table className="w-full text-sm text-left text-[var(--color-neutral-300)]">
-                    <thead className="text-xs uppercase bg-[var(--color-neutral-800)]/50 text-[var(--color-neutral-400)]">
-                        <tr>
-                            <th className="px-5 py-4 font-medium">Time / ID</th>
-                            <th className="px-5 py-4 font-medium">Job Status</th>
-                            <th className="px-5 py-4 font-medium">Parse Status</th>
-                            <th className="px-5 py-4 font-medium">Extracted Name / Policy</th>
-                            <th className="px-5 py-4 font-medium">Missing Fields</th>
-                            <th className="px-5 py-4 text-right font-medium">Actions</th>
+            {/* Summary strip */}
+            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                {[
+                    { label: 'Parsed', count: parsed, color: 'var(--status-success)', bg: 'var(--bg-success-subtle)' },
+                    { label: 'Failed', count: failed, color: 'var(--status-error)', bg: 'var(--bg-error-subtle)' },
+                    { label: 'Processing', count: processing, color: 'var(--status-warning)', bg: 'rgba(234,179,8,0.08)' },
+                    { label: 'Total', count: submissions.length, color: 'var(--text-high)', bg: 'var(--bg-surface-raised)' },
+                ].map(s => (
+                    <div
+                        key={s.label}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '0.5rem',
+                            padding: '0.5rem 0.875rem', borderRadius: '8px',
+                            background: s.bg, border: '1px solid var(--border-default)',
+                        }}
+                    >
+                        <span style={{ fontSize: '1.125rem', fontWeight: 800, color: s.color }}>{s.count}</span>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{s.label}</span>
+                    </div>
+                ))}
+            </div>
+
+            {/* Table */}
+            <div style={{
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-lg)',
+                overflow: 'hidden',
+            }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                    <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border-default)', background: 'var(--bg-surface-raised)' }}>
+                            {['Time / ID', 'Job Status', 'Parse', 'Extracted Name / Policy', 'Missing Fields', ''].map((h, i) => (
+                                <th key={i} style={{
+                                    padding: '0.6rem 0.875rem',
+                                    textAlign: i === 5 ? 'right' : 'left',
+                                    fontSize: '0.65rem',
+                                    fontWeight: 700,
+                                    color: 'var(--text-muted)',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.05em',
+                                }}>
+                                    {h}
+                                </th>
+                            ))}
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-[var(--color-neutral-800)]">
-                        {submissions.map((sub, idx) => (
-                            <tr
-                                key={sub.id}
-                                className="hover:bg-[var(--color-neutral-800)]/30 transition-colors"
-                            >
-                                <td className="px-5 py-4 align-top">
-                                    <div className="font-medium text-[var(--color-neutral-100)]">
-                                        {format(new Date(sub.created_at), "MMM d, h:mm a")}
-                                    </div>
-                                    <div className="text-[11px] text-[var(--color-neutral-500)] font-mono mt-1 break-all max-w-[120px]">
-                                        {sub.id.split('-')[0]}...
-                                    </div>
-                                </td>
+                    <tbody>
+                        {submissions.map((sub) => {
+                            const sc = getStatus(sub.status);
+                            const StatusIcon = sc.icon;
 
-                                <td className="px-5 py-4 align-top">
-                                    <div className="flex items-center gap-2">
-                                        {renderStatusIcon(sub.status)}
-                                        <span className="capitalize">{sub.status}</span>
-                                    </div>
-                                    {sub.error_message && (
-                                        <div className="mt-1 text-xs text-red-400 max-w-[200px] line-clamp-2">
-                                            {sub.error_message}
+                            return (
+                                <tr
+                                    key={sub.id}
+                                    style={{ borderBottom: '1px solid var(--border-subtle)', transition: 'background 0.12s' }}
+                                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(34,67,182,0.03)')}
+                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                >
+                                    {/* Time / ID */}
+                                    <td style={{ padding: '0.625rem 0.875rem', verticalAlign: 'top' }}>
+                                        <div style={{ fontWeight: 600, color: 'var(--text-high)', fontSize: '0.78rem' }}>
+                                            {format(new Date(sub.created_at), "MMM d, h:mm a")}
                                         </div>
-                                    )}
-                                </td>
+                                        <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: '0.15rem' }}>
+                                            {sub.id.substring(0, 8)}…
+                                        </div>
+                                    </td>
 
-                                <td className="px-5 py-4 align-top">
-                                    {sub.dec_page_id ? (
-                                        <span className={clsx(
-                                            "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium",
-                                            sub.parse_status === 'parsed' ? "bg-green-500/10 text-green-400" :
-                                                sub.parse_status === 'needs_review' ? "bg-yellow-500/10 text-yellow-400" :
-                                                    "bg-[var(--color-neutral-800)] text-[var(--color-neutral-400)]"
-                                        )}>
-                                            {sub.parse_status || 'Unknown'}
-                                        </span>
-                                    ) : (
-                                        <span className="text-xs text-[var(--color-neutral-500)] italic">—</span>
-                                    )}
-                                </td>
-
-                                <td className="px-5 py-4 align-top">
-                                    {sub.insured_name ? (
-                                        <div>
-                                            <div className="font-medium text-[var(--color-neutral-200)] truncate max-w-[180px]">
-                                                {sub.insured_name}
-                                            </div>
-                                            <div className="text-xs text-[var(--color-primary-light)] mt-1">
-                                                #{sub.policy_number || 'N/A'}
+                                    {/* Job Status */}
+                                    <td style={{ padding: '0.625rem 0.875rem', verticalAlign: 'top' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                                            <div style={{
+                                                display: 'flex', alignItems: 'center', gap: '0.3rem',
+                                                padding: '0.2rem 0.5rem', borderRadius: '999px',
+                                                background: sc.bg, fontSize: '0.72rem', fontWeight: 600,
+                                                color: sc.color, textTransform: 'capitalize',
+                                            }}>
+                                                <StatusIcon size={12} />
+                                                {sub.status}
                                             </div>
                                         </div>
-                                    ) : (
-                                        <span className="text-xs text-[var(--color-neutral-500)] italic">—</span>
-                                    )}
-                                </td>
+                                        {sub.error_message && (
+                                            <div style={{
+                                                marginTop: '0.3rem', fontSize: '0.68rem',
+                                                color: 'var(--status-error)',
+                                                maxWidth: '280px',
+                                                overflow: 'hidden',
+                                                display: '-webkit-box',
+                                                WebkitLineClamp: 2,
+                                                WebkitBoxOrient: 'vertical',
+                                            }}>
+                                                {sub.error_message}
+                                            </div>
+                                        )}
+                                    </td>
 
-                                <td className="px-5 py-4 align-top">
-                                    {sub.missing_fields && sub.missing_fields.length > 0 ? (
-                                        <div className="flex flex-wrap gap-1 max-w-[200px]">
-                                            {sub.missing_fields.map(f => (
-                                                <span key={f} className="inline-block px-1.5 py-0.5 bg-red-500/10 text-red-300 text-[10px] rounded whitespace-nowrap">
-                                                    {f}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    ) : sub.parse_status === 'parsed' ? (
-                                        <span className="text-xs text-green-500/70">None</span>
-                                    ) : (
-                                        <span className="text-xs text-[var(--color-neutral-500)] italic">—</span>
-                                    )}
-                                </td>
+                                    {/* Parse Status */}
+                                    <td style={{ padding: '0.625rem 0.875rem', verticalAlign: 'top' }}>
+                                        {sub.dec_page_id ? (
+                                            (() => {
+                                                const ps = sub.parse_status || 'unknown';
+                                                const isParsed = ps === 'parsed';
+                                                const isReview = ps === 'needs_review';
+                                                return (
+                                                    <span style={{
+                                                        padding: '0.15rem 0.4rem', borderRadius: '4px',
+                                                        fontSize: '0.68rem', fontWeight: 600,
+                                                        background: isParsed ? 'var(--bg-success-subtle)' : isReview ? 'rgba(234,179,8,0.1)' : 'var(--bg-surface-raised)',
+                                                        color: isParsed ? 'var(--status-success)' : isReview ? 'var(--status-warning)' : 'var(--text-muted)',
+                                                    }}>
+                                                        {ps}
+                                                    </span>
+                                                );
+                                            })()
+                                        ) : (
+                                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>—</span>
+                                        )}
+                                    </td>
 
-                                <td className="px-5 py-4 align-top text-right">
-                                    {sub.extracted_json && (
-                                        <button
-                                            onClick={() => setSelectedJson(JSON.stringify(sub.extracted_json, null, 2))}
-                                            className="text-xs font-medium text-[var(--color-primary)] hover:text-[var(--color-primary-light)] transition-colors"
-                                        >
-                                            View JSON
-                                        </button>
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
+                                    {/* Name / Policy */}
+                                    <td style={{ padding: '0.625rem 0.875rem', verticalAlign: 'top' }}>
+                                        {sub.insured_name ? (
+                                            <div>
+                                                <div style={{ fontWeight: 600, color: 'var(--text-high)', fontSize: '0.78rem', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {sub.insured_name}
+                                                </div>
+                                                <div style={{ fontSize: '0.68rem', color: 'var(--accent-primary)', fontWeight: 500, marginTop: '0.1rem' }}>
+                                                    #{sub.policy_number || 'N/A'}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>—</span>
+                                        )}
+                                    </td>
+
+                                    {/* Missing Fields */}
+                                    <td style={{ padding: '0.625rem 0.875rem', verticalAlign: 'top' }}>
+                                        {sub.missing_fields && sub.missing_fields.length > 0 ? (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', maxWidth: '220px' }}>
+                                                {sub.missing_fields.map(f => (
+                                                    <span key={f} style={{
+                                                        padding: '0.1rem 0.35rem', borderRadius: '3px',
+                                                        background: 'var(--bg-error-subtle)',
+                                                        color: 'var(--status-error)',
+                                                        fontSize: '0.62rem', fontWeight: 600,
+                                                        whiteSpace: 'nowrap',
+                                                    }}>
+                                                        {f}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        ) : sub.parse_status === 'parsed' ? (
+                                            <span style={{ fontSize: '0.68rem', color: 'var(--status-success)', fontWeight: 500, opacity: 0.7 }}>None</span>
+                                        ) : (
+                                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>—</span>
+                                        )}
+                                    </td>
+
+                                    {/* Actions */}
+                                    <td style={{ padding: '0.625rem 0.875rem', verticalAlign: 'top', textAlign: 'right' }}>
+                                        {sub.extracted_json && (
+                                            <button
+                                                onClick={() => setSelectedJson(JSON.stringify(sub.extracted_json, null, 2))}
+                                                style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                                                    padding: '0.2rem 0.5rem', borderRadius: '5px',
+                                                    background: 'var(--accent-primary-muted)',
+                                                    color: 'var(--accent-primary)',
+                                                    fontSize: '0.68rem', fontWeight: 600,
+                                                    border: 'none', cursor: 'pointer',
+                                                    transition: 'all 0.12s',
+                                                }}
+                                            >
+                                                JSON <ChevronRight size={10} />
+                                            </button>
+                                        )}
+                                    </td>
+                                </tr>
+                            );
+                        })}
 
                         {submissions.length === 0 && (
                             <tr>
-                                <td colSpan={6} className="px-5 py-12 text-center text-[var(--color-neutral-500)] text-sm">
-                                    No submissions found.
+                                <td colSpan={6} style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                                    <FileText size={28} style={{ color: 'var(--text-muted)', marginBottom: '0.75rem', display: 'inline-block' }} />
+                                    <div>No submissions found.</div>
                                 </td>
                             </tr>
                         )}
@@ -182,28 +290,54 @@ export default function SubmissionsDebug() {
                 </table>
             </div>
 
+            {/* JSON Viewer Modal */}
             {selectedJson && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="w-full max-w-2xl max-h-[80vh] flex flex-col bg-[var(--color-background-elevated)] border border-[var(--color-neutral-800)] shadow-2xl rounded-xl overflow-hidden">
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-neutral-800)] bg-[var(--color-neutral-900)]">
-                            <h3 className="font-medium text-[var(--color-neutral-100)] flex items-center gap-2">
-                                <FileText className="w-4 h-4 text-[var(--color-primary)]" />
-                                Raw Parsed JSON
-                            </h3>
+                <>
+                    <div
+                        onClick={() => setSelectedJson(null)}
+                        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(3px)', zIndex: 9990 }}
+                    />
+                    <div style={{
+                        position: 'fixed', top: '50%', left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        width: 'min(680px, 92vw)',
+                        maxHeight: '75vh',
+                        display: 'flex', flexDirection: 'column',
+                        background: 'var(--bg-surface-raised)',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: 'var(--radius-lg)',
+                        boxShadow: 'var(--shadow-overlay)',
+                        zIndex: 9991,
+                        overflow: 'hidden',
+                    }}>
+                        <div style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            padding: '0.875rem 1.25rem',
+                            borderBottom: '1px solid var(--border-default)',
+                            background: 'var(--bg-surface)',
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <FileText size={15} style={{ color: 'var(--accent-primary)' }} />
+                                <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-high)' }}>Parsed JSON Output</span>
+                            </div>
                             <button
                                 onClick={() => setSelectedJson(null)}
-                                className="text-[var(--color-neutral-400)] hover:text-[var(--color-neutral-200)] transition-colors p-1"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4 }}
                             >
-                                ✕
+                                <X size={16} />
                             </button>
                         </div>
-                        <div className="flex-1 overflow-auto p-4 bg-[var(--color-background)]">
-                            <pre className="text-xs font-mono text-green-400 whitespace-pre-wrap break-all">
+                        <div style={{ flex: 1, overflow: 'auto', padding: '1rem 1.25rem' }}>
+                            <pre style={{
+                                fontSize: '0.72rem', fontFamily: '"SF Mono", Menlo, Monaco, monospace',
+                                color: 'var(--text-high)', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+                                lineHeight: 1.6, margin: 0,
+                            }}>
                                 {selectedJson}
                             </pre>
                         </div>
                     </div>
-                </div>
+                </>
             )}
         </div>
     );

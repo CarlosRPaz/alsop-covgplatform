@@ -593,8 +593,9 @@
     padding: 0.5rem 0.75rem;
     margin: 0.25rem 0.5rem;
     border-radius: var(--radius-md);
-    cursor: grab;
+    cursor: pointer;
     transition: all 150ms ease;
+    user-select: none;
 
     &:hover {
         background: var(--bg-surface-raised);
@@ -1063,28 +1064,38 @@
 }
 
 .severityChip_all {
-    background: rgba(99, 102, 241, 0.15);
-    color: #818cf8;
+    background: var(--accent-primary-muted);
+    color: var(--accent-primary);
 }
 
 .severityChip_critical {
-    background: rgba(239, 68, 68, 0.15);
-    color: #f87171;
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--status-error);
 }
 
 .severityChip_high {
-    background: rgba(249, 115, 22, 0.15);
-    color: #fb923c;
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--status-error);
+}
+
+.severityChip_medium {
+    background: rgba(234, 179, 8, 0.12);
+    color: var(--status-warning);
+}
+
+.severityChip_low {
+    background: rgba(59, 130, 246, 0.12);
+    color: var(--status-info);
 }
 
 .severityChip_warning {
-    background: rgba(234, 179, 8, 0.15);
-    color: #facc15;
+    background: rgba(234, 179, 8, 0.12);
+    color: var(--status-warning);
 }
 
 .severityChip_info {
-    background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
+    background: rgba(59, 130, 246, 0.12);
+    color: var(--status-info);
 }
 
 // ── Flag Search Section ──
@@ -1391,9 +1402,17 @@
         max-width: 300px;
     }
 
+    // Dropdowns: left-align and constrain to viewport
     .dropdownMenu {
         min-width: 220px;
-        right: -1rem;
+        right: auto;
+        left: 0;
+        max-width: calc(100vw - 2rem);
+    }
+
+    .columnDropdown {
+        right: 0;
+        left: auto;
     }
 
     .bulkActionBar {

@@ -85,12 +85,16 @@ def process_job(job: dict) -> None:
       - On failure: job -> queued (with backoff) or failed, submission updated
       - Finally: safety-net force_release_job if still processing
     """
+    import time as _time
+
     job_id = job["id"]
     submission_id = job["submission_id"]
     account_id = job["account_id"]
     attempts = job.get("attempts", 1)
     max_attempts = job.get("max_attempts", MAX_ATTEMPTS)
     current_step = "init"
+    job_completed = False  # Sentinel: True only after complete_job succeeds
+    job_start = _time.monotonic()
 
     logger.info(">>> job_id=%s submission_id=%s attempts=%d/%d step=start",
                 job_id, submission_id, attempts, max_attempts)
@@ -98,10 +102,12 @@ def process_job(job: dict) -> None:
     try:
         # 1. Fetch submission
         current_step = "fetch_submission"
+        step_start = _time.monotonic()
         logger.info("job_id=%s step=%s", job_id, current_step)
         submission = get_submission(submission_id)
         if not submission:
             raise RuntimeError(f"Submission {submission_id} not found")
+        logger.info("job_id=%s step=%s elapsed=%.2fs", job_id, current_step, _time.monotonic() - step_start)
 
         # 2. Set submission -> processing
         current_step = "set_submission_processing"
@@ -116,8 +122,10 @@ def process_job(job: dict) -> None:
 
         # 4. Download PDF
         current_step = "download_pdf"
+        step_start = _time.monotonic()
         logger.info("job_id=%s step=%s path=%s", job_id, current_step, storage_path)
         pdf_bytes = download_pdf(storage_path)
+        logger.info("job_id=%s step=%s elapsed=%.2fs bytes=%d", job_id, current_step, _time.monotonic() - step_start, len(pdf_bytes))
 
         # 5. Extract text
         current_step = "extract_text"
@@ -150,6 +158,7 @@ def process_job(job: dict) -> None:
 
         # 7. Upsert dec_pages
         current_step = "upsert_dec_page"
+        step_start = _time.monotonic()
         logger.info("job_id=%s step=%s", job_id, current_step)
         dec_page_id = upsert_dec_page(
             submission_id=submission_id,
@@ -160,7 +169,7 @@ def process_job(job: dict) -> None:
             parse_status=parsed_result["parse_status"],
             extracted_data=fair_plan_data,
         )
-        logger.info("job_id=%s step=%s dec_page_id=%s", job_id, current_step, dec_page_id)
+        logger.info("job_id=%s step=%s dec_page_id=%s elapsed=%.2fs", job_id, current_step, dec_page_id, _time.monotonic() - step_start)
 
         # 8. Process Policy Lifecycle (Client, Policy, Policy Term)
         if parsed_result["is_fair_plan"]:
@@ -227,12 +236,14 @@ def process_job(job: dict) -> None:
         current_step = "complete_job"
         logger.info("job_id=%s step=%s", job_id, current_step)
         complete_job(job_id)
+        job_completed = True  # MUST be set AFTER complete_job succeeds
 
         # 11. Mark submission parsed
         current_step = "update_submission_parsed"
         update_submission_status(submission_id, "parsed")
 
-        logger.info("<<< job_id=%s submission_id=%s step=finished status=done", job_id, submission_id)
+        elapsed = _time.monotonic() - job_start
+        logger.info("<<< job_id=%s submission_id=%s step=finished status=done elapsed=%.2fs", job_id, submission_id, elapsed)
 
     except Exception as exc:
         error_msg = str(exc)
@@ -241,6 +252,7 @@ def process_job(job: dict) -> None:
             "job_id": job_id,
             "submission_id": submission_id,
             "step": current_step,
+            "elapsed": round(_time.monotonic() - job_start, 2),
         }
         logger.error("job_id=%s step=%s error=%s", job_id, current_step, error_msg)
 
@@ -255,6 +267,19 @@ def process_job(job: dict) -> None:
                     error_message=error_msg,
                     error_detail=error_detail,
                 )
+
+                # Log failed processing as activity event for admin visibility
+                try:
+                    insert_activity_event(
+                        event_type="dec.processing_failed",
+                        title="Declaration Processing Failed",
+                        detail=f"Failed after {attempts} attempt(s): {error_msg[:200]}",
+                        dec_page_id=None,
+                        actor_user_id=account_id,
+                        meta={"step": current_step, "submission_id": submission_id},
+                    )
+                except Exception:
+                    pass  # Non-fatal
             else:
                 # Retryable — set submission back to 'queued' so UI shows retry pending
                 update_submission_status(submission_id, "queued")
@@ -267,7 +292,9 @@ def process_job(job: dict) -> None:
 
     finally:
         # Safety-net: guarantee the job is NOT left in 'processing'
-        force_release_job(job_id, submission_id, attempts, max_attempts)
+        # Skip if we already confirmed the job completed successfully
+        if not job_completed:
+            force_release_job(job_id, submission_id, attempts, max_attempts)
 
 
 # ---------------------------------------------------------------------------

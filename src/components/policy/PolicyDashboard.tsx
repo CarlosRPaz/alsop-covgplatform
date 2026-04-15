@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Declaration, PropertyEnrichment, getLatestReportForPolicy, PolicyReportRow, PolicyDetail } from '@/lib/api';
+import { normalizeInputs, calculateEstimate } from '@/lib/rce/InterimEstimator';
+import { InterimRceWidget } from './InterimRceWidget';
 import styles from './PolicyDashboard.module.css';
 import { Card } from '../ui/Card/Card';
 
@@ -288,91 +290,14 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
                     </div>
                 </Card>
 
-                {/* Property Valuation */}
-                <Card className={styles.card}>
-                    <h3>Property Valuation</h3>
+                {/* Property Valuation (Interim RCE) */}
+                <div style={{ paddingBottom: '1rem' }}>
                     {(() => {
-                        const sqftEnrich = enrichments.find(e => e.field_key === 'best_sqft');
-                        const rcEnrich = enrichments.find(e => e.field_key === 'rc_estimate_fallback');
-                        const sqftValue = sqftEnrich?.field_value ? parseInt(sqftEnrich.field_value, 10) : null;
-                        const rcValue = rcEnrich?.field_value ? parseInt(rcEnrich.field_value, 10) : null;
-
-                        // Parse source details from notes
-                        let sqftMeta: any = {};
-                        try { sqftMeta = JSON.parse(sqftEnrich?.notes || '{}'); } catch { /* */ }
-                        let rcMeta: any = {};
-                        try { rcMeta = JSON.parse(rcEnrich?.notes || '{}'); } catch { /* */ }
-
-                        if (!sqftValue && !rcValue) {
-                            return (
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem', lineHeight: 1.5, padding: '0.25rem 0' }}>
-                                    No valuation data yet. Run enrichment or enter square footage manually to generate an estimate.
-                                </div>
-                            );
-                        }
-
-                        return (
-                            <>
-                                <div className={styles.field}>
-                                    <label>Square Footage:</label>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        <strong style={{ color: 'var(--text-high)', fontWeight: 700 }}>
-                                            {sqftValue ? sqftValue.toLocaleString() + ' sq ft' : '—'}
-                                        </strong>
-                                        {sqftEnrich && (
-                                            <span style={{
-                                                fontSize: '0.6rem', fontWeight: 600, padding: '0.1rem 0.4rem',
-                                                borderRadius: '4px', background: 'rgba(99,102,241,0.12)',
-                                                color: 'var(--accent-secondary)', border: '1px solid var(--accent-secondary-muted)',
-                                                textTransform: 'uppercase', letterSpacing: '0.03em',
-                                            }}>
-                                                {sqftMeta.resolvedFrom || sqftEnrich.source_name} · {sqftEnrich.confidence}
-                                            </span>
-                                        )}
-                                    </span>
-                                </div>
-                                {sqftMeta.needsReview && (
-                                    <div style={{ fontSize: '0.72rem', color: 'var(--status-warning)', marginBottom: '0.35rem' }}>
-                                        ⚠ Needs verification — limited source data
-                                    </div>
-                                )}
-                                <div className={styles.field}>
-                                    <label>Est. Replacement Cost:</label>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        <strong style={{ color: 'var(--text-high)', fontWeight: 700 }}>
-                                            {rcValue ? '$' + rcValue.toLocaleString() : '—'}
-                                        </strong>
-                                        {rcEnrich && (
-                                            <span style={{
-                                                fontSize: '0.6rem', fontWeight: 600, padding: '0.1rem 0.4rem',
-                                                borderRadius: '4px', background: 'rgba(234,179,8,0.12)',
-                                                color: 'var(--status-warning)', border: '1px solid var(--bg-warning-subtle)',
-                                                textTransform: 'uppercase', letterSpacing: '0.03em',
-                                            }}>
-                                                Internal Estimate
-                                            </span>
-                                        )}
-                                    </span>
-                                </div>
-                                {rcMeta.costPerSqFt && (
-                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                                        Based on ${rcMeta.costPerSqFt}/sq ft · {rcMeta.methodology === 'vendor' ? rcEnrich?.source_name : 'Internal model'}
-                                    </div>
-                                )}
-                                {rcMeta.disclaimer && (
-                                    <div style={{
-                                        fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.5rem',
-                                        padding: '0.4rem 0.6rem', background: 'rgba(234,179,8,0.05)',
-                                        borderRadius: '6px', border: '1px solid rgba(234,179,8,0.1)',
-                                        lineHeight: 1.45,
-                                    }}>
-                                        {rcMeta.disclaimer}
-                                    </div>
-                                )}
-                            </>
-                        );
+                        const rceInput = normalizeInputs({ id: declaration.policy_id || declaration.id, property_address_raw: declaration.property_location }, enrichments);
+                        const rceEstimate = calculateEstimate(rceInput);
+                        return <InterimRceWidget estimate={rceEstimate} />;
                     })()}
-                </Card>
+                </div>
                 {/* Coverage Limits */}
                 <Card className={styles.card}>
                     <h3>Coverage Limits</h3>
@@ -628,41 +553,67 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
                         </div>
                     ) : (
                         <>
-                            {/* Fire Risk */}
-                            {fireRiskLabel && (
-                                <div className={styles.field}>
-                                    <label>Fire Risk:</label>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                                        <span style={{
-                                            display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%',
-                                            background: fireRiskColor(fireRiskClass),
-                                            boxShadow: `0 0 6px ${fireRiskColor(fireRiskClass)}40`,
-                                        }} />
-                                        <span style={{ fontWeight: 600, color: fireRiskColor(fireRiskClass) }}>{fireRiskLabel}</span>
-                                        {fireRiskClass && <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>(Class {fireRiskClass})</span>}
-                                    </span>
-                                </div>
-                            )}
+                            {/* Verified External Data (e.g. ATTOM) */}
+                            {(() => {
+                                const verifiedData = enrichments.filter(e => ['api', 'public_data', 'premium'].includes(e.source_type) && !e.field_key.includes('image'));
+                                if (verifiedData.length === 0) return null;
+                                return (
+                                    <div style={{ marginTop: '0.4rem', marginBottom: '0.8rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '3px', background: 'rgba(34,197,94,0.15)', flexShrink: 0 }}>
+                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                            </span>
+                                            <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                                Verified External Data
+                                            </span>
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.6rem' }}>
+                                            {verifiedData.map(e => (
+                                                <div key={e.field_key} style={{ display: 'flex', flexDirection: 'column' }}>
+                                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                                        {e.field_key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                                                    </span>
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-high)' }}>
+                                                        {e.field_key === 'fire_risk_class' && fireRiskLabel ? (
+                                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                                                                <span style={{
+                                                                    display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%',
+                                                                    background: fireRiskColor(e.field_value),
+                                                                }} />
+                                                                <span style={{ color: fireRiskColor(e.field_value) }}>{fireRiskLabel}</span>
+                                                            </span>
+                                                        ) : (
+                                                            e.field_value || '—'
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
 
-
-
-                            {/* Satellite Image */}
-                            {propertyImage && (
-                                <div className={styles.field}>
-                                    <label>Satellite:</label>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--status-success)', fontSize: '0.78rem' }}>
-                                        ✓ Overhead image available
-                                    </span>
-                                </div>
-                            )}
-
-                            {/* Street View Image */}
-                            {streetViewImage && (
-                                <div className={styles.field}>
-                                    <label>Street View:</label>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--status-success)', fontSize: '0.78rem' }}>
-                                        ✓ Front-elevation available
-                                    </span>
+                            {/* Reference Images */}
+                            {(propertyImage || streetViewImage) && (
+                                <div style={{ marginTop: '0.6rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '3px', background: 'rgba(99,102,241,0.15)', flexShrink: 0 }}>
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                                        </span>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Reference Images</span>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                        {propertyImage && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--status-success)', fontSize: '0.75rem' }}>
+                                                ✓ Overhead satellite image acquired
+                                            </div>
+                                        )}
+                                        {streetViewImage && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--status-success)', fontSize: '0.75rem' }}>
+                                                ✓ Front-elevation street view acquired
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
 
@@ -673,13 +624,11 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
                                         <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '3px', background: 'rgba(249,115,22,0.15)', flexShrink: 0 }}>
                                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fb923c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
                                         </span>
-                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Satellite AI Vision</span>
-                                        {visionSummaryMeta && (
-                                            <span style={{
-                                                fontSize: '0.58rem', padding: '0.1rem 0.35rem', borderRadius: '3px',
-                                                color: 'var(--enrichment-high)', background: 'var(--bg-warning-subtle)', border: '1px solid var(--status-warning)',
-                                            }}>AI-Inferred</span>
-                                        )}
+                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>AI Image Vision (Satellite)</span>
+                                        <span style={{
+                                            fontSize: '0.58rem', padding: '0.1rem 0.35rem', borderRadius: '3px',
+                                            color: 'var(--enrichment-high)', background: 'var(--bg-warning-subtle)', border: '1px solid var(--status-warning)',
+                                        }}>AI-Inferred</span>
                                     </div>
 
                                     {/* Detected features */}
@@ -730,7 +679,7 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
                                         <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '3px', background: 'rgba(56,189,248,0.15)', flexShrink: 0 }}>
                                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h18v18H3z"/><circle cx="12" cy="12" r="3"/></svg>
                                         </span>
-                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Front Elevation AI</span>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>AI Image Vision (Front Elevation)</span>
                                         <span style={{
                                             fontSize: '0.58rem', padding: '0.1rem 0.35rem', borderRadius: '3px',
                                             color: 'var(--status-info)', background: 'var(--bg-info-subtle)', border: '1px solid var(--status-info)',
@@ -773,17 +722,43 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
                                 </div>
                             )}
 
-                            {/* Sources */}
-                            <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                                <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.3rem' }}>Sources</div>
+                            {/* Parse / Public Data (If any left over that wasn't Verified API) */}
+                            {(() => {
+                                const otherData = enrichments.filter(e => e.source_type === 'parser' && !e.field_key.includes('image'));
+                                if (otherData.length === 0) return null;
+                                return (
+                                    <div style={{ marginTop: '0.6rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '3px', background: 'rgba(148,163,184,0.15)', flexShrink: 0 }}>
+                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                            </span>
+                                            <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Parsed from Policy Record</span>
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.6rem' }}>
+                                            {otherData.map(e => (
+                                                <div key={e.field_key} style={{ display: 'flex', flexDirection: 'column' }}>
+                                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                                        {e.field_key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                                                    </span>
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-high)' }}>{e.field_value || '—'}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Providers and Meta */}
+                            <div style={{ marginTop: '1rem', paddingTop: '0.6rem', borderTop: '1px dashed rgba(255,255,255,0.1)' }}>
+                                <div style={{ fontSize: '0.6rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.3rem' }}>Providers</div>
                                 <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                                     {uniqueSources.map(src => (
                                         <span key={src} style={{
                                             display: 'inline-block', padding: '0.15rem 0.45rem',
-                                            borderRadius: '4px', fontSize: '0.62rem', fontWeight: 600,
-                                            color: src === 'Satellite Vision AI' ? 'var(--enrichment-high)' : 'var(--accent-secondary)',
-                                            background: src === 'Satellite Vision AI' ? 'rgba(249,115,22,0.1)' : 'rgba(99,102,241,0.1)',
-                                            border: `1px solid ${src === 'Satellite Vision AI' ? 'rgba(249,115,22,0.2)' : 'rgba(99,102,241,0.2)'}`,
+                                            borderRadius: '4px', fontSize: '0.58rem', fontWeight: 600,
+                                            color: src.includes('Vision') ? 'var(--enrichment-high)' : 'var(--text-high)',
+                                            background: src.includes('Vision') ? 'rgba(249,115,22,0.1)' : 'rgba(255,255,255,0.05)',
+                                            border: `1px solid ${src.includes('Vision') ? 'rgba(249,115,22,0.2)' : 'rgba(255,255,255,0.1)'}`,
                                         }}>{src}</span>
                                     ))}
                                 </div>

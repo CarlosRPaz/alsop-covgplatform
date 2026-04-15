@@ -1,12 +1,19 @@
 /**
- * Email Templates — Reusable email templates with merge-variable support.
+ * Email Templates — Ground-truth registry synced to Postmark.
  *
- * Each template defines:
- * - subject with {{variable}} placeholders
- * - HTML body with {{variable}} placeholders
- * - default from/replyTo
+ * IMPORTANT: This registry must stay in sync with templates in Postmark.
+ * Source of truth: https://account.postmarkapp.com → Your Server → Templates
  *
- * To add a new template: add an entry to the TEMPLATES record below.
+ * The `postmarkAlias` field is the Postmark template alias used for API sends.
+ * Variables listed here exactly match what each Postmark template expects.
+ *
+ * To add a new template:
+ *   1. Create it in Postmark first
+ *   2. Copy its alias and variable names here
+ *   3. Set `isClientFacing` accordingly
+ *
+ * Last synced: 2026-04-10
+ * Total Postmark templates: 7
  */
 
 import { getDefaultFrom, getDefaultReplyTo } from './emailService';
@@ -16,145 +23,150 @@ import { getDefaultFrom, getDefaultReplyTo } from './emailService';
 // ---------------------------------------------------------------------------
 
 export interface EmailTemplate {
+    /** Our internal ID (matches Postmark alias where possible) */
     id: string;
+    /** Postmark template alias — used for withTemplate sends. null = inline HTML only */
+    postmarkAlias: string | null;
+    /** Postmark numeric template ID for direct reference */
+    postmarkTemplateId: number | null;
     name: string;
     description: string;
+    /** Template subject (from Postmark, with {{variable}} placeholders) */
     subject: string;
-    htmlBody: string;
+    /** Whether this template is sent to clients (vs. internal/admin) */
+    isClientFacing: boolean;
+    /** Variables the Postmark template expects — must match exactly */
+    variables: string[];
     defaultFrom?: string;
     defaultReplyTo?: string;
-    variables: string[];  // List of supported {{variables}} for documentation
 }
 
 // ---------------------------------------------------------------------------
-// Shared Styles
-// ---------------------------------------------------------------------------
-
-const WRAPPER_OPEN = `
-<div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;color:#1e293b;line-height:1.6;">
-`;
-
-const WRAPPER_CLOSE = `
-  <hr style="border:none;border-top:1px solid #e2e8f0;margin:32px 0 16px;" />
-  <div style="font-size:12px;color:#94a3b8;line-height:1.5;">
-    <p>Alsop Insurance Agency<br/>Coverage & Policy Platform</p>
-    <p style="font-size:11px;color:#cbd5e1;">This is an automated message from the CFP Platform. Please do not reply directly to this email — replies go to our support team.</p>
-  </div>
-</div>
-`;
-
-// ---------------------------------------------------------------------------
-// Template Definitions
+// Template Registry — Exact match to Postmark account (7 templates)
 // ---------------------------------------------------------------------------
 
 const TEMPLATES: Record<string, EmailTemplate> = {
-    report_delivery: {
-        id: 'report_delivery',
-        name: 'Report Delivery',
-        description: 'Send a generated policy review report to a client or agent.',
-        subject: 'Policy Review Report — {{policyNumber}}',
-        htmlBody: `${WRAPPER_OPEN}
-  <h2 style="color:#0f172a;font-size:20px;margin-bottom:4px;">Policy Review Report</h2>
-  <p style="color:#64748b;font-size:14px;margin-top:0;">Policy #{{policyNumber}}</p>
 
-  <p>Dear {{clientName}},</p>
-
-  <p>Please find the attached policy review report for your property at <strong>{{propertyAddress}}</strong>.</p>
-
-  <p>This report summarizes your current coverage, highlights areas for review, and provides recommendations for your upcoming renewal.</p>
-
-  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:20px 0;">
-    <div style="font-weight:600;color:#334155;margin-bottom:8px;">What's Included</div>
-    <ul style="margin:0;padding-left:20px;color:#475569;font-size:14px;">
-      <li>Coverage snapshot and adequacy review</li>
-      <li>Property observations from public data</li>
-      <li>Identified gaps or areas of concern</li>
-      <li>Recommendations and discussion items</li>
-    </ul>
-  </div>
-
-  <p>If you have questions or would like to schedule a review meeting, please don't hesitate to reach out.</p>
-
-  <p>Best regards,<br/><strong>{{agentName}}</strong><br/>Alsop Insurance Agency</p>
-${WRAPPER_CLOSE}`,
-        variables: ['clientName', 'agentName', 'policyNumber', 'propertyAddress'],
+    /**
+     * Postmark: "Payment Due: Insured Billed"
+     * Alias: code-your-own-3 | ID: 44383039
+     * Subject: "Important: California Fair Plan Renewal Payment Notice"
+     * Use: Notify clients who pay their own CFP bill that payment is due
+     */
+    payment_due_insured: {
+        id: 'payment_due_insured',
+        postmarkAlias: 'code-your-own-3',
+        postmarkTemplateId: 44383039,
+        name: 'Payment Due — Insured Billed',
+        description: 'Notify a client who pays their own CFP bill that renewal payment is due.',
+        subject: 'Important: California Fair Plan Renewal Payment Notice',
+        isClientFacing: true,
+        variables: ['first_name'],
     },
 
-    report_ready: {
-        id: 'report_ready',
-        name: 'Report Ready (Internal)',
-        description: 'Notify an agent that a policy report has been generated and is ready for review.',
-        subject: 'Report Ready for Review — {{policyNumber}}',
-        htmlBody: `${WRAPPER_OPEN}
-  <h2 style="color:#0f172a;font-size:20px;margin-bottom:4px;">Report Ready</h2>
-  <p style="color:#64748b;font-size:14px;margin-top:0;">Policy #{{policyNumber}}</p>
-
-  <p>Hi {{agentName}},</p>
-
-  <p>The AI-generated policy review report for <strong>{{clientName}}</strong> ({{policyNumber}}) is ready for your review.</p>
-
-  <div style="margin:20px 0;">
-    <a href="{{reportUrl}}" style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-weight:600;font-size:14px;">
-      View Report
-    </a>
-  </div>
-
-  <p style="color:#64748b;font-size:13px;">Please review the report before sharing it with the client. AI-generated content should be verified for accuracy.</p>
-${WRAPPER_CLOSE}`,
-        variables: ['agentName', 'clientName', 'policyNumber', 'reportUrl'],
+    /**
+     * Postmark: "Payment Due: Mortgage"
+     * Alias: code-your-own-2 | ID: 44382840
+     * Subject: "Important: California Fair Plan Renewal Payment Notice"
+     * Use: Notify clients whose lender/mortgage pays CFP bill
+     */
+    payment_due_mortgage: {
+        id: 'payment_due_mortgage',
+        postmarkAlias: 'code-your-own-2',
+        postmarkTemplateId: 44382840,
+        name: 'Payment Due — Mortgage Billed',
+        description: 'Notify a client whose mortgage/lender handles CFP payment that renewal is due.',
+        subject: 'Important: California Fair Plan Renewal Payment Notice',
+        isClientFacing: true,
+        variables: ['first_name'],
     },
 
-    renewal_followup: {
-        id: 'renewal_followup',
-        name: 'Renewal Follow-Up',
-        description: 'Send a renewal reminder or follow-up to a client.',
-        subject: 'Upcoming Renewal — {{policyNumber}}',
-        htmlBody: `${WRAPPER_OPEN}
-  <h2 style="color:#0f172a;font-size:20px;margin-bottom:4px;">Renewal Reminder</h2>
-  <p style="color:#64748b;font-size:14px;margin-top:0;">Policy #{{policyNumber}}</p>
-
-  <p>Dear {{clientName}},</p>
-
-  <p>Your policy <strong>{{policyNumber}}</strong> is scheduled to renew on <strong>{{expirationDate}}</strong>.</p>
-
-  <p>We'd like to schedule a brief review to ensure your coverage still meets your needs. This is a great opportunity to:</p>
-
-  <ul style="color:#475569;font-size:14px;">
-    <li>Review any changes to your property or situation</li>
-    <li>Discuss coverage adjustments or improvements</li>
-    <li>Address any questions about your policy</li>
-  </ul>
-
-  <p>Please reply to this email or call us to schedule a convenient time.</p>
-
-  <p>Best regards,<br/><strong>{{agentName}}</strong><br/>Alsop Insurance Agency</p>
-${WRAPPER_CLOSE}`,
-        variables: ['clientName', 'agentName', 'policyNumber', 'expirationDate'],
+    /**
+     * Postmark: "Schedule Appt"
+     * Alias: code-your-own-4 | ID: 44383042
+     * Subject: "Schedule a Time to Review Your Coverage"
+     * Use: Invite a client to schedule a coverage review appointment
+     */
+    schedule_appt: {
+        id: 'schedule_appt',
+        postmarkAlias: 'code-your-own-4',
+        postmarkTemplateId: 44383042,
+        name: 'Schedule Appointment',
+        description: 'Invite a client to schedule a coverage review meeting.',
+        subject: 'Schedule a Time to Review Your Coverage',
+        isClientFacing: true,
+        variables: ['first_name'],
     },
 
-    missing_info: {
-        id: 'missing_info',
-        name: 'Missing Information Request',
-        description: 'Request missing documents or information from a client.',
-        subject: 'Action Needed — Missing Information for {{policyNumber}}',
-        htmlBody: `${WRAPPER_OPEN}
-  <h2 style="color:#0f172a;font-size:20px;margin-bottom:4px;">Information Needed</h2>
-  <p style="color:#64748b;font-size:14px;margin-top:0;">Policy #{{policyNumber}}</p>
+    /**
+     * Postmark: "Welcome"
+     * Alias: welcome | ID: 44383145
+     * Subject: "Welcome to {{product_name}}, {{name}}!"
+     * Use: Onboard a new user after they accept an invite
+     */
+    welcome: {
+        id: 'welcome',
+        postmarkAlias: 'welcome',
+        postmarkTemplateId: 44383145,
+        name: 'Welcome',
+        description: 'Welcome a new user after they accept their invite and set up their account.',
+        subject: 'Welcome to {{product_name}}, {{name}}!',
+        isClientFacing: false,
+        variables: ['product_name', 'name', 'first_name', 'login_url', 'username',
+            'trial_length', 'trial_start_date', 'trial_end_date', 'sender_name', 'action_url'],
+    },
 
-  <p>Dear {{clientName}},</p>
+    /**
+     * Postmark: "Password reset"
+     * Alias: password-reset | ID: 44384260
+     * Subject: "Set up a new password for CoverageCheckNow.com"
+     * Use: Platform-triggered password reset (Supabase sends its own for auth resets)
+     */
+    password_reset: {
+        id: 'password_reset',
+        postmarkAlias: 'password-reset',
+        postmarkTemplateId: 44384260,
+        name: 'Password Reset',
+        description: 'Send a password reset link to a user. Used for platform-level resets.',
+        subject: 'Set up a new password for CoverageCheckNow.com',
+        isClientFacing: false,
+        variables: ['name', 'product_name', 'action_url', 'operating_system', 'browser_name', 'support_url'],
+    },
 
-  <p>We're working on your policy and need the following information to proceed:</p>
+    /**
+     * Postmark: "User invitation"
+     * Alias: user-invitation | ID: 44384251
+     * Subject: "{{invite_sender_name}} invited you to {{ product_name }}"
+     * Use: Invite a new user to the platform (alternative to Supabase invite email)
+     */
+    user_invitation: {
+        id: 'user_invitation',
+        postmarkAlias: 'user-invitation',
+        postmarkTemplateId: 44384251,
+        name: 'User Invitation',
+        description: 'Invite a new user to the CFP Platform (Postmark version of the invite email).',
+        subject: '{{invite_sender_name}} invited you to {{product_name}}',
+        isClientFacing: false,
+        variables: ['invite_sender_name', 'name', 'invite_sender_organization_name',
+            'action_url', 'support_email', 'live_chat_url', 'help_url'],
+    },
 
-  <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:16px;margin:20px 0;">
-    <div style="font-weight:600;color:#92400e;margin-bottom:8px;">Items Needed</div>
-    <div style="color:#78350f;font-size:14px;">{{missingItems}}</div>
-  </div>
-
-  <p>Please reply to this email with the requested information, or call us if you have any questions.</p>
-
-  <p>Thank you,<br/><strong>{{agentName}}</strong><br/>Alsop Insurance Agency</p>
-${WRAPPER_CLOSE}`,
-        variables: ['clientName', 'agentName', 'policyNumber', 'missingItems'],
+    /**
+     * Postmark: "Code your own"
+     * Alias: code-your-own | ID: 44382871
+     * Subject: (none — fully custom)
+     * Use: Freeform one-off email that agents compose entirely from scratch in the platform.
+     *      Subject and body are set by the agent before sending.
+     */
+    custom_outreach: {
+        id: 'custom_outreach',
+        postmarkAlias: 'code-your-own',
+        postmarkTemplateId: 44382871,
+        name: 'Custom Outreach',
+        description: 'Freeform email — compose the subject and body directly in the platform. No variables required.',
+        subject: '',
+        isClientFacing: true,
+        variables: [],
     },
 };
 
@@ -162,40 +174,42 @@ ${WRAPPER_CLOSE}`,
 // Template API
 // ---------------------------------------------------------------------------
 
-/**
- * Get all available templates.
- */
+/** Return all registered templates */
 export function getAllTemplates(): EmailTemplate[] {
     return Object.values(TEMPLATES);
 }
 
-/**
- * Get a specific template by ID.
- */
+/** Return templates that are appropriate for client-facing sends */
+export function getClientFacingTemplates(): EmailTemplate[] {
+    return Object.values(TEMPLATES).filter(t => t.isClientFacing);
+}
+
+/** Get a template by internal ID */
 export function getTemplate(templateId: string): EmailTemplate | null {
     return TEMPLATES[templateId] || null;
 }
 
+/** Get a template by its Postmark alias */
+export function getTemplateByAlias(alias: string): EmailTemplate | null {
+    return Object.values(TEMPLATES).find(t => t.postmarkAlias === alias) || null;
+}
+
 /**
- * Apply merge variables to a template, returning resolved subject and HTML body.
+ * Get the Postmark send payload for a given template + variables.
+ * Returns null if the template doesn't have a Postmark alias (inline-only).
+ *
+ * Used by /api/email/send to send via Postmark's withTemplate endpoint.
  */
-export function renderTemplate(
+export function getPostmarkTemplatePayload(
     templateId: string,
     variables: Record<string, string>
-): { subject: string; htmlBody: string } | null {
+): { TemplateAlias: string; TemplateModel: Record<string, string> } | null {
     const template = getTemplate(templateId);
-    if (!template) return null;
-
-    let subject = template.subject;
-    let htmlBody = template.htmlBody;
-
-    for (const [key, value] of Object.entries(variables)) {
-        const pattern = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-        subject = subject.replace(pattern, value);
-        htmlBody = htmlBody.replace(pattern, value);
-    }
-
-    return { subject, htmlBody };
+    if (!template?.postmarkAlias) return null;
+    return {
+        TemplateAlias: template.postmarkAlias,
+        TemplateModel: variables,
+    };
 }
 
 /**
@@ -212,4 +226,29 @@ export function getTemplateFrom(templateId: string): string {
 export function getTemplateReplyTo(templateId: string): string {
     const template = getTemplate(templateId);
     return template?.defaultReplyTo || getDefaultReplyTo();
+}
+
+/**
+ * Legacy: render inline HTML (only used for custom/freeform sends).
+ * Template-based sends should use getPostmarkTemplatePayload() instead.
+ */
+export function renderTemplate(
+    templateId: string,
+    variables: Record<string, string>
+): { subject: string; htmlBody: string } | null {
+    const template = getTemplate(templateId);
+    if (!template) return null;
+
+    let subject = template.subject;
+
+    for (const [key, value] of Object.entries(variables)) {
+        const pattern = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g');
+        subject = subject.replace(pattern, value);
+    }
+
+    // For Postmark template-based sends, the body is managed in Postmark — we don't inline it here.
+    // Return a placeholder body so callers that need one don't break.
+    const htmlBody = `<p>Sending via Postmark template: ${template.postmarkAlias || templateId}</p>`;
+
+    return { subject, htmlBody };
 }

@@ -6,11 +6,13 @@ import { supabase } from '@/lib/supabaseClient';
 import { useSidebar } from '@/components/layout/SidebarContext';
 import {
     Settings as SettingsIcon, User, Bell, Palette, Shield, ChevronRight,
-    Mail, Key, Monitor, Globe, Database, Lock, Loader2, Satellite, FileText
+    Mail, Key, Monitor, Globe, Database, Lock, Loader2, Satellite, FileText,
+    UserPlus, CheckCircle2, AlertTriangle, ShieldAlert, ShieldCheck, RefreshCw,
 } from 'lucide-react';
 import DataSourcesCatalog from '@/components/settings/DataSourcesCatalog';
+import { InviteUserModal } from '@/components/admin/InviteUserModal';
 
-type Section = 'account' | 'notifications' | 'display' | 'admin' | 'data_sources' | 'report_editor';
+type Section = 'account' | 'notifications' | 'display' | 'admin' | 'data_sources' | 'report_editor' | 'email_system' | 'user_management';
 
 const SECTIONS = [
     { id: 'account' as Section, label: 'Account', icon: User, description: 'Name, email, password' },
@@ -18,6 +20,8 @@ const SECTIONS = [
     { id: 'display' as Section, label: 'Display', icon: Palette, description: 'Theme & layout preferences' },
     { id: 'data_sources' as Section, label: 'Data Sources', icon: Satellite, description: 'Enrichment pipeline catalog', agentOnly: true },
     { id: 'report_editor' as Section, label: 'Report Editor', icon: FileText, description: 'Report template & section controls', adminOnly: true },
+    { id: 'email_system' as Section, label: 'Email System', icon: Mail, description: 'Safe mode, status & templates', adminOnly: true },
+    { id: 'user_management' as Section, label: 'User Management', icon: UserPlus, description: 'Invite & manage platform users', adminOnly: true },
     { id: 'admin' as Section, label: 'Admin Settings', icon: Shield, description: 'Branding, integrations, global config', adminOnly: true },
 ];
 
@@ -120,6 +124,8 @@ export default function SettingsPage() {
                     {activeSection === 'display' && <DisplaySection />}
                     {activeSection === 'data_sources' && <DataSourcesCatalog />}
                     {activeSection === 'report_editor' && <ReportEditorSection />}
+                    {activeSection === 'email_system' && <EmailSystemSection />}
+                    {activeSection === 'user_management' && <UserManagementSection />}
                     {activeSection === 'admin' && <AdminSection />}
                 </div>
             </div>
@@ -191,14 +197,43 @@ function AccountSection({ profile }: { profile: UserProfile | null }) {
     };
 
     const handlePasswordChange = async () => {
-        if (newPw.length < 6) { setPwMsg('Password must be at least 6 characters.'); return; }
-        if (newPw !== confirmPw) { setPwMsg('Passwords do not match.'); return; }
-        setPwSaving(true); setPwMsg('');
-        const { error } = await supabase.auth.updateUser({ password: newPw });
-        if (error) { setPwMsg('Failed: ' + error.message); }
-        else { setPwMsg('Password changed!'); setNewPw(''); setConfirmPw(''); setChangingPw(false); }
-        setPwSaving(false);
-        setTimeout(() => setPwMsg(''), 4000);
+        setPwMsg('');
+        if (newPw.length < 6) {
+            setPwMsg('error:Password must be at least 6 characters.');
+            return;
+        }
+        if (newPw !== confirmPw) {
+            setPwMsg('error:Passwords do not match.');
+            return;
+        }
+        setPwSaving(true);
+        try {
+            // Force a session refresh before updating — prevents "auth session missing"
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError || !session) {
+                // Try to refresh the token explicitly
+                const { error: refreshError } = await supabase.auth.refreshSession();
+                if (refreshError) {
+                    setPwMsg('error:Your session has expired. Please sign out and sign back in, then try again.');
+                    return;
+                }
+            }
+
+            const { error } = await supabase.auth.updateUser({ password: newPw });
+            if (error) {
+                setPwMsg('error:' + error.message);
+            } else {
+                setPwMsg('success:Password updated successfully!');
+                setNewPw('');
+                setConfirmPw('');
+                setChangingPw(false);
+            }
+        } catch {
+            setPwMsg('error:An unexpected error occurred. Please try again.');
+        } finally {
+            setPwSaving(false);
+            setTimeout(() => setPwMsg(''), 6000);
+        }
     };
 
     const inputStyle: React.CSSProperties = {
@@ -213,6 +248,9 @@ function AccountSection({ profile }: { profile: UserProfile | null }) {
         outline: 'none',
     };
 
+    const pwIsError = pwMsg.startsWith('error:');
+    const pwMsgText = pwMsg.replace(/^(error:|success:)/, '');
+
     return (
         <div>
             <SectionHeader title="Account" description="Your personal and security settings" />
@@ -221,7 +259,7 @@ function AccountSection({ profile }: { profile: UserProfile | null }) {
             {saveMsg && (
                 <div style={{
                     padding: '0.5rem 0.75rem', fontSize: '0.78rem', fontWeight: 500, borderRadius: '6px', marginBottom: '1rem',
-                    color: saveMsg.includes('Failed') ? 'var(--status-error)' : 'var(--bg-success-subtle)',
+                    color: saveMsg.includes('Failed') ? 'var(--status-error)' : 'var(--status-success)',
                     background: saveMsg.includes('Failed') ? 'var(--bg-error-subtle)' : 'var(--bg-success-subtle)',
                 }}>
                     {saveMsg}
@@ -280,30 +318,101 @@ function AccountSection({ profile }: { profile: UserProfile | null }) {
             </SettingGroup>
 
             <SettingGroup title="Security" icon={Key}>
-                {pwMsg && (
+                {/* Password status message — shown OUTSIDE the form so it persists after form closes */}
+                {pwMsgText && (
                     <div style={{
-                        padding: '0.4rem 0.875rem', fontSize: '0.75rem', fontWeight: 500,
-                        color: pwMsg.includes('Failed') || pwMsg.includes('must') || pwMsg.includes('match') ? 'var(--status-error)' : 'var(--status-success)',
-                        background: pwMsg.includes('Failed') || pwMsg.includes('must') || pwMsg.includes('match') ? 'var(--bg-error-subtle)' : 'var(--bg-success-subtle)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.625rem 0.875rem',
+                        fontSize: '0.8rem',
+                        fontWeight: 500,
+                        borderBottom: '1px solid var(--border-subtle)',
+                        color: pwIsError ? 'var(--status-error)' : 'var(--status-success)',
+                        background: pwIsError ? 'var(--bg-error-subtle)' : 'var(--bg-success-subtle)',
                     }}>
-                        {pwMsg}
+                        {pwIsError ? '✗' : '✓'} {pwMsgText}
                     </div>
                 )}
                 {changingPw ? (
-                    <div style={{ padding: '0.625rem 0.875rem' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-                            <EditableRow label="New Password" value={newPw} onChange={setNewPw} inputStyle={inputStyle} type="password" />
-                            <EditableRow label="Confirm" value={confirmPw} onChange={setConfirmPw} inputStyle={inputStyle} type="password" />
-                            <div style={{ display: 'flex', gap: '0.5rem', paddingLeft: '160px' }}>
-                                <button onClick={handlePasswordChange} disabled={pwSaving} style={{
-                                    fontSize: '0.72rem', color: 'var(--status-success)', background: 'none',
-                                    border: 'none', fontWeight: 600, cursor: 'pointer',
+                    <div style={{ padding: '0.875rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <div style={{
+                                display: 'flex', alignItems: 'center',
+                                gap: '0.75rem',
+                            }}>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-high)', fontWeight: 500, width: '160px', flexShrink: 0 }}>New Password</span>
+                                <div style={{ position: 'relative', width: '100%', maxWidth: '240px' }}>
+                                    <input
+                                        type="password"
+                                        value={newPw}
+                                        onChange={(e) => setNewPw(e.target.value)}
+                                        placeholder="Min. 6 characters"
+                                        style={inputStyle}
+                                        autoComplete="new-password"
+                                        autoFocus
+                                    />
+                                </div>
+                            </div>
+                            {/* Strength hint */}
+                            {newPw.length > 0 && newPw.length < 6 && (
+                                <div style={{ paddingLeft: '160px', fontSize: '0.72rem', color: 'var(--accent-warning, #f59e0b)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                    ⚠ At least 6 characters required ({newPw.length}/6)
+                                </div>
+                            )}
+                            <div style={{
+                                display: 'flex', alignItems: 'center',
+                                gap: '0.75rem',
+                            }}>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-high)', fontWeight: 500, width: '160px', flexShrink: 0 }}>Confirm</span>
+                                <div style={{ position: 'relative', width: '100%', maxWidth: '240px' }}>
+                                    <input
+                                        type="password"
+                                        value={confirmPw}
+                                        onChange={(e) => setConfirmPw(e.target.value)}
+                                        placeholder="Re-enter new password"
+                                        style={inputStyle}
+                                        autoComplete="new-password"
+                                    />
+                                </div>
+                            </div>
+                            {/* Match validation */}
+                            {confirmPw.length > 0 && (
+                                <div style={{
+                                    paddingLeft: '160px', fontSize: '0.72rem',
+                                    color: newPw === confirmPw ? 'var(--status-success)' : 'var(--status-error)',
+                                    display: 'flex', alignItems: 'center', gap: '0.25rem',
                                 }}>
+                                    {newPw === confirmPw ? '✓ Passwords match' : '✗ Passwords do not match'}
+                                </div>
+                            )}
+                            <div style={{ display: 'flex', gap: '0.625rem', paddingLeft: '160px', paddingTop: '0.25rem' }}>
+                                <button
+                                    onClick={handlePasswordChange}
+                                    disabled={pwSaving || newPw.length < 6 || newPw !== confirmPw}
+                                    style={{
+                                        fontSize: '0.78rem',
+                                        color: '#fff',
+                                        background: (pwSaving || newPw.length < 6 || newPw !== confirmPw) ? 'var(--text-muted)' : 'var(--accent-primary)',
+                                        border: 'none',
+                                        fontWeight: 600,
+                                        cursor: (pwSaving || newPw.length < 6 || newPw !== confirmPw) ? 'not-allowed' : 'pointer',
+                                        padding: '0.4rem 1rem',
+                                        borderRadius: '6px',
+                                        opacity: (pwSaving || newPw.length < 6 || newPw !== confirmPw) ? 0.5 : 1,
+                                        transition: 'all 0.2s',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.375rem',
+                                    }}
+                                >
+                                    {pwSaving && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
                                     {pwSaving ? 'Saving...' : 'Save Password'}
                                 </button>
                                 <button onClick={() => { setChangingPw(false); setNewPw(''); setConfirmPw(''); setPwMsg(''); }} style={{
-                                    fontSize: '0.72rem', color: 'var(--text-muted)', background: 'none',
-                                    border: 'none', fontWeight: 500, cursor: 'pointer',
+                                    fontSize: '0.78rem', color: 'var(--text-muted)', background: 'none',
+                                    border: '1px solid var(--border-default)', fontWeight: 500, cursor: 'pointer',
+                                    padding: '0.4rem 0.875rem', borderRadius: '6px',
                                 }}>
                                     Cancel
                                 </button>
@@ -342,6 +451,19 @@ function NotificationsSection() {
         <div>
             <SectionHeader title="Notifications" description="Control how and when you receive alerts" />
 
+            <div style={{
+                padding: '0.75rem 1rem',
+                background: 'var(--bg-info-subtle)',
+                border: '1px solid rgba(0,181,190,0.2)',
+                borderLeft: '3px solid var(--status-info)',
+                borderRadius: '8px',
+                marginBottom: '1.25rem',
+                fontSize: '0.75rem',
+                color: 'var(--text-mid)',
+            }}>
+                ⏳ <strong>Coming soon.</strong> Notification preferences will be persisted once the preferences system is live.
+            </div>
+
             <SettingGroup title="Email Notifications" icon={Mail}>
                 <ToggleRow label="Flag Alerts" description="Get emailed when new high priority flags are created" defaultOn />
                 <ToggleRow label="Renewal Reminders" description="Get reminded about upcoming policy renewals" defaultOn />
@@ -362,8 +484,21 @@ function DisplaySection() {
         <div>
             <SectionHeader title="Display & Preferences" description="Customize your workspace appearance and defaults" />
 
+            <div style={{
+                padding: '0.75rem 1rem',
+                background: 'var(--bg-info-subtle)',
+                border: '1px solid rgba(0,181,190,0.2)',
+                borderLeft: '3px solid var(--status-info)',
+                borderRadius: '8px',
+                marginBottom: '1.25rem',
+                fontSize: '0.75rem',
+                color: 'var(--text-mid)',
+            }}>
+                ⏳ <strong>Coming soon.</strong> Display preferences will be saved once the preferences system is live.
+            </div>
+
             <SettingGroup title="Theme" icon={Monitor}>
-                <SettingRow label="Appearance" value="Dark" note="Theme switching coming soon" />
+                <SettingRow label="Appearance" value="Light (Warm Enterprise)" note="Theme switching coming soon" />
                 <SettingRow label="Sidebar" value="Auto-collapse" note="Adjusts based on screen width" />
             </SettingGroup>
 
@@ -395,13 +530,13 @@ function AdminSection() {
             </div>
 
             <SettingGroup title="Branding" icon={Palette}>
-                <SettingRow label="Company Name" value="Alsop Inc" actionLabel="Edit" placeholder />
+                <SettingRow label="Company Name" value="Alsop and Associates Insurance Agency" actionLabel="Edit" placeholder />
                 <SettingRow label="Logo" value="CoverageCheckNow shield" actionLabel="Upload" placeholder />
-                <SettingRow label="Primary Color" value="#3b82f6" actionLabel="Change" placeholder />
+                <SettingRow label="Primary Color" value="#2243B6" actionLabel="Change" placeholder />
             </SettingGroup>
 
             <SettingGroup title="Integrations" icon={Database}>
-                <SettingRow label="Email Provider" value="Not configured" actionLabel="Configure" placeholder />
+                <SettingRow label="Email Provider" value="Postmark" note="redirect mode — safe test" />
                 <SettingRow label="Data Source / API" value="Supabase" note="Managed internally" />
                 <SettingRow label="Document Storage" value="Supabase Storage" note="Managed internally" />
             </SettingGroup>
@@ -411,6 +546,217 @@ function AdminSection() {
                 <SettingRow label="Privacy Settings" value="Default" actionLabel="Configure" placeholder />
                 <SettingRow label="Office Defaults" value="Auto-assign" actionLabel="Configure" placeholder />
             </SettingGroup>
+        </div>
+    );
+}
+
+// ─── Email System Section ─────────────────────────────────────
+function EmailSystemSection() {
+    const [status, setStatus] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+    const [testSending, setTestSending] = useState(false);
+    const [testResult, setTestResult] = useState<string | null>(null);
+
+    const loadStatus = () => {
+        setLoading(true);
+        fetch('/api/email/status')
+            .then(r => r.json())
+            .then(d => { setStatus(d); setLoading(false); })
+            .catch(() => setLoading(false));
+    };
+
+    useEffect(() => { loadStatus(); }, []);
+
+    const handleTestSend = async () => {
+        setTestSending(true);
+        setTestResult(null);
+        try {
+            const res = await fetch('/api/email/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: 'test@coveragechecknow.com',
+                    subject: '[CFP Platform] Email System Test',
+                    htmlBody: '<p>This is a system test email from the CFP Platform Settings page.</p>',
+                }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                const delivered = data.forceRedirected ? status?.forceRedirectTarget : data.redirectedFrom ? status?.redirectTarget : 'recipient';
+                setTestResult(`✓ Test sent — delivered to ${delivered || 'redirect target'}`);
+            } else {
+                setTestResult(`✗ Failed: ${data.error}`);
+            }
+        } catch (e: any) {
+            setTestResult(`✗ Error: ${e.message}`);
+        } finally {
+            setTestSending(false);
+        }
+    };
+
+    const modeConfig = {
+        disabled: { color: '#f87171', icon: ShieldAlert, label: 'Disabled — Emails not sent', bg: 'rgba(239,68,68,0.06)', border: 'rgba(239,68,68,0.2)' },
+        redirect: { color: '#fbbf24', icon: Shield, label: 'Redirect Mode — Safe Testing', bg: 'rgba(234,179,8,0.06)', border: 'rgba(234,179,8,0.25)' },
+        live: { color: '#4ade80', icon: ShieldCheck, label: 'Live — Real Client Delivery', bg: 'rgba(34,197,94,0.06)', border: 'rgba(34,197,94,0.2)' },
+    };
+    const mode = status?.mode || 'disabled';
+    const mc = modeConfig[mode as keyof typeof modeConfig] || modeConfig.disabled;
+    const ModeIcon = mc.icon;
+
+    return (
+        <div>
+            <SectionHeader title="Email System" description="Postmark configuration, safe mode status, and template registry" />
+
+            {loading ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', padding: '1rem 0', fontSize: '0.8rem' }}>
+                    <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                    Loading email system status…
+                </div>
+            ) : (
+                <>
+                    {/* Status Card */}
+                    <div style={{
+                        padding: '1rem', borderRadius: '10px', marginBottom: '1.25rem',
+                        background: mc.bg, border: `1.5px solid ${mc.border}`,
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <ModeIcon size={16} style={{ color: mc.color }} />
+                                <span style={{ fontWeight: 700, fontSize: '0.85rem', color: mc.color }}>{mc.label}</span>
+                            </div>
+                            <button onClick={loadStatus} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', display: 'flex', padding: 2 }}>
+                                <RefreshCw size={13} />
+                            </button>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                            <div>Force Redirect: <strong style={{ color: status?.forceRedirectEnabled ? '#fbbf24' : '#64748b' }}>{status?.forceRedirectEnabled ? 'ENABLED' : 'Disabled'}</strong></div>
+                            <div>Postmark: <strong style={{ color: status?.postmarkConfigured ? '#4ade80' : '#f87171' }}>{status?.postmarkConfigured ? 'Configured ✓' : 'Not configured'}</strong></div>
+                            {status?.forceRedirectTarget && <div>Force Target: <strong style={{ color: '#fbbf24', fontFamily: 'monospace' }}>{status.forceRedirectTarget}</strong></div>}
+                            {status?.redirectTarget && <div>Redirect Target: <strong style={{ color: '#fbbf24', fontFamily: 'monospace' }}>{status.redirectTarget}</strong></div>}
+                            <div>From: <strong style={{ color: 'var(--text-high)' }}>{status?.fromDefault}</strong></div>
+                            <div>Reply-To: <strong style={{ color: 'var(--text-high)' }}>{status?.replyToDefault}</strong></div>
+                        </div>
+                    </div>
+
+                    {/* Config Instructions */}
+                    <div style={{ padding: '0.75rem', background: 'var(--bg-surface-raised)', border: '1px solid var(--border-default)', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                        <strong style={{ color: 'var(--text-high)' }}>To change delivery mode:</strong> Set <code style={{ background: 'rgba(255,255,255,0.06)', padding: '0 4px', borderRadius: '3px' }}>EMAIL_SEND_MODE</code> and <code style={{ background: 'rgba(255,255,255,0.06)', padding: '0 4px', borderRadius: '3px' }}>EMAIL_FORCE_REDIRECT_ENABLED</code> in your <code style={{ background: 'rgba(255,255,255,0.06)', padding: '0 4px', borderRadius: '3px' }}>.env.local</code> file, then restart the server.<br />
+                        <strong style={{ color: '#f87171' }}>Do not</strong> set <code style={{ background: 'rgba(255,255,255,0.06)', padding: '0 4px', borderRadius: '3px' }}>EMAIL_SEND_MODE=live</code> until Postmark domain is verified and safe mode is explicitly authorized.
+                    </div>
+
+                    {/* Test Send */}
+                    <SettingGroup title="Test Actions" icon={Mail}>
+                        <div style={{ padding: '0.75rem 0.875rem' }}>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                                Send a test email to verify Postmark connectivity. It will be redirected to <strong style={{ color: 'var(--status-warning)' }}>{status?.forceRedirectTarget || status?.redirectTarget || 'redirect target'}</strong>.
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <button
+                                    onClick={handleTestSend}
+                                    disabled={testSending}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '0.35rem',
+                                        padding: '0.4rem 0.875rem', borderRadius: '6px',
+                                        background: testSending ? 'var(--accent-primary-muted)' : 'var(--accent-primary)',
+                                        color: testSending ? 'var(--accent-primary)' : '#fff',
+                                        border: 'none',
+                                        cursor: testSending ? 'not-allowed' : 'pointer',
+                                        fontSize: '0.75rem', fontWeight: 600,
+                                        opacity: testSending ? 0.7 : 1,
+                                        transition: 'all 0.15s',
+                                    }}
+                                >
+                                    {testSending ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Mail size={12} />}
+                                    {testSending ? 'Sending…' : 'Send Test Email'}
+                                </button>
+                                {testResult && (
+                                    <span style={{ fontSize: '0.72rem', color: testResult.startsWith('✓') ? 'var(--status-success)' : 'var(--status-error)' }}>
+                                        {testResult}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    </SettingGroup>
+
+                    {/* Template Registry */}
+                    <SettingGroup title={`Template Registry (${status?.templates?.length || 0})`} icon={FileText}>
+                        {(status?.templates || []).map((t: any) => (
+                            <SettingRow
+                                key={t.id}
+                                label={t.name}
+                                value={t.description}
+                                note={`${t.variables?.length || 0} vars`}
+                            />
+                        ))}
+                    </SettingGroup>
+                </>
+            )}
+        </div>
+    );
+}
+
+// ─── User Management Section ──────────────────────────────────
+function UserManagementSection() {
+    const [showInvite, setShowInvite] = useState(false);
+    const [inviteHistory, setInviteHistory] = useState<{ email: string; roleLabel: string; at: string }[]>([]);
+
+    return (
+        <div>
+            <SectionHeader title="User Management" description="Invite and manage platform users (admin only)" />
+
+            <SettingGroup title="Invite Users" icon={UserPlus}>
+                <div style={{ padding: '0.875rem' }}>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.75rem', lineHeight: 1.5 }}>
+                        Invite a new user by email. They will receive a secure invite link from Supabase.
+                        Their access level is set by the role you select.
+                    </p>
+                    <button
+                        onClick={() => setShowInvite(true)}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '0.4rem',
+                            padding: '0.5rem 1rem', borderRadius: '7px',
+                            background: 'rgba(99,102,241,0.15)', color: '#a5b4fc',
+                            border: '1px solid rgba(99,102,241,0.3)',
+                            cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
+                        }}
+                    >
+                        <UserPlus size={14} />
+                        Invite User
+                    </button>
+                </div>
+
+                {inviteHistory.length > 0 && (
+                    <div style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                        <div style={{ padding: '0.4rem 0.875rem', fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Sent this session
+                        </div>
+                        {inviteHistory.map((h, i) => (
+                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0.875rem', fontSize: '0.75rem', color: 'var(--text-mid)', borderTop: '1px solid var(--border-subtle)' }}>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                    <CheckCircle2 size={11} style={{ color: '#4ade80' }} />
+                                    {h.email}
+                                </span>
+                                <span style={{ color: '#818cf8', fontSize: '0.68rem' }}>{h.roleLabel}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </SettingGroup>
+
+            <SettingGroup title="Access Roles" icon={Shield}>
+                <SettingRow label="Administrator" value="Full platform access, settings, invites, all policies" />
+                <SettingRow label="Agent" value="Policy review, enrichment, flags, email compose" note="service role" />
+                <SettingRow label="Client" value="Own portal only — own policy view, submit dec pages" note="customer role" />
+            </SettingGroup>
+
+            <InviteUserModal
+                isOpen={showInvite}
+                onClose={() => setShowInvite(false)}
+                onSuccess={(email, role) => {
+                    const labels: Record<string, string> = { admin: 'Administrator', service: 'Agent', customer: 'Client' };
+                    setInviteHistory(prev => [{ email, roleLabel: labels[role] || role, at: new Date().toLocaleTimeString() }, ...prev]);
+                }}
+            />
         </div>
     );
 }

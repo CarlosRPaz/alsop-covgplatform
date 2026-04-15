@@ -290,21 +290,8 @@ def _check_mobile_manufactured_with_rc(ctx: EvalContext) -> str | None:
     return None
 
 
-def _check_roof_age_over_25_with_rc(ctx: EvalContext) -> str | None:
-    """Roof age > 25 years with RC Included."""
-    year_built = ctx.get("year_built")
-    if not year_built:
-        return None
-    try:
-        age = datetime.now().year - int(year_built)
-    except (ValueError, TypeError):
-        return None
-    if age <= 25:
-        return None
-    rc = ctx.get("limit_dwelling_replacement_cost")
-    if rc and str(rc).lower() in ("included", "yes"):
-        return f"Structure is {age} years old with replacement cost included — verify roof eligibility."
-    return None
+
+
 
 
 def _check_fair_rental_value(ctx: EvalContext) -> str | None:

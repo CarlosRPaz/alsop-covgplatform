@@ -38,7 +38,7 @@ interface DataPoint {
 }
 
 // ---------------------------------------------------------------------------
-// Data Catalog — single source of truth for all 42 enrichment data points
+// Data Catalog â€” single source of truth for all 42 enrichment data points
 // ---------------------------------------------------------------------------
 
 const CATEGORY_LABELS: Record<Category, string> = {
@@ -84,49 +84,105 @@ const USED_IN_LABELS: Record<UsedIn, string> = {
 };
 
 const DATA_POINTS: DataPoint[] = [
-    // ── Property Basics ──
+    // â”€â”€ Property Basics â”€â”€
     {
         id: 'address', name: 'Address', category: 'property_basics',
         sourceType: 'parser', sourceName: 'Dec Page Parser',
         status: 'live', confidence: 'trusted', usedIn: ['policy_page', 'report'],
         lifecycle: 'parsed', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: false,
         notes: 'Extracted from dec page during ingestion.',
-        detailNotes: 'Stored on policies.property_address_raw and policies.property_address_norm. Used as input for geocoding and satellite imagery enrichment.',
+        detailNotes: 'Stored on policies.property_address_raw and policies.property_address_norm. Used as input for geocoding and all downstream enrichment.',
     },
     {
-        id: 'year_built', name: 'House Year Built', category: 'property_basics',
-        sourceType: 'api', sourceName: 'Property Data API',
-        status: 'planned', confidence: 'trusted', usedIn: ['policy_page', 'report', 'flags'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Needs RentCast or county assessor API key.',
-        detailNotes: 'Critical for ROOF_AGE_OVER_25_WITH_RC flag. Once live, stored in property_enrichments with source attribution. Will feed report v1 and policy page basics section.',
-        flagCode: 'ROOF_AGE_OVER_25_WITH_RC_INCLUDED',
-        upgradeNote: 'Add county-specific assessor data as a higher-confidence backup source.',
-    },
-    {
-        id: 'sq_footage', name: 'Sq Footage', category: 'valuation',
-        sourceType: 'manual', sourceName: 'Multi-Source Resolver',
-        status: 'partial', confidence: 'manual_review', usedIn: ['policy_page', 'report', 'internal'],
+        id: 'year_built', name: 'Year Built', category: 'property_basics',
+        sourceType: 'api', sourceName: 'ATTOM Data Solutions',
+        status: 'live', confidence: 'trusted', usedIn: ['policy_page', 'report', 'flags'],
         lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
-        notes: 'Multi-source strategy: manual agent entry, dec page parser, future property data API. Best value resolved by confidence ranking.',
-        detailNotes: 'Candidates gathered from all available sources. Best value selected by highest confidence then most recent. Needs review flag shown when only one low-confidence source exists.',
-        upgradeNote: 'Add property data API (RentCast, county assessor) for automated high-confidence sq ft.',
+        notes: 'From ATTOM county assessor records. Used in RCE age adjustment and code upgrade factor.',
+        detailNotes: 'Field: building.summary.yearBuilt. Source tier: enriched_real. Also informs the YOUNG_ROOF_WITHOUT_RC flag and SEVERE_UNDERINSURANCE_ESTIMATE flag.',
+        flagCode: 'SEVERE_UNDERINSURANCE_ESTIMATE',
+    },
+    {
+        id: 'sq_footage', name: 'Living Area (sq ft)', category: 'valuation',
+        sourceType: 'api', sourceName: 'ATTOM Data Solutions',
+        status: 'live', confidence: 'trusted', usedIn: ['policy_page', 'report', 'internal'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
+        notes: 'Primary structural input for RCE modeling. From ATTOM assessor record.',
+        detailNotes: 'Field: building.size.livingSize. Source tier: enriched_real. Multi-source resolver selects highest-confidence value. ATTOM is primary.',
+        upgradeNote: 'For certified RCE, supplement ATTOM sq ft with e2Value or EagleView verification for high-value policies.',
+    },
+    {
+        id: 'total_building_area', name: 'Total Building Area (sq ft)', category: 'valuation',
+        sourceType: 'api', sourceName: 'ATTOM Data Solutions',
+        status: 'live', confidence: 'trusted', usedIn: ['policy_page', 'report', 'internal'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: false, endpointBuilt: true, sourceAttribution: true,
+        notes: 'Total building footprint including non-living areas. Gap between this and living area suggests detached structures.',
+        detailNotes: 'Field: building.size.bldgSize. Source tier: enriched_real. Used as a clue for Other Structures determination when the gap vs. living area is significant.',
     },
     {
         id: 'replacement_cost_estimate', name: 'Replacement Cost Estimate', category: 'valuation',
         sourceType: 'internal_fallback', sourceName: 'CFP Internal Estimator',
         status: 'live', confidence: 'fallback', usedIn: ['policy_page', 'report'],
         lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
-        notes: 'Internal fallback estimate using sq ft × cost-per-sqft by construction type. Clearly labeled as non-vendor.',
-        detailNotes: 'Uses construction type cost brackets with age and multi-story adjustments. Disclaimer always shown. Never presented as vendor-grade.',
-        upgradeNote: 'Plug in approved vendor (e.g., CoreLogic, e2Value) via the ReplacementCostProvider interface in valuationEngine.ts.',
+        notes: 'Internal interim estimate using ATTOM structural inputs Ã— cost-per-sqft by construction type. Clearly labeled as non-vendor-grade.',
+        detailNotes: 'Now uses real ATTOM data (sqft, year built, stories, construction type) instead of random mock values. Disclaimer always shown.',
+        upgradeNote: 'Integrate e2Value or 360Value for a certified replacement cost estimate for high-value policies.',
     },
     {
         id: 'stories', name: '# of Stories', category: 'property_basics',
-        sourceType: 'api', sourceName: 'Property Data API',
-        status: 'planned', confidence: 'trusted', usedIn: ['policy_page', 'report'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Needs RentCast or county assessor API key.',
+        sourceType: 'api', sourceName: 'ATTOM Data Solutions (primary) / Street Vision AI (cross-check)',
+        status: 'live', confidence: 'trusted', usedIn: ['policy_page', 'report'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
+        notes: 'From ATTOM (primary). Street View AI provides a cross-check. If both agree, confidence is high.',
+        detailNotes: 'ATTOM field: building.summary.storyCount. Source tier: enriched_real. AI field: ai_sv_stories for cross-reference.',
+    },
+    {
+        id: 'construction_type', name: 'Construction / Frame Type', category: 'property_basics',
+        sourceType: 'api', sourceName: 'ATTOM Data Solutions',
+        status: 'live', confidence: 'trusted', usedIn: ['policy_page', 'report', 'internal'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
+        notes: 'Frame type used in RCE cost-per-sqft bracket selection.',
+        detailNotes: 'ATTOM field: building.construction.frameType. Source tier: enriched_real.',
+    },
+    {
+        id: 'roof_material', name: 'Roof Material', category: 'property_basics',
+        sourceType: 'api', sourceName: 'ATTOM Data Solutions',
+        status: 'live', confidence: 'trusted', usedIn: ['policy_page', 'report'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
+        notes: 'From ATTOM assessor data. Drives RCE Roof Material multiplier.',
+        detailNotes: 'ATTOM field: building.construction.roofCover. Source tier: enriched_real.',
+    },
+    {
+        id: 'exterior_walls', name: 'Exterior Walls / Siding', category: 'property_basics',
+        sourceType: 'api', sourceName: 'ATTOM Data Solutions',
+        status: 'live', confidence: 'trusted', usedIn: ['policy_page', 'report'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
+        notes: 'Exterior wall/siding type from ATTOM assessor. Context for RCE and exterior condition.',
+        detailNotes: 'ATTOM field: building.construction.exteriorWalls. Source tier: enriched_real.',
+    },
+    {
+        id: 'bedrooms', name: 'Bedrooms', category: 'property_basics',
+        sourceType: 'api', sourceName: 'ATTOM Data Solutions',
+        status: 'live', confidence: 'trusted', usedIn: ['report', 'internal'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: false, endpointBuilt: true, sourceAttribution: true,
+        notes: 'Bedroom count from ATTOM assessor. Provides context for personal property estimation.',
+        detailNotes: 'ATTOM field: building.rooms.bedroomsCount. Source tier: enriched_real.',
+    },
+    {
+        id: 'bathrooms', name: 'Bathrooms', category: 'property_basics',
+        sourceType: 'api', sourceName: 'ATTOM Data Solutions',
+        status: 'live', confidence: 'trusted', usedIn: ['report', 'internal'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: false, endpointBuilt: true, sourceAttribution: true,
+        notes: 'Bathroom count from ATTOM assessor.',
+        detailNotes: 'ATTOM field: building.rooms.bathroomsCount. Source tier: enriched_real.',
+    },
+    {
+        id: 'lot_size', name: 'Lot Size (sq ft)', category: 'property_basics',
+        sourceType: 'api', sourceName: 'ATTOM Data Solutions',
+        status: 'live', confidence: 'trusted', usedIn: ['report', 'internal'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: false, endpointBuilt: true, sourceAttribution: true,
+        notes: 'Lot footprint from ATTOM parcel record. Large lots are a signal for detached structures.',
+        detailNotes: 'ATTOM field: lot.lotSize2. Source tier: enriched_real.',
     },
     {
         id: 'home_occupancy', name: 'Home Occupancy', category: 'property_basics',
@@ -138,112 +194,137 @@ const DATA_POINTS: DataPoint[] = [
     },
     {
         id: 'roof_age', name: 'Roof Age', category: 'property_basics',
-        sourceType: 'api', sourceName: 'Derived (year built)',
-        status: 'planned', confidence: 'trusted', usedIn: ['report', 'flags'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Must be under 25 years for replacement cost eligibility.',
-        detailNotes: 'Calculated from year_built or roof_year enrichment. Critical flag: policies with RC on structures over 25 years old may not be eligible.',
-        flagCode: 'ROOF_AGE_OVER_25_WITH_RC_INCLUDED',
-        upgradeNote: 'Upgrade to dedicated roof_year source from county records when available.',
+        sourceType: 'api', sourceName: 'Derived (year built via ATTOM)',
+        status: 'partial', confidence: 'inferred', usedIn: ['report', 'flags'],
+        lifecycle: 'enriched', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
+        notes: 'Currently approximated from ATTOM year_built. True roof age (installation date) is distinct.',
+        detailNotes: 'Critical flag: YOUNG_ROOF_WITHOUT_RC uses year_built as proxy. Actual roof install date would require EagleView or permit records.',
+        flagCode: 'YOUNG_ROOF_WITHOUT_RC',
+        upgradeNote: 'EagleView provides a roof install date estimate. High-value selective option.',
     },
     {
-        id: 'roof_type', name: 'Roof Type', category: 'property_basics',
-        sourceType: 'ai_inferred', sourceName: 'Aerial Imagery AI',
-        status: 'planned', confidence: 'inferred', usedIn: ['report'],
+        id: 'slope_factor', name: 'Slope Factor', category: 'property_basics',
+        sourceType: 'api', sourceName: 'Future: Terrain / Elevation API',
+        status: 'planned', confidence: 'trusted', usedIn: ['policy_page', 'internal'],
         lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Phase 2: County records or AI analysis.',
+        notes: 'Topographical slope assessment. Trigger for RCE Hillside Cost multiplier.',
     },
 
-    // ── Fire & Risk ──
+    // â”€â”€ Fire & Risk â”€â”€
     {
-        id: 'firescore', name: 'Firescore', category: 'fire_risk',
+        id: 'firescore', name: 'Wildfire Hazard Potential', category: 'fire_risk',
         sourceType: 'public_data', sourceName: 'USDA Forest Service',
         status: 'live', confidence: 'trusted', usedIn: ['policy_page', 'report', 'flags'],
         lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
-        notes: 'USDA Wildfire Hazard Potential via ArcGIS REST API (free).',
-        detailNotes: 'Queries the USDA WHP 2023 MapServer identify endpoint using geocoded coordinates. Risk classes: 1 (Very Low) to 5 (Very High). Shows as fire risk badge on property banner.',
+        notes: 'USDA WHP 2023 via ArcGIS REST API (free). Classes 1â€“5 (Very Low to Very High). This is the fire risk data point we already have.',
+        detailNotes: 'Queries USDA WHP MapServer identify endpoint using geocoded coordinates. Shows as fire risk badge on property banner. Source tier: enriched_real.',
     },
     {
         id: 'satellite_image', name: 'Satellite Image', category: 'fire_risk',
         sourceType: 'api', sourceName: 'Google Maps Static API',
         status: 'live', confidence: 'trusted', usedIn: ['policy_page', 'report'],
         lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
-        notes: 'Google Maps satellite view at zoom 19. Free tier: $200/mo.',
-        detailNotes: 'Stored as direct URL in property_enrichments. Displayed on the property banner with source attribution badge showing "Google Maps · Api ✓".',
+        notes: 'Google Maps satellite view at zoom 19. Free tier: $200/mo credit.',
+        detailNotes: 'Stored as direct URL in property_enrichments. Source tier: enriched_real.',
     },
     {
         id: 'coordinates', name: 'Lat/Lng Coordinates', category: 'fire_risk',
         sourceType: 'api', sourceName: 'Google Geocoding',
         status: 'live', confidence: 'trusted', usedIn: ['internal'],
         lifecycle: 'enriched', savedToDb: true, surfacedInUi: false, endpointBuilt: true, sourceAttribution: true,
-        notes: 'Used by fire risk and future structure detection providers.',
-        detailNotes: 'Geocoded once and reused across enrichment providers. Stored as separate latitude/longitude enrichment rows.',
+        notes: 'Used by fire risk and AI vision enrichment.',
+        detailNotes: 'Geocoded once, reused across enrichment providers. Source tier: enriched_real.',
     },
     {
         id: 'street_view_image', name: 'Street View Image', category: 'property_basics',
         sourceType: 'api', sourceName: 'Google Street View API',
         status: 'live', confidence: 'trusted', usedIn: ['policy_page', 'report'],
         lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
-        notes: 'Google Street View static image for front elevation analysis.',
+        notes: 'Google Street View image for front elevation analysis and AI vision.',
     },
     {
-        id: 'ai_sv_stories', name: 'Number of Stories (SV)', category: 'property_basics',
+        id: 'ai_sv_stories', name: 'Stories (AI Image Vision)', category: 'property_basics',
         sourceType: 'ai_inferred', sourceName: 'Street Vision AI (GPT-4o)',
         status: 'live', confidence: 'inferred', usedIn: ['policy_page', 'report'],
         lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
-        notes: 'AI inferred number of stories from front elevation.',
+        notes: 'AI-inferred stories from front elevation. Used to cross-check ATTOM value to increase confidence.',
+        detailNotes: 'ATTOM is the primary source for stories. This AI field serves as a confidence cross-reference only.',
     },
 
-    // ── Exterior Structures (Live via AI Vision) ──
+    // â”€â”€ Exterior Structures â”€â”€
+    {
+        id: 'garage', name: 'Garage Type / Size', category: 'exterior_structures',
+        sourceType: 'api', sourceName: 'ATTOM Data Solutions (primary) / Street Vision AI (cross-check)',
+        status: 'live', confidence: 'trusted', usedIn: ['policy_page', 'report', 'flags'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
+        notes: 'ATTOM provides garage type (attached/detached) and capacity. Key signal for Coverage B need.',
+        detailNotes: 'ATTOM fields: building.parking.garageType, building.parking.prkgSize. Source tier: enriched_real. AI street view confirms front-visible garage presence.',
+        flagCode: 'OTHER_STRUCTURES_ZERO',
+    },
     {
         id: 'pool', name: 'Pool', category: 'exterior_structures',
-        sourceType: 'ai_inferred', sourceName: 'Satellite Vision AI (GPT-4o)',
-        status: 'live', confidence: 'inferred', usedIn: ['policy_page', 'report', 'flags'],
+        sourceType: 'api', sourceName: 'ATTOM Data Solutions (primary) / Satellite Vision AI (cross-check)',
+        status: 'live', confidence: 'trusted', usedIn: ['policy_page', 'report', 'flags'],
         lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
-        notes: 'AI vision analysis of satellite imagery. Detects pools from overhead view with high confidence.',
-        detailNotes: 'GPT-4o analyzes the existing satellite image to detect rectangular/freeform blue water areas. Stored in property_enrichments with confidence score and AI rationale.',
+        notes: 'ATTOM provides amenity indicator (primary). Satellite AI visually confirms pool presence (cross-check). Both signals increase confidence.',
+        detailNotes: 'ATTOM field: building.rooms.pool. AI field: ai_pool. Source tiers: enriched_real + enriched_ai. When both detect, confidence upgrades to high.',
+        flagCode: 'POOL_LIABILITY_GAP',
+    },
+    {
+        id: 'fireplace', name: 'Fireplace', category: 'exterior_structures',
+        sourceType: 'api', sourceName: 'ATTOM Data Solutions',
+        status: 'live', confidence: 'trusted', usedIn: ['report', 'internal'],
+        lifecycle: 'enriched', savedToDb: true, surfacedInUi: false, endpointBuilt: true, sourceAttribution: true,
+        notes: 'Fireplace count from ATTOM assessor. Interior context.',
+        detailNotes: 'ATTOM field: building.interior.fplcCount. Source tier: enriched_real.',
     },
     {
         id: 'solar_panels', name: 'Solar Panels', category: 'exterior_structures',
         sourceType: 'ai_inferred', sourceName: 'Satellite Vision AI (GPT-4o)',
-        status: 'live', confidence: 'inferred', usedIn: ['policy_page', 'report'],
+        status: 'live', confidence: 'inferred', usedIn: ['policy_page', 'report', 'flags'],
         lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
-        notes: 'AI vision detection of rooftop solar panels from satellite imagery.',
+        notes: 'AI vision detection of rooftop solar panels from satellite imagery. Not in ATTOM data.',
+        flagCode: 'SOLAR_PANELS_NOT_COVERED',
     },
     {
-        id: 'detached_garage', name: 'Detached Garage', category: 'exterior_structures',
+        id: 'detached_garage', name: 'Detached Garage (AI)', category: 'exterior_structures',
         sourceType: 'ai_inferred', sourceName: 'Satellite Vision AI (GPT-4o)',
         status: 'live', confidence: 'inferred', usedIn: ['policy_page', 'report', 'flags'],
         lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
-        notes: 'AI vision detection. Other structures coverage flag potential.',
+        notes: 'AI vision cross-check for detached garage. ATTOM is the primary garage source; this confirms.',
+        detailNotes: 'When ATTOM garageType = detached AND ai_detached_garage = detected, confidence is high.',
+        flagCode: 'OTHER_STRUCTURES_ZERO',
     },
     {
         id: 'shed', name: 'Shed', category: 'exterior_structures',
         sourceType: 'ai_inferred', sourceName: 'Satellite Vision AI (GPT-4o)',
         status: 'live', confidence: 'inferred', usedIn: ['policy_page', 'report', 'flags'],
         lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
-        notes: 'AI vision detection of small detached outbuildings.',
+        notes: 'AI vision detection of small detached outbuildings. ATTOM does not specifically track sheds.',
+        flagCode: 'OTHER_STRUCTURES_ZERO',
     },
     {
         id: 'guest_house', name: 'Guest House / ADU', category: 'exterior_structures',
         sourceType: 'ai_inferred', sourceName: 'Satellite Vision AI (GPT-4o)',
         status: 'live', confidence: 'inferred', usedIn: ['policy_page', 'report', 'flags'],
         lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
-        notes: 'AI vision detection of secondary dwelling structures. Fair rental value flag potential.',
+        notes: 'AI vision detection of secondary dwelling structures. ATTOM total vs. living area gap is a supporting signal.',
+        flagCode: 'FAIR_RENTAL_VALUE_ZERO_OR_MISSING',
     },
     {
         id: 'fences', name: 'Fences', category: 'exterior_structures',
         sourceType: 'ai_inferred', sourceName: 'Satellite Vision AI (GPT-4o)',
         status: 'live', confidence: 'inferred', usedIn: ['policy_page', 'report', 'flags'],
         lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
-        notes: 'AI vision detection of fence lines from satellite view. Lower confidence — may be subtle.',
+        notes: 'AI vision detection of fence lines. Lower confidence â€” may be subtle from satellite view.',
+        flagCode: 'MISSING_FENCES_COVERAGE',
     },
     {
         id: 'deck_patio', name: 'Deck / Patio', category: 'exterior_structures',
         sourceType: 'ai_inferred', sourceName: 'Satellite Vision AI (GPT-4o)',
         status: 'live', confidence: 'inferred', usedIn: ['policy_page', 'report'],
         lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
-        notes: 'AI vision detection of decks, patios, and patio overhangs from satellite imagery.',
+        notes: 'AI vision detection of decks, patios from satellite imagery.',
     },
     {
         id: 'gazebos', name: 'Gazebos', category: 'exterior_structures',
@@ -278,7 +359,7 @@ const DATA_POINTS: DataPoint[] = [
         sourceType: 'ai_inferred', sourceName: 'Street Vision AI (GPT-4o)',
         status: 'live', confidence: 'inferred', usedIn: ['policy_page', 'report'],
         lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
-        notes: 'Presence of front-facing attached/detached garage or carport.',
+        notes: 'Front-elevation garage/carport detection. Used to cross-reference ATTOM garage type.',
     },
     {
         id: 'ai_sv_fencing', name: 'Front Fencing / Gates (SV)', category: 'exterior_structures',
@@ -294,94 +375,32 @@ const DATA_POINTS: DataPoint[] = [
         lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
         notes: 'Phase 2: Other structures.',
     },
-    {
-        id: 'walkways', name: 'Walkways', category: 'exterior_structures',
-        sourceType: 'ai_inferred', sourceName: 'Satellite Imagery AI',
-        status: 'planned', confidence: 'inferred', usedIn: ['report'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Phase 2.',
-    },
-    {
-        id: 'walls', name: 'Walls', category: 'exterior_structures',
-        sourceType: 'ai_inferred', sourceName: 'Satellite Imagery AI',
-        status: 'planned', confidence: 'inferred', usedIn: ['report'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Phase 2.',
-    },
-    {
-        id: 'stairs', name: 'Stairs', category: 'exterior_structures',
-        sourceType: 'ai_inferred', sourceName: 'Street View AI',
-        status: 'deferred', confidence: 'inferred', usedIn: ['report'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Phase 3: Requires street view imagery.',
-    },
-    {
-        id: 'water_tank', name: 'Water Tank', category: 'exterior_structures',
-        sourceType: 'ai_inferred', sourceName: 'Satellite Imagery AI',
-        status: 'deferred', confidence: 'inferred', usedIn: ['report'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Phase 3.',
-    },
-    {
-        id: 'chicken_coops', name: 'Chicken Coops', category: 'exterior_structures',
-        sourceType: 'ai_inferred', sourceName: 'Satellite Imagery AI',
-        status: 'deferred', confidence: 'inferred', usedIn: ['report'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Phase 3.',
-    },
-    {
-        id: 'tennis_rec', name: 'Tennis / Basketball / Rec', category: 'exterior_structures',
-        sourceType: 'ai_inferred', sourceName: 'Satellite Imagery AI',
-        status: 'deferred', confidence: 'inferred', usedIn: ['report', 'flags'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Phase 3: Liability flag potential.',
-    },
-    {
-        id: 'jacuzzi_spa', name: 'Jacuzzis / Spa', category: 'exterior_structures',
-        sourceType: 'ai_inferred', sourceName: 'Satellite Imagery AI',
-        status: 'deferred', confidence: 'inferred', usedIn: ['report', 'flags'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Phase 3: Liability flag.',
-    },
-    {
-        id: 'outdoor_bathroom', name: 'Outdoor Bathroom', category: 'exterior_structures',
-        sourceType: 'ai_inferred', sourceName: 'Satellite Imagery AI',
-        status: 'deferred', confidence: 'inferred', usedIn: ['report'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Phase 3.',
-    },
 
-    // ── Roof Condition ──
+    // â”€â”€ Roof Condition â”€â”€
     {
         id: 'ai_sv_roof_condition', name: 'Roof Condition Clues (SV)', category: 'roof_condition',
         sourceType: 'ai_inferred', sourceName: 'Street Vision AI (GPT-4o)',
         status: 'live', confidence: 'inferred', usedIn: ['policy_page', 'report'],
         lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
-        notes: 'Front elevation view of roof condition clues like missing shingles or tarps.',
+        notes: 'Front elevation view of roof condition clues like missing shingles or visible damage.',
+        flagCode: 'ROOF_CONDITION_CONCERN',
     },
     {
-        id: 'damaged_roof', name: 'Damaged Roof', category: 'roof_condition',
+        id: 'damaged_roof', name: 'Damaged Roof (Aerial)', category: 'roof_condition',
         sourceType: 'ai_inferred', sourceName: 'Aerial Imagery AI',
         status: 'planned', confidence: 'manual_review', usedIn: ['report', 'flags'],
         lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Phase 2: AI detection, needs manual review confirmation.',
-    },
-    {
-        id: 'roof_calcification', name: 'Roof Calcification / Moss / Staining', category: 'roof_condition',
-        sourceType: 'ai_inferred', sourceName: 'Aerial Imagery AI',
-        status: 'planned', confidence: 'inferred', usedIn: ['report'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Phase 2: Condition indicator.',
+        notes: 'Phase 2: AI aerial detection of visible roof damage. Manual review required.',
     },
     {
         id: 'roof_change', name: 'Roof Change Over Time', category: 'roof_condition',
         sourceType: 'ai_inferred', sourceName: 'Historical Aerial Comparison',
         status: 'deferred', confidence: 'inferred', usedIn: ['report'],
         lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Phase 3: Compare historical satellite images. Requires Nearmap or similar.',
+        notes: 'Phase 3: Requires Nearmap or similar historical imagery.',
     },
 
-    // ── Property Condition ──
+    // â”€â”€ Property Condition â”€â”€
     {
         id: 'ai_sv_exterior_condition', name: 'Exterior Condition (SV)', category: 'property_condition',
         sourceType: 'ai_inferred', sourceName: 'Street Vision AI (GPT-4o)',
@@ -397,70 +416,21 @@ const DATA_POINTS: DataPoint[] = [
         notes: 'Detection of yard debris or overgrown vegetation near structures.',
     },
     {
-        id: 'overgrown_veg', name: 'Overgrown Vegetation / Debris', category: 'property_condition',
-        sourceType: 'ai_inferred', sourceName: 'Aerial / Street View AI',
-        status: 'planned', confidence: 'manual_review', usedIn: ['report', 'flags'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Phase 2: Fire risk amplifier. Needs manual review.',
-    },
-    {
-        id: 'property_mods', name: 'Property Modifications', category: 'property_condition',
+        id: 'property_mods', name: 'Property Modifications / Permits', category: 'property_condition',
         sourceType: 'manual', sourceName: 'Permit Records / Manual',
         status: 'deferred', confidence: 'manual_review', usedIn: ['report'],
         lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Future: Permit records API (county-specific).',
+        notes: 'Future: Permit records API (county-specific). Would improve RCE effective-age calculation.',
     },
     {
         id: 'home_damage', name: 'Home Damage', category: 'property_condition',
         sourceType: 'manual', sourceName: 'Street View AI / Inspection',
         status: 'deferred', confidence: 'manual_review', usedIn: ['report', 'flags'],
         lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Phase 3: Condition flag.',
-    },
-    {
-        id: 'cracked_foundation', name: 'Cracked Foundation', category: 'property_condition',
-        sourceType: 'manual', sourceName: 'Street View AI / Inspection',
-        status: 'deferred', confidence: 'manual_review', usedIn: ['report', 'flags'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Phase 3.',
-    },
-    {
-        id: 'structural_issues', name: 'Structural Issues', category: 'property_condition',
-        sourceType: 'manual', sourceName: 'Inspection / Manual',
-        status: 'deferred', confidence: 'manual_review', usedIn: ['report', 'flags'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Phase 3.',
-    },
-    {
-        id: 'land_shifting', name: 'Land Shifting', category: 'property_condition',
-        sourceType: 'manual', sourceName: 'Geological Data / Manual',
-        status: 'deferred', confidence: 'manual_review', usedIn: ['report'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Future: Geological survey data.',
-    },
-    {
-        id: 'awnings', name: 'Awnings', category: 'property_condition',
-        sourceType: 'ai_inferred', sourceName: 'Street View AI',
-        status: 'deferred', confidence: 'inferred', usedIn: ['report'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Phase 3.',
-    },
-    {
-        id: 'signs', name: 'Signs', category: 'property_condition',
-        sourceType: 'ai_inferred', sourceName: 'Street View AI',
-        status: 'deferred', confidence: 'inferred', usedIn: ['report'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
-        notes: 'Phase 3: Occupancy type indicator.',
-    },
-    {
-        id: 'outdoor_equipment', name: 'Outdoor Radio/TV Equipment', category: 'property_condition',
-        sourceType: 'ai_inferred', sourceName: 'Street View AI',
-        status: 'deferred', confidence: 'inferred', usedIn: ['report'],
-        lifecycle: 'future', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
         notes: 'Phase 3.',
     },
 
-    // ── Interior ──
+    // â”€â”€ Interior â”€â”€
     {
         id: 'floor_types', name: 'Floor Types', category: 'interior',
         sourceType: 'future_vendor', sourceName: 'Premium Vendor / Manual',
@@ -582,7 +552,7 @@ function DetailDrawer({ dp, onClose }: { dp: DataPoint; onClose: () => void }) {
                         <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-high)', marginBottom: '0.25rem' }}>{dp.name}</h3>
                         <Badge label={STATUS_LABELS[dp.status]} colors={statusColors[dp.status]} />
                     </div>
-                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem' }}>âœ•</button>
                 </div>
 
                 {/* Properties */}
@@ -768,7 +738,7 @@ export default function DataSourcesCatalog() {
             </div>
 
             <div style={{ marginTop: '0.5rem', fontSize: '0.68rem', color: '#475569' }}>
-                Showing {filtered.length} of {DATA_POINTS.length} data points · Click any row for details
+                Showing {filtered.length} of {DATA_POINTS.length} data points Â· Click any row for details
             </div>
 
             {/* Detail Drawer */}

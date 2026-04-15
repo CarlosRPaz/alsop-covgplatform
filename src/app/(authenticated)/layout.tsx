@@ -157,7 +157,7 @@ export default function AuthenticatedLayout({
                 console.log('[Auth] User role:', role);
                 setUserRole(role);
 
-                if (role === 'admin' || role === 'service' || role === 'customer') {
+                if (role === 'admin' || role === 'service' || role === 'agent' || role === 'user' || role === 'customer') {
                     console.log('[Auth] Access granted for role:', role);
                     setAuthState('authorized');
                 } else {
@@ -223,10 +223,18 @@ export default function AuthenticatedLayout({
                 justifyContent: 'center',
                 minHeight: '100vh',
                 backgroundColor: 'var(--background)',
-                color: 'var(--text-muted)',
-                fontSize: '1rem',
+                flexDirection: 'column',
+                gap: '0.75rem',
             }}>
-                Loading...
+                <div style={{
+                    width: 32, height: 32,
+                    border: '3px solid var(--border-default)',
+                    borderTop: '3px solid var(--accent-primary)',
+                    borderRadius: '50%',
+                    animation: 'spin 0.75s linear infinite',
+                }} />
+                <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>Loading…</span>
             </div>
         );
     }

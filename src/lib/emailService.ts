@@ -3,15 +3,21 @@
  *
  * Architecture:
  * - Google Workspace = human inboxes (support@coveragechecknow.com, admin@, reports@)
- * - Postmark = app-generated transactional email
+ * - Postmark = app-generated transactional email (server-side HTTPS API only)
  *
- * Safety system:
- * - EMAIL_SEND_MODE controls behavior:
- *   - 'disabled'  (DEFAULT) — all sends silently logged, never delivered
- *   - 'redirect'  — all sends redirected to EMAIL_DEV_REDIRECT
- *   - 'live'      — real delivery (requires NODE_ENV=production)
+ * TWO-LAYER SAFETY SYSTEM:
  *
- * Real client delivery is OPT-IN. It is never enabled by default.
+ * Layer 1 — EMAIL_FORCE_REDIRECT_ENABLED (explicit kill-switch):
+ *   If true, ALL outbound email is force-redirected to EMAIL_FORCE_REDIRECT_TO
+ *   regardless of any other setting. Set to false only when ready for real delivery.
+ *
+ * Layer 2 — EMAIL_SEND_MODE (mode-based behavior):
+ *   - 'disabled'  (DEFAULT) — logs silently, never delivers
+ *   - 'redirect'  — sends via Postmark, but To is overridden to EMAIL_DEV_REDIRECT
+ *   - 'live'      — real delivery (requires NODE_ENV=production AND Layer 1 disabled)
+ *
+ * Both layers enforce their rules SERVER-SIDE before any Postmark API call is made.
+ * No UI component can bypass this.
  */
 
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
@@ -52,13 +58,16 @@ export interface EmailSendResult {
     success: boolean;
     messageId?: string;
     mode: EmailSendMode;
-    redirectedFrom?: string;  // Original recipient if redirected
+    redirectedFrom?: string;   // Original recipient if redirected
+    forceRedirected?: boolean; // Whether layer-1 force redirect was applied
     error?: string;
     timestamp: string;
 }
 
 export interface EmailSystemStatus {
     mode: EmailSendMode;
+    forceRedirectEnabled: boolean;
+    forceRedirectTarget: string | null;
     redirectTarget: string | null;
     postmarkConfigured: boolean;
     fromDefault: string;
@@ -119,7 +128,7 @@ class PostmarkProvider implements EmailProvider {
         }
 
         try {
-            const res = await fetch('https://api.postmark.app/email', {
+            const res = await fetch('https://api.postmarkapp.com/email', {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
@@ -132,7 +141,18 @@ class PostmarkProvider implements EmailProvider {
             const data = await res.json();
 
             if (!res.ok || data.ErrorCode) {
-                return { success: false, error: data.Message || `Postmark error ${data.ErrorCode}` };
+                // Translate common Postmark error codes into actionable messages
+                let friendlyError = data.Message || `Postmark error ${data.ErrorCode}`;
+                if (data.ErrorCode === 400 && data.Message?.includes('Sender Signature')) {
+                    friendlyError = `Sender not verified in Postmark: "${fromStr}". Go to Postmark dashboard → Sender Signatures and verify this address or its domain.`;
+                } else if (data.ErrorCode === 412) {
+                    friendlyError = `Postmark account is pending approval (sandbox mode). Can only deliver to @coveragechecknow.com addresses. Request approval at account.postmarkapp.com.`;
+                } else if (data.ErrorCode === 300) {
+                    friendlyError = `Invalid email address format. Check the recipient address.`;
+                } else if (data.ErrorCode === 406) {
+                    friendlyError = `Recipient address is inactive/bounced in Postmark. This address has been suppressed.`;
+                }
+                return { success: false, error: friendlyError };
             }
 
             return { success: true, messageId: data.MessageID };
@@ -143,7 +163,7 @@ class PostmarkProvider implements EmailProvider {
 }
 
 // ---------------------------------------------------------------------------
-// Console Provider (dev fallback)
+// Console Provider (dev fallback when no Postmark token)
 // ---------------------------------------------------------------------------
 
 class ConsoleProvider implements EmailProvider {
@@ -177,6 +197,14 @@ export function getEmailSendMode(): EmailSendMode {
     return mode;
 }
 
+export function isForceRedirectEnabled(): boolean {
+    return process.env.EMAIL_FORCE_REDIRECT_ENABLED?.toLowerCase() === 'true';
+}
+
+export function getForceRedirectTarget(): string {
+    return process.env.EMAIL_FORCE_REDIRECT_TO || 'carlospaz@allstate.com';
+}
+
 export function getDevRedirectTarget(): string {
     return process.env.EMAIL_DEV_REDIRECT || 'carlospaz@allstate.com';
 }
@@ -191,8 +219,11 @@ export function getDefaultReplyTo(): string {
 
 export function getEmailSystemStatus(): EmailSystemStatus {
     const mode = getEmailSendMode();
+    const forceEnabled = isForceRedirectEnabled();
     return {
         mode,
+        forceRedirectEnabled: forceEnabled,
+        forceRedirectTarget: forceEnabled ? getForceRedirectTarget() : null,
         redirectTarget: mode === 'redirect' ? getDevRedirectTarget() : null,
         postmarkConfigured: !!process.env.POSTMARK_SERVER_TOKEN,
         fromDefault: getDefaultFrom(),
@@ -218,41 +249,78 @@ function getProvider(): EmailProvider {
 /**
  * Send an email through the platform's email system.
  *
- * Safety behavior by mode:
- * - disabled: logs the attempt, never sends
- * - redirect: rewrites To to dev redirect, marks subject with [DEV/TEST]
- * - live: sends to real recipient (production only)
+ * Layer 1 — Force Redirect (EMAIL_FORCE_REDIRECT_ENABLED=true):
+ *   ALL emails go to EMAIL_FORCE_REDIRECT_TO. Period. Overrides everything.
+ *
+ * Layer 2 — Mode-based (when force redirect is disabled):
+ *   - disabled: logs the attempt, never sends
+ *   - redirect: rewrites To to dev redirect, marks subject with [DEV/TEST]
+ *   - live: sends to real recipient (production only)
  */
 export async function sendEmail(message: EmailMessage): Promise<EmailSendResult> {
-    const mode = getEmailSendMode();
     const now = new Date().toISOString();
     const originalTo = typeof message.to === 'string' ? message.to : message.to.email;
 
-    // ── DISABLED MODE ──
+    // ── LAYER 1: FORCE REDIRECT (explicit kill-switch) ──
+    if (isForceRedirectEnabled()) {
+        const forceTarget = getForceRedirectTarget();
+
+        console.log(`[Email] ⚠️  FORCE REDIRECT ACTIVE: ${originalTo} → ${forceTarget}`);
+
+        const redirectedMessage: EmailMessage = {
+            ...message,
+            to: forceTarget,
+            subject: `[SAFE MODE] ${message.subject}`,
+            htmlBody: buildRedirectBanner(originalTo, message.templateId, true) + message.htmlBody,
+        };
+
+        const provider = getProvider();
+        const result = await provider.send(redirectedMessage);
+
+        await logEmailEvent('email.force_redirected', message, {
+            mode: getEmailSendMode(),
+            originalTo,
+            redirectedTo: forceTarget,
+            forceRedirectApplied: true,
+            provider: provider.name,
+            messageId: result.messageId,
+            success: result.success,
+            error: result.error,
+        });
+
+        return {
+            success: result.success,
+            messageId: result.messageId,
+            mode: getEmailSendMode(),
+            redirectedFrom: originalTo,
+            forceRedirected: true,
+            error: result.error,
+            timestamp: now,
+        };
+    }
+
+    // ── LAYER 2: MODE-BASED ──
+    const mode = getEmailSendMode();
+
+    // disabled
     if (mode === 'disabled') {
         await logEmailEvent('email.blocked', message, {
             mode,
             reason: 'Email sending is disabled (EMAIL_SEND_MODE=disabled)',
             originalTo,
         });
-
-        return {
-            success: true,
-            mode: 'disabled',
-            timestamp: now,
-        };
+        return { success: true, mode: 'disabled', timestamp: now };
     }
 
-    // ── REDIRECT MODE ──
+    // redirect
     if (mode === 'redirect') {
         const redirectTarget = getDevRedirectTarget();
 
-        // Rewrite the message for dev safety
         const redirectedMessage: EmailMessage = {
             ...message,
             to: redirectTarget,
             subject: `[DEV/TEST] ${message.subject}`,
-            htmlBody: buildRedirectBanner(originalTo, message.templateId) + message.htmlBody,
+            htmlBody: buildRedirectBanner(originalTo, message.templateId, false) + message.htmlBody,
         };
 
         const provider = getProvider();
@@ -262,6 +330,7 @@ export async function sendEmail(message: EmailMessage): Promise<EmailSendResult>
             mode,
             originalTo,
             redirectedTo: redirectTarget,
+            forceRedirectApplied: false,
             provider: provider.name,
             messageId: result.messageId,
             success: result.success,
@@ -273,20 +342,19 @@ export async function sendEmail(message: EmailMessage): Promise<EmailSendResult>
             messageId: result.messageId,
             mode: 'redirect',
             redirectedFrom: originalTo,
+            forceRedirected: false,
             error: result.error,
             timestamp: now,
         };
     }
 
-    // ── LIVE MODE ──
-    // Final safety check
+    // live — final production safety check
     if (process.env.NODE_ENV !== 'production') {
         await logEmailEvent('email.blocked', message, {
             mode: 'live',
             reason: 'Live mode blocked — NODE_ENV is not production',
             originalTo,
         });
-
         return {
             success: false,
             mode: 'live',
@@ -300,6 +368,7 @@ export async function sendEmail(message: EmailMessage): Promise<EmailSendResult>
 
     await logEmailEvent(result.success ? 'email.sent' : 'email.failed', message, {
         mode: 'live',
+        forceRedirectApplied: false,
         provider: provider.name,
         messageId: result.messageId,
         success: result.success,
@@ -330,16 +399,18 @@ async function logEmailEvent(
 
         await supabase.from('activity_events').insert({
             event_type: eventType,
-            title: `Email: ${message.subject.replace(/^\[DEV\/TEST\]\s*/, '').slice(0, 80)}`,
-            detail: `To: ${meta.originalTo || toStr} | Mode: ${meta.mode} | Template: ${message.templateId || 'custom'}`,
+            title: `Email: ${message.subject.replace(/^\[(SAFE MODE|DEV\/TEST)\]\s*/, '').slice(0, 80)}`,
+            detail: `Intended: ${meta.originalTo || toStr} | Delivered: ${meta.redirectedTo || toStr} | Mode: ${meta.mode} | Template: ${message.templateId || 'custom'} | ForceRedirect: ${meta.forceRedirectApplied ?? false}`,
             policy_id: message.policyId || null,
             client_id: message.clientId || null,
             meta: {
-                to: toStr,
+                intendedTo: meta.originalTo || toStr,
+                deliveredTo: meta.redirectedTo || toStr,
                 from: typeof message.from === 'string' ? message.from : message.from?.email || getDefaultFrom(),
                 replyTo: message.replyTo || getDefaultReplyTo(),
                 templateId: message.templateId,
                 reportId: message.reportId,
+                forceRedirectApplied: meta.forceRedirectApplied ?? false,
                 ...meta,
             },
         });
@@ -352,11 +423,17 @@ async function logEmailEvent(
 // Helpers
 // ---------------------------------------------------------------------------
 
-function buildRedirectBanner(originalTo: string, templateId?: string): string {
+function buildRedirectBanner(originalTo: string, templateId?: string, forceMode?: boolean): string {
+    const label = forceMode ? '🔒 SAFE MODE — FORCE REDIRECT ACTIVE' : '⚠️ DEV/TEST EMAIL — NOT SENT TO CLIENT';
+    const bg = forceMode ? '#fee2e2' : '#fef3c7';
+    const border = forceMode ? '#f87171' : '#f59e0b';
+    const textColor = forceMode ? '#7f1d1d' : '#78350f';
+    const headingColor = forceMode ? '#991b1b' : '#92400e';
+
     return `
-<div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-family:system-ui,sans-serif;">
-  <div style="font-weight:700;color:#92400e;font-size:14px;margin-bottom:4px;">⚠️ DEV/TEST EMAIL — NOT SENT TO CLIENT</div>
-  <div style="color:#78350f;font-size:13px;">
+<div style="background:${bg};border:2px solid ${border};border-radius:8px;padding:12px 16px;margin-bottom:20px;font-family:system-ui,sans-serif;">
+  <div style="font-weight:700;color:${headingColor};font-size:14px;margin-bottom:4px;">${label}</div>
+  <div style="color:${textColor};font-size:13px;">
     <strong>Original recipient:</strong> ${originalTo}<br/>
     <strong>Template:</strong> ${templateId || 'custom'}<br/>
     <strong>Redirected at:</strong> ${new Date().toISOString()}

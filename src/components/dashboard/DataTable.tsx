@@ -769,7 +769,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
 
                 <div className={styles.controlButtons}>
                     {/* Status Filter Pill */}
-                    <div className="relative" ref={statusMenuRef}>
+                    <div style={{ position: 'relative' }} ref={statusMenuRef}>
                         <button
                             onClick={() => setIsStatusMenuOpen(prev => !prev)}
                             className={clsx(
@@ -815,7 +815,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                     </div>
 
                     {/* Flag Filter Pill */}
-                    <div className="relative" ref={flagMenuRef}>
+                    <div style={{ position: 'relative' }} ref={flagMenuRef}>
                         <button
                             onClick={() => setIsFlagMenuOpen(prev => !prev)}
                             className={clsx(
@@ -844,7 +844,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
 
                                 {/* Priority chips */}
                                 <div className={styles.severitySection}>
-                                    <div className={styles.severitySectionLabel}>Priority</div>
+                                    <div className={styles.severitySectionLabel}>PRIORITY</div>
                                     <div className={styles.severityChips}>
                                         {['all', 'high', 'medium', 'low'].map(sev => (
                                             <button
@@ -855,7 +855,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                                 )}
                                                 onClick={() => setFlagSeverityFilter(sev)}
                                             >
-                                                {sev === 'all' ? 'All' : sev}
+                                                {sev === 'all' ? 'All' : sev.charAt(0).toUpperCase() + sev.slice(1)}
                                             </button>
                                         ))}
                                     </div>
@@ -895,7 +895,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                     </div>
 
                     {/* Enrichment Filter Pill */}
-                    <div className="relative" ref={enrichmentMenuRef}>
+                    <div style={{ position: 'relative' }} ref={enrichmentMenuRef}>
                         <button
                             onClick={() => setIsEnrichmentMenuOpen(prev => !prev)}
                             className={clsx(
@@ -940,7 +940,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                     </div>
 
                     {/* Columns */}
-                    <div className="relative" ref={columnMenuRef}>
+                    <div style={{ position: 'relative' }} ref={columnMenuRef}>
                         <button
                             onClick={() => setIsColumnMenuOpen(prev => !prev)}
                             className={styles.pillButton}
@@ -967,6 +967,13 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                         onDragStart={(e) => handleDragStart(e, col.key)}
                                         onDragOver={(e) => handleDragOver(e, col.key)}
                                         onDragEnd={handleDragEnd}
+                                        onClick={(e) => {
+                                            // Only toggle if the click wasn't on a button or the drag handle
+                                            const target = e.target as HTMLElement;
+                                            if (!target.closest('button') && !target.closest('.' + styles.dragHandle)) {
+                                                toggleColumn(col.key);
+                                            }
+                                        }}
                                     >
                                         <div className={styles.columnItemLeft}>
                                             <GripVertical size={14} className={styles.dragHandle} />
@@ -974,19 +981,20 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                                 type="checkbox"
                                                 checked={visibleColumns.has(col.key)}
                                                 onChange={() => toggleColumn(col.key)}
+                                                onClick={(e) => e.stopPropagation()}
                                             />
                                             <span>{col.label}</span>
                                         </div>
                                         <div className={styles.columnItemArrows}>
                                             <button
-                                                onClick={() => moveColumn(col.key, 'up')}
+                                                onClick={(e) => { e.stopPropagation(); moveColumn(col.key, 'up'); }}
                                                 disabled={index === 0}
                                                 className={styles.arrowBtn}
                                             >
                                                 <ChevronUp size={12} />
                                             </button>
                                             <button
-                                                onClick={() => moveColumn(col.key, 'down')}
+                                                onClick={(e) => { e.stopPropagation(); moveColumn(col.key, 'down'); }}
                                                 disabled={index === columnOrder.length - 1}
                                                 className={styles.arrowBtn}
                                             >
@@ -1027,10 +1035,10 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                 </span>
                             );
                         })}
-                        {/* Severity chip */}
+                        {/* Priority chip */}
                         {flagSeverityFilter !== 'all' && (
                             <span className={styles.filterChip}>
-                                Severity: {flagSeverityFilter}
+                                Priority: {flagSeverityFilter.charAt(0).toUpperCase() + flagSeverityFilter.slice(1)}
                                 <button onClick={() => setFlagSeverityFilter('all')} className={styles.filterChipX}><X size={11} /></button>
                             </span>
                         )}

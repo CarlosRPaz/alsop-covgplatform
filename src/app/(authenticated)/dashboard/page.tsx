@@ -5,18 +5,17 @@ import { useSearchParams } from 'next/navigation';
 import { AgentDashboardStats } from '@/components/dashboard/AgentDashboardStats';
 import { DataTable } from '@/components/dashboard/DataTable';
 import { DashboardChart } from '@/components/dashboard/DashboardChart';
+import { LineChartKPI } from '@/components/dashboard/LineChartKPI';
 import { ActivityTab } from '@/components/dashboard/ActivityTab';
 import { CSVUploadModal } from '@/components/dashboard/CSVUploadModal';
 import { BatchEnrichModal } from '@/components/dashboard/BatchEnrichModal';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button/Button';
-import { Plus, Upload, Zap } from 'lucide-react';
+import { Plus, Upload, Zap, BarChart2, ChevronDown } from 'lucide-react';
 import { useSidebar } from '@/components/layout/SidebarContext';
 
-
 const tabs = [
-    { id: 'policy-table', label: 'POLICY TABLE' },
     { id: 'activity', label: 'ACTIVITY' },
 ];
 
@@ -27,6 +26,7 @@ export default function DashboardPage() {
     const [selectedTablePolicyIds, setSelectedTablePolicyIds] = useState<string[]>([]);
     const tableSectionRef = useRef<HTMLDivElement>(null);
     const { isMobile } = useSidebar();
+    const [analyticsOpen, setAnalyticsOpen] = useState(false);
 
     // Read URL params for drill-down filtering
     const expirationFrom = searchParams.get('expiration_from') || '';
@@ -34,6 +34,8 @@ export default function DashboardPage() {
     const statusFilter = searchParams.get('status') || '';
     const renewalWindow = searchParams.get('renewal_window') || '';
     const searchInit = searchParams.get('search') || '';
+
+    const enrichmentFilter = searchParams.get('enrichment') || '';
 
     // Compute expiration filter from URL params
     const expirationFilter = useMemo(() => {
@@ -52,10 +54,9 @@ export default function DashboardPage() {
         return undefined;
     }, [expirationFrom, expirationTo, renewalWindow]);
 
-    const hasDrillDownFilters = !!(expirationFrom || expirationTo || statusFilter || renewalWindow || searchInit);
+    const hasDrillDownFilters = !!(expirationFrom || expirationTo || statusFilter || renewalWindow || searchInit || enrichmentFilter);
 
-    // If we have drill-down filters, default to policy-table tab
-    const [activeTab, setActiveTab] = useState('policy-table');
+    const [activeTab, setActiveTab] = useState('activity');
 
     // Build a human-readable filter label
     const filterLabel = useMemo(() => {
@@ -69,54 +70,95 @@ export default function DashboardPage() {
         }
         if (statusFilter === 'pending_review') return 'Pending review';
         if (statusFilter) return `Status: ${statusFilter}`;
+        if (enrichmentFilter === 'not_enriched') return 'Not enriched';
         return '';
-    }, [expirationFrom, expirationTo, statusFilter, renewalWindow]);
+    }, [expirationFrom, expirationTo, statusFilter, renewalWindow, enrichmentFilter]);
 
-    // Auto-scroll to the table section when drill-down filters are active
+    // Smooth scroll to table when drill-downs fire (not needed anymore since table is at top)
     useEffect(() => {
         if (hasDrillDownFilters && tableSectionRef.current) {
-            // Small delay to let the page render first
             const timer = setTimeout(() => {
                 tableSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 300);
+            }, 150);
             return () => clearTimeout(timer);
         }
     }, [hasDrillDownFilters]);
 
-    const renderTabContent = () => {
-        switch (activeTab) {
-            case 'policy-table':
-                return (
-                    <section>
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 mt-4">
-                            <h2 className="text-xl font-bold font-heading" style={{ color: 'var(--text-high)' }}>All Active Policies</h2>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1rem' }}>
-                                <Link href="/submit">
-                                    <Button size="sm" variant="primary">
-                                        <Plus className="w-3 h-3 mr-1.5" />
-                                        New Declaration
-                                    </Button>
-                                </Link>
+    return (
+        <main>
+            <div style={{ padding: isMobile ? '0.5rem 0' : '1.5rem 1.5rem 2rem' }}>
 
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setIsCSVModalOpen(true)}
-                                >
-                                    <Upload className="w-3 h-3 mr-1.5" />
-                                    Upload CSV
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setIsEnrichModalOpen(true)}
-                                    style={{ color: 'var(--text-muted)' }}
-                                >
-                                    <Zap className="w-3 h-3 mr-1.5" />
-                                    Enrich &amp; Analyze
-                                </Button>
-                            </div>
-                        </div>
+                {/* ── Page header ── */}
+                <header style={{
+                    display: 'flex',
+                    flexDirection: isMobile ? 'column' : 'row',
+                    alignItems: isMobile ? 'flex-start' : 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                    marginBottom: '1.25rem',
+                }}>
+                    <div>
+                        <h1 style={{ fontSize: '1.375rem', fontWeight: 700, color: 'var(--text-high)', marginBottom: '0.2rem' }}>
+                            Agent Dashboard
+                        </h1>
+                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                            Overview of all policies and their status
+                        </p>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' }}>
+                        <Link href="/submit">
+                            <Button size="sm" variant="primary">
+                                <Plus style={{ width: 13, height: 13, marginRight: 5 }} />
+                                New Declaration
+                            </Button>
+                        </Link>
+                        <Button variant="outline" size="sm" onClick={() => setIsCSVModalOpen(true)}>
+                            <Upload style={{ width: 13, height: 13, marginRight: 5 }} />
+                            Upload CSV
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setIsEnrichModalOpen(true)} style={{ color: 'var(--text-muted)' }}>
+                            <Zap style={{ width: 13, height: 13, marginRight: 5 }} />
+                            Enrich &amp; Analyze
+                        </Button>
+                    </div>
+                </header>
+
+                {/* ── Compact KPI strip ── */}
+                <AgentDashboardStats />
+
+                {/* ── Policy table — immediately at fold ── */}
+                <div ref={tableSectionRef} style={{
+                    marginTop: '1.5rem',
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 'var(--radius-lg)',
+                    overflow: 'hidden',
+                }}>
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '1rem 1.25rem',
+                        borderBottom: '1px solid var(--border-default)',
+                    }}>
+                        <h2 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-high)' }}>
+                            All Active Policies
+                            {filterLabel && (
+                                <span style={{
+                                    marginLeft: '0.625rem',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 500,
+                                    color: 'var(--accent-primary)',
+                                    background: 'var(--accent-primary-muted)',
+                                    padding: '0.15rem 0.5rem',
+                                    borderRadius: '999px',
+                                }}>
+                                    {filterLabel}
+                                </span>
+                            )}
+                        </h2>
+                    </div>
+                    <div style={{ padding: '0.75rem 1.25rem 1.25rem' }}>
                         <DataTable
                             initialSearch={searchInit}
                             initialExpirationFilter={expirationFilter}
@@ -124,67 +166,68 @@ export default function DashboardPage() {
                             filterLabel={filterLabel}
                             onSelectionChange={setSelectedTablePolicyIds}
                         />
-                    </section>
-                );
-            case 'activity':
-                return <ActivityTab />;
-            default:
-                return null;
-        }
-    };
-
-    return (
-        <main>
-            <div style={{ padding: isMobile ? '0.25rem 0' : '2rem 1.5rem' }}>
-                {/* Header */}
-                <header className="flex flex-col md:flex-row md:items-center justify-between gap-3" style={{ marginTop: isMobile ? '0.5rem' : '1.5rem', marginBottom: isMobile ? '0.75rem' : '1.5rem' }}>
-                    <div>
-                        <h1 className="text-2xl font-bold text-slate-900 mb-1">Agent Dashboard</h1>
-                        <p className="text-sm text-slate-500">Overview of all policies and their status</p>
-                    </div>
-                </header>
-
-                {/* ═══ Overview Section: Left (Cards + Rings) | Right (Charts) ═══ */}
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-                    alignItems: 'stretch',
-                    gap: isMobile ? '0.75rem' : '1.25rem',
-                    marginBottom: isMobile ? '0.75rem' : '1.5rem',
-                }}>
-                    {/* ── Left Column: Actionable Unified Dashboard Header ── */}
-                    <AgentDashboardStats />
-
-                    {/* ── Right Column: Stacked Charts ── */}
-                    <div style={{
-                        background: 'var(--bg-surface)',
-                        borderRadius: 'var(--radius-lg)',
-                        border: '1px solid var(--border-default)',
-                        padding: isMobile ? '0.75rem' : '1.25rem',
-                        overflow: 'hidden',
-                        display: 'flex',
-                        flexDirection: 'column',
-                    }}>
-                        <DashboardChart />
                     </div>
                 </div>
 
-                {/* Tabs — scroll target when drill-down is active */}
-                <div ref={tableSectionRef}>
-                    <Tabs tabs={tabs} defaultTab="policy-table" onChange={setActiveTab} />
+                {/* ── Collapsible analytics section ── */}
+                <div style={{ marginTop: '1.25rem' }}>
+                    <button
+                        onClick={() => setAnalyticsOpen(v => !v)}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '0.5rem',
+                            width: '100%', padding: '0.75rem 1rem',
+                            background: 'var(--bg-surface)',
+                            border: '1px solid var(--border-default)',
+                            borderRadius: analyticsOpen ? 'var(--radius-lg) var(--radius-lg) 0 0' : 'var(--radius-lg)',
+                            color: 'var(--text-mid)', fontSize: '0.82rem', fontWeight: 600,
+                            cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s',
+                        }}
+                    >
+                        <BarChart2 size={15} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                        Analytics &amp; Renewal Charts
+                        <ChevronDown
+                            size={15}
+                            style={{
+                                marginLeft: 'auto', color: 'var(--text-muted)',
+                                transform: analyticsOpen ? 'rotate(180deg)' : 'none',
+                                transition: 'transform 0.2s',
+                            }}
+                        />
+                    </button>
+                    {analyticsOpen && (
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+                            gap: '1.25rem',
+                            padding: '1.25rem',
+                            background: 'var(--bg-surface)',
+                            border: '1px solid var(--border-default)',
+                            borderTop: 'none',
+                            borderRadius: '0 0 var(--radius-lg) var(--radius-lg)',
+                        }}>
+                            <div style={{
+                                background: 'var(--bg-surface-raised)',
+                                borderRadius: 'var(--radius-lg)',
+                                border: '1px solid var(--border-default)',
+                                padding: '1.25rem',
+                                overflow: 'hidden',
+                            }}>
+                                <DashboardChart />
+                            </div>
+                            <LineChartKPI />
+                        </div>
+                    )}
                 </div>
 
-                {/* Tab Content */}
-                {renderTabContent()}
+                {/* ── Activity tab (secondary) ── */}
+                <div style={{ marginTop: '1.25rem' }}>
+                    <Tabs tabs={tabs} defaultTab="activity" onChange={setActiveTab} />
+                    {activeTab === 'activity' && <ActivityTab />}
+                </div>
+
             </div>
 
-            {/* CSV Upload Modal */}
-            <CSVUploadModal
-                isOpen={isCSVModalOpen}
-                onClose={() => setIsCSVModalOpen(false)}
-            />
-
-            {/* Batch Enrich Modal */}
+            <CSVUploadModal isOpen={isCSVModalOpen} onClose={() => setIsCSVModalOpen(false)} />
             <BatchEnrichModal
                 isOpen={isEnrichModalOpen}
                 onClose={() => setIsEnrichModalOpen(false)}

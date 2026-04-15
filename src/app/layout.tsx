@@ -6,7 +6,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Check Home Insurance Coverage — Insurance Policy Intelligence Platform",
-  description: "Policy analysis, flag management, and coverage intelligence for Alsop Insurance Agency.",
+  description: "Policy analysis, flag management, and coverage intelligence for Alsop and Associates Insurance Agency.",
 };
 
 export default function RootLayout({
@@ -15,8 +15,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={inter.className} suppressHydrationWarning>
         {children}
       </body>
     </html>

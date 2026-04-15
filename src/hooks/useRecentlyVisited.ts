@@ -29,10 +29,14 @@ export function useRecentlyVisited() {
     // Listen for updates from other components (cross-component sync)
     useEffect(() => {
         const handler = () => {
-            try {
-                const raw = localStorage.getItem(STORAGE_KEY);
-                if (raw) setItems(JSON.parse(raw));
-            } catch { /* ignore */ }
+            // Defer to next tick to avoid "Cannot update a component while rendering
+            // a different component" when addVisit dispatches this event synchronously
+            setTimeout(() => {
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    if (raw) setItems(JSON.parse(raw));
+                } catch { /* ignore */ }
+            }, 0);
         };
 
         // Custom event from same window

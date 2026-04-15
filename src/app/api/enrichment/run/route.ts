@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
 import { logger } from '@/lib/logger';
+import { fetchAttomPropertyDetail, ATTOM_SOURCE_NAME, ATTOM_SOURCE_TIER } from '@/lib/attom';
 
 /**
  * POST /api/enrichment/run
@@ -37,6 +38,7 @@ async function upsertEnrichment(
         field_value: string | null;
         source_name: string;
         source_type: string;
+        source_tier?: string;
         source_url?: string | null;
         confidence?: string;
         notes?: string | null;
@@ -45,6 +47,7 @@ async function upsertEnrichment(
     const now = new Date().toISOString();
     const row = {
         ...payload,
+        source_tier: payload.source_tier || 'enriched_ai',
         confidence: payload.confidence || 'medium',
         fetched_at: now,
         updated_at: now,
@@ -252,6 +255,72 @@ async function enrichFireRisk(
     return true;
 }
 
+async function enrichAssessorData(
+    sb: ReturnType<typeof getSupabaseAdmin>,
+    policyId: string,
+    address: string
+): Promise<boolean> {
+    // Fetch real property data from ATTOM Data Solutions.
+    // If ATTOM_API_KEY is not configured, this returns notConfigured=true and we skip.
+    // We NEVER write mock/random data — no data is better than misleading data.
+    const result = await fetchAttomPropertyDetail(address);
+
+    if (result.notConfigured) {
+        logger.warn('Enrichment', 'ATTOM not configured — assessor enrichment skipped. Set ATTOM_API_KEY to enable.', { policyId });
+        return false;
+    }
+
+    if (!result.success || !result.data) {
+        logger.error('Enrichment', `ATTOM fetch failed for policy ${policyId}: ${result.error}`);
+        return false;
+    }
+
+    const d = result.data;
+    const tier = ATTOM_SOURCE_TIER;
+    const source = ATTOM_SOURCE_NAME;
+
+    // Helper: only upsert if the value is non-null/non-zero
+    async function upsertIfPresent(field_key: string, value: string | number | boolean | null, notes?: string) {
+        if (value === null || value === undefined || value === '') return;
+        await upsertEnrichment(sb, {
+            policy_id: policyId,
+            field_key,
+            field_value: String(value),
+            source_name: source,
+            source_type: 'api',
+            source_tier: tier,
+            confidence: 'high',
+            notes: notes ?? null,
+        });
+    }
+
+    await upsertIfPresent('living_area_sqft', d.livingAreaSqft, 'ATTOM: building.size.livingSize');
+    await upsertIfPresent('year_built', d.yearBuilt, 'ATTOM: building.summary.yearBuilt');
+    await upsertIfPresent('stories', d.stories, 'ATTOM: building.summary.storyCount');
+    await upsertIfPresent('construction_type', d.constructionType, 'ATTOM: building.construction.frameType');
+    await upsertIfPresent('roof_material', d.roofCover, 'ATTOM: building.construction.roofCover');
+    await upsertIfPresent('exterior_walls', d.exteriorWalls, 'ATTOM: building.construction.exteriorWalls');
+    await upsertIfPresent('garage_type', d.garageType, 'ATTOM: building.parking.garageType');
+    await upsertIfPresent('garage_size', d.garageSize, 'ATTOM: building.parking.prkgSize');
+    await upsertIfPresent('total_building_area', d.totalBuildingArea, 'ATTOM: building.size.bldgSize');
+    await upsertIfPresent('lot_size_sqft', d.lotSizeSqft, 'ATTOM: lot.lotSize2');
+    await upsertIfPresent('property_class', d.propertyClass, 'ATTOM: summary.propClass');
+    await upsertIfPresent('bedrooms', d.bedrooms, 'ATTOM: building.rooms.bedroomsCount');
+    await upsertIfPresent('bathrooms', d.bathrooms, 'ATTOM: building.rooms.bathroomsCount');
+    await upsertIfPresent('fireplace_count', d.fireplaceCount, 'ATTOM: building.interior.fplcCount');
+    if (d.hasPool !== null) {
+        await upsertIfPresent('attom_pool_indicator', d.hasPool ? 'detected' : 'not_detected', 'ATTOM: pool amenity');
+    }
+
+    logger.info('Enrichment', `ATTOM enrichment complete for policy ${policyId}`, {
+        sqft: d.livingAreaSqft,
+        yearBuilt: d.yearBuilt,
+        stories: d.stories,
+    });
+
+    return true;
+}
+
 // ---------------------------------------------------------------------------
 // Main handler
 // ---------------------------------------------------------------------------
@@ -293,6 +362,7 @@ export async function POST(request: NextRequest) {
             fire_risk: false,
             vision_analysis: false,
             street_vision_analysis: false,
+            assessor_data: false,
             address_used: address,
         };
 
@@ -301,6 +371,13 @@ export async function POST(request: NextRequest) {
             results.satellite_image = await enrichSatelliteImage(sb, policy_id, address);
         } catch (e) {
             logger.error('Enrichment', `Satellite error: ${e}`);
+        }
+
+        // 2.5 Assessor Data (Mock ATTOM/Estated)
+        try {
+            results.assessor_data = await enrichAssessorData(sb, policy_id, address);
+        } catch (e) {
+            logger.error('Enrichment', `Assessor Data error: ${e}`);
         }
 
         // 3. Geocode → coordinates

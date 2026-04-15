@@ -8,12 +8,9 @@ import { env } from '@/lib/env';
 /** Maximum file size: 10 MB */
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-/** Allowed MIME types */
+/** Allowed MIME types — PDF only (image support planned for future) */
 const ALLOWED_TYPES = new Set([
     'application/pdf',
-    'image/png',
-    'image/jpeg',
-    'image/jpg',
 ]);
 
 /** Typed API response */
@@ -130,7 +127,15 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
         if (!ALLOWED_TYPES.has(file.type)) {
             logger.warn('Upload', 'Invalid file type', { type: file.type });
             return NextResponse.json(
-                { success: false, message: `Unsupported file type: ${file.type}. Allowed: PDF, PNG, JPG.`, error: 'INVALID_FILE_TYPE' },
+                { success: false, message: `Unsupported file type: ${file.type}. Only PDF files are accepted.`, error: 'INVALID_FILE_TYPE' },
+                { status: 400 }
+            );
+        }
+
+        if (file.size === 0) {
+            logger.warn('Upload', 'Empty file submitted', { name: file.name });
+            return NextResponse.json(
+                { success: false, message: 'The uploaded file is empty (0 bytes). Please select a valid PDF.', error: 'EMPTY_FILE' },
                 { status: 400 }
             );
         }
@@ -170,11 +175,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
         const fileBuffer = Buffer.from(await file.arrayBuffer());
         const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
-        // Check for existing duplicate (exact file match) that wasn't a failure
+        // Check for existing duplicate (exact file match by same account) that wasn't a failure
         const { data: existingDuplicate } = await supabaseAdmin
             .from('dec_page_submissions')
             .select('id, status')
             .eq('file_hash', fileHash)
+            .eq('account_id', accountId)
             .neq('status', 'failed') // Could be pending, uploaded, processed, etc.
             .limit(1)
             .maybeSingle();
@@ -302,6 +308,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
 
         // ---------------------------------------------------------------
         // 6. UPDATE row: status='uploaded', storage_path, file_path
+        //    CRITICAL: If this fails, the worker won't have a storage_path
+        //    and will fail. We must treat this as a hard error.
         // ---------------------------------------------------------------
         const { error: updateError } = await supabaseAdmin
             .from('dec_page_submissions')
@@ -314,16 +322,39 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
             .eq('id', submissionId);
 
         if (updateError) {
-            logger.error('Upload', 'Failed to update submission status (non-fatal)', {
+            logger.error('Upload', 'CRITICAL: Failed to update submission with storage_path', {
                 submissionId,
                 error: updateError.message,
             });
-        } else {
-            logger.info('Upload', 'Submission completed successfully', { submissionId, storagePath });
+
+            // Attempt to clean up the uploaded file since the DB row is broken
+            try {
+                await supabaseAdmin.storage.from('cfp-raw-decpage').remove([storagePath]);
+                logger.info('Upload', 'Cleaned up orphan storage file', { storagePath });
+            } catch (cleanupErr) {
+                logger.error('Upload', 'Failed to clean up orphan storage file', {
+                    storagePath,
+                    error: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
+                });
+            }
+
+            await markSubmissionFailed(submissionId!, 'Failed to finalize upload record', {
+                dbError: updateError.message,
+                storagePath,
+            });
+
+            return NextResponse.json(
+                { success: false, message: 'Failed to finalize upload. Please try again.', error: 'DB_UPDATE_FAILED' },
+                { status: 500 }
+            );
         }
+
+        logger.info('Upload', 'Submission completed successfully', { submissionId, storagePath });
 
         // ---------------------------------------------------------------
         // 7. Create ingestion job for the worker to pick up
+        //    CRITICAL: Without this, the file is uploaded but never processed.
+        //    This MUST succeed or we mark the submission as failed.
         // ---------------------------------------------------------------
         const { error: jobError } = await supabaseAdmin
             .from('ingestion_jobs')
@@ -334,13 +365,22 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
             });
 
         if (jobError) {
-            logger.error('Upload', 'Failed to create ingestion job (non-fatal)', {
+            logger.error('Upload', 'CRITICAL: Failed to create ingestion job', {
                 submissionId,
                 error: jobError.message,
             });
-        } else {
-            logger.info('Upload', 'Ingestion job queued', { submissionId });
+
+            await markSubmissionFailed(submissionId!, 'Failed to queue for processing', {
+                jobError: jobError.message,
+            });
+
+            return NextResponse.json(
+                { success: false, message: 'File uploaded but failed to queue for processing. Please try again or contact support.', error: 'JOB_CREATE_FAILED' },
+                { status: 500 }
+            );
         }
+
+        logger.info('Upload', 'Ingestion job queued', { submissionId });
 
         // ---------------------------------------------------------------
         // 8. Activity event: dec page uploaded
