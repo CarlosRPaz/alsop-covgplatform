@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AgentDashboardStats } from '@/components/dashboard/AgentDashboardStats';
 import { DataTable } from '@/components/dashboard/DataTable';
@@ -20,13 +20,25 @@ const tabs = [
 ];
 
 export default function DashboardPage() {
+    return (
+        <Suspense fallback={
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                Loading dashboard...
+            </div>
+        }>
+            <DashboardContent />
+        </Suspense>
+    );
+}
+
+function DashboardContent() {
     const searchParams = useSearchParams();
     const [isCSVModalOpen, setIsCSVModalOpen] = useState(false);
     const [isEnrichModalOpen, setIsEnrichModalOpen] = useState(false);
     const [selectedTablePolicyIds, setSelectedTablePolicyIds] = useState<string[]>([]);
     const tableSectionRef = useRef<HTMLDivElement>(null);
     const { isMobile } = useSidebar();
-    const [analyticsOpen, setAnalyticsOpen] = useState(false);
+    const [analyticsOpen, setAnalyticsOpen] = useState(true);
 
     // Read URL params for drill-down filtering
     const expirationFrom = searchParams.get('expiration_from') || '';
@@ -36,6 +48,7 @@ export default function DashboardPage() {
     const searchInit = searchParams.get('search') || '';
 
     const enrichmentFilter = searchParams.get('enrichment') || '';
+    const flagFilter = searchParams.get('flag') || '';
 
     // Compute expiration filter from URL params
     const expirationFilter = useMemo(() => {
@@ -54,12 +67,34 @@ export default function DashboardPage() {
         return undefined;
     }, [expirationFrom, expirationTo, renewalWindow]);
 
-    const hasDrillDownFilters = !!(expirationFrom || expirationTo || statusFilter || renewalWindow || searchInit || enrichmentFilter);
+    const hasDrillDownFilters = !!(expirationFrom || expirationTo || statusFilter || renewalWindow || searchInit || enrichmentFilter || flagFilter);
 
     const [activeTab, setActiveTab] = useState('activity');
 
+    // Human-readable flag names (match the flag rule registry)
+    const FLAG_LABELS: Record<string, string> = {
+        'NO_DIC': 'DIC Not on File',
+        'OTHER_STRUCTURES_ZERO': 'Other Structures $0',
+        'MISSING_POLICY_NUMBER': 'Missing Policy Number',
+        'MISSING_PROPERTY_LOCATION': 'Missing Property Location',
+        'MISSING_DWELLING_LIMIT': 'Missing Dwelling Limit',
+        'MISSING_ORDINANCE_OR_LAW': 'Missing Ordinance or Law',
+        'MISSING_EXTENDED_DWELLING': 'Missing Extended Dwelling Coverage',
+        'MISSING_DWELLING_REPLACEMENT_COST': 'Missing Dwelling Replacement Cost',
+        'MISSING_PERSONAL_PROPERTY_REPLACEMENT_COST': 'Missing Personal Property RC',
+        'MISSING_FENCES_COVERAGE': 'Missing Fences Coverage',
+        'SEVERE_UNDERINSURANCE_ESTIMATE': 'Severe Underinsurance (Modeled Estimate)',
+        'DWELLING_RC_INCLUDED_LOW_ORDINANCE': 'RC Included, Low Ordinance/Law',
+        'FAIR_RENTAL_VALUE_ZERO_OR_MISSING': 'Fair Rental Value Zero or Missing',
+        'INFLATION_GUARD_NOT_INCLUDED': 'Inflation Guard Not Included',
+        'DUPLICATE_ID_IN_TABLE': 'Possible Duplicate Policy',
+        'MISSING_PERILS_INSURED': 'Missing Perils Insured Against',
+        'MISSING_DEBRIS_REMOVAL': 'Missing Debris Removal',
+    };
+
     // Build a human-readable filter label
     const filterLabel = useMemo(() => {
+        if (flagFilter) return FLAG_LABELS[flagFilter] || flagFilter;
         if (renewalWindow) return `Renewing in ${renewalWindow} days`;
         if (expirationFrom && expirationTo) {
             const from = new Date(expirationFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -72,7 +107,7 @@ export default function DashboardPage() {
         if (statusFilter) return `Status: ${statusFilter}`;
         if (enrichmentFilter === 'not_enriched') return 'Not enriched';
         return '';
-    }, [expirationFrom, expirationTo, statusFilter, renewalWindow, enrichmentFilter]);
+    }, [expirationFrom, expirationTo, statusFilter, renewalWindow, enrichmentFilter, flagFilter]);
 
     // Smooth scroll to table when drill-downs fire (not needed anymore since table is at top)
     useEffect(() => {
@@ -126,51 +161,8 @@ export default function DashboardPage() {
                 {/* ── Compact KPI strip ── */}
                 <AgentDashboardStats />
 
-                {/* ── Policy table — immediately at fold ── */}
-                <div ref={tableSectionRef} style={{
-                    marginTop: '1.5rem',
-                    background: 'var(--bg-surface)',
-                    border: '1px solid var(--border-default)',
-                    borderRadius: 'var(--radius-lg)',
-                    overflow: 'hidden',
-                }}>
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '1rem 1.25rem',
-                        borderBottom: '1px solid var(--border-default)',
-                    }}>
-                        <h2 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-high)' }}>
-                            All Active Policies
-                            {filterLabel && (
-                                <span style={{
-                                    marginLeft: '0.625rem',
-                                    fontSize: '0.72rem',
-                                    fontWeight: 500,
-                                    color: 'var(--accent-primary)',
-                                    background: 'var(--accent-primary-muted)',
-                                    padding: '0.15rem 0.5rem',
-                                    borderRadius: '999px',
-                                }}>
-                                    {filterLabel}
-                                </span>
-                            )}
-                        </h2>
-                    </div>
-                    <div style={{ padding: '0.75rem 1.25rem 1.25rem' }}>
-                        <DataTable
-                            initialSearch={searchInit}
-                            initialExpirationFilter={expirationFilter}
-                            initialStatusFilter={statusFilter}
-                            filterLabel={filterLabel}
-                            onSelectionChange={setSelectedTablePolicyIds}
-                        />
-                    </div>
-                </div>
-
-                {/* ── Collapsible analytics section ── */}
-                <div style={{ marginTop: '1.25rem' }}>
+                {/* ── Collapsible analytics section (above table, default open) ── */}
+                <div style={{ marginTop: '1.5rem' }}>
                     <button
                         onClick={() => setAnalyticsOpen(v => !v)}
                         style={{
@@ -217,6 +209,50 @@ export default function DashboardPage() {
                             <LineChartKPI />
                         </div>
                     )}
+                </div>
+
+                {/* ── Policy table ── */}
+                <div ref={tableSectionRef} style={{
+                    marginTop: '1.25rem',
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 'var(--radius-lg)',
+                    overflow: 'hidden',
+                }}>
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '1rem 1.25rem',
+                        borderBottom: '1px solid var(--border-default)',
+                    }}>
+                        <h2 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-high)' }}>
+                            All Active Policies
+                            {filterLabel && (
+                                <span style={{
+                                    marginLeft: '0.625rem',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 500,
+                                    color: 'var(--accent-primary)',
+                                    background: 'var(--accent-primary-muted)',
+                                    padding: '0.15rem 0.5rem',
+                                    borderRadius: '999px',
+                                }}>
+                                    {filterLabel}
+                                </span>
+                            )}
+                        </h2>
+                    </div>
+                    <div style={{ padding: '0.75rem 1.25rem 1.25rem' }}>
+                        <DataTable
+                            initialSearch={searchInit}
+                            initialExpirationFilter={expirationFilter}
+                            initialStatusFilter={statusFilter}
+                            initialFlagFilter={flagFilter || undefined}
+                            filterLabel={filterLabel}
+                            onSelectionChange={setSelectedTablePolicyIds}
+                        />
+                    </div>
                 </div>
 
                 {/* ── Activity tab (secondary) ── */}

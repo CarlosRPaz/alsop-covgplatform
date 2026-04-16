@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FlaggedPolicyGroup } from '@/lib/api';
 import { useFlags } from '@/hooks/useFlags';
@@ -203,6 +203,18 @@ const PolicyRow = React.memo(function PolicyRow({ group, isExpanded, onToggle, o
 // ─── Main Component ───
 
 export default function FlagsPage() {
+    return (
+        <Suspense fallback={
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                Loading flags...
+            </div>
+        }>
+            <FlagsContent />
+        </Suspense>
+    );
+}
+
+function FlagsContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());

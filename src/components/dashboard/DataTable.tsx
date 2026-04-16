@@ -198,11 +198,12 @@ interface DataTableProps {
     initialSearch?: string;
     initialExpirationFilter?: { from?: string; to?: string };
     initialStatusFilter?: string;
+    initialFlagFilter?: string;
     filterLabel?: string;
     onSelectionChange?: (selectedIds: string[]) => void;
 }
 
-export function DataTable({ initialSearch, initialExpirationFilter, initialStatusFilter, filterLabel, onSelectionChange }: DataTableProps = {}) {
+export function DataTable({ initialSearch, initialExpirationFilter, initialStatusFilter, initialFlagFilter, filterLabel, onSelectionChange }: DataTableProps = {}) {
     const router = useRouter();
     const { policies: swrData, loading: swrLoading, error: swrError, refresh: swrRefresh } = usePolicies();
     const [data, setData] = useState<DashboardPolicy[]>([]);
@@ -250,7 +251,9 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
 
     // Flag Filtering State
     const [allFlags, setAllFlags] = useState<string[]>([]);
-    const [selectedFlags, setSelectedFlags] = useState<Set<string>>(new Set());
+    const [selectedFlags, setSelectedFlags] = useState<Set<string>>(
+        initialFlagFilter ? new Set([initialFlagFilter]) : new Set()
+    );
     const [isFlagMenuOpen, setIsFlagMenuOpen] = useState(false);
     const [flagSeverityFilter, setFlagSeverityFilter] = useState<string>('all');
     const [flagSearch, setFlagSearch] = useState('');
@@ -292,9 +295,11 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
             setColumnOrder(restored);
         }
 
-        // Selected flags
-        const savedFlags = loadFromStorage<string[] | null>(LS_SELECTED_FLAGS, null);
-        if (savedFlags) setSelectedFlags(new Set(savedFlags));
+        // Selected flags — skip restore if URL provides an initial flag filter
+        if (!initialFlagFilter) {
+            const savedFlags = loadFromStorage<string[] | null>(LS_SELECTED_FLAGS, null);
+            if (savedFlags) setSelectedFlags(new Set(savedFlags));
+        }
 
         // Selected statuses
         const savedStatuses = loadFromStorage<string[] | null>(LS_SELECTED_STATUSES, null);
