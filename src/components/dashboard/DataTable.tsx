@@ -64,6 +64,7 @@ const INITIAL_COLUMNS: ColumnDef[] = [
     { key: 'property_address', label: 'Property Address', width: '250px' },
     { key: 'mailing_address', label: 'Mailing Address', width: '250px' },
     { key: 'carrier_name', label: 'Carrier' },
+    { key: 'created_at', label: 'Date Added' },
 ];
 
 // All columns visible by default
@@ -210,7 +211,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
     const loading = swrLoading;
     const [error, setError] = useState<string | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: keyof DashboardPolicy; direction: 'asc' | 'desc' } | null>(
-        { key: 'expiration_date', direction: 'asc' }
+        { key: 'created_at', direction: 'desc' }
     );
     const [searchQuery, setSearchQuery] = useState(initialSearch || '');
 
@@ -1266,6 +1267,14 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                                     <span style={{ color: '#475569', fontSize: '0.75rem' }}>—</span>
                                                 )
                                             ) : (col.key === 'effective_date' || col.key === 'expiration_date') && row[col.key] ? (
+                                                (() => {
+                                                    const d = new Date(row[col.key] as string);
+                                                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                                                    const dd = String(d.getDate()).padStart(2, '0');
+                                                    const yy = String(d.getFullYear()).slice(-2);
+                                                    return `${mm}-${dd}-${yy}`;
+                                                })()
+                                            ) : col.key === 'created_at' && row[col.key] ? (
                                                 (() => {
                                                     const d = new Date(row[col.key] as string);
                                                     const mm = String(d.getMonth() + 1).padStart(2, '0');
