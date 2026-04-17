@@ -205,10 +205,12 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
 
                 xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
                 xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
+                xhr.addEventListener('timeout', () => reject(new Error('Upload timed out. The server took too long to respond. Please try again.')));
 
                 // Listen for abort signal
                 abortRef.current?.signal.addEventListener('abort', () => xhr.abort());
 
+                xhr.timeout = 90000; // 90 seconds
                 xhr.open('POST', '/api/upload');
                 xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`);
                 xhr.send(formData);
