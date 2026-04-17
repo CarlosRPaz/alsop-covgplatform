@@ -15,10 +15,10 @@ import { fetchAttomPropertyDetail, ATTOM_SOURCE_NAME, ATTOM_SOURCE_TIER } from '
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || '';
 
-const USDA_WHP_URL =
-    'https://apps.fs.usda.gov/arcx/rest/services/RDW_Wildfire/RMRS_WildfireHazardPotential_2023/MapServer';
+const CALFIRE_THREAT_URL =
+    'https://egis.fire.ca.gov/arcgis/rest/services/FRAP/FireThreat/MapServer';
 
-const WHP_LABELS: Record<number, string> = {
+const THREAT_LABELS: Record<number, string> = {
     1: 'Very Low',
     2: 'Low',
     3: 'Moderate',
@@ -202,7 +202,7 @@ async function enrichFireRisk(
         geometry: `${coords.lng},${coords.lat}`,
         geometryType: 'esriGeometryPoint',
         sr: '4326',
-        layers: 'all',
+        layers: 'all:0',
         tolerance: '2',
         mapExtent: `${coords.lng - delta},${coords.lat - delta},${coords.lng + delta},${coords.lat + delta}`,
         imageDisplay: '100,100,96',
@@ -210,7 +210,7 @@ async function enrichFireRisk(
         f: 'json',
     });
 
-    const res = await fetch(`${USDA_WHP_URL}/identify?${params}`, {
+    const res = await fetch(`${CALFIRE_THREAT_URL}/identify?${params}`, {
         signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) return false;
@@ -218,38 +218,38 @@ async function enrichFireRisk(
     const data = await res.json();
     const results = data.results || [];
 
-    let whpLabel = 'No Data';
-    let whpClass: string = 'none';
+    let threatLabel = 'No Data';
+    let threatClass: string = 'none';
 
     if (results.length > 0) {
-        const pixelValue = results[0]?.attributes?.['Pixel Value'];
-        if (pixelValue != null) {
-            const cls = Math.round(Number(pixelValue));
-            whpClass = String(cls);
-            whpLabel = WHP_LABELS[cls] || `Class ${cls}`;
+        const threatValue = results[0]?.attributes?.['Raster.THREAT'];
+        if (threatValue != null) {
+            const cls = Math.round(Number(threatValue));
+            threatClass = String(cls);
+            threatLabel = THREAT_LABELS[cls] || `Class ${cls}`;
         }
     }
 
     await upsertEnrichment(sb, {
         policy_id: policyId,
         field_key: 'fire_risk_class',
-        field_value: whpClass,
-        source_name: 'USDA Forest Service',
+        field_value: threatClass,
+        source_name: 'CAL FIRE',
         source_type: 'public_data',
-        source_url: 'https://wildfirerisk.org',
+        source_url: 'https://osfm.fire.ca.gov/divisions/community-wildfire-preparedness-and-mitigation/fire-hazard-severity-zones/',
         confidence: 'high',
-        notes: `Wildfire Hazard Potential: ${whpLabel} at (${coords.lat}, ${coords.lng})`,
+        notes: `Fire Threat: ${threatLabel} at (${coords.lat}, ${coords.lng})`,
     });
 
     await upsertEnrichment(sb, {
         policy_id: policyId,
         field_key: 'fire_risk_label',
-        field_value: whpLabel,
-        source_name: 'USDA Forest Service',
+        field_value: threatLabel,
+        source_name: 'CAL FIRE',
         source_type: 'public_data',
-        source_url: 'https://wildfirerisk.org',
+        source_url: 'https://osfm.fire.ca.gov/divisions/community-wildfire-preparedness-and-mitigation/fire-hazard-severity-zones/',
         confidence: 'high',
-        notes: 'Wildfire Hazard Potential classification (1=Very Low to 5=Very High)',
+        notes: 'CAL FIRE Threat classification (1=Very Low to 5=Very High)',
     });
 
     return true;

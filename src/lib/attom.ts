@@ -82,8 +82,10 @@ export async function fetchAttomPropertyDetail(
         };
     }
 
-    // Split address: everything before the last comma group is address1,
-    // the city/state/zip part is address2. Fallback: use full address as address1.
+    // Split address into address1 (street) and address2 (city, state zip).
+    // Dec pages often store addresses without commas, e.g.:
+    //   "721 SANTA CLARA CIR HEMET CA 92543"
+    // ATTOM requires these as separate params for reliable matching.
     const parts = fullAddress.split(',').map(p => p.trim());
     let address1 = fullAddress;
     let address2 = '';
@@ -96,11 +98,51 @@ export async function fetchAttomPropertyDetail(
         // "123 Main St, Los Angeles CA 90001"
         address1 = parts[0];
         address2 = parts[1];
+    } else {
+        // No commas — try to detect city/state/zip by matching
+        // the 2-letter state abbreviation + optional zip at the end.
+        // Pattern: "...STREET_NAME CITY ST 12345" or "...STREET_NAME CITY ST 12345-6789"
+        const stateZipMatch = fullAddress.match(
+            /^(.+?)\s+([\w\s]+?)\s+(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY)\s+(\d{5}(?:-\d{4})?)$/i
+        );
+        if (stateZipMatch) {
+            // Groups: [full, street, city, state, zip]
+            // The tricky part: "street" may bleed into "city" since there's no delimiter.
+            // Strategy: use common street suffixes to find the split point.
+            const raw = stateZipMatch[0];
+            const state = stateZipMatch[3];
+            const zip = stateZipMatch[4];
+
+            // Find the last street-type word to determine where the street name ends
+            const streetSuffixes = /\b(ST|AVE|AVENUE|BLVD|DR|DRIVE|RD|ROAD|CT|CIR|CIRCLE|LN|LANE|WAY|PL|PLACE|TER|TERRACE|PKWY|HWY|LOOP|TRL|TRAIL)\b/gi;
+            let lastSuffixIdx = -1;
+            let match;
+            while ((match = streetSuffixes.exec(fullAddress)) !== null) {
+                // Only consider suffixes before the state abbreviation
+                const statePos = fullAddress.toUpperCase().lastIndexOf(` ${state.toUpperCase()} `);
+                if (match.index < statePos) {
+                    lastSuffixIdx = match.index + match[0].length;
+                }
+            }
+
+            if (lastSuffixIdx > 0) {
+                address1 = fullAddress.substring(0, lastSuffixIdx).trim();
+                // Everything between street and state+zip is the city
+                const statePos = fullAddress.toUpperCase().lastIndexOf(` ${state.toUpperCase()} ${zip}`);
+                address2 = fullAddress.substring(lastSuffixIdx, statePos).trim() + `, ${state} ${zip}`;
+            } else {
+                // Fallback: send the whole thing as address1, state+zip as address2
+                address2 = `${state} ${zip}`;
+            }
+        }
     }
 
     const url = new URL(`${ATTOM_API_BASE}/property/detail`);
     url.searchParams.set('address1', address1);
     if (address2) url.searchParams.set('address2', address2);
+
+    // Diagnostic: log the parsed address for debugging
+    console.log(`[ATTOM] Parsed address: address1="${address1}", address2="${address2}" (from: "${fullAddress}")`);
 
     let rawResponse: Record<string, unknown> = {};
 
