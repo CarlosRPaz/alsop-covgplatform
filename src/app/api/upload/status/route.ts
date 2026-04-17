@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
         const admin = getSupabaseAdmin();
         const { data, error } = await admin
             .from('dec_page_submissions')
-            .select('id, status, error_message, file_name')
+            .select('id, status, error_message, file_name, processing_step')
             .in('id', idArray)
             .eq('account_id', user.id); // Security: only their own submissions
 

@@ -29,6 +29,7 @@ from .jobs import (
     get_submission,
     requeue_stale_jobs,
     update_submission_status,
+    update_submission_step,
     MAX_ATTEMPTS,
 )
 from .extract.pdf_text import extract_text_from_bytes
@@ -39,6 +40,7 @@ from .db.lifecycle import process_lifecycle
 from .db.flag_evaluator import evaluate_flags
 from .db.flags import insert_activity_event
 from .db.enrichment import enrich_property
+from .db.api_enrichment import trigger_full_enrichment, trigger_flag_evaluation
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -79,6 +81,15 @@ def download_pdf(storage_path: str) -> bytes:
 def process_job(job: dict) -> None:
     """
     Full lifecycle for one ingestion job.
+
+    Pipeline stages (with live UI step tracking):
+      1. Download PDF
+      2. Extract text (pdfplumber/OCR)          → step: extracting_text
+      3. Parse declaration fields (LLM/regex)    → step: parsing_fields
+      4. Create lifecycle records (client/policy) → step: creating_records
+      5. Full enrichment via API (ATTOM, vision) → step: enriching_property
+      6. Flag evaluation via API                 → step: evaluating_flags
+      7. Done                                    → step: complete
 
     Uses try/except/finally to guarantee the job NEVER stays in 'processing':
       - On success: job -> done, submission -> parsed
@@ -127,8 +138,9 @@ def process_job(job: dict) -> None:
         pdf_bytes = download_pdf(storage_path)
         logger.info("job_id=%s step=%s elapsed=%.2fs bytes=%d", job_id, current_step, _time.monotonic() - step_start, len(pdf_bytes))
 
-        # 5. Extract text
+        # 5. Extract text  ── UI step: extracting_text
         current_step = "extract_text"
+        update_submission_step(submission_id, "extracting_text")
         logger.info("job_id=%s step=%s", job_id, current_step)
         extraction = extract_text_from_bytes(pdf_bytes)
         raw_text = extraction["raw_text"]
@@ -139,8 +151,9 @@ def process_job(job: dict) -> None:
             "pages": extraction["page_count"],
         }
 
-        # 6. Parse declaration fields — try LLM first, fall back to regex
+        # 6. Parse declaration fields  ── UI step: parsing_fields
         current_step = "parse_declaration"
+        update_submission_step(submission_id, "parsing_fields")
         logger.info("job_id=%s step=%s (trying LLM first)", job_id, current_step)
 
         parsed_result = extract_with_llm(raw_text)
@@ -171,9 +184,14 @@ def process_job(job: dict) -> None:
         )
         logger.info("job_id=%s step=%s dec_page_id=%s elapsed=%.2fs", job_id, current_step, dec_page_id, _time.monotonic() - step_start)
 
-        # 8. Process Policy Lifecycle (Client, Policy, Policy Term)
+        # 8. Process Policy Lifecycle  ── UI step: creating_records
+        policy_id = None
+        client_id = None
+        policy_term_id = None
+
         if parsed_result["is_fair_plan"]:
             current_step = "process_lifecycle"
+            update_submission_step(submission_id, "creating_records")
             logger.info("job_id=%s step=%s", job_id, current_step)
             res_ids = process_lifecycle(account_id, fair_plan_data, dec_page_id=dec_page_id)
             policy_id = res_ids.get("policy_id")
@@ -197,20 +215,8 @@ def process_job(job: dict) -> None:
                 sb.table("dec_pages").update(link_payload).eq("id", dec_page_id).execute()
                 logger.info("job_id=%s step=%s linked dec_pages to policy/client", job_id, current_step)
 
+            # 9. Log document-processed activity event
             if policy_id:
-                # 9. Evaluate flags (new system)
-                current_step = "evaluate_flags"
-                logger.info("job_id=%s step=%s policy_id=%s", job_id, current_step, policy_id)
-                evaluate_flags(
-                    policy_id=policy_id,
-                    client_id=client_id,
-                    policy_term_id=policy_term_id,
-                    dec_page_id=dec_page_id,
-                    extracted_data=fair_plan_data,
-                    missing_fields=parsed_result["missing_fields"],
-                )
-
-                # 9b. Log document-processed as activity event (NOT a flag)
                 insert_activity_event(
                     event_type="dec.uploaded",
                     title="New Declaration Processed",
@@ -221,24 +227,56 @@ def process_job(job: dict) -> None:
                     actor_user_id=account_id,
                 )
 
-                # 10. Property enrichment (non-blocking)
-                current_step = "enrich_property"
-                logger.info("job_id=%s step=%s policy_id=%s", job_id, current_step, policy_id)
-                try:
-                    enrich_property(policy_id, fair_plan_data.get("property_location"))
-                except Exception as enrich_exc:
+        # ─────────────────────────────────────────────────────────────
+        # 10. FULL ENRICHMENT via API  ── UI step: enriching_property
+        #
+        # This replaces the old minimal enrichment (satellite + geocode
+        # + fire risk only). Now calls the production Next.js API which
+        # runs the COMPLETE pipeline: ATTOM, satellite, street view,
+        # AI vision, fire risk, geocoding, AND auto-generates a report.
+        # ─────────────────────────────────────────────────────────────
+        if policy_id:
+            current_step = "full_enrichment_api"
+            update_submission_step(submission_id, "enriching_property")
+            logger.info("job_id=%s step=%s policy_id=%s", job_id, current_step, policy_id)
+            try:
+                enrich_result = trigger_full_enrichment(policy_id)
+                if not enrich_result.get("success"):
                     logger.warning(
-                        "job_id=%s enrichment failed (non-fatal): %s",
-                        job_id, enrich_exc,
+                        "job_id=%s full enrichment returned non-success (non-fatal): %s",
+                        job_id, enrich_result.get("error"),
                     )
+            except Exception as enrich_exc:
+                logger.warning(
+                    "job_id=%s full enrichment failed (non-fatal): %s",
+                    job_id, enrich_exc,
+                )
 
-        # 10. Mark job done
+            # 11. RE-EVALUATE FLAGS with enriched data  ── UI step: evaluating_flags
+            current_step = "flag_evaluation_api"
+            update_submission_step(submission_id, "evaluating_flags")
+            logger.info("job_id=%s step=%s policy_id=%s", job_id, current_step, policy_id)
+            try:
+                flag_result = trigger_flag_evaluation(policy_id)
+                if not flag_result.get("success"):
+                    logger.warning(
+                        "job_id=%s flag evaluation returned non-success (non-fatal): %s",
+                        job_id, flag_result.get("error"),
+                    )
+            except Exception as flag_exc:
+                logger.warning(
+                    "job_id=%s flag evaluation API failed (non-fatal): %s",
+                    job_id, flag_exc,
+                )
+
+        # 12. Mark job done  ── UI step: complete
         current_step = "complete_job"
+        update_submission_step(submission_id, "complete")
         logger.info("job_id=%s step=%s", job_id, current_step)
         complete_job(job_id)
         job_completed = True  # MUST be set AFTER complete_job succeeds
 
-        # 11. Mark submission parsed
+        # 13. Mark submission parsed
         current_step = "update_submission_parsed"
         update_submission_status(submission_id, "parsed")
 
@@ -273,7 +311,7 @@ def process_job(job: dict) -> None:
                     insert_activity_event(
                         event_type="dec.processing_failed",
                         title="Declaration Processing Failed",
-                        detail=f"Failed after {attempts} attempt(s): {error_msg[:200]}",
+                        detail=f"Failed after {attempts} attempt(s) at step '{current_step}': {error_msg[:200]}",
                         dec_page_id=None,
                         actor_user_id=account_id,
                         meta={"step": current_step, "submission_id": submission_id},

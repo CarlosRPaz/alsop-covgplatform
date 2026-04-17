@@ -246,6 +246,16 @@ export async function insertActivityEvent(fields: {
     dec_page_id?: string | null;
     meta?: Record<string, unknown>;
 }): Promise<void> {
+    // Guard: the activity_events table has a CHECK constraint requiring at least
+    // one entity ID. Skip silently if none is provided to avoid constraint errors.
+    const hasEntity = fields.client_id || fields.policy_id || fields.submission_id || fields.dec_page_id;
+    if (!hasEntity) {
+        logger.warn('Activity', 'Skipping activity event — no entity ID provided', {
+            event_type: fields.event_type,
+        });
+        return;
+    }
+
     const userId = await getCurrentUserId();
     const { error } = await supabase
         .from('activity_events')

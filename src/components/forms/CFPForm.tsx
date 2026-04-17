@@ -14,6 +14,7 @@ const ALLOWED_EXTENSIONS = new Set(['.pdf']);
 
 type SubmitState = 'idle' | 'loading' | 'success' | 'error';
 type ProcessingStatus = 'uploading' | 'queued' | 'processing' | 'parsed' | 'failed' | null;
+type ProcessingStep = 'extracting_text' | 'parsing_fields' | 'creating_records' | 'enriching_property' | 'evaluating_flags' | 'generating_report' | 'complete' | null;
 
 interface UploadResult {
     message: string;
@@ -43,6 +44,7 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
     const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>(null);
+    const [processingStep, setProcessingStep] = useState<ProcessingStep>(null);
     const [termsAccepted, setTermsAccepted] = useState(false);
     const [isDragOver, setIsDragOver] = useState(false);
     const formRef = useRef<HTMLFormElement>(null);
@@ -130,7 +132,9 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                 if (!json.success || !json.data?.[0]) return;
 
                 const status = json.data[0].status as ProcessingStatus;
+                const step = json.data[0].processing_step as ProcessingStep;
                 setProcessingStatus(status);
+                setProcessingStep(step);
 
                 if (status === 'parsed') {
                     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
@@ -164,6 +168,7 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
         setUploadResult(null);
         setUploadProgress(0);
         setProcessingStatus('uploading');
+        setProcessingStep(null);
 
         try {
             const formData = new FormData();
@@ -267,21 +272,38 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
         }
     };
 
-    // Processing status label for success state
+    // Processing status label for success state (with granular step awareness)
     const getProcessingLabel = (): { text: string; color: string; icon: React.ReactNode } => {
+        const spinIcon = <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />;
+
+        // If we have a granular processing_step and status is 'processing', show the step
+        if (processingStatus === 'processing' && processingStep) {
+            const stepLabels: Record<string, { text: string; color: string }> = {
+                extracting_text: { text: 'Extracting text from PDF…', color: 'var(--accent-primary, #6366f1)' },
+                parsing_fields: { text: 'Parsing declaration fields…', color: 'var(--accent-primary, #6366f1)' },
+                creating_records: { text: 'Creating policy records…', color: 'var(--accent-primary, #6366f1)' },
+                enriching_property: { text: 'Enriching property data (ATTOM, satellite, AI)…', color: 'var(--accent-info, #3b82f6)' },
+                evaluating_flags: { text: 'Running flag evaluation…', color: 'var(--accent-info, #3b82f6)' },
+                generating_report: { text: 'Generating AI report…', color: 'var(--accent-info, #3b82f6)' },
+                complete: { text: 'Finalizing…', color: 'var(--status-success, #22c55e)' },
+            };
+            const step = stepLabels[processingStep] || { text: 'Processing…', color: 'var(--accent-primary, #6366f1)' };
+            return { ...step, icon: spinIcon };
+        }
+
         switch (processingStatus) {
             case 'uploading':
-                return { text: 'Uploading...', color: 'var(--accent-primary, #6366f1)', icon: <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> };
+                return { text: 'Uploading…', color: 'var(--accent-primary, #6366f1)', icon: spinIcon };
             case 'queued':
-                return { text: 'Queued for processing...', color: 'var(--accent-warning, #f59e0b)', icon: <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> };
+                return { text: 'Queued for processing…', color: 'var(--accent-warning, #f59e0b)', icon: spinIcon };
             case 'processing':
-                return { text: 'Parsing declaration page...', color: 'var(--accent-primary, #6366f1)', icon: <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> };
+                return { text: 'Processing declaration page…', color: 'var(--accent-primary, #6366f1)', icon: spinIcon };
             case 'parsed':
                 return { text: 'Successfully processed!', color: 'var(--status-success, #22c55e)', icon: <CheckCircle size={16} /> };
             case 'failed':
                 return { text: 'Processing failed', color: 'var(--status-error, #ef4444)', icon: <AlertCircle size={16} /> };
             default:
-                return { text: 'Processing...', color: 'var(--text-muted)', icon: <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> };
+                return { text: 'Processing…', color: 'var(--text-muted)', icon: spinIcon };
         }
     };
 
@@ -401,6 +423,7 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                             setSubmitState('idle');
                             setUploadResult(null);
                             setProcessingStatus(null);
+                            setProcessingStep(null);
                             setUploadProgress(0);
                             if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
                         }}

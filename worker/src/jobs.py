@@ -298,3 +298,22 @@ def get_submission(submission_id: str) -> dict | None:
         .execute()
     )
     return result.data[0] if result.data else None
+
+
+def update_submission_step(submission_id: str, step: str) -> None:
+    """
+    Update the processing_step column on a submission for live UI progress.
+
+    Valid steps (in order):
+      extracting_text → parsing_fields → creating_records →
+      enriching_property → evaluating_flags → generating_report → complete
+
+    The UI polls this field to show agents exactly what stage is running.
+    """
+    sb = get_supabase()
+    sb.table("dec_page_submissions").update({
+        "processing_step": step,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", submission_id).execute()
+    logger.debug("Submission %s step -> %s", submission_id, step)
+
