@@ -26,6 +26,32 @@
     color: var(--text-muted);
 }
 
+.refreshButton {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md, 6px);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.refreshButton:hover:not(:disabled) {
+    color: var(--text-high);
+    border-color: var(--border-active, var(--accent-primary));
+    background: var(--bg-surface-raised);
+}
+
+.refreshButton:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .timeline {
     display: flex;
     flex-direction: column;

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Upload, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle } from 'lucide-react';
+import { FileText, Upload, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
 import { fetchActivityFeed, ActivityFeedItem } from '@/lib/api';
 import styles from './ActivityTab.module.css';
 
@@ -50,19 +50,42 @@ export function ActivityTab() {
     const router = useRouter();
     const [activities, setActivities] = useState<ActivityFeedItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+
+    const loadActivities = async (isRefresh = false) => {
+        if (isRefresh) setRefreshing(true);
+        else setLoading(true);
+        try {
+            const data = await fetchActivityFeed(30);
+            setActivities(data);
+        } catch (err) {
+            console.error('Activity feed error:', err);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
 
     useEffect(() => {
-        fetchActivityFeed(30)
-            .then(setActivities)
-            .catch(err => console.error('Activity feed error:', err))
-            .finally(() => setLoading(false));
+        loadActivities();
     }, []);
 
     return (
         <div className={styles.container}>
             <div className={styles.header}>
                 <h2 className={styles.title}>Recent Activity</h2>
-                <span className={styles.count}>{activities.length} events</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <button
+                        className={styles.refreshButton}
+                        onClick={() => loadActivities(true)}
+                        disabled={refreshing}
+                        title="Refresh activity feed"
+                    >
+                        <RefreshCw size={14} className={refreshing ? styles.spinSlow : ''} />
+                        {refreshing ? 'Refreshing…' : 'Refresh'}
+                    </button>
+                    <span className={styles.count}>{activities.length} events</span>
+                </div>
             </div>
 
             {loading ? (
