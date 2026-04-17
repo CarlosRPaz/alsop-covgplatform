@@ -7,6 +7,7 @@ import styles from './page.module.css';
 import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
 import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload } from 'lucide-react';
+import { PropertyBanner } from '@/components/policy/PropertyBanner';
 import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, uploadDecPageToPolicy } from '@/lib/api';
 import { PolicyStatusBar } from '@/components/policy/PolicyStatusBar';
 import { PolicyDashboard } from '@/components/policy/PolicyDashboard';
@@ -44,7 +45,6 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
 
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('review');
-    const [isModalOpen, setIsModalOpen] = useState(false);
     const [copied, setCopied] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [policyDetailRaw, setPolicyDetailRaw] = useState<PolicyDetail | null>(null);
@@ -80,7 +80,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
 
     // Derive enriched property image
     const propertyImageEnrichment = enrichments.find(e => e.field_key === 'property_image');
-    const bannerImageSrc = propertyImageEnrichment?.field_value || '/property-overhead-ai.png';
+    const bannerImageSrc = propertyImageEnrichment?.field_value || null;
     const imageSource = propertyImageEnrichment ? {
         name: propertyImageEnrichment.source_name,
         type: propertyImageEnrichment.source_type,
@@ -92,12 +92,6 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     // Derive fire risk data
     const fireRiskEnrichment = enrichments.find(e => e.field_key === 'fire_risk_label');
     const fireRiskLabel = fireRiskEnrichment?.field_value || null;
-    const fireRiskColor = fireRiskLabel === 'Very High' ? '#ef4444'
-        : fireRiskLabel === 'High' ? '#f97316'
-            : fireRiskLabel === 'Moderate' ? '#eab308'
-                : fireRiskLabel === 'Low' ? '#22c55e'
-                    : fireRiskLabel === 'Very Low' ? '#16a34a'
-                        : '#6b7280';
 
     const copyPolicyNumber = () => {
         if (declaration?.policy_number) {
@@ -343,119 +337,16 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
 
     return (
         <div className={styles.container}>
-            {/* Property Banner */}
-            <div className={styles.propertyBanner} onClick={() => setIsModalOpen(true)}>
-                <img
-                    src={bannerImageSrc}
-                    alt={imageSource ? `Satellite view — ${imageSource.name}` : 'AI-analyzed property overhead view'}
-                    className={styles.bannerImage}
-                />
-                <div className={styles.bannerOverlay}>
-                    <div className={styles.bannerContent}>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h2 className={styles.bannerTitle}>Property Analysis</h2>
-                                <p className={styles.bannerSubtitle}>
-                                    {imageSource
-                                        ? `Source: ${imageSource.name} · Fetched ${new Date(imageSource.fetchedAt).toLocaleDateString()}`
-                                        : 'AI-Detected Structures & Coverage Areas'}
-                                </p>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                {fireRiskLabel && (
-                                    <div style={{
-                                        background: 'rgba(0, 0, 0, 0.6)',
-                                        backdropFilter: 'blur(8px)',
-                                        borderRadius: '8px',
-                                        padding: '0.4rem 0.75rem',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem',
-                                        border: `1px solid ${fireRiskColor}40`,
-                                    }}>
-                                        <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.6)' }}>🔥 FIRE RISK</span>
-                                        <span style={{
-                                            fontSize: '0.8rem',
-                                            fontWeight: 700,
-                                            color: fireRiskColor,
-                                            textTransform: 'uppercase',
-                                        }}>{fireRiskLabel}</span>
-                                    </div>
-                                )}
-                                <Button variant="outline" className="text-white border-white hover:bg-white/20">
-                                    <Maximize2 size={16} className="mr-2" />
-                                    View Full Image
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {imageSource && (
-                    <div style={{
-                        position: 'absolute',
-                        bottom: '0.75rem',
-                        right: '0.75rem',
-                        background: 'rgba(0, 0, 0, 0.7)',
-                        backdropFilter: 'blur(8px)',
-                        borderRadius: '6px',
-                        padding: '0.35rem 0.65rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.4rem',
-                        fontSize: '0.7rem',
-                        color: 'rgba(255,255,255,0.8)',
-                        zIndex: 2,
-                    }}>
-                        <span style={{ opacity: 0.6 }}>📡</span>
-                        <span>{imageSource.name}</span>
-                        <span style={{ opacity: 0.4 }}>·</span>
-                        <span style={{ opacity: 0.6, textTransform: 'capitalize' }}>{imageSource.type.replace('_', ' ')}</span>
-                        {imageSource.confidence === 'high' && (
-                            <span style={{ color: '#34d399', fontWeight: 600 }}>✓</span>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            {/* Modal Overlay */}
-            {isModalOpen && (
-                <div className={styles.modalOverlay} onClick={() => setIsModalOpen(false)}>
-                    <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-                        <button className={styles.closeButton} onClick={() => setIsModalOpen(false)}>
-                            <X size={20} />
-                            Close
-                        </button>
-                        <img
-                            src={bannerImageSrc}
-                            alt={imageSource ? `Satellite view — ${imageSource.name}` : 'Full AI-analyzed property overhead view'}
-                            className={styles.modalImage}
-                        />
-                        {imageSource && (
-                            <div style={{
-                                padding: '0.75rem 1rem',
-                                background: 'rgba(30, 41, 59, 0.8)',
-                                borderRadius: '0 0 12px 12px',
-                                display: 'flex',
-                                flexWrap: 'wrap',
-                                gap: '1rem',
-                                fontSize: '0.8rem',
-                                color: 'rgba(255,255,255,0.7)',
-                            }}>
-                                <span><strong style={{ color: '#94a3b8' }}>Source:</strong> {imageSource.name}</span>
-                                <span><strong style={{ color: '#94a3b8' }}>Type:</strong> {imageSource.type.replace('_', ' ')}</span>
-                                <span><strong style={{ color: '#94a3b8' }}>Fetched:</strong> {new Date(imageSource.fetchedAt).toLocaleString()}</span>
-                                <span><strong style={{ color: '#94a3b8' }}>Confidence:</strong> {imageSource.confidence}</span>
-                                {imageSource.url && (
-                                    <a href={imageSource.url} target="_blank" rel="noopener noreferrer"
-                                        style={{ color: '#60a5fa', textDecoration: 'underline' }}>
-                                        View on {imageSource.name} ↗
-                                    </a>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
+            {/* Property Banner — state-aware (not-enriched / loading / enriched / error) */}
+            <PropertyBanner
+                imageSrc={bannerImageSrc}
+                imageSource={imageSource}
+                fireRiskLabel={fireRiskLabel}
+                propertyAddress={policyDetailRaw?.property_address || null}
+                isEnriching={enrichStep !== null && enrichStep !== '✓ Complete!' && enrichStep !== '✗ Failed — try again'}
+                enrichStep={enrichStep}
+                onEnrich={handleEnrich}
+            />
 
             <div className={styles.header}>
                 {/* ── Left: Title Block ── */}
