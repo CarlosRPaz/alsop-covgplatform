@@ -152,13 +152,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
         }
 
         // ---------------------------------------------------------------
-        // 3. Fetch user info from accounts table
+        // 3+4. Fetch user info AND read file buffer in PARALLEL
+        //       (these are independent — doing them concurrently saves 1-2s)
         // ---------------------------------------------------------------
-        const { data: account, error: accountError } = await supabaseAdmin
-            .from('accounts')
-            .select('first_name, last_name, email, phone')
-            .eq('id', accountId)
-            .single();
+        const [accountResult, fileArrayBuffer] = await Promise.all([
+            supabaseAdmin
+                .from('accounts')
+                .select('first_name, last_name, email, phone')
+                .eq('id', accountId)
+                .single(),
+            file.arrayBuffer(),
+        ]);
+
+        const { data: account, error: accountError } = accountResult;
 
         if (accountError || !account) {
             logger.error('Upload', 'Failed to fetch account info', {
@@ -175,7 +181,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
         // 4. DB-FIRST: Insert dec_page_submissions row (status='pending')
         // ---------------------------------------------------------------
         const now = new Date().toISOString();
-        const fileBuffer = Buffer.from(await file.arrayBuffer());
+        const fileBuffer = Buffer.from(fileArrayBuffer);
         const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
         // Check for existing duplicate (exact file match by same account) that wasn't a failure
@@ -386,21 +392,22 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
         logger.info('Upload', 'Ingestion job queued', { submissionId });
 
         // ---------------------------------------------------------------
-        // 8. Activity event: dec page uploaded
+        // 8. Activity event: dec page uploaded (fire-and-forget, non-critical)
         // ---------------------------------------------------------------
         const submittedBy = [account.first_name, account.last_name].filter(Boolean).join(' ') || account.email || 'Unknown user';
 
-        try {
-            await supabaseAdmin.from('activity_events').insert({
+        // Don't await — this is non-critical and saves ~200ms
+        Promise.resolve(
+            supabaseAdmin.from('activity_events').insert({
                 actor_user_id: accountId,
                 event_type: 'dec.uploaded',
                 title: `Declaration uploaded by ${submittedBy}`,
                 detail: `File: ${file.name} (${(file.size / 1024).toFixed(0)} KB)`,
                 meta: { submission_id: submissionId, file_name: file.name, file_size: file.size },
-            });
-        } catch (e) {
+            })
+        ).catch((e: unknown) => {
             logger.warn('Upload', `Activity event insert failed (non-fatal): ${e}`);
-        }
+        });
 
         // ---------------------------------------------------------------
         // 9. Return success
