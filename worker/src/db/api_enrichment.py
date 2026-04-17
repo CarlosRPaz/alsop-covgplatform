@@ -51,7 +51,7 @@ def trigger_full_enrichment(policy_id: str, step_callback=None) -> dict:
     logger.info("Triggering full enrichment: policy_id=%s url=%s", policy_id, url)
 
     try:
-        with httpx.Client(timeout=ENRICHMENT_TIMEOUT) as client:
+        with httpx.Client(timeout=ENRICHMENT_TIMEOUT, follow_redirects=True) as client:
             response = client.post(url, json={"policy_id": policy_id}, headers=_headers())
 
         if response.status_code != 200:
@@ -96,7 +96,7 @@ def trigger_flag_evaluation(policy_id: str) -> dict:
     logger.info("Triggering flag evaluation: policy_id=%s url=%s", policy_id, url)
 
     try:
-        with httpx.Client(timeout=FLAGS_TIMEOUT) as client:
+        with httpx.Client(timeout=FLAGS_TIMEOUT, follow_redirects=True) as client:
             response = client.post(url, json={"policy_id": policy_id}, headers=_headers())
 
         if response.status_code != 200:
