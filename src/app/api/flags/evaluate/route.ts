@@ -26,6 +26,8 @@ interface FlagCheck {
     category: string;
     entity_scope: 'policy' | 'client' | 'policy_term';
     auto_resolve: boolean;
+    /** If true, this flag requires dec page data or enrichment data to be meaningful */
+    requires_data?: boolean;
     check: (ctx: EvalCtx) => string | null;
 }
 
@@ -132,21 +134,29 @@ function checkFairRentalValue(ctx: EvalCtx): string | null {
 // ── Rule registry ────────────────────────────────────────────
 
 const FLAG_CHECKS: FlagCheck[] = [
+    // ── No Declaration Page (fires ONLY for sparse CSV imports via early gate) ──
+    {
+        code: 'NO_DEC_PAGE', severity: 'low', title: 'No Declaration Page Uploaded',
+        category: 'data_quality', entity_scope: 'policy', auto_resolve: true,
+        requires_data: false,
+        check: () => null // Handled by the early-gate logic, not inline
+    },
+
     // ── Data Quality ──
     {
         code: 'MISSING_POLICY_NUMBER', severity: 'high', title: 'Missing Policy Number',
-        category: 'data_quality', entity_scope: 'policy', auto_resolve: true,
+        category: 'data_quality', entity_scope: 'policy', auto_resolve: true, requires_data: false,
         check: (ctx) => { if (!ctx.policy.policy_number) return 'Policy number is missing.'; return null; }
     },
     {
         code: 'MISSING_PROPERTY_LOCATION', severity: 'high', title: 'Missing Property Location',
-        category: 'data_quality', entity_scope: 'policy', auto_resolve: true,
+        category: 'data_quality', entity_scope: 'policy', auto_resolve: true, requires_data: false,
         check: checkMissingField('property_location', 'Property location')
     },
     {
         // MODIFIED: Add condo/unit suppression
         code: 'MISSING_DWELLING_LIMIT', severity: 'high', title: 'Missing Dwelling Limit',
-        category: 'data_quality', entity_scope: 'policy', auto_resolve: true,
+        category: 'data_quality', entity_scope: 'policy', auto_resolve: true, requires_data: true,
         check: (ctx) => {
             if (isCondoOrUnit(ctx)) return null; // Suppress for condos/units
             if (isMissing(get(ctx, 'limit_dwelling'))) return 'Dwelling coverage limit is missing or empty.';
@@ -157,7 +167,7 @@ const FLAG_CHECKS: FlagCheck[] = [
     // ── Underwriting Insights (Estimates) ──
     {
         code: 'SEVERE_UNDERINSURANCE_ESTIMATE', severity: 'high', title: 'Severe Underinsurance (Modeled Estimate)',
-        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, requires_data: true,
         check: (ctx) => {
             const dw = parseNumeric(get(ctx, 'limit_dwelling') || get(ctx, 'limit_dwelling_coverage' /* older schema */));
             if (!dw) return null; // No coverage A parsed
@@ -202,29 +212,29 @@ const FLAG_CHECKS: FlagCheck[] = [
     // ── Coverage Gaps ──
     {
         code: 'MISSING_ORDINANCE_OR_LAW', severity: 'medium', title: 'Missing Ordinance or Law',
-        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, requires_data: true,
         check: checkMissingField('limit_ordinance_or_law', 'Ordinance or law coverage')
     },
     {
         code: 'MISSING_EXTENDED_DWELLING', severity: 'medium', title: 'Missing Extended Dwelling Coverage',
-        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, requires_data: true,
         check: checkMissingField('limit_extended_dwelling_coverage', 'Extended dwelling coverage')
     },
     {
         code: 'MISSING_DWELLING_REPLACEMENT_COST', severity: 'medium', title: 'Missing Dwelling Replacement Cost',
-        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, requires_data: true,
         check: checkMissingField('limit_dwelling_replacement_cost', 'Dwelling replacement cost')
     },
     {
         // MODIFIED: No mobile/manufactured suppression — evaluate for all
         code: 'MISSING_PERSONAL_PROPERTY_REPLACEMENT_COST', severity: 'medium', title: 'Missing Personal Property RC',
-        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, requires_data: true,
         check: checkMissingField('limit_personal_property_replacement_cost', 'Personal property replacement cost')
     },
     {
         // MODIFIED: Only fire when fences field was actually parsed/present in coverage data
         code: 'MISSING_FENCES_COVERAGE', severity: 'low', title: 'Missing Fences Coverage',
-        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, requires_data: true,
         check: (ctx) => {
             // Only flag if the parser actually produced a fences field (even if empty)
             // Avoids noise when the dec page didn't have a fences section at all
@@ -246,17 +256,17 @@ const FLAG_CHECKS: FlagCheck[] = [
     // ── Coverage Gap Analysis ──
     {
         code: 'DWELLING_RC_INCLUDED_LOW_ORDINANCE', severity: 'medium', title: 'RC Included, Low Ordinance/Law',
-        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, requires_data: true,
         check: checkDwellingRcLowOrdinance
     },
     {
         code: 'FAIR_RENTAL_VALUE_ZERO_OR_MISSING', severity: 'high', title: 'Fair Rental Value Zero or Missing',
-        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, requires_data: true,
         check: checkFairRentalValue
     },
     {
         code: 'INFLATION_GUARD_NOT_INCLUDED', severity: 'medium', title: 'Inflation Guard Not Included',
-        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, requires_data: true,
         check: (ctx) => {
             const val = get(ctx, 'limit_inflation_guard');
             if (val === null || val === undefined) return 'Inflation guard coverage is missing.';
@@ -320,7 +330,7 @@ const FLAG_CHECKS: FlagCheck[] = [
 
     // ── NEW: Missing Perils Insured (replaces always-fire PERILS_INSURED_AGAINST) ──
     {
-        code: 'MISSING_PERILS_INSURED', severity: 'high',
+        code: 'MISSING_PERILS_INSURED', severity: 'high', requires_data: true,
         title: 'Missing Perils Insured Against',
         category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
         check: (ctx) => {
@@ -332,7 +342,7 @@ const FLAG_CHECKS: FlagCheck[] = [
 
     // ── NEW: Missing Debris Removal ──
     {
-        code: 'MISSING_DEBRIS_REMOVAL', severity: 'high',
+        code: 'MISSING_DEBRIS_REMOVAL', severity: 'high', requires_data: true,
         title: 'Missing Debris Removal',
         category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true,
         check: (ctx) => {
@@ -522,15 +532,80 @@ export async function POST(request: NextRequest) {
             ctx.enrichments = enrichData;
         }
 
+        // 4c. Check if any dec pages exist for this policy
+        const { count: decPageCount } = await sb
+            .from('dec_pages')
+            .select('id', { count: 'exact', head: true })
+            .eq('policy_id', policyId);
+        const hasDecPage = (decPageCount || 0) > 0;
+        const hasEnrichments = ctx.enrichments.length > 0;
+        const hasCoverageData = Object.keys(coverageData).length > 0;
+        const hasSubstantiveData = hasDecPage || hasEnrichments || hasCoverageData;
+
         logger.info('API', `Eval context built`, {
             has_term: !!term,
             coverage_keys: Object.keys(coverageData).length,
             has_client: !!policy.client_id,
+            has_dec_page: hasDecPage,
+            has_enrichments: hasEnrichments,
         });
+
+        // 4d. Early gate: sparse CSV imports with no dec page, no enrichments, no coverage data
+        //     → fire a single NO_DEC_PAGE flag instead of flooding with "missing X" noise
+        if (!hasSubstantiveData) {
+            const flagKey = buildFlagKey('policy', policyId, 'NO_DEC_PAGE');
+            const now = new Date().toISOString();
+            const message = 'No declaration page has been uploaded for this policy. Upload a dec page to enable full coverage analysis and flag evaluation.';
+
+            summary.checked++;
+            summary.fired++;
+
+            const { data: existing } = await sb
+                .from('policy_flags')
+                .select('id, times_seen')
+                .eq('flag_key', flagKey)
+                .eq('status', 'open')
+                .maybeSingle();
+
+            if (existing) {
+                await sb.from('policy_flags').update({
+                    last_seen_at: now,
+                    times_seen: (existing.times_seen || 1) + 1,
+                    message,
+                    updated_at: now,
+                }).eq('id', existing.id);
+                summary.refreshed++;
+            } else {
+                await sb.from('policy_flags').insert({
+                    flag_key: flagKey,
+                    code: 'NO_DEC_PAGE',
+                    severity: 'low',
+                    title: 'No Declaration Page Uploaded',
+                    message,
+                    category: 'data_quality',
+                    source: 'system',
+                    status: 'open',
+                    policy_id: policyId,
+                    client_id: policy.client_id,
+                    rule_version: RULE_VERSION,
+                    first_seen_at: now,
+                    last_seen_at: now,
+                    times_seen: 1,
+                    created_at: now,
+                    updated_at: now,
+                });
+                summary.created++;
+            }
+        }
 
         // 5. Run each check
         for (const rule of FLAG_CHECKS) {
             summary.checked++;
+
+            // Skip data-dependent checks if there's no substantive data
+            if (rule.requires_data && !hasSubstantiveData) {
+                continue;
+            }
             const entityId = rule.entity_scope === 'client'
                 ? ctx.client_id
                 : rule.entity_scope === 'policy_term'

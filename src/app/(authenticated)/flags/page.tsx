@@ -366,8 +366,18 @@ function FlagsContent() {
                     </span>
                 </div>
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
-                    <Button variant="outline" size="sm" onClick={() => router.push('/flags/definitions')}>
-                        <ExternalLink size={14} style={{ marginRight: '0.375rem' }} /> Definitions
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => router.push('/flags/definitions')}
+                        style={{
+                            borderColor: 'var(--accent-primary)',
+                            color: 'var(--accent-primary)',
+                            fontWeight: 600,
+                            gap: '0.375rem',
+                        }}
+                    >
+                        <Shield size={14} /> Flag Definitions
                     </Button>
                     <Button variant="ghost" size="sm" onClick={refresh}>
                         <RefreshCw size={14} style={{ marginRight: '0.375rem' }} /> Refresh

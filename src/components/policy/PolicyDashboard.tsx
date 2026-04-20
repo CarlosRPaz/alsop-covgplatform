@@ -59,8 +59,6 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
 
     const fireRiskLabel = enrichVal('fire_risk_label');
     const fireRiskClass = enrichVal('fire_risk_class');
-    const latitude = enrichVal('latitude');
-    const longitude = enrichVal('longitude');
     const propertyImage = enrichVal('property_image');
     const streetViewImage = enrichVal('street_view_image');
 
@@ -555,7 +553,7 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
                         <>
                             {/* Verified External Data (e.g. ATTOM) */}
                             {(() => {
-                                const verifiedData = enrichments.filter(e => ['api', 'public_data', 'premium'].includes(e.source_type) && !e.field_key.includes('image'));
+                                const verifiedData = enrichments.filter(e => ['api', 'public_data', 'premium'].includes(e.source_type) && !e.field_key.includes('image') && e.field_key !== 'latitude' && e.field_key !== 'longitude');
                                 if (verifiedData.length === 0) return null;
                                 return (
                                     <div style={{ marginTop: '0.4rem', marginBottom: '0.8rem' }}>
