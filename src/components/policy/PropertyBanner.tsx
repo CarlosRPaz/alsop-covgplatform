@@ -408,11 +408,29 @@ export function PropertyBanner({
                             </button>
                         </div>
 
-                        <img
-                            src={currentSlide.src}
-                            alt={currentSlide.alt}
-                            className={styles.modalImage}
-                        />
+                        <div className={styles.modalImageWrapper}>
+                            {totalSlides > 1 && (
+                                <>
+                                    <button
+                                        className={`${styles.modalArrow} ${styles.modalArrowLeft}`}
+                                        onClick={() => setActiveSlide(prev => (prev - 1 + totalSlides) % totalSlides)}
+                                    >
+                                        <ChevronLeft size={24} />
+                                    </button>
+                                    <button
+                                        className={`${styles.modalArrow} ${styles.modalArrowRight}`}
+                                        onClick={() => setActiveSlide(prev => (prev + 1) % totalSlides)}
+                                    >
+                                        <ChevronRight size={24} />
+                                    </button>
+                                </>
+                            )}
+                            <img
+                                src={currentSlide.src}
+                                alt={currentSlide.alt}
+                                className={styles.modalImage}
+                            />
+                        </div>
 
                         {currentSlide.source && (
                             <div className={styles.modalMeta}>

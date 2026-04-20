@@ -568,6 +568,14 @@
     flex-direction: column;
 }
 
+.modalImageWrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0a0a0a;
+}
+
 .modalImage {
     max-width: 100%;
     max-height: 70vh;
@@ -575,6 +583,39 @@
     box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
     object-fit: contain;
     background: #0a0a0a;
+}
+
+.modalArrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    cursor: pointer;
+    transition: all 200ms ease;
+}
+
+.modalArrow:hover {
+    background: rgba(0, 0, 0, 0.85);
+    border-color: rgba(255, 255, 255, 0.4);
+    transform: translateY(-50%) scale(1.05);
+}
+
+.modalArrowLeft {
+    left: 1rem;
+}
+
+.modalArrowRight {
+    right: 1rem;
 }
 
 /* Modal top bar with tabs */

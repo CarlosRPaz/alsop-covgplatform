@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Upload, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
+import { FileText, Upload, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, RefreshCw, Sparkles, Shield } from 'lucide-react';
 import { fetchActivityFeed, ActivityFeedItem } from '@/lib/api';
 import styles from './ActivityTab.module.css';
 
@@ -21,18 +21,25 @@ function formatTimeAgo(dateStr: string): string {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function getStatusLabel(status: string): string {
+function getStatusConfig(status: string): { label: string; cssKey: string } {
     switch (status) {
-        case 'done': return 'Complete';
-        case 'queued': return 'Queued';
-        case 'processing': return 'Processing';
-        case 'failed': return 'Failed';
-        default: return status;
+        case 'parsed':
+        case 'done':
+            return { label: 'Complete', cssKey: 'done' };
+        case 'queued':
+            return { label: 'Queued', cssKey: 'queued' };
+        case 'processing':
+            return { label: 'Processing', cssKey: 'processing' };
+        case 'failed':
+            return { label: 'Failed', cssKey: 'failed' };
+        default:
+            return { label: status.charAt(0).toUpperCase() + status.slice(1), cssKey: '' };
     }
 }
 
 function StatusIcon({ status }: { status: string }) {
     switch (status) {
+        case 'parsed':
         case 'done':
             return <CheckCircle2 size={14} className={styles.statusIconDone} />;
         case 'failed':
@@ -46,17 +53,20 @@ function StatusIcon({ status }: { status: string }) {
     }
 }
 
+const MAX_VISIBLE = 25;
+
 export function ActivityTab() {
     const router = useRouter();
     const [activities, setActivities] = useState<ActivityFeedItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [showAll, setShowAll] = useState(false);
 
     const loadActivities = async (isRefresh = false) => {
         if (isRefresh) setRefreshing(true);
         else setLoading(true);
         try {
-            const data = await fetchActivityFeed(30);
+            const data = await fetchActivityFeed(50);
             setActivities(data);
         } catch (err) {
             console.error('Activity feed error:', err);
@@ -69,6 +79,9 @@ export function ActivityTab() {
     useEffect(() => {
         loadActivities();
     }, []);
+
+    const visibleActivities = showAll ? activities : activities.slice(0, MAX_VISIBLE);
+    const hasMore = activities.length > MAX_VISIBLE;
 
     return (
         <div className={styles.container}>
@@ -99,85 +112,107 @@ export function ActivityTab() {
                     <p>No recent uploads. Submit a declaration to see activity here.</p>
                 </div>
             ) : (
-                <div className={styles.timeline}>
-                    {activities.map((activity, idx) => {
-                        const fileName = activity.file_path
-                            ? activity.file_path.split('/').pop() || 'Document'
-                            : 'Declaration';
+                <>
+                    <div className={styles.timeline}>
+                        {visibleActivities.map((activity, idx) => {
+                            const sc = getStatusConfig(activity.status);
+                            const isDone = activity.status === 'parsed' || activity.status === 'done';
+                            const isFailed = activity.status === 'failed';
 
-                        return (
-                            <div key={`${activity.id}-${idx}`} className={styles.row}>
-                                {/* Status icon */}
-                                <div className={styles.statusCol}>
-                                    <StatusIcon status={activity.status} />
-                                </div>
-
-                                {/* Main info — single line on desktop, wraps on mobile */}
-                                <div className={styles.mainCol}>
-                                    <span className={`${styles.statusLabel} ${styles[activity.status] || ''}`}>
-                                        {getStatusLabel(activity.status)}
-                                    </span>
-                                    <span className={styles.divider}>—</span>
-                                    {activity.insured_name ? (
-                                        <span
-                                            className={styles.clickableLink}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                activity.client_id && router.push(`/client/${activity.client_id}`);
-                                            }}
-                                        >
-                                            {activity.insured_name}
-                                        </span>
-                                    ) : activity.policy_number ? (
-                                        <span
-                                            className={styles.clickableLink}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                activity.policy_id && router.push(`/policy/${activity.policy_id}`);
-                                            }}
-                                        >
-                                            {activity.policy_number}
-                                        </span>
-                                    ) : (
-                                        <span className={styles.fileName}>{fileName}</span>
-                                    )}
-                                    {activity.insured_name && activity.policy_number && (
-                                        <>
-                                            <span className={styles.divider}>·</span>
-                                            <span
-                                                className={styles.clickableLink}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    activity.policy_id && router.push(`/policy/${activity.policy_id}`);
-                                                }}
-                                            >
-                                                {activity.policy_number}
-                                            </span>
-                                        </>
-                                    )}
-                                </div>
-
-                                {/* Uploader */}
-                                <div className={styles.uploaderCol}>
-                                    {activity.uploaded_by}
-                                </div>
-
-                                {/* Error details if failed */}
-                                {activity.status === 'failed' && activity.error_message && (
-                                    <div className={styles.errorCol}>
-                                        <AlertTriangle size={12} />
-                                        <span>{activity.error_message}</span>
+                            return (
+                                <div key={`${activity.id}-${idx}`} className={styles.row}>
+                                    {/* Status icon */}
+                                    <div className={styles.statusCol}>
+                                        <StatusIcon status={activity.status} />
                                     </div>
-                                )}
 
-                                {/* Timestamp */}
-                                <div className={styles.timeCol}>
-                                    {formatTimeAgo(activity.created_at)}
+                                    {/* Main info */}
+                                    <div className={styles.mainCol}>
+                                        {/* Status badge */}
+                                        <span className={`${styles.statusLabel} ${styles[sc.cssKey] || ''}`}>
+                                            {sc.label}
+                                        </span>
+                                        <span className={styles.divider}>—</span>
+
+                                        {/* Action description */}
+                                        <span className={styles.actionText}>Dec Page Uploaded</span>
+
+                                        {/* Client / Policy links */}
+                                        {activity.insured_name && (
+                                            <>
+                                                <span className={styles.divider}>·</span>
+                                                <span
+                                                    className={styles.clickableLink}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        activity.client_id && router.push(`/client/${activity.client_id}`);
+                                                    }}
+                                                >
+                                                    {activity.insured_name}
+                                                </span>
+                                            </>
+                                        )}
+                                        {activity.policy_number && (
+                                            <>
+                                                <span className={styles.divider}>·</span>
+                                                <span
+                                                    className={styles.clickableLink}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        activity.policy_id && router.push(`/policy/${activity.policy_id}`);
+                                                    }}
+                                                >
+                                                    {activity.policy_number}
+                                                </span>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    {/* Supporting context for completed items */}
+                                    <div className={styles.uploaderCol}>
+                                        <span>{activity.uploaded_by}</span>
+                                        {isDone && (
+                                            <span className={styles.successHints}>
+                                                <Sparkles size={10} />
+                                                <span>Enriched</span>
+                                                <Shield size={10} />
+                                                <span>Flags checked</span>
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Error details if failed */}
+                                    {isFailed && activity.error_message && (
+                                        <div className={styles.errorCol}>
+                                            <AlertTriangle size={12} />
+                                            <span>{activity.error_message}</span>
+                                        </div>
+                                    )}
+
+                                    {/* Timestamp */}
+                                    <div className={styles.timeCol}>
+                                        {formatTimeAgo(activity.created_at)}
+                                    </div>
                                 </div>
-                            </div>
-                        );
-                    })}
-                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Show more / less */}
+                    {hasMore && (
+                        <div className={styles.showMoreRow}>
+                            <button
+                                className={styles.showMoreBtn}
+                                onClick={() => setShowAll(!showAll)}
+                            >
+                                {showAll
+                                    ? `Show fewer (${MAX_VISIBLE})`
+                                    : `Show all ${activities.length} events`
+                                }
+                            </button>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );

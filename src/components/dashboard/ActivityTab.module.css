@@ -130,7 +130,8 @@
     color: var(--text-mid);
 }
 
-.statusLabel.done {
+.statusLabel.done,
+.statusLabel.parsed {
     color: #10b981;
     border-color: rgba(16, 185, 129, 0.2);
     background: rgba(16, 185, 129, 0.05);
@@ -177,6 +178,12 @@
     font-weight: 500;
 }
 
+.actionText {
+    color: var(--text-high);
+    font-weight: 500;
+    font-size: 0.825rem;
+}
+
 .uploaderCol {
     font-size: 0.75rem;
     color: var(--text-muted);
@@ -184,6 +191,42 @@
     grid-column: 2;
     grid-row: 2;
     margin-top: -0.125rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.successHints {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.65rem;
+    color: #10b981;
+    opacity: 0.7;
+    padding-left: 0.25rem;
+}
+
+.showMoreRow {
+    text-align: center;
+    padding: 0.75rem 0 0.25rem;
+    border-top: 1px solid var(--border-default);
+}
+
+.showMoreBtn {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--accent-primary, #6366f1);
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    padding: 0.375rem 1rem;
+    border-radius: var(--radius-md, 6px);
+}
+
+.showMoreBtn:hover {
+    opacity: 0.8;
+    background: var(--bg-surface-raised);
 }
 
 .errorCol {
