@@ -128,11 +128,15 @@ export function ActivityTab() {
 
                                     {/* Main info */}
                                     <div className={styles.mainCol}>
-                                        {/* Status badge */}
-                                        <span className={`${styles.statusLabel} ${styles[sc.cssKey] || ''}`}>
-                                            {sc.label}
-                                        </span>
-                                        <span className={styles.divider}>—</span>
+                                        {/* Status badge — only for non-complete states */}
+                                        {!isDone && (
+                                            <>
+                                                <span className={`${styles.statusLabel} ${styles[sc.cssKey] || ''}`}>
+                                                    {sc.label}
+                                                </span>
+                                                <span className={styles.divider}>—</span>
+                                            </>
+                                        )}
 
                                         {/* Action description */}
                                         <span className={styles.actionText}>Dec Page Uploaded</span>
