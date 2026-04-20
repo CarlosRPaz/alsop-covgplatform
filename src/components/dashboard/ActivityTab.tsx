@@ -23,7 +23,7 @@ function formatTimeAgo(dateStr: string): string {
 
 function getStatusLabel(status: string): string {
     switch (status) {
-        case 'done': return 'Parsed';
+        case 'done': return 'Complete';
         case 'queued': return 'Queued';
         case 'processing': return 'Processing';
         case 'failed': return 'Failed';

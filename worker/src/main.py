@@ -220,7 +220,7 @@ def process_job(job: dict) -> None:
                 insert_activity_event(
                     event_type="dec.uploaded",
                     title="New Declaration Processed",
-                    detail="A new declaration page was successfully parsed and applied.",
+                    detail="A new declaration page was successfully uploaded and applied.",
                     policy_id=policy_id,
                     client_id=client_id,
                     dec_page_id=dec_page_id,

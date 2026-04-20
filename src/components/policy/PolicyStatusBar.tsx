@@ -203,7 +203,7 @@ export function PolicyStatusBar({
                                 const groups = allFound.reduce((acc, e) => {
                                     const title = e.source_type === 'api' ? 'Verified External Data (ATTOM)' :
                                                   e.source_type === 'ai_interpretation' ? 'AI Image Vision & Inference' :
-                                                  e.source_type === 'parser' ? 'Parsed from Policy Data' :
+                                                  e.source_type === 'parser' ? 'Extracted from Policy' :
                                                   e.source_type === 'public_data' ? 'Public Records' :
                                                   e.source_type === 'premium' ? 'Premium Data' : 'Other Sources';
                                     if (!acc[title]) acc[title] = [];

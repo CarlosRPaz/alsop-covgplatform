@@ -34,7 +34,7 @@ function formatDate(dateStr: string): string {
 
 function getParseStatusBadge(status: string | null): { label: string; color: string } {
     switch (status) {
-        case 'parsed': return { label: 'Parsed', color: '#10b981' };
+        case 'parsed': return { label: 'Complete', color: '#10b981' };
         case 'needs_review': return { label: 'Needs Review', color: '#f59e0b' };
         case 'failed': return { label: 'Failed', color: '#ef4444' };
         default: return { label: 'Processing', color: '#6b7280' };

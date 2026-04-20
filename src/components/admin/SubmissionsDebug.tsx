@@ -99,7 +99,7 @@ export default function SubmissionsDebug() {
             {/* Summary strip */}
             <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>
                 {[
-                    { label: 'Parsed', count: parsed, color: 'var(--status-success)', bg: 'var(--bg-success-subtle)' },
+                    { label: 'Complete', count: parsed, color: 'var(--status-success)', bg: 'var(--bg-success-subtle)' },
                     { label: 'Failed', count: failed, color: 'var(--status-error)', bg: 'var(--bg-error-subtle)' },
                     { label: 'Processing', count: processing, color: 'var(--status-warning)', bg: 'rgba(234,179,8,0.08)' },
                     { label: 'Total', count: submissions.length, color: 'var(--text-high)', bg: 'var(--bg-surface-raised)' },
@@ -318,7 +318,7 @@ export default function SubmissionsDebug() {
                         }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 <FileText size={15} style={{ color: 'var(--accent-primary)' }} />
-                                <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-high)' }}>Parsed JSON Output</span>
+                                <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-high)' }}>Extracted Data</span>
                             </div>
                             <button
                                 onClick={() => setSelectedJson(null)}
