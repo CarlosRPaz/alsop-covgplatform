@@ -12,8 +12,8 @@ import { useRouter } from 'next/navigation';
 import { FullWorkupModal } from './FullWorkupModal';
 
 // localStorage keys (v2 — reset to pick up new column order & visibility defaults)
-const LS_VISIBLE_COLUMNS = 'cfp_datatable_visibleColumns_v2';
-const LS_COLUMN_ORDER = 'cfp_datatable_columnOrder_v2';
+const LS_VISIBLE_COLUMNS = 'cfp_datatable_visibleColumns_v3';
+const LS_COLUMN_ORDER = 'cfp_datatable_columnOrder_v3';
 const LS_SELECTED_FLAGS = 'cfp_datatable_selectedFlags';
 const LS_SELECTED_STATUSES = 'cfp_datatable_selectedStatuses';
 const LS_ENRICHMENT_FILTER = 'cfp_datatable_enrichmentFilter';
@@ -71,7 +71,7 @@ const INITIAL_COLUMNS: ColumnDef[] = [
 const DEFAULT_VISIBLE_KEYS = new Set([
     'policy_number', 'flag_count', 'is_enriched', 'named_insured', 'status',
     'effective_date', 'expiration_date', 'annual_premium',
-    'property_address', 'mailing_address', 'carrier_name',
+    'property_address', 'mailing_address', 'carrier_name', 'created_at',
 ]);
 
 // Column Header Popup Component

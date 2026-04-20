@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, use } from 'react';
+import React, { useEffect, useState, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import styles from './page.module.css';
@@ -66,6 +66,8 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     const [showEmailComposer, setShowEmailComposer] = useState(false);
     const [userRole, setUserRole] = useState<UserRole | null>(null);
     const [roleLoading, setRoleLoading] = useState(true);
+    const [bgProcessing, setBgProcessing] = useState(false);
+    const [bgProcessingStep, setBgProcessingStep] = useState<string | null>(null);
 
     // Detect user role for client vs agent view
     useEffect(() => {
@@ -153,6 +155,101 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             }
         });
     }, [id]);
+
+    // Helper: refresh all policy data (enrichments, flags, report, etc.)
+    const refreshAllData = useCallback(async () => {
+        if (!id) return;
+        try {
+            const [newEnrichments, newFlags, newReport] = await Promise.all([
+                getPropertyEnrichments(id),
+                fetchFlagsByPolicyId(id),
+                getLatestReportForPolicy(id),
+            ]);
+            setEnrichments(newEnrichments);
+            setAllFlags(newFlags);
+            const open = newFlags.filter((f: PolicyFlagRow) => !f.status || f.status === 'open');
+            setOpenFlags(open);
+            setFlagSummary({
+                total: open.length,
+                high: open.filter((f: PolicyFlagRow) => f.severity === 'high').length,
+                medium: open.filter((f: PolicyFlagRow) => f.severity === 'medium').length,
+                low: open.filter((f: PolicyFlagRow) => f.severity === 'low').length,
+            });
+            if (newReport) setReportRow(newReport);
+            // Also refresh dec page file
+            fetchDecPageFilesByPolicyId(id).then(files => {
+                if (files.length > 0 && files[0].storage_path) {
+                    setDecPageStoragePath(files[0].storage_path);
+                }
+            });
+        } catch (e) {
+            console.error('[PolicyPage] Failed to refresh data:', e);
+        }
+    }, [id]);
+
+    // Auto-refresh when a dec page finishes processing in the background
+    useEffect(() => {
+        const handleDecPageParsed = () => {
+            console.log('[PolicyPage] Dec page parsed — refreshing all data');
+            setBgProcessing(false);
+            setBgProcessingStep(null);
+            refreshAllData();
+        };
+        window.addEventListener('decPageParsed', handleDecPageParsed);
+        return () => window.removeEventListener('decPageParsed', handleDecPageParsed);
+    }, [refreshAllData]);
+
+    // Detect if a dec page is being processed in the background for this policy
+    useEffect(() => {
+        if (!id) return;
+        const TRACKING_KEY = 'cfp_pending_dec_uploads';
+        const stored = sessionStorage.getItem(TRACKING_KEY);
+        if (!stored) return;
+
+        let pendingIds: string[];
+        try { pendingIds = JSON.parse(stored); } catch { return; }
+        if (!Array.isArray(pendingIds) || pendingIds.length === 0) return;
+
+        // There's a pending upload — show the banner
+        setBgProcessing(true);
+
+        // Poll the processing step for richer status
+        const poll = async () => {
+            try {
+                const { data: { session } } = await (await import('@/lib/supabaseClient')).supabase.auth.getSession();
+                if (!session?.access_token) return;
+                const res = await fetch(`/api/upload/status?ids=${pendingIds.join(',')}`, {
+                    headers: { Authorization: `Bearer ${session.access_token}` },
+                });
+                if (!res.ok) return;
+                const json = await res.json();
+                if (!json.success || !json.data) return;
+                const active = (json.data as Array<{ status: string; processing_step?: string }>)
+                    .find(s => s.status === 'processing' || s.status === 'queued');
+                if (active) {
+                    setBgProcessing(true);
+                    const stepLabels: Record<string, string> = {
+                        extracting_text: 'Extracting text from PDF…',
+                        parsing_fields: 'Parsing declaration fields…',
+                        creating_records: 'Creating policy records…',
+                        enriching_property: 'Enriching property data…',
+                        evaluating_flags: 'Evaluating flags…',
+                        generating_report: 'Generating report…',
+                        complete: 'Finalizing…',
+                    };
+                    setBgProcessingStep(stepLabels[active.processing_step || ''] || 'Processing…');
+                } else {
+                    // All done or none active anymore
+                    setBgProcessing(false);
+                    setBgProcessingStep(null);
+                    refreshAllData();
+                }
+            } catch { /* non-fatal */ }
+        };
+        poll();
+        const interval = setInterval(poll, 4000);
+        return () => clearInterval(interval);
+    }, [id, refreshAllData]);
 
     // Derived: enrichment status for the status bar
     const isEnriched = enrichments.length > 0;
@@ -527,6 +624,37 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                     )}
                 </div>
             </div>
+
+            {/* ── Background Processing Banner ── */}
+            {bgProcessing && (
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.625rem',
+                    padding: '0.75rem 1.25rem',
+                    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(59, 130, 246, 0.08))',
+                    border: '1px solid rgba(99, 102, 241, 0.2)',
+                    borderRadius: '0.75rem',
+                    marginBottom: '0.75rem',
+                    fontSize: '0.85rem',
+                    animation: 'fadeIn 0.3s ease',
+                }}>
+                    <Loader2 size={16} style={{ color: '#6366f1', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+                            Processing in background
+                        </span>
+                        <span style={{ color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                            {bgProcessingStep || 'Working…'}
+                        </span>
+                    </div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                        Data will auto-refresh when complete
+                    </span>
+                    <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                </div>
+            )}
 
             <div className={styles.commandSection}>
                 <PolicyStatusBar
