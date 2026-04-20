@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
-import { MapPin, Satellite, Maximize2, X, RefreshCw, ImageOff, Loader2, ExternalLink, Zap } from 'lucide-react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { MapPin, Satellite, Maximize2, X, RefreshCw, ImageOff, Loader2, ExternalLink, Zap, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import styles from './PropertyBanner.module.css';
 
 /* ─── Types ─── */
@@ -13,11 +13,23 @@ interface ImageSource {
     confidence: string;
 }
 
+interface CarouselSlide {
+    src: string;
+    label: string;
+    icon: React.ReactNode;
+    source: ImageSource | null;
+    alt: string;
+}
+
 interface PropertyBannerProps {
     /** Real satellite image URL from enrichment, or null */
     imageSrc: string | null;
-    /** Source metadata for the image */
+    /** Source metadata for the satellite image */
     imageSource: ImageSource | null;
+    /** Street view image URL, or null */
+    streetViewSrc?: string | null;
+    /** Source metadata for the street view image */
+    streetViewSource?: ImageSource | null;
     /** Fire risk label (e.g. "High", "Very Low") */
     fireRiskLabel: string | null;
     /** Property address to display in the placeholder */
@@ -43,17 +55,19 @@ function getFireRiskColor(label: string | null): string {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   PropertyBanner — State-aware property image component
+   PropertyBanner — Carousel property image component
    
    States:
    1. NOT ENRICHED - No satellite image, show placeholder with CTA
    2. LOADING       - Enrichment in progress, show shimmer
-   3. ENRICHED      - Real satellite image with source badge
+   3. ENRICHED      - Image carousel (satellite + street view)
    4. ERROR         - Image failed to load, retry option
    ═══════════════════════════════════════════════════════════════ */
 export function PropertyBanner({
     imageSrc,
     imageSource,
+    streetViewSrc,
+    streetViewSource,
     fireRiskLabel,
     propertyAddress,
     isEnriching,
@@ -63,8 +77,56 @@ export function PropertyBanner({
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [imageError, setImageError] = useState(false);
     const [imageLoaded, setImageLoaded] = useState(false);
+    const [activeSlide, setActiveSlide] = useState(0);
+    const [streetViewLoaded, setStreetViewLoaded] = useState(false);
+    const [streetViewError, setStreetViewError] = useState(false);
 
     const fireRiskColor = getFireRiskColor(fireRiskLabel);
+
+    // Build carousel slides
+    const slides: CarouselSlide[] = [];
+    if (imageSrc && !imageError) {
+        slides.push({
+            src: imageSrc,
+            label: 'Satellite View',
+            icon: <Satellite size={14} />,
+            source: imageSource,
+            alt: `Satellite view of property${propertyAddress ? ` at ${propertyAddress}` : ''}`,
+        });
+    }
+    if (streetViewSrc && !streetViewError) {
+        slides.push({
+            src: streetViewSrc,
+            label: 'Street View',
+            icon: <Eye size={14} />,
+            source: streetViewSource || null,
+            alt: `Street view of property${propertyAddress ? ` at ${propertyAddress}` : ''}`,
+        });
+    }
+
+    const hasStreetView = !!streetViewSrc && !streetViewError;
+    const totalSlides = slides.length;
+
+    // Keep active slide in bounds
+    useEffect(() => {
+        if (activeSlide >= totalSlides && totalSlides > 0) {
+            setActiveSlide(0);
+        }
+    }, [totalSlides, activeSlide]);
+
+    const goToSlide = useCallback((idx: number) => {
+        setActiveSlide(idx);
+    }, []);
+
+    const nextSlide = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (totalSlides > 1) setActiveSlide(prev => (prev + 1) % totalSlides);
+    }, [totalSlides]);
+
+    const prevSlide = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (totalSlides > 1) setActiveSlide(prev => (prev - 1 + totalSlides) % totalSlides);
+    }, [totalSlides]);
 
     // Reset error state when imageSrc changes
     const handleImageError = useCallback(() => {
@@ -80,6 +142,7 @@ export function PropertyBanner({
     // Determine state
     const hasRealImage = imageSrc && !imageError;
     const isLoading = isEnriching;
+    const currentSlide = slides[activeSlide] || slides[0];
 
     /* ─── State: Loading (Enrichment in progress) ─── */
     if (isLoading && !hasRealImage) {
@@ -190,22 +253,78 @@ export function PropertyBanner({
         );
     }
 
-    /* ─── State: Enriched (Real satellite image) ─── */
+    /* ─── State: Enriched — Image Carousel ─── */
     return (
         <>
             <div className={styles.banner}>
                 <div className={styles.enrichedState} onClick={() => setIsModalOpen(true)}>
-                    {/* Loading shimmer while image loads */}
-                    {!imageLoaded && (
-                        <div className={styles.imageLoadingShimmer} />
+                    {/* Carousel slides */}
+                    <div className={styles.carouselTrack}>
+                        {slides.map((slide, idx) => (
+                            <div
+                                key={idx}
+                                className={`${styles.carouselSlide} ${idx === activeSlide ? styles.slideActive : styles.slideHidden}`}
+                            >
+                                {/* Loading shimmer while image loads */}
+                                {idx === 0 && !imageLoaded && (
+                                    <div className={styles.imageLoadingShimmer} />
+                                )}
+                                {idx === 1 && !streetViewLoaded && (
+                                    <div className={styles.imageLoadingShimmer} />
+                                )}
+                                <img
+                                    src={slide.src}
+                                    alt={slide.alt}
+                                    className={`${styles.bannerImage} ${
+                                        (idx === 0 && imageLoaded) || (idx === 1 && streetViewLoaded)
+                                            ? styles.imageVisible
+                                            : styles.imageHidden
+                                    }`}
+                                    onLoad={idx === 0 ? handleImageLoad : () => setStreetViewLoaded(true)}
+                                    onError={idx === 0 ? handleImageError : () => setStreetViewError(true)}
+                                />
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Navigation arrows (only if multiple slides) */}
+                    {totalSlides > 1 && (
+                        <>
+                            <button className={`${styles.carouselArrow} ${styles.arrowLeft}`} onClick={prevSlide}>
+                                <ChevronLeft size={20} />
+                            </button>
+                            <button className={`${styles.carouselArrow} ${styles.arrowRight}`} onClick={nextSlide}>
+                                <ChevronRight size={20} />
+                            </button>
+                        </>
                     )}
-                    <img
-                        src={imageSrc!}
-                        alt={`Satellite view of property${propertyAddress ? ` at ${propertyAddress}` : ''}`}
-                        className={`${styles.bannerImage} ${imageLoaded ? styles.imageVisible : styles.imageHidden}`}
-                        onLoad={handleImageLoad}
-                        onError={handleImageError}
-                    />
+
+                    {/* Slide indicator dots + label */}
+                    <div className={styles.carouselIndicators}>
+                        <div className={styles.slideLabel}>
+                            {currentSlide?.icon}
+                            <span>{currentSlide?.label}</span>
+                        </div>
+                        {totalSlides > 1 && (
+                            <div className={styles.dots}>
+                                {slides.map((slide, idx) => (
+                                    <button
+                                        key={idx}
+                                        className={`${styles.dot} ${idx === activeSlide ? styles.dotActive : ''}`}
+                                        onClick={(e) => { e.stopPropagation(); goToSlide(idx); }}
+                                        title={slide.label}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                        {/* No street view indicator */}
+                        {!hasStreetView && imageSrc && (
+                            <div className={styles.noStreetView}>
+                                <EyeOff size={12} />
+                                <span>Street View not available</span>
+                            </div>
+                        )}
+                    </div>
 
                     {/* Bottom gradient overlay */}
                     <div className={styles.bannerOverlay}>
@@ -214,7 +333,7 @@ export function PropertyBanner({
                                 <div>
                                     <h2 className={styles.bannerTitle}>Property Analysis</h2>
                                     <p className={styles.bannerSubtitle}>
-                                        Source: {imageSource?.name || 'Unknown'} · Fetched {imageSource ? new Date(imageSource.fetchedAt).toLocaleDateString() : 'N/A'}
+                                        Source: {currentSlide?.source?.name || 'Unknown'} · Fetched {currentSlide?.source ? new Date(currentSlide.source.fetchedAt).toLocaleDateString() : 'N/A'}
                                     </p>
                                 </div>
                                 <div className={styles.bannerActions}>
@@ -242,13 +361,13 @@ export function PropertyBanner({
                     </div>
 
                     {/* Source badge (bottom right) */}
-                    {imageSource && (
+                    {currentSlide?.source && (
                         <div className={styles.sourceBadge}>
-                            <Satellite size={12} />
-                            <span>{imageSource.name}</span>
+                            {currentSlide.icon}
+                            <span>{currentSlide.source.name}</span>
                             <span className={styles.sourceDot}>·</span>
-                            <span className={styles.sourceType}>{imageSource.type.replace('_', ' ')}</span>
-                            {imageSource.confidence === 'high' && (
+                            <span className={styles.sourceType}>{currentSlide.source.type.replace('_', ' ')}</span>
+                            {currentSlide.source.confidence === 'high' && (
                                 <span className={styles.confidenceCheck}>✓</span>
                             )}
                         </div>
@@ -257,44 +376,65 @@ export function PropertyBanner({
             </div>
 
             {/* ─── Full-screen Modal ─── */}
-            {isModalOpen && (
+            {isModalOpen && currentSlide && (
                 <div className={styles.modalOverlay} onClick={() => setIsModalOpen(false)}>
                     <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-                        <button
-                            className={styles.closeButton}
-                            onClick={() => setIsModalOpen(false)}
-                        >
-                            <X size={18} />
-                            Close
-                        </button>
+                        <div className={styles.modalTopBar}>
+                            {/* Modal slide tabs */}
+                            <div className={styles.modalTabs}>
+                                {slides.map((slide, idx) => (
+                                    <button
+                                        key={idx}
+                                        className={`${styles.modalTab} ${idx === activeSlide ? styles.modalTabActive : ''}`}
+                                        onClick={() => goToSlide(idx)}
+                                    >
+                                        {slide.icon}
+                                        <span>{slide.label}</span>
+                                    </button>
+                                ))}
+                                {!hasStreetView && (
+                                    <div className={styles.modalTabDisabled}>
+                                        <EyeOff size={13} />
+                                        <span>Street View N/A</span>
+                                    </div>
+                                )}
+                            </div>
+                            <button
+                                className={styles.closeButton}
+                                onClick={() => setIsModalOpen(false)}
+                            >
+                                <X size={18} />
+                                Close
+                            </button>
+                        </div>
 
                         <img
-                            src={imageSrc!}
-                            alt={`Full satellite view${propertyAddress ? ` — ${propertyAddress}` : ''}`}
+                            src={currentSlide.src}
+                            alt={currentSlide.alt}
                             className={styles.modalImage}
                         />
 
-                        {imageSource && (
+                        {currentSlide.source && (
                             <div className={styles.modalMeta}>
                                 <div className={styles.modalMetaItem}>
                                     <span className={styles.modalMetaLabel}>Source</span>
-                                    <span>{imageSource.name}</span>
+                                    <span>{currentSlide.source.name}</span>
                                 </div>
                                 <div className={styles.modalMetaItem}>
                                     <span className={styles.modalMetaLabel}>Type</span>
-                                    <span style={{ textTransform: 'capitalize' }}>{imageSource.type.replace('_', ' ')}</span>
+                                    <span style={{ textTransform: 'capitalize' }}>{currentSlide.source.type.replace('_', ' ')}</span>
                                 </div>
                                 <div className={styles.modalMetaItem}>
                                     <span className={styles.modalMetaLabel}>Fetched</span>
-                                    <span>{new Date(imageSource.fetchedAt).toLocaleString()}</span>
+                                    <span>{new Date(currentSlide.source.fetchedAt).toLocaleString()}</span>
                                 </div>
                                 <div className={styles.modalMetaItem}>
                                     <span className={styles.modalMetaLabel}>Confidence</span>
                                     <span style={{
-                                        color: imageSource.confidence === 'high' ? '#34d399' : '#94a3b8',
+                                        color: currentSlide.source.confidence === 'high' ? '#34d399' : '#94a3b8',
                                         fontWeight: 600,
                                     }}>
-                                        {imageSource.confidence}
+                                        {currentSlide.source.confidence}
                                     </span>
                                 </div>
                                 {fireRiskLabel && (
@@ -305,15 +445,15 @@ export function PropertyBanner({
                                         </span>
                                     </div>
                                 )}
-                                {imageSource.url && (
+                                {currentSlide.source.url && (
                                     <a
-                                        href={imageSource.url}
+                                        href={currentSlide.source.url}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className={styles.modalMetaLink}
                                     >
                                         <ExternalLink size={13} />
-                                        View on {imageSource.name}
+                                        View on {currentSlide.source.name}
                                     </a>
                                 )}
                             </div>

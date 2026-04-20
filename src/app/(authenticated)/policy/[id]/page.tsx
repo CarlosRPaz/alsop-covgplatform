@@ -91,6 +91,17 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
         confidence: propertyImageEnrichment.confidence,
     } : null;
 
+    // Derive street view image
+    const streetViewEnrichment = enrichments.find(e => e.field_key === 'street_view_image');
+    const streetViewSrc = streetViewEnrichment?.field_value || null;
+    const streetViewSource = streetViewEnrichment ? {
+        name: streetViewEnrichment.source_name,
+        type: streetViewEnrichment.source_type,
+        url: streetViewEnrichment.source_url,
+        fetchedAt: streetViewEnrichment.fetched_at,
+        confidence: streetViewEnrichment.confidence,
+    } : null;
+
     // Derive fire risk data
     const fireRiskEnrichment = enrichments.find(e => e.field_key === 'fire_risk_label');
     const fireRiskLabel = fireRiskEnrichment?.field_value || null;
@@ -438,6 +449,8 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             <PropertyBanner
                 imageSrc={bannerImageSrc}
                 imageSource={imageSource}
+                streetViewSrc={streetViewSrc}
+                streetViewSource={streetViewSource}
                 fireRiskLabel={fireRiskLabel}
                 propertyAddress={policyDetailRaw?.property_address || null}
                 isEnriching={enrichStep !== null && enrichStep !== '✓ Complete!' && enrichStep !== '✗ Failed — try again'}
