@@ -355,24 +355,39 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                     {/* ─── Inline Processing Status ─── */}
                     {(() => {
                         const status = getProcessingLabel();
+                        const isServerProcessing = processingStatus === 'queued' || processingStatus === 'processing';
                         return (
-                            <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '0.5rem',
-                                color: status.color,
-                                fontSize: '0.85rem',
-                                marginTop: '1rem',
-                                padding: '0.625rem 1rem',
-                                background: 'var(--bg-surface-raised, rgba(255,255,255,0.03))',
-                                border: '1px solid var(--border-subtle)',
-                                borderRadius: 'var(--radius-md, 0.5rem)',
-                            }}>
-                                {status.icon}
-                                {status.text}
-                                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-                            </div>
+                            <>
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '0.5rem',
+                                    color: status.color,
+                                    fontSize: '0.85rem',
+                                    marginTop: '1rem',
+                                    padding: '0.625rem 1rem',
+                                    background: 'var(--bg-surface-raised, rgba(255,255,255,0.03))',
+                                    border: '1px solid var(--border-subtle)',
+                                    borderRadius: 'var(--radius-md, 0.5rem)',
+                                }}>
+                                    {status.icon}
+                                    {status.text}
+                                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                                </div>
+                                {isServerProcessing && (
+                                    <p style={{
+                                        textAlign: 'center',
+                                        fontSize: '0.75rem',
+                                        color: 'var(--text-muted)',
+                                        marginTop: '0.625rem',
+                                        lineHeight: 1.5,
+                                    }}>
+                                        ✓ Your file has been received. Processing continues in the background
+                                        — you can safely navigate away from this page.
+                                    </p>
+                                )}
+                            </>
                         );
                     })()}
 
@@ -524,6 +539,18 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                                     transition: 'width 0.3s ease',
                                 }} />
                             </div>
+                            <p style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.375rem',
+                                fontSize: '0.75rem',
+                                color: 'var(--accent-warning, #f59e0b)',
+                                marginTop: '0.5rem',
+                                fontWeight: 500,
+                            }}>
+                                <AlertCircle size={13} />
+                                Please stay on this page while your file uploads.
+                            </p>
                         </div>
                     )}
 
