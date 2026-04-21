@@ -2136,6 +2136,8 @@ export interface ActivityFeedItem {
     client_id?: string;
     // Uploader info
     uploaded_by: string;
+    // Processing time (seconds) — computed from updated_at - created_at for completed items
+    processing_time_seconds?: number;
 }
 
 /**
@@ -2152,6 +2154,7 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
                 file_path,
                 error_message,
                 created_at,
+                updated_at,
                 account_id,
                 dec_pages (
                     insured_name,
@@ -2198,6 +2201,15 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
                 }
             }
 
+            // Compute processing time for completed items
+            let processingSeconds: number | undefined;
+            if ((row.status === 'parsed' || row.status === 'done') && row.updated_at && row.created_at) {
+                const elapsed = (new Date(row.updated_at).getTime() - new Date(row.created_at).getTime()) / 1000;
+                if (elapsed > 0 && elapsed < 3600) { // Sanity check: between 0 and 1 hour
+                    processingSeconds = Math.round(elapsed);
+                }
+            }
+
             return {
                 id: row.id,
                 type: 'upload' as const,
@@ -2210,6 +2222,7 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
                 policy_id: dp?.policy_id || undefined,
                 client_id: dp?.client_id || undefined,
                 uploaded_by: uploaderName,
+                processing_time_seconds: processingSeconds,
             };
         });
     } catch (err) {

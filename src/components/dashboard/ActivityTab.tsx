@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Upload, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, RefreshCw, Sparkles, Shield } from 'lucide-react';
+import { FileText, Upload, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, RefreshCw, Sparkles, Shield, Timer } from 'lucide-react';
 import { fetchActivityFeed, ActivityFeedItem } from '@/lib/api';
 import styles from './ActivityTab.module.css';
 
@@ -181,6 +181,12 @@ export function ActivityTab() {
                                                 <span>Enriched</span>
                                                 <Shield size={10} />
                                                 <span>Flags checked</span>
+                                                {activity.processing_time_seconds != null && (
+                                                    <>
+                                                        <Timer size={10} />
+                                                        <span>{activity.processing_time_seconds}s</span>
+                                                    </>
+                                                )}
                                             </span>
                                         )}
                                     </div>

@@ -33,12 +33,16 @@ def claim_next_job() -> dict | None:
     now_iso = datetime.now(timezone.utc).isoformat()
 
     # Step 1: Find the next eligible job
+    #   Eligible: status='queued' AND (run_after <= now OR run_after IS NULL)
+    #   NOTE: NULL run_after must be handled explicitly because
+    #   PostgreSQL's NULL <= <timestamp> evaluates to NULL (falsy),
+    #   making such jobs permanently invisible to the lte() filter.
     result = (
         sb.table("ingestion_jobs")
         .select("*")
         .eq("status", "queued")
-        .lte("run_after", now_iso)
-        .order("run_after", desc=False)
+        .or_(f"run_after.lte.{now_iso},run_after.is.null")
+        .order("created_at", desc=False)
         .limit(1)
         .execute()
     )
@@ -109,9 +113,17 @@ def fail_job(job_id: str, error_msg: str, error_detail: dict | None = None,
     safe_error = (error_msg or "")[:2000]
 
     if attempts < max_attempts:
-        # Exponential backoff: 5, 10, 20, 40, 60(cap) minutes
-        delay_minutes = min(5 * (2 ** (attempts - 1)), 60)
-        run_after = (datetime.now(timezone.utc) + timedelta(minutes=delay_minutes)).isoformat()
+        # Fast retry for race-condition errors (API still writing storage_path)
+        if "storage_path" in safe_error.lower() or "file_path" in safe_error.lower():
+            delay_seconds = 10
+            run_after = (datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)).isoformat()
+            logger.info("Job %s fast-retry in %ds (storage_path race): %s", job_id, delay_seconds, safe_error)
+        else:
+            # Normal exponential backoff: 5, 10, 20, 40, 60(cap) minutes
+            delay_minutes = min(5 * (2 ** (attempts - 1)), 60)
+            run_after = (datetime.now(timezone.utc) + timedelta(minutes=delay_minutes)).isoformat()
+            logger.warning("Job %s requeued (attempt %d/%d, retry in %d min): %s",
+                            job_id, attempts, max_attempts, delay_minutes, safe_error)
         sb.table("ingestion_jobs").update(
             {
                 "status": "queued",
@@ -123,8 +135,6 @@ def fail_job(job_id: str, error_msg: str, error_detail: dict | None = None,
                 "updated_at": now_iso,
             }
         ).eq("id", job_id).execute()
-        logger.warning("Job %s requeued (attempt %d/%d, retry in %d min): %s",
-                        job_id, attempts, max_attempts, delay_minutes, safe_error)
     else:
         sb.table("ingestion_jobs").update(
             {

@@ -126,10 +126,23 @@ def process_job(job: dict) -> None:
         update_submission_status(submission_id, "processing")
 
         # 3. Determine storage path
+        #    NOTE: During rapid uploads, the worker may claim a job before the
+        #    upload API has finished writing storage_path. Poll briefly to let
+        #    the API catch up instead of failing immediately.
         current_step = "resolve_storage_path"
         storage_path = submission.get("storage_path") or submission.get("file_path")
         if not storage_path:
-            raise RuntimeError(f"No storage_path or file_path on submission {submission_id}")
+            logger.info("job_id=%s step=%s waiting for storage_path (API may still be uploading)", job_id, current_step)
+            for wait_attempt in range(5):
+                _time.sleep(1)
+                submission = get_submission(submission_id)
+                if submission:
+                    storage_path = submission.get("storage_path") or submission.get("file_path")
+                    if storage_path:
+                        logger.info("job_id=%s step=%s storage_path appeared after %ds", job_id, current_step, wait_attempt + 1)
+                        break
+            if not storage_path:
+                raise RuntimeError(f"No storage_path or file_path on submission {submission_id} after waiting 5s")
 
         # 4. Download PDF
         current_step = "download_pdf"
