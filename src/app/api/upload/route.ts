@@ -244,6 +244,26 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
                     .from('ingestion_jobs')
                     .delete()
                     .eq('submission_id', dupRow.id);
+
+                // FEATURE REQUEST: Link this duplicate tracker to the original policy so it shows in the Activity Feed beautifully
+                // 1. Find if the original `existingDuplicate.id` has a linked `dec_pages` record yet.
+                const { data: originalDecPage } = await supabaseAdmin
+                    .from('dec_pages')
+                    .select('policy_id, client_id, insured_name, policy_number')
+                    .eq('submission_id', existingDuplicate.id)
+                    .maybeSingle();
+
+                // 2. If it does, clone that mapping for our new tracking row!
+                if (originalDecPage) {
+                    await supabaseAdmin.from('dec_pages').insert({
+                        submission_id: dupRow.id,
+                        policy_id: originalDecPage.policy_id,
+                        client_id: originalDecPage.client_id,
+                        insured_name: originalDecPage.insured_name,
+                        policy_number: originalDecPage.policy_number,
+                        parse_status: 'manual' // Skips AI pipeline dependencies
+                    });
+                }
             }
 
             const submittedBy = [account.first_name, account.last_name].filter(Boolean).join(' ') || account.email || 'User';
