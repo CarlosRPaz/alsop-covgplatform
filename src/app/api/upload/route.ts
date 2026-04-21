@@ -209,34 +209,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
                 accountId
             });
 
-            // Insert a tracking record for the duplicate attempt (status='duplicate')
-            // This prevents the worker from processing it, but gives us an audit trail
-            const { data: dupRow, error: dupError } = await supabaseAdmin
-                .from('dec_page_submissions')
-                .insert({
-                    account_id: accountId,
-                    first_name: account.first_name || '',
-                    last_name: account.last_name || '',
-                    email: account.email || '',
-                    phone: account.phone || '',
-                    file_path: '',
-                    file_name: file.name,
-                    file_size: file.size,
-                    file_type: file.type,
-                    status: 'duplicate',
-                    bucket: 'cfp-raw-decpage',
-                    file_hash: fileHash,
-                    duplicate_of: existingDuplicate.id,
-                    created_at: now,
-                    updated_at: now,
-                })
-                .select('id')
-                .single();
-
-            if (dupError) {
-                logger.error('Upload', 'Failed to insert duplicate tracking row (non-fatal)', { error: dupError.message });
-            }
-
             const submittedBy = [account.first_name, account.last_name].filter(Boolean).join(' ') || account.email || 'User';
 
             return NextResponse.json(
