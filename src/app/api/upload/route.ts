@@ -8,6 +8,14 @@ import { env } from '@/lib/env';
 /** Vercel function config — allow sufficient time for large PDF uploads */
 export const maxDuration = 60; // seconds
 
+/** Pipeline version — bump this to verify Vercel has deployed latest code */
+const PIPELINE_VERSION = 'atomic-v2';
+
+/** GET /api/upload — canary to verify deployment version */
+export async function GET() {
+    return NextResponse.json({ version: PIPELINE_VERSION, pipeline: 'atomic-insert' });
+}
+
 /** Maximum file size: 10 MB */
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
