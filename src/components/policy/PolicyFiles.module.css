@@ -40,7 +40,9 @@
 
 .dropzoneActive {
     border-color: var(--accent-primary);
-    background-color: var(--accent-primary-muted);
+    background-color: rgba(99, 102, 241, 0.08);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+    transform: scale(1.005);
 }
 
 .uploadIcon {
@@ -293,6 +295,9 @@
     border-radius: var(--radius-full);
     text-transform: uppercase;
     letter-spacing: 0.03em;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
 }
 
 /* Empty hint */

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import DataSourcesCatalog from '@/components/settings/DataSourcesCatalog';
 import { InviteUserModal } from '@/components/admin/InviteUserModal';
+import { useTheme } from 'next-themes';
 
 type Section = 'account' | 'notifications' | 'display' | 'admin' | 'data_sources' | 'report_editor' | 'email_system' | 'user_management';
 
@@ -480,25 +481,57 @@ function NotificationsSection() {
 
 // ─── Display Section ─────────────────────────────────────────
 function DisplaySection() {
+    const { theme, setTheme } = useTheme();
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
     return (
         <div>
             <SectionHeader title="Display & Preferences" description="Customize your workspace appearance and defaults" />
 
-            <div style={{
-                padding: '0.75rem 1rem',
-                background: 'var(--bg-info-subtle)',
-                border: '1px solid rgba(0,181,190,0.2)',
-                borderLeft: '3px solid var(--status-info)',
-                borderRadius: '8px',
-                marginBottom: '1.25rem',
-                fontSize: '0.75rem',
-                color: 'var(--text-mid)',
-            }}>
-                ⏳ <strong>Coming soon.</strong> Display preferences will be saved once the preferences system is live.
-            </div>
-
             <SettingGroup title="Theme" icon={Monitor}>
-                <SettingRow label="Appearance" value="Light (Warm Enterprise)" note="Theme switching coming soon" />
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.875rem 1rem',
+                    borderBottom: '1px solid var(--border-subtle)',
+                }}>
+                    <div>
+                        <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-high)', marginBottom: '0.125rem' }}>Appearance</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Select your preferred platform theme</div>
+                    </div>
+                    {mounted ? (
+                        <select 
+                            value={theme}
+                            onChange={(e) => setTheme(e.target.value)}
+                            style={{
+                                padding: '0.4rem 2rem 0.4rem 0.75rem',
+                                fontSize: '0.8rem',
+                                color: 'var(--text-high)',
+                                background: 'var(--bg-surface-raised)',
+                                border: '1px solid var(--border-default)',
+                                borderRadius: '6px',
+                                outline: 'none',
+                                cursor: 'pointer',
+                                appearance: 'none',
+                                backgroundImage: `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%238b8b9e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>')`,
+                                backgroundRepeat: 'no-repeat',
+                                backgroundPosition: 'right 0.5rem center',
+                                backgroundSize: '1em',
+                            }}
+                        >
+                            <option value="system">System Default</option>
+                            <option value="light">Light (Warm Enterprise)</option>
+                            <option value="dark">Dark Mode</option>
+                        </select>
+                    ) : (
+                        <div style={{ width: '140px', height: '32px', background: 'var(--bg-surface-raised)', borderRadius: '6px', opacity: 0.5 }} />
+                    )}
+                </div>
                 <SettingRow label="Sidebar" value="Auto-collapse" note="Adjusts based on screen width" />
             </SettingGroup>
 

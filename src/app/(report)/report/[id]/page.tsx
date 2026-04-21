@@ -39,6 +39,7 @@ export default function ReportPage() {
     const id = params.id as string;
     const [report, setReport] = useState<PolicyReportRow | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isGenerating, setIsGenerating] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -113,6 +114,31 @@ export default function ReportPage() {
         ? new Date(report.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
         : '';
 
+    const handleRegenerate = async () => {
+        if (!report?.policy_id) return;
+        setIsGenerating(true);
+        try {
+            const res = await fetch('/api/reports/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ policyId: report.policy_id })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.report) {
+                    router.push(`/report/${data.report.id}`);
+                }
+            } else {
+                alert('Failed to regenerate report');
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Error generating report');
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
     // Early returns AFTER all hooks
     if (loading) {
         return (
@@ -140,7 +166,16 @@ export default function ReportPage() {
             {/* Action Bar (hidden in print) */}
             <div className={styles.actionBar}>
                 <button onClick={() => router.back()} className={styles.backBtn}>← Back</button>
-                <button onClick={() => window.print()} className={styles.printBtn}>Save as PDF</button>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button 
+                        onClick={handleRegenerate} 
+                        disabled={isGenerating} 
+                        style={{ padding: '0.4rem 0.8rem', cursor: isGenerating ? 'wait' : 'pointer', background: 'var(--bg-surface-raised)', color: 'var(--text-high)', border: '1px solid var(--border-default)', borderRadius: '4px' }}
+                    >
+                        {isGenerating ? 'Regenerating...' : 'Regenerate Analysis'}
+                    </button>
+                    <button onClick={() => window.print()} className={styles.printBtn}>Save as PDF</button>
+                </div>
             </div>
 
             {/* ════ DOCUMENT ════ */}

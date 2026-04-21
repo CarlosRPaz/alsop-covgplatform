@@ -15,9 +15,10 @@ const POLL_INTERVAL_MS = 3000;
  * and removes the ID from storage. Stops polling when no IDs remain.
  */
 export function DecPageObserver() {
-    const { success, error, info } = useToast();
+    const { success, error, info, loading, removeToast } = useToast();
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
     const isPolling = useRef(false);
+    const activeToasts = useRef<Record<string, string>>({});
 
     const stopPolling = useCallback(() => {
         if (intervalRef.current) {
@@ -76,14 +77,31 @@ export function DecPageObserver() {
             let stillPending = [...pendingIds];
 
             for (const row of dbStatuses) {
+                // If we haven't shown a loading toast yet for this pending item, show it
+                if (!activeToasts.current[row.id] && !['parsed', 'failed', 'duplicate'].includes(row.status)) {
+                    activeToasts.current[row.id] = loading(`Processing ${row.file_name}...`);
+                }
+
                 if (row.status === 'parsed') {
+                    if (activeToasts.current[row.id]) {
+                        removeToast(activeToasts.current[row.id]);
+                        delete activeToasts.current[row.id];
+                    }
                     success(`Declaration processed successfully: ${row.file_name}`);
                     window.dispatchEvent(new CustomEvent('decPageParsed'));
                     stillPending = stillPending.filter(id => id !== row.id);
                 } else if (row.status === 'failed') {
+                    if (activeToasts.current[row.id]) {
+                        removeToast(activeToasts.current[row.id]);
+                        delete activeToasts.current[row.id];
+                    }
                     error(`Failed to process ${row.file_name}: ${row.error_message || 'Unknown error'}`);
                     stillPending = stillPending.filter(id => id !== row.id);
                 } else if (row.status === 'duplicate') {
+                    if (activeToasts.current[row.id]) {
+                        removeToast(activeToasts.current[row.id]);
+                        delete activeToasts.current[row.id];
+                    }
                     info(`${row.file_name} was recognized as a duplicate upload.`);
                     stillPending = stillPending.filter(id => id !== row.id);
                 }

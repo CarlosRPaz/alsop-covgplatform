@@ -248,47 +248,20 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
             );
         }
 
-        const { data: insertedRow, error: insertError } = await supabaseAdmin
-            .from('dec_page_submissions')
-            .insert({
-                account_id: accountId,
-                first_name: account.first_name || '',
-                last_name: account.last_name || '',
-                email: account.email || '',
-                phone: account.phone || '',
-                file_path: '', // Populated after upload
-                file_name: file.name,
-                file_size: file.size,
-                file_type: file.type,
-                status: 'pending',
-                bucket: 'cfp-raw-decpage',
-                file_hash: fileHash,
-                created_at: now,
-                updated_at: now,
-            })
-            .select('id')
-            .single();
-
-        if (insertError || !insertedRow) {
-            logger.error('Upload', 'Failed to insert submission row', {
-                error: insertError?.message,
-                code: insertError?.code,
-            });
-            return NextResponse.json(
-                { success: false, message: 'Failed to create submission record. Please try again.', error: 'DB_INSERT_FAILED' },
-                { status: 500 }
-            );
-        }
-
-        submissionId = insertedRow.id;
-        logger.info('Upload', 'Submission row created (pending)', { submissionId, accountId, fileHash });
-
         // ---------------------------------------------------------------
-        // 5. Upload file: submissions/{account_id}/{submission_id}.pdf
+        // 4. Generate submission ID upfront so we can build the storage path
+        //    BEFORE inserting into the database. This makes the flow atomic:
+        //    Upload → single INSERT (with storage_path) → INSERT job
+        //    No more dangerous INSERT→UPDATE two-step.
         // ---------------------------------------------------------------
+        submissionId = crypto.randomUUID();
         const storagePath = `submissions/${accountId}/${submissionId}.pdf`;
 
-        logger.info('Upload', 'Uploading file to storage', { storagePath, fileSize: file.size });
+        // ---------------------------------------------------------------
+        // 5. Upload file to storage FIRST
+        //    If this fails, we haven't touched the DB at all — clean failure.
+        // ---------------------------------------------------------------
+        logger.info('Upload', 'Uploading file to storage', { submissionId, storagePath, fileSize: file.size });
 
         const { error: uploadError } = await supabaseAdmin.storage
             .from('cfp-raw-decpage')
@@ -303,12 +276,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
                 storagePath,
             });
 
-            await markSubmissionFailed(submissionId!, 'Storage upload failed', {
-                storageError: uploadError.message,
-                storagePath,
-                attemptedAt: new Date().toISOString(),
-            });
-
             return NextResponse.json(
                 { success: false, message: 'Failed to upload file. Please try again.', error: 'STORAGE_UPLOAD_FAILED' },
                 { status: 500 }
@@ -316,30 +283,43 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
         }
 
         // ---------------------------------------------------------------
-        // 6. UPDATE row: status='uploaded', storage_path, file_path
-        //    CRITICAL: If this fails, the worker won't have a storage_path
-        //    and will fail. We must treat this as a hard error.
+        // 6. SINGLE atomic INSERT with storage_path already populated.
+        //    No more two-step INSERT→UPDATE race condition.
         // ---------------------------------------------------------------
-        const { error: updateError } = await supabaseAdmin
+        const { data: insertedRow, error: insertError } = await supabaseAdmin
             .from('dec_page_submissions')
-            .update({
-                status: 'uploaded',
+            .insert({
+                id: submissionId,
+                account_id: accountId,
+                first_name: account.first_name || '',
+                last_name: account.last_name || '',
+                email: account.email || '',
+                phone: account.phone || '',
+                file_path: storagePath,
                 storage_path: storagePath,
-                file_path: storagePath, // Mirror for legacy compat
-                updated_at: new Date().toISOString(),
+                file_name: file.name,
+                file_size: file.size,
+                file_type: file.type,
+                status: 'uploaded',
+                bucket: 'cfp-raw-decpage',
+                file_hash: fileHash,
+                created_at: now,
+                updated_at: now,
             })
-            .eq('id', submissionId);
+            .select('id, storage_path')
+            .single();
 
-        if (updateError) {
-            logger.error('Upload', 'CRITICAL: Failed to update submission with storage_path', {
+        if (insertError || !insertedRow) {
+            logger.error('Upload', 'Failed to insert submission row', {
+                error: insertError?.message,
+                code: insertError?.code,
                 submissionId,
-                error: updateError.message,
             });
 
-            // Attempt to clean up the uploaded file since the DB row is broken
+            // Clean up the orphaned storage file
             try {
                 await supabaseAdmin.storage.from('cfp-raw-decpage').remove([storagePath]);
-                logger.info('Upload', 'Cleaned up orphan storage file', { storagePath });
+                logger.info('Upload', 'Cleaned up orphan storage file after INSERT failure', { storagePath });
             } catch (cleanupErr) {
                 logger.error('Upload', 'Failed to clean up orphan storage file', {
                     storagePath,
@@ -347,23 +327,23 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
                 });
             }
 
-            await markSubmissionFailed(submissionId!, 'Failed to finalize upload record', {
-                dbError: updateError.message,
-                storagePath,
-            });
-
             return NextResponse.json(
-                { success: false, message: 'Failed to finalize upload. Please try again.', error: 'DB_UPDATE_FAILED' },
+                { success: false, message: 'Failed to create submission record. Please try again.', error: 'DB_INSERT_FAILED' },
                 { status: 500 }
             );
         }
 
-        logger.info('Upload', 'Submission completed successfully', { submissionId, storagePath });
+        logger.info('Upload', 'Submission created with storage_path in single INSERT', {
+            submissionId,
+            storagePath,
+            confirmedPath: insertedRow.storage_path,
+        });
 
         // ---------------------------------------------------------------
         // 7. Create ingestion job for the worker to pick up
         //    CRITICAL: Without this, the file is uploaded but never processed.
-        //    This MUST succeed or we mark the submission as failed.
+        //    NOTE: run_after MUST be set explicitly — NULL values are
+        //    invisible to the worker's lte() filter.
         // ---------------------------------------------------------------
         const { error: jobError } = await supabaseAdmin
             .from('ingestion_jobs')
@@ -371,6 +351,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
                 submission_id: submissionId!,
                 account_id: accountId,
                 status: 'queued',
+                run_after: new Date().toISOString(),
             });
 
         if (jobError) {

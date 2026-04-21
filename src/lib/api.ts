@@ -2737,3 +2737,107 @@ export async function uploadDecPageToPolicy(policyId: string, file: File): Promi
         return { success: false, error: 'Unexpected error occurred.' };
     }
 }
+
+// ─── Manual Data Overrides (Inline Editing) ───
+
+export interface ManualOverride {
+    id: string;
+    policy_id: string;
+    field_name: string;
+    new_value: string;
+    original_value?: string | null;
+    actor_id?: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+/**
+ * Fetch all manual overrides for a specific policy.
+ */
+export async function getManualOverridesForPolicy(policyId: string): Promise<Record<string, string>> {
+    try {
+        const { data, error } = await supabase
+            .from('manual_overrides')
+            .select('*')
+            .eq('policy_id', policyId);
+
+        if (error) {
+            logger.error('API', 'Error fetching manual overrides', { error: error.message });
+            return {};
+        }
+
+        const map: Record<string, string> = {};
+        data?.forEach((row: ManualOverride) => {
+            map[row.field_name] = row.new_value;
+        });
+        return map;
+    } catch (e) {
+        return {};
+    }
+}
+
+/**
+ * Upsert a manual override to correct AI parsed data.
+ */
+export async function upsertManualOverride(
+    policyId: string,
+    fieldName: string,
+    newValue: string,
+    originalValue?: string
+): Promise<{ success: boolean; data?: ManualOverride; error?: string }> {
+    try {
+        const { data: user } = await supabase.auth.getUser();
+        const actorId = user?.user?.id;
+
+        // Upsert the main override record
+        const { data, error } = await supabase
+            .from('manual_overrides')
+            .upsert(
+                {
+                    policy_id: policyId,
+                    field_name: fieldName,
+                    new_value: newValue,
+                    original_value: originalValue || null,
+                    actor_id: actorId || null,
+                },
+                { onConflict: 'policy_id, field_name' }
+            )
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        // Write to the append-only log table for full audit history
+        await supabase.from('manual_override_logs').insert({
+            policy_id: policyId,
+            field_name: fieldName,
+            changed_from: originalValue || null,
+            changed_to: newValue,
+            actor_id: actorId || null,
+        });
+
+        return { success: true, data };
+    } catch (e: any) {
+        logger.error('API', 'Failed to upsert manual override', { error: e.message });
+        return { success: false, error: e.message };
+    }
+}
+
+/**
+ * Bulk update policy statuses (e.g. mark multiple as reviewed)
+ */
+export async function bulkUpdatePolicyStatus(policyIds: string[], status: string): Promise<boolean> {
+    if (!policyIds.length) return false;
+    try {
+        const { error } = await supabase
+            .from('policies')
+            .update({ status })
+            .in('id', policyIds);
+            
+        if (error) throw error;
+        return true;
+    } catch (e) {
+        logger.error('API', 'Failed to bulk update status', { policyIds, status, error: e instanceof Error ? e.message : String(e) });
+        return false;
+    }
+}

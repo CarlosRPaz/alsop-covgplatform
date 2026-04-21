@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card/Card';
 import { Button } from '@/components/ui/Button/Button';
@@ -47,9 +47,12 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
     const [processingStep, setProcessingStep] = useState<ProcessingStep>(null);
     const [termsAccepted, setTermsAccepted] = useState(false);
     const [isDragOver, setIsDragOver] = useState(false);
+    const [sessionUploadCount, setSessionUploadCount] = useState(0);
     const formRef = useRef<HTMLFormElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const abortRef = useRef<AbortController | null>(null);
     const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const autoResetTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     const isAgent = userRole === 'admin' || userRole === 'service';
 
@@ -58,8 +61,24 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
         return () => {
             if (abortRef.current) abortRef.current.abort();
             if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            if (autoResetTimerRef.current) clearTimeout(autoResetTimerRef.current);
         };
     }, []);
+
+    // Keyboard shortcut: Ctrl+U to open file picker (agent ergonomic)
+    useEffect(() => {
+        if (!isAgent) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'u') {
+                e.preventDefault();
+                if (submitState === 'idle' && fileInputRef.current) {
+                    fileInputRef.current.click();
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isAgent, submitState]);
 
     const validateFile = (selectedFile: File): string | null => {
         const ext = '.' + selectedFile.name.split('.').pop()?.toLowerCase();
@@ -139,9 +158,15 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                 if (status === 'parsed') {
                     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
                     window.dispatchEvent(new CustomEvent('decPageParsed'));
-                    // Auto-redirect agents after parse completes
+                    // Auto-reset form for agents after 3s so they can keep uploading
                     if (isAgent) {
-                        setTimeout(() => router.push('/dashboard'), 2000);
+                        autoResetTimerRef.current = setTimeout(() => {
+                            setSubmitState('idle');
+                            setUploadResult(null);
+                            setProcessingStatus(null);
+                            setProcessingStep(null);
+                            setUploadProgress(0);
+                        }, 3000);
                     }
                 } else if (status === 'failed') {
                     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
@@ -154,7 +179,7 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
         // Check immediately, then every 3 seconds
         checkStatus();
         pollIntervalRef.current = setInterval(checkStatus, 3000);
-    }, [isAgent, router]);
+    }, [isAgent]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -229,6 +254,7 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
             const submissionId = responseData?.submissionId as string | undefined;
 
             setSubmitState('success');
+            setSessionUploadCount(prev => prev + 1);
             setProcessingStatus('queued');
             setUploadResult({
                 message: result.data.message as string,
@@ -314,11 +340,30 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
             <div className={styles.header}>
                 <h2 className={styles.title}>
                     {isAgent ? 'Upload Declaration Page' : 'Submit for Coverage Review'}
+                    {isAgent && sessionUploadCount > 0 && (
+                        <span style={{
+                            marginLeft: '0.75rem',
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            padding: '0.2rem 0.6rem',
+                            borderRadius: '999px',
+                            background: 'var(--bg-success-subtle, rgba(34, 197, 94, 0.12))',
+                            color: 'var(--status-success, #22c55e)',
+                            verticalAlign: 'middle',
+                        }}>
+                            {sessionUploadCount} uploaded
+                        </span>
+                    )}
                 </h2>
                 {!isAgent && (
                     <p className={styles.description}>
                         Upload your current Declarations Page for a comprehensive professional review.
                         We&apos;ll analyze your policy and identify any coverage gaps.
+                    </p>
+                )}
+                {isAgent && (
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                        Tip: Press <kbd style={{ background: 'var(--bg-surface-raised)', padding: '0.1rem 0.35rem', borderRadius: '4px', border: '1px solid var(--border-default)', fontSize: '0.7rem', fontWeight: 600 }}>Ctrl+U</kbd> to quickly open the file picker
                     </p>
                 )}
             </div>
@@ -473,6 +518,7 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                             <input
                                 type="file"
                                 name="file"
+                                ref={fileInputRef}
                                 accept=".pdf"
                                 onChange={handleFileChange}
                                 required

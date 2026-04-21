@@ -336,19 +336,35 @@ def process_job(job: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Poll Loop
+# Poll Loop (concurrent via ThreadPoolExecutor)
 # ---------------------------------------------------------------------------
 
+MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT_JOBS", "3"))
+
+
 def run() -> None:
-    """Main poll loop. Runs until interrupted."""
+    """
+    Main poll loop with concurrent job processing.
+
+    Uses a ThreadPoolExecutor to process up to MAX_CONCURRENT jobs
+    simultaneously. This prevents one slow job (e.g. 60s enrichment)
+    from blocking the entire queue while other jobs sit idle.
+
+    The loop:
+      1. Counts how many slots are available (MAX_CONCURRENT - active_futures)
+      2. Claims up to that many jobs from the queue
+      3. Dispatches each to the thread pool
+      4. Sleeps POLL_INTERVAL before checking again
+    """
+    from concurrent.futures import ThreadPoolExecutor, Future
+
     worker_name = os.environ.get("WORKER_NAME", "worker-unknown")
-    logger.info("Starting ingestion worker: %s", worker_name)
+    logger.info("Starting ingestion worker: %s (max_concurrent=%d)", worker_name, MAX_CONCURRENT)
     logger.info("Poll interval: %ds", POLL_INTERVAL)
 
     # Verify connection on startup
     try:
         sb = get_supabase()
-        # Quick health check — read one row from ingestion_jobs
         sb.table("ingestion_jobs").select("id").limit(1).execute()
         logger.info("Supabase connection OK")
     except Exception as exc:
@@ -362,20 +378,52 @@ def run() -> None:
     except Exception as exc:
         logger.error("Failed to requeue stale jobs on startup: %s", exc)
 
-    while True:
-        try:
-            job = claim_next_job()
-            if job:
-                process_job(job)
-            else:
-                logger.debug("No jobs available, sleeping %ds", POLL_INTERVAL)
+    executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENT, thread_name_prefix="job")
+    active_futures: list[Future] = []
+
+    try:
+        while True:
+            try:
+                # Prune completed futures
+                active_futures = [f for f in active_futures if not f.done()]
+
+                # Check for exceptions in completed futures (logging only)
+                for f in list(active_futures):
+                    if f.done() and f.exception():
+                        logger.error("Job thread raised: %s", f.exception())
+
+                available_slots = MAX_CONCURRENT - len(active_futures)
+
+                if available_slots > 0:
+                    # Claim up to `available_slots` jobs
+                    jobs_claimed = 0
+                    for _ in range(available_slots):
+                        job = claim_next_job()
+                        if job:
+                            future = executor.submit(process_job, job)
+                            active_futures.append(future)
+                            jobs_claimed += 1
+                        else:
+                            break  # No more jobs in queue
+
+                    if jobs_claimed > 0:
+                        logger.info("Dispatched %d job(s) to thread pool (%d/%d slots active)",
+                                    jobs_claimed, len(active_futures), MAX_CONCURRENT)
+                        continue  # Don't sleep — check for more jobs immediately
+
+                # Nothing to do — sleep before next poll
                 time.sleep(POLL_INTERVAL)
-        except KeyboardInterrupt:
-            logger.info("Shutting down gracefully")
-            break
-        except Exception as exc:
-            logger.error("Unexpected error in poll loop: %s", exc)
-            time.sleep(POLL_INTERVAL)
+
+            except KeyboardInterrupt:
+                raise
+            except Exception as exc:
+                logger.error("Unexpected error in poll loop: %s", exc)
+                time.sleep(POLL_INTERVAL)
+
+    except KeyboardInterrupt:
+        logger.info("Shutting down gracefully — waiting for %d active job(s)", len(active_futures))
+        executor.shutdown(wait=True, cancel_futures=False)
+        logger.info("All jobs completed. Goodbye.")
 
 
 if __name__ == "__main__":

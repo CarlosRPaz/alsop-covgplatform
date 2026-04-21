@@ -1,9 +1,9 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
-import { CheckCircle2, AlertTriangle, Info, X, AlertCircle } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Info, X, AlertCircle, Loader2 } from 'lucide-react';
 
-type ToastType = 'success' | 'error' | 'warning' | 'info';
+type ToastType = 'success' | 'error' | 'warning' | 'info' | 'loading';
 
 interface Toast {
     id: string;
@@ -13,11 +13,13 @@ interface Toast {
 }
 
 interface ToastContextValue {
-    toast: (message: string, type?: ToastType, duration?: number) => void;
-    success: (message: string) => void;
-    error: (message: string) => void;
-    warning: (message: string) => void;
-    info: (message: string) => void;
+    toast: (message: string, type?: ToastType, duration?: number) => string;
+    success: (message: string) => string;
+    error: (message: string) => string;
+    warning: (message: string) => string;
+    info: (message: string) => string;
+    loading: (message: string) => string;
+    removeToast: (id: string) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -26,11 +28,13 @@ export function useToast(): ToastContextValue {
     const ctx = useContext(ToastContext);
     if (!ctx) {
         return {
-            toast: (msg) => console.log('[Toast]', msg),
-            success: (msg) => console.log('[Toast:success]', msg),
-            error: (msg) => console.error('[Toast:error]', msg),
-            warning: (msg) => console.warn('[Toast:warning]', msg),
-            info: (msg) => console.info('[Toast:info]', msg),
+            toast: (msg) => { console.log('[Toast]', msg); return '1'; },
+            success: (msg) => { console.log('[Toast:success]', msg); return '1'; },
+            error: (msg) => { console.error('[Toast:error]', msg); return '1'; },
+            warning: (msg) => { console.warn('[Toast:warning]', msg); return '1'; },
+            info: (msg) => { console.info('[Toast:info]', msg); return '1'; },
+            loading: (msg) => { console.info('[Toast:loading]', msg); return '1'; },
+            removeToast: () => {},
         };
     }
     return ctx;
@@ -46,8 +50,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
     const addToast = useCallback((message: string, type: ToastType = 'info', duration = 4000) => {
         const id = `toast-${++counterRef.current}`;
-        setToasts(prev => [...prev, { id, type, message, duration }]);
-        setTimeout(() => removeToast(id), duration);
+        const finalDuration = type === 'loading' ? 99999999 : duration; // Let loading persist
+        setToasts(prev => [...prev, { id, type, message, duration: finalDuration }]);
+        if (type !== 'loading') { // Disable auto-timeout for loading
+            setTimeout(() => removeToast(id), duration);
+        }
+        return id;
     }, [removeToast]);
 
     const value: ToastContextValue = {
@@ -56,6 +64,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         error: (msg) => addToast(msg, 'error', 6000),
         warning: (msg) => addToast(msg, 'warning', 5000),
         info: (msg) => addToast(msg, 'info'),
+        loading: (msg) => addToast(msg, 'loading'),
+        removeToast,
     };
 
     return (
@@ -71,6 +81,7 @@ const ICON_MAP: Record<ToastType, React.ReactNode> = {
     error: <AlertCircle size={16} />,
     warning: <AlertTriangle size={16} />,
     info: <Info size={16} />,
+    loading: <Loader2 size={16} className="spin" />,
 };
 
 const COLOR_MAP: Record<ToastType, { bg: string; border: string; text: string; icon: string }> = {
@@ -78,6 +89,7 @@ const COLOR_MAP: Record<ToastType, { bg: string; border: string; text: string; i
     error: { bg: 'var(--bg-error-subtle)', border: 'var(--status-error)', text: 'var(--status-error)', icon: 'var(--status-error)' },
     warning: { bg: 'var(--bg-warning-subtle)', border: 'var(--status-warning)', text: 'var(--status-warning)', icon: 'var(--status-warning)' },
     info: { bg: 'var(--bg-info-subtle)', border: 'var(--accent-primary)', text: 'var(--accent-primary)', icon: 'var(--accent-primary)' },
+    loading: { bg: 'var(--bg-info-subtle)', border: 'var(--accent-primary)', text: 'var(--accent-primary)', icon: 'var(--accent-primary)' },
 };
 
 function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: string) => void }) {

@@ -4,9 +4,9 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/Card/Card';
 import styles from './DataTable.module.scss';
 import { clsx } from 'clsx';
-import { DashboardPolicy } from '@/lib/api';
+import { DashboardPolicy, bulkUpdatePolicyStatus } from '@/lib/api';
 import { usePolicies } from '@/hooks/usePolicies';
-import { ArrowUpDown, Search, ChevronDown, ChevronUp, Columns, ArrowUp, ArrowDown, EyeOff, X, GripVertical, Flag, ChevronFirst, ChevronLast, Download, Satellite, Zap, MoreVertical, Filter, CircleDot, AlertCircle } from 'lucide-react';
+import { ArrowUpDown, Search, ChevronDown, ChevronUp, Columns, ArrowUp, ArrowDown, EyeOff, X, GripVertical, Flag, ChevronFirst, ChevronLast, Download, Satellite, Zap, MoreVertical, Filter, CircleDot, AlertCircle, CheckSquare } from 'lucide-react';
 import { Button } from '@/components/ui/Button/Button';
 import { useRouter } from 'next/navigation';
 import { FullWorkupModal } from './FullWorkupModal';
@@ -249,8 +249,24 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
     }, [selectedRows, onSelectionChange]);
 
     const [isWorkupOpen, setIsWorkupOpen] = useState(false);
+    const [isBulkUpdating, setIsBulkUpdating] = useState(false);
 
-    // Flag Filtering State
+    const handleBulkMarkReviewed = async () => {
+        setIsBulkUpdating(true);
+        try {
+            const success = await bulkUpdatePolicyStatus(Array.from(selectedRows), 'reviewed');
+            if (success) {
+                setSelectedRows(new Set());
+                swrRefresh();
+            } else {
+                alert('Failed to bulk update policies.');
+            }
+        } finally {
+            setIsBulkUpdating(false);
+        }
+    };
+
+    // Outside clicks for popupsing State
     const [allFlags, setAllFlags] = useState<string[]>([]);
     const [selectedFlags, setSelectedFlags] = useState<Set<string>>(
         initialFlagFilter ? new Set([initialFlagFilter]) : new Set()
@@ -1479,6 +1495,58 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
 
 
         </div>
+
+            {/* Floating Bulk Action Bar */}
+            {selectedRows.size > 0 && (
+                <div style={{
+                    position: 'fixed',
+                    bottom: '2rem',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    background: 'var(--bg-surface-raised)',
+                    border: '1px solid var(--accent-primary)',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '1rem',
+                    zIndex: 100,
+                    animation: 'slideUp 0.3s ease-out'
+                }}>
+                    <style>{`
+                        @keyframes slideUp { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
+                    `}</style>
+                    <span style={{ fontWeight: 600, color: 'var(--text-high)' }}>
+                        {selectedRows.size} policy{selectedRows.size !== 1 && 's'} selected
+                    </span>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginLeft: '1rem', borderLeft: '1px solid var(--border-default)', paddingLeft: '1rem' }}>
+                        <Button 
+                            variant="primary" 
+                            size="sm" 
+                            onClick={() => setIsWorkupOpen(true)}
+                        >
+                            Open Worksheets
+                        </Button>
+                        <Button 
+                            variant="secondary" 
+                            size="sm"
+                            disabled={isBulkUpdating}
+                            onClick={handleBulkMarkReviewed}
+                        >
+                            <CheckSquare size={14} style={{ marginRight: '0.25rem' }} />
+                            {isBulkUpdating ? 'Updating...' : 'Mark as Reviewed'}
+                        </Button>
+                        <button
+                            onClick={() => setSelectedRows(new Set())}
+                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', marginLeft: '0.5rem', padding: '0.25rem' }}
+                            title="Clear Selection"
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Full Workup Modal */}
             <FullWorkupModal

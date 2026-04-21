@@ -2,11 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Declaration, PropertyEnrichment, getLatestReportForPolicy, PolicyReportRow, PolicyDetail } from '@/lib/api';
+import { Declaration, PropertyEnrichment, getLatestReportForPolicy, PolicyReportRow, PolicyDetail, getManualOverridesForPolicy, upsertManualOverride } from '@/lib/api';
 import { normalizeInputs, calculateEstimate } from '@/lib/rce/InterimEstimator';
 import { InterimRceWidget } from './InterimRceWidget';
+import { EditableValue } from '../ui/EditableValue';
+import { RefreshCw, TriangleAlert } from 'lucide-react';
 import styles from './PolicyDashboard.module.css';
 import { Card } from '../ui/Card/Card';
+import { supabase } from '@/lib/supabaseClient';
 
 interface PolicyDashboardProps {
     declaration: Declaration;
@@ -18,6 +21,9 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
     const router = useRouter();
     const [report, setReport] = useState<PolicyReportRow | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [overrides, setOverrides] = useState<Record<string, string>>({});
+    const [hasPendingEdits, setHasPendingEdits] = useState(false);
+    const [showRefreshPrompt, setShowRefreshPrompt] = useState(false);
 
     useEffect(() => {
         const policyId = declaration.policy_id || declaration.id;
@@ -25,8 +31,40 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
             getLatestReportForPolicy(policyId).then(data => {
                 if (data) setReport(data);
             });
+            getManualOverridesForPolicy(policyId).then(setOverrides);
+            
+            // Supabase Real-Time Binding
+            const channel = supabase.channel(`policy_${policyId}`)
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'property_enrichments', filter: `policy_id=eq.${policyId}` }, () => {
+                    setShowRefreshPrompt(true);
+                })
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'dec_pages', filter: `policy_id=eq.${policyId}` }, () => {
+                    setShowRefreshPrompt(true);
+                })
+                .subscribe();
+                
+            return () => {
+                supabase.removeChannel(channel);
+            };
         }
     }, [declaration.policy_id, declaration.id]);
+
+    const handleOverrideSave = async (fieldName: string, newValue: string, originalValue: string) => {
+        const policyId = declaration.policy_id || declaration.id;
+        if (!policyId) return false;
+        
+        const res = await upsertManualOverride(policyId, fieldName, newValue, originalValue);
+        if (res.success) {
+            setOverrides(prev => ({ ...prev, [fieldName]: newValue }));
+            setHasPendingEdits(true);
+            return true;
+        }
+        return false;
+    };
+
+    const getVal = (fieldName: string, original: string | null | undefined): string => {
+        return overrides[fieldName] || original || '';
+    };
 
     const handleGenerateReport = async () => {
         setIsGenerating(true);
@@ -172,7 +210,36 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
     };
 
     return (
-        <div className={styles.container}>
+        <div className={styles.container} style={{ position: 'relative' }}>
+            {/* Real-time Refresh Prompt */}
+            {showRefreshPrompt && (
+                <div style={{
+                    position: 'fixed',
+                    top: '5rem',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    background: 'var(--status-success)',
+                    color: 'white',
+                    padding: '0.675rem 1.5rem',
+                    borderRadius: '24px',
+                    boxShadow: 'var(--shadow-xl)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    cursor: 'pointer',
+                    zIndex: 1000,
+                    animation: 'pulse 2s infinite',
+                    fontWeight: 600,
+                    fontSize: '0.875rem'
+                }} onClick={() => {
+                    setShowRefreshPrompt(false);
+                    router.refresh(); 
+                }}>
+                    <RefreshCw size={16} />
+                    New Background Data Available — Click to Refresh
+                </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <h2 className={styles.sectionTitle} style={{ margin: 0 }}>Policy Overview</h2>
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -298,45 +365,102 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
                 </div>
                 {/* Coverage Limits */}
                 <Card className={styles.card}>
-                    <h3>Coverage Limits</h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h3 style={{ margin: 0 }}>Coverage Limits</h3>
+                        {hasPendingEdits && (
+                            <button 
+                                onClick={handleGenerateReport} 
+                                disabled={isGenerating}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '0.4rem', 
+                                    padding: '0.4rem 0.8rem', background: 'var(--status-warning)', 
+                                    color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer',
+                                    fontSize: '0.8rem', fontWeight: 'bold', animation: 'pulse 2s infinite'
+                                }}
+                            >
+                                {isGenerating ? <RefreshCw size={14} className="spin" /> : <RefreshCw size={14} />}
+                                {isGenerating ? 'Regenerating...' : 'Regenerate Analysis'}
+                            </button>
+                        )}
+                    </div>
                     <div className={styles.row}>
                         <div className={styles.field}>
                             <label>Dwelling:</label>
-                            <span>{declaration.limit_dwelling || '—'}</span>
+                            <EditableValue 
+                                value={getVal('limit_dwelling', declaration.limit_dwelling)} 
+                                originalValue={declaration.limit_dwelling}
+                                onSave={(v) => handleOverrideSave('limit_dwelling', v, declaration.limit_dwelling || '')}
+                                label="Dwelling"
+                            />
                         </div>
                         <div className={styles.field}>
                             <label>Other Structures:</label>
-                            <span>{declaration.limit_other_structures || '—'}</span>
+                            <EditableValue 
+                                value={getVal('limit_other_structures', declaration.limit_other_structures)} 
+                                originalValue={declaration.limit_other_structures}
+                                onSave={(v) => handleOverrideSave('limit_other_structures', v, declaration.limit_other_structures || '')}
+                                label="Other Structures"
+                            />
                         </div>
                     </div>
                     <div className={styles.row}>
                         <div className={styles.field}>
                             <label>Personal Property:</label>
-                            <span>{declaration.limit_personal_property || '—'}</span>
+                            <EditableValue 
+                                value={getVal('limit_personal_property', declaration.limit_personal_property)} 
+                                originalValue={declaration.limit_personal_property}
+                                onSave={(v) => handleOverrideSave('limit_personal_property', v, declaration.limit_personal_property || '')}
+                                label="Personal Property"
+                            />
                         </div>
                         <div className={styles.field}>
                             <label>Fair Rental Value:</label>
-                            <span>{declaration.limit_fair_rental_value || '—'}</span>
+                            <EditableValue 
+                                value={getVal('limit_fair_rental_value', declaration.limit_fair_rental_value)} 
+                                originalValue={declaration.limit_fair_rental_value}
+                                onSave={(v) => handleOverrideSave('limit_fair_rental_value', v, declaration.limit_fair_rental_value || '')}
+                                label="Fair Rental Value"
+                            />
                         </div>
                     </div>
                     <div className={styles.row}>
                         <div className={styles.field}>
                             <label>Ordinance or Law:</label>
-                            <span>{declaration.limit_ordinance_or_law || '—'}</span>
+                            <EditableValue 
+                                value={getVal('limit_ordinance_or_law', declaration.limit_ordinance_or_law)} 
+                                originalValue={declaration.limit_ordinance_or_law}
+                                onSave={(v) => handleOverrideSave('limit_ordinance_or_law', v, declaration.limit_ordinance_or_law || '')}
+                                label="Ordinance or Law"
+                            />
                         </div>
                         <div className={styles.field}>
                             <label>Debris Removal:</label>
-                            <span>{declaration.limit_debris_removal || '—'}</span>
+                            <EditableValue 
+                                value={getVal('limit_debris_removal', declaration.limit_debris_removal)} 
+                                originalValue={declaration.limit_debris_removal}
+                                onSave={(v) => handleOverrideSave('limit_debris_removal', v, declaration.limit_debris_removal || '')}
+                                label="Debris Removal"
+                            />
                         </div>
                     </div>
                     <div className={styles.row}>
                         <div className={styles.field}>
                             <label>Extended Dwelling:</label>
-                            <span>{declaration.limit_extended_dwelling_coverage || '—'}</span>
+                            <EditableValue 
+                                value={getVal('limit_extended_dwelling_coverage', declaration.limit_extended_dwelling_coverage)} 
+                                originalValue={declaration.limit_extended_dwelling_coverage}
+                                onSave={(v) => handleOverrideSave('limit_extended_dwelling_coverage', v, declaration.limit_extended_dwelling_coverage || '')}
+                                label="Extended Dwelling"
+                            />
                         </div>
                         <div className={styles.field}>
                             <label>Deductible:</label>
-                            <span>{declaration.deductible || '—'}</span>
+                            <EditableValue 
+                                value={getVal('deductible', declaration.deductible)} 
+                                originalValue={declaration.deductible}
+                                onSave={(v) => handleOverrideSave('deductible', v, declaration.deductible || '')}
+                                label="Deductible"
+                            />
                         </div>
                     </div>
                 </Card>

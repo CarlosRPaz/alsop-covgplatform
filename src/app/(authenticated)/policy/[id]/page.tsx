@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
 import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload } from 'lucide-react';
 import { PropertyBanner } from '@/components/policy/PropertyBanner';
-import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, uploadDecPageToPolicy } from '@/lib/api';
+import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl } from '@/lib/api';
 import { PolicyStatusBar } from '@/components/policy/PolicyStatusBar';
 import { PolicyDashboard } from '@/components/policy/PolicyDashboard';
 import { AgentReviewPanel } from '@/components/policy/AIReport';
@@ -525,16 +525,52 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                                     if (!file) return;
                                     setDecPageLoading(true);
                                     try {
-                                        const res = await uploadDecPageToPolicy(id, file);
-                                        if (res.success && res.storagePath) {
-                                            setDecPageStoragePath(res.storagePath);
-                                            alert('Dec page uploaded successfully!');
+                                        // Use proper pipeline via /api/upload
+                                        const { supabase } = await import('@/lib/supabaseClient');
+                                        const { data: { session } } = await supabase.auth.getSession();
+                                        if (!session?.access_token) {
+                                            toast.error('Session expired. Please refresh and sign in again.');
+                                            return;
+                                        }
+
+                                        const formData = new FormData();
+                                        formData.set('file', file);
+
+                                        const res = await fetch('/api/upload', {
+                                            method: 'POST',
+                                            headers: { 'Authorization': `Bearer ${session.access_token}` },
+                                            body: formData,
+                                        });
+
+                                        const json = await res.json();
+
+                                        if (res.ok && json.success) {
+                                            const submissionId = json.data?.submissionId;
+                                            toast.success(`Declaration uploaded: ${json.data?.fileName || file.name}`);
+
+                                            // Track in sessionStorage for DecPageObserver
+                                            if (submissionId) {
+                                                try {
+                                                    const key = 'cfp_pending_dec_uploads';
+                                                    const stored = sessionStorage.getItem(key);
+                                                    const pending = stored ? JSON.parse(stored) : [];
+                                                    if (!pending.includes(submissionId)) {
+                                                        pending.push(submissionId);
+                                                        sessionStorage.setItem(key, JSON.stringify(pending));
+                                                    }
+                                                } catch { /* non-critical */ }
+
+                                                // Trigger DecPageObserver polling + show bg banner
+                                                window.dispatchEvent(new CustomEvent('decPageUploaded'));
+                                                setBgProcessing(true);
+                                                setBgProcessingStep('Queued for processing…');
+                                            }
                                         } else {
-                                            alert(res.error || 'Failed to upload dec page.');
+                                            toast.error(json.message || 'Upload failed. Please try again.');
                                         }
                                     } catch (err) {
                                         console.error(err);
-                                        alert('Failed to upload dec page.');
+                                        toast.error('Network error during upload. Please try again.');
                                     } finally {
                                         setDecPageLoading(false);
                                         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -563,10 +599,10 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                                     if (url) {
                                         window.open(url, '_blank');
                                     } else {
-                                        alert('Could not generate download link.');
+                                        toast.error('Could not generate download link.');
                                     }
                                 } catch {
-                                    alert('Failed to open dec page file.');
+                                    toast.error('Failed to open dec page file.');
                                 } finally {
                                     setDecPageLoading(false);
                                 }
