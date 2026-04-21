@@ -209,6 +209,43 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
                 accountId
             });
 
+            // Insert a tracking record for the duplicate attempt (status='duplicate')
+            // This displays beautifully on the Agent Activity Feed without breaking things.
+            const { data: dupRow, error: dupError } = await supabaseAdmin
+                .from('dec_page_submissions')
+                .insert({
+                    account_id: accountId,
+                    first_name: account.first_name || '',
+                    last_name: account.last_name || '',
+                    email: account.email || '',
+                    phone: account.phone || '',
+                    file_path: '',
+                    file_name: file.name,
+                    file_size: file.size,
+                    file_type: file.type,
+                    status: 'duplicate',
+                    error_message: 'Duplicate matched against an existing document',
+                    bucket: 'cfp-raw-decpage',
+                    file_hash: fileHash,
+                    duplicate_of: existingDuplicate.id,
+                    created_at: now,
+                    updated_at: now,
+                })
+                .select('id')
+                .single();
+
+            if (dupError) {
+                logger.error('Upload', 'Failed to insert duplicate tracking row (non-fatal)', { error: dupError.message });
+            } else if (dupRow?.id) {
+                // CRITICAL FIX: The DB has an auto-trigger that queues an ingestion job for ALL inserts.
+                // We must instantly delete the job that the trigger just created, or the worker will crash 
+                // trying to process this dummy tracking row.
+                await supabaseAdmin
+                    .from('ingestion_jobs')
+                    .delete()
+                    .eq('submission_id', dupRow.id);
+            }
+
             const submittedBy = [account.first_name, account.last_name].filter(Boolean).join(' ') || account.email || 'User';
 
             return NextResponse.json(

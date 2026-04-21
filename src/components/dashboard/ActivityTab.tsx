@@ -26,6 +26,8 @@ function getStatusConfig(status: string): { label: string; cssKey: string } {
         case 'parsed':
         case 'done':
             return { label: 'Complete', cssKey: 'done' };
+        case 'duplicate':
+            return { label: 'Duplicate Found', cssKey: 'queued' };
         case 'queued':
             return { label: 'Queued', cssKey: 'queued' };
         case 'processing':
@@ -42,6 +44,8 @@ function StatusIcon({ status }: { status: string }) {
         case 'parsed':
         case 'done':
             return <CheckCircle2 size={14} className={styles.statusIconDone} />;
+        case 'duplicate':
+            return <Sparkles size={14} className={styles.statusIconProcessing} style={{ color: '#8b5cf6' }} />;
         case 'failed':
             return <XCircle size={14} className={styles.statusIconFailed} />;
         case 'processing':
