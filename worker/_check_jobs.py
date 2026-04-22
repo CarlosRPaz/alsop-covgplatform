@@ -5,19 +5,36 @@ load_dotenv()
 from src.supabase_client import get_supabase
 sb = get_supabase()
 
-# Check ingestion_jobs schema by trying to insert a test row
-# First let's see what columns are required
-doc_id = '80b5ffeb-b6b2-46e9-b29d-3328591ae4f7'
-account_id = 'b2536e25-b885-4fec-9272-e2c37bbfea8b'  # from the existing data
-
+# Check if submission_id is still NOT NULL by trying to insert
 try:
     r = sb.table('ingestion_jobs').insert({
-        'document_id': doc_id,
-        'account_id': account_id,
+        'document_id': '00000000-0000-0000-0000-000000000000',
+        'account_id': '00000000-0000-0000-0000-000000000000',
         'status': 'queued',
         'attempts': 0,
-        'max_attempts': 5,
+        'max_attempts': 1,
     }).execute()
-    print("SUCCESS:", r.data)
+    print("submission_id IS nullable - insert worked:", r.data[0]['id'] if r.data else '?')
+    # Clean up test row
+    if r.data:
+        sb.table('ingestion_jobs').delete().eq('id', r.data[0]['id']).execute()
+        print("Cleaned up test row")
 except Exception as e:
-    print("ERROR:", e)
+    if 'not-null' in str(e) and 'submission_id' in str(e):
+        print("!!! submission_id is STILL NOT NULL - SQL fix has NOT been run!")
+    else:
+        print("Other error:", e)
+
+# Check platform_documents
+print("\n--- platform_documents ---")
+r2 = sb.table('platform_documents').select('id,doc_type,file_name,parse_status,processing_step,match_status').order('created_at', desc=True).limit(5).execute()
+for d in r2.data:
+    print(d)
+
+# Check ingestion_jobs with document_id
+print("\n--- ingestion_jobs with document_id ---")
+r3 = sb.table('ingestion_jobs').select('id,status,document_id,attempts').not_('document_id', 'is', 'null').order('created_at', desc=True).limit(5).execute()
+for j in r3.data:
+    print(j)
+if not r3.data:
+    print("(none)")

@@ -18,6 +18,7 @@ import {
     Zap,
     ChevronRight,
     Copy,
+    Search,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/Button/Button';
@@ -103,6 +104,12 @@ export default function UploadDocumentPage() {
     const [startTime, setStartTime] = useState<number | null>(null);
     const [processingTime, setProcessingTime] = useState('');
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // Manual Assign State
+    const [isAssigning, setIsAssigning] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
 
     // Clean up on unmount
     useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
@@ -244,6 +251,61 @@ export default function UploadDocumentPage() {
     const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); };
     const handleDrop = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); if (e.dataTransfer.files?.[0]) handleUpload(e.dataTransfer.files[0]); };
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files?.[0]) handleUpload(e.target.files[0]); };
+
+    /* ── Manual Assign ────────────────────────────────────────────────── */
+
+    const handleSearchPolicies = async () => {
+        if (!searchQuery.trim()) return;
+        setIsSearching(true);
+        try {
+            const { data } = await supabase
+                .from('policies')
+                .select(`
+                    id,
+                    policy_number,
+                    property_address_raw,
+                    clients!inner (full_name)
+                `)
+                .or(`policy_number.ilike.%${searchQuery}%,property_address_raw.ilike.%${searchQuery}%,clients.full_name.ilike.%${searchQuery}%`)
+                .limit(5);
+            setSearchResults(data || []);
+        } catch {
+            setSearchResults([]);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    const handleAssign = async (policyId: string) => {
+        if (!documentId) return;
+        setIsAssigning(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+            const res = await fetch('/api/documents/assign', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ documentId, policyId }),
+            });
+            if (res.ok) {
+                // Re-start pipeline tracker!
+                setSearchQuery('');
+                setSearchResults([]);
+                setIsAssigning(false);
+                setDocStatus(null);
+                startPolling(documentId);
+            } else {
+                setUploadError('Failed to assign document. Please try again.');
+                setIsAssigning(false);
+            }
+        } catch {
+            setUploadError('Network error during assignment.');
+            setIsAssigning(false);
+        }
+    };
 
     const selectedTypeInfo = DOC_TYPES.find(t => t.key === selectedType);
     const showSelector = phase === 'idle';
@@ -610,6 +672,53 @@ export default function UploadDocumentPage() {
                                     Back to Dashboard
                                 </Button>
                             </div>
+
+                            {/* Manual Assignment UI (for no_match or needs_review) */}
+                            {needsReview && (
+                                <div style={{ marginTop: '1.5rem', padding: '1.25rem', borderRadius: '0.5rem', border: '1px solid var(--border-default)', background: 'var(--bg-surface-raised)' }}>
+                                    <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-high)', marginBottom: '0.5rem' }}>Assign Document Manually</h4>
+                                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '1rem', lineHeight: 1.5 }}>
+                                        Search for an existing policy by client name or address to override the automatic matching. If this is a completely new client, please create them on the dashboard first.
+                                    </p>
+                                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                                        <input
+                                            type="text"
+                                            placeholder="Search by client name, address, or policy number..."
+                                            value={searchQuery}
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                                            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleSearchPolicies()}
+                                            style={{
+                                                flex: 1, padding: '0.5rem 0.75rem', borderRadius: '0.375rem',
+                                                border: '1px solid var(--border-default)', background: 'var(--bg-surface)',
+                                                color: 'var(--text-high)', fontSize: '0.82rem'
+                                            }}
+                                        />
+                                        <Button variant="secondary" onClick={handleSearchPolicies} disabled={isSearching}>
+                                            {isSearching ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Search size={16} />}
+                                            <span style={{ marginLeft: 6 }}>Search</span>
+                                        </Button>
+                                    </div>
+                                    
+                                    {searchResults.length > 0 && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                            <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>
+                                                Select a Policy
+                                            </div>
+                                            {searchResults.map(p => (
+                                                <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-default)', background: 'var(--bg-surface)' }}>
+                                                    <div>
+                                                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-high)' }}>{p.clients?.full_name}</div>
+                                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-mid)', marginTop: '0.1rem' }}>{p.property_address_raw || 'No address'} • {p.policy_number}</div>
+                                                    </div>
+                                                    <Button size="sm" variant="primary" disabled={isAssigning} onClick={() => handleAssign(p.id)}>
+                                                        {isAssigning ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : 'Assign'}
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
