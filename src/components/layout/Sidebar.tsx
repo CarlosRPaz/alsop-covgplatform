@@ -21,6 +21,7 @@ import {
     Briefcase,
     X,
     Mail,
+    FileUp,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -41,6 +42,7 @@ export function Sidebar({ userRole }: SidebarProps) {
         { label: 'Flags', href: '/flags', icon: Flag },
         { label: 'Email Center', href: '/email', icon: Mail },
         { label: 'Submit Declaration', href: '/submit', icon: FileText },
+        { label: 'Upload Documents', href: '/upload-document', icon: FileUp },
     ];
 
     // Admin-only nav items

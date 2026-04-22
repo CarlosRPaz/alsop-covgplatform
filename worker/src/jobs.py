@@ -76,8 +76,8 @@ def claim_next_job() -> dict | None:
         return None
 
     claimed = claim_result.data[0]
-    logger.info("Claimed job %s (submission=%s, attempt=%d)",
-                claimed["id"], claimed["submission_id"], claimed["attempts"])
+    logger.info("Claimed job %s (submission=%s, document=%s, attempt=%d)",
+                claimed["id"], claimed.get("submission_id"), claimed.get("document_id"), claimed["attempts"])
     return claimed
 
 

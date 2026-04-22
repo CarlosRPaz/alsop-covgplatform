@@ -12,7 +12,7 @@ import { BatchEnrichModal } from '@/components/dashboard/BatchEnrichModal';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button/Button';
-import { Plus, Upload, Zap, BarChart2, ChevronDown } from 'lucide-react';
+import { Plus, Upload, Zap, BarChart2, ChevronDown, FileUp } from 'lucide-react';
 import { useSidebar } from '@/components/layout/SidebarContext';
 
 const tabs = [
@@ -145,6 +145,12 @@ function DashboardContent() {
                             <Button size="sm" variant="primary">
                                 <Plus style={{ width: 13, height: 13, marginRight: 5 }} />
                                 New Declaration
+                            </Button>
+                        </Link>
+                        <Link href="/upload-document">
+                            <Button size="sm" variant="outline" style={{ borderColor: '#10b981', color: '#10b981' }}>
+                                <FileUp style={{ width: 13, height: 13, marginRight: 5 }} />
+                                Upload Document
                             </Button>
                         </Link>
                         <Button variant="outline" size="sm" onClick={() => setIsCSVModalOpen(true)}>

@@ -11,10 +11,20 @@ from datetime import datetime, timezone
 from typing import Any
 
 from ..supabase_client import get_supabase
+from ..db.flags import insert_activity_event
 from .ocr import extract_text_from_pdf_bytes, ExtractionResult
 from .matcher import match_document_to_policy, MatchResult
 
 logger = logging.getLogger("worker.documents.base")
+
+DOC_TYPE_DISPLAY = {
+    "rce": "RCE (Replacement Cost Estimate)",
+    "dic_dec_page": "DIC Carrier Declaration Page",
+    "invoice": "Invoice",
+    "inspection": "Inspection Report",
+    "endorsement": "Endorsement",
+    "questionnaire": "Questionnaire",
+}
 
 
 class DocumentProcessor(ABC):
@@ -159,20 +169,47 @@ class DocumentProcessor(ABC):
             result["steps_completed"].append("parse_fields")
 
             # Step 3: Match to policy
-            self.update_step("matching_policy")
-            logger.info("%s step=match_policy owner=%s addr=%s", self._log_prefix, owner_name, address_raw)
+            # If uploaded from a policy page (match_status='manual'), skip auto-matching
+            doc_row = self.sb.table("platform_documents").select(
+                "match_status, policy_id, client_id, policy_term_id"
+            ).eq("id", self.document_id).limit(1).execute()
 
-            match: MatchResult = match_document_to_policy(owner_name, address_raw, self.account_id)
+            pre_linked = doc_row.data[0] if doc_row.data else {}
+            is_pre_linked = pre_linked.get("match_status") == "manual" and pre_linked.get("policy_id")
+
+            if is_pre_linked:
+                # Skip matching — already linked from policy page
+                logger.info("%s step=match_policy SKIPPED (pre-linked to %s)", self._log_prefix, pre_linked["policy_id"])
+                match: MatchResult = {
+                    "status": "matched",
+                    "policy_id": pre_linked["policy_id"],
+                    "client_id": pre_linked.get("client_id"),
+                    "policy_term_id": pre_linked.get("policy_term_id"),
+                    "confidence": 1.0,
+                    "review_reason": None,
+                    "action_items": [],
+                    "match_log": [{"step": "pre_linked", "result": "Uploaded directly to policy page"}],
+                }
+                self.update_document({
+                    "match_confidence": 1.0,
+                    "match_log": match["match_log"],
+                })
+            else:
+                self.update_step("matching_policy")
+                logger.info("%s step=match_policy owner=%s addr=%s", self._log_prefix, owner_name, address_raw)
+
+                match = match_document_to_policy(owner_name, address_raw, self.account_id)
+
+                self.update_document({
+                    "match_status": match["status"],
+                    "match_log": match["match_log"],
+                    "match_confidence": match["confidence"],
+                    "policy_id": match["policy_id"],
+                    "client_id": match["client_id"],
+                    "policy_term_id": match["policy_term_id"],
+                })
+
             result["match_result"] = match
-
-            self.update_document({
-                "match_status": match["status"],
-                "match_log": match["match_log"],
-                "match_confidence": match["confidence"],
-                "policy_id": match["policy_id"],
-                "client_id": match["client_id"],
-                "policy_term_id": match["policy_term_id"],
-            })
             result["steps_completed"].append("match_policy")
 
             # Step 4: Persist extracted data to type-specific table
@@ -224,6 +261,55 @@ class DocumentProcessor(ABC):
                 self._log_prefix, match["status"], match["confidence"],
             )
 
+            # Step 7: Activity event (mirrors dec page pattern)
+            doc_label = DOC_TYPE_DISPLAY.get(self.doc_type, self.doc_type.upper())
+            if match["status"] == "matched" and match["policy_id"]:
+                insert_activity_event(
+                    event_type="document.processed",
+                    title=f"{doc_label} Processed",
+                    detail=f"A {doc_label} was successfully uploaded and applied.",
+                    policy_id=match["policy_id"],
+                    client_id=match.get("client_id"),
+                    actor_user_id=self.account_id,
+                    meta={
+                        "document_id": self.document_id,
+                        "doc_type": self.doc_type,
+                        "owner_name": owner_name,
+                        "address": address_raw,
+                        "confidence": match["confidence"],
+                        "writeback_status": result.get("writeback_log", []),
+                    },
+                )
+            elif match["status"] == "needs_review":
+                insert_activity_event(
+                    event_type="document.needs_review",
+                    title=f"{doc_label} Needs Review",
+                    detail=match.get("review_reason") or "Policy match requires confirmation.",
+                    policy_id=match.get("policy_id"),
+                    actor_user_id=self.account_id,
+                    meta={
+                        "document_id": self.document_id,
+                        "doc_type": self.doc_type,
+                        "owner_name": owner_name,
+                        "address": address_raw,
+                        "action_items": match.get("action_items", []),
+                    },
+                )
+            elif match["status"] == "no_match":
+                insert_activity_event(
+                    event_type="document.no_match",
+                    title=f"{doc_label} — No Matching Policy",
+                    detail="No matching policy found. Manual assignment required.",
+                    actor_user_id=self.account_id,
+                    meta={
+                        "document_id": self.document_id,
+                        "doc_type": self.doc_type,
+                        "owner_name": owner_name,
+                        "address": address_raw,
+                        "action_items": match.get("action_items", []),
+                    },
+                )
+
         except Exception as exc:
             error_msg = str(exc)[:2000]
             logger.error("%s processing failed: %s", self._log_prefix, error_msg)
@@ -233,5 +319,19 @@ class DocumentProcessor(ABC):
                 "error_message": error_msg,
                 "processing_step": "failed",
             })
+
+            # Activity event for failures
+            doc_label = DOC_TYPE_DISPLAY.get(self.doc_type, self.doc_type.upper())
+            insert_activity_event(
+                event_type="document.failed",
+                title=f"{doc_label} Processing Failed",
+                detail=error_msg[:500],
+                actor_user_id=self.account_id,
+                meta={
+                    "document_id": self.document_id,
+                    "doc_type": self.doc_type,
+                    "error": error_msg[:500],
+                },
+            )
 
         return result
