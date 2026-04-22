@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
-import { getUserProfile } from '@/lib/auth';
+import { env } from '@/lib/env';
 
 /**
  * POST /api/admin/invite
  *
  * Invite a new user to the CFP Platform.
- * ADMIN ONLY — server-side role check enforced.
+ * ADMIN ONLY — server-side role check enforced via Bearer token.
  *
  * Uses Supabase auth.admin.inviteUserByEmail() which:
  * 1. Sends a Supabase-managed invite email with a secure magic link
@@ -27,14 +28,44 @@ const ROLE_LABELS: Record<InviteRole, string> = {
 
 export async function POST(req: NextRequest) {
     try {
-        // ── Auth check: admin only ──
-        const profile = await getUserProfile();
-        if (!profile || profile.role !== 'admin') {
+        // ── Auth check: admin only (via Bearer token) ──
+        const authHeader = req.headers.get('Authorization');
+        if (!authHeader?.startsWith('Bearer ')) {
+            return NextResponse.json(
+                { error: 'Authentication required — please sign in and try again.' },
+                { status: 401 }
+            );
+        }
+
+        const token = authHeader.slice(7);
+        const userClient = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+            global: { headers: { Authorization: `Bearer ${token}` } },
+        });
+
+        const { data: { user }, error: authError } = await userClient.auth.getUser(token);
+        if (authError || !user) {
+            return NextResponse.json(
+                { error: 'Session expired — please sign in again.' },
+                { status: 401 }
+            );
+        }
+
+        // Look up role from accounts table
+        const supabaseAdmin = getSupabaseAdmin();
+        const { data: account } = await supabaseAdmin
+            .from('accounts')
+            .select('id, email, role')
+            .eq('id', user.id)
+            .single();
+
+        if (!account || account.role !== 'admin') {
             return NextResponse.json(
                 { error: 'Forbidden — admin access required' },
                 { status: 403 }
             );
         }
+
+        const profile = account;
 
         const body = await req.json();
         const { email, role, firstName, lastName } = body as {

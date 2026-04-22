@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { X, UserPlus, Mail, Shield, User, Briefcase, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 
 type InviteRole = 'admin' | 'service' | 'customer';
 
@@ -81,9 +82,20 @@ export function InviteUserModal({ isOpen, onClose, onSuccess }: InviteUserModalP
         setError(null);
 
         try {
+            // Get current session token for server-side auth
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.access_token) {
+                setError('Session expired — please sign in again.');
+                setSending(false);
+                return;
+            }
+
             const res = await fetch('/api/admin/invite', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                },
                 body: JSON.stringify({
                     email: trimmedEmail,
                     role,
