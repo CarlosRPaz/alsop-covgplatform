@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/Button/Button';
 import { Shield, Lock, ArrowRight, CheckCircle, AlertCircle, Eye, EyeOff, UserPlus } from 'lucide-react';
 import Link from 'next/link';
-import styles from '../../reset-password/page.module.css';
+import styles from '../reset-password/page.module.css';
 
 /**
  * Accept Invite Page (/auth/accept-invite)
