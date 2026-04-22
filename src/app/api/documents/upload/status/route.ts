@@ -63,14 +63,26 @@ export async function GET(request: NextRequest) {
                 processing_step,
                 match_status,
                 match_confidence,
+                match_log,
                 error_message,
                 policy_id,
                 client_id,
+                policy_term_id,
                 extracted_owner_name,
                 extracted_address,
                 writeback_status,
+                writeback_log,
                 created_at,
-                updated_at
+                updated_at,
+                policies:policy_id (
+                    id,
+                    policy_number,
+                    carrier
+                ),
+                clients:client_id (
+                    id,
+                    full_name
+                )
             `)
             .in('id', ids)
             .eq('account_id', user.id);
