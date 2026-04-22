@@ -2119,6 +2119,146 @@ export async function getDecPageFileDownloadUrl(storagePath: string): Promise<st
 }
 
 // ---------------------------------------------------------------------------
+// Platform Documents (RCE, DIC, etc.)
+// ---------------------------------------------------------------------------
+
+export type PlatformDocType = 'rce' | 'dic_dec_page' | 'invoice' | 'inspection' | 'endorsement' | 'questionnaire';
+
+export interface PlatformDocumentInfo {
+    id: string;
+    doc_type: PlatformDocType;
+    file_name: string;
+    file_size: number | null;
+    storage_path: string | null;
+    parse_status: string;
+    processing_step: string | null;
+    match_status: string;
+    match_confidence: number | null;
+    error_message: string | null;
+    extracted_owner_name: string | null;
+    extracted_address: string | null;
+    writeback_status: string;
+    policy_id: string | null;
+    client_id: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+/**
+ * Fetch platform documents linked to a policy.
+ */
+export async function fetchPlatformDocumentsByPolicyId(policyId: string): Promise<PlatformDocumentInfo[]> {
+    try {
+        const { data, error } = await supabase
+            .from('platform_documents')
+            .select(`
+                id, doc_type, file_name, file_size, storage_path,
+                parse_status, processing_step, match_status, match_confidence,
+                error_message, extracted_owner_name, extracted_address,
+                writeback_status, policy_id, client_id, created_at, updated_at
+            `)
+            .eq('policy_id', policyId)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            logger.error('API', 'Error fetching platform documents', { message: error.message, policyId });
+            return [];
+        }
+        return (data || []) as PlatformDocumentInfo[];
+    } catch (err) {
+        logger.error('API', 'Unexpected error fetching platform documents', {
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return [];
+    }
+}
+
+/**
+ * Fetch platform documents needing agent review.
+ */
+export async function fetchDocumentsNeedingReview(): Promise<PlatformDocumentInfo[]> {
+    try {
+        const { data, error } = await supabase
+            .from('platform_documents')
+            .select(`
+                id, doc_type, file_name, file_size, storage_path,
+                parse_status, processing_step, match_status, match_confidence,
+                error_message, extracted_owner_name, extracted_address,
+                writeback_status, policy_id, client_id, created_at, updated_at
+            `)
+            .or('match_status.eq.needs_review,match_status.eq.no_match,parse_status.eq.failed')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            logger.error('API', 'Error fetching review queue', { message: error.message });
+            return [];
+        }
+        return (data || []) as PlatformDocumentInfo[];
+    } catch (err) {
+        logger.error('API', 'Unexpected error fetching review queue', {
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return [];
+    }
+}
+
+/**
+ * Generate a signed download URL for a platform document.
+ */
+export async function getPlatformDocDownloadUrl(storagePath: string, bucket = 'cfp-platform-documents'): Promise<string | null> {
+    try {
+        const { data, error } = await supabase.storage
+            .from(bucket)
+            .createSignedUrl(storagePath, 3600);
+
+        if (error || !data?.signedUrl) {
+            logger.error('API', 'Error creating platform doc URL', { message: error?.message, storagePath });
+            return null;
+        }
+        return data.signedUrl;
+    } catch (err) {
+        logger.error('API', 'Unexpected error creating platform doc URL', {
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return null;
+    }
+}
+
+/**
+ * Manually link a platform document to a policy.
+ */
+export async function linkDocumentToPolicy(
+    documentId: string,
+    policyId: string,
+    clientId?: string,
+    policyTermId?: string,
+): Promise<boolean> {
+    try {
+        const { error } = await supabase
+            .from('platform_documents')
+            .update({
+                policy_id: policyId,
+                client_id: clientId || null,
+                policy_term_id: policyTermId || null,
+                match_status: 'manual',
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', documentId);
+
+        if (error) {
+            logger.error('API', 'Failed to link document to policy', { error: error.message, documentId, policyId });
+            return false;
+        }
+        return true;
+    } catch (err) {
+        logger.error('API', 'Unexpected error linking document', {
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return false;
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Activity Feed
 // ---------------------------------------------------------------------------
 

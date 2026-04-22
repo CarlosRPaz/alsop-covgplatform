@@ -41,6 +41,7 @@ from .db.flag_evaluator import evaluate_flags
 from .db.flags import insert_activity_event
 from .db.enrichment import enrich_property
 from .db.api_enrichment import trigger_full_enrichment, trigger_flag_evaluation
+from .documents.job_handler import process_document_job
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -413,7 +414,9 @@ def run() -> None:
                     for _ in range(available_slots):
                         job = claim_next_job()
                         if job:
-                            future = executor.submit(process_job, job)
+                            # Route: document_id → new pipeline, else → legacy dec page
+                            handler = process_document_job if job.get("document_id") else process_job
+                            future = executor.submit(handler, job)
                             active_futures.append(future)
                             jobs_claimed += 1
                         else:
