@@ -32,13 +32,16 @@ interface DocumentUploadResponse {
     success: boolean;
     message: string;
     data?: {
-        documentId: string;
-        storagePath: string;
-        fileName: string;
-        fileSize: number;
-        docType: string;
-        submittedBy: string;
-        submittedAt: string;
+        documentId?: string;
+        storagePath?: string;
+        fileName?: string;
+        fileSize?: number;
+        docType?: string;
+        submittedBy?: string;
+        submittedAt?: string;
+        existingDocumentId?: string;
+        existingStatus?: string;
+        existingMatchStatus?: string;
     };
     error?: string;
     errorCode?: string;
@@ -188,9 +191,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<DocumentU
             return NextResponse.json(
                 {
                     success: false,
-                    message: 'This exact file has already been uploaded. Check the Document Review queue or policy files for its current status.',
+                    message: 'This exact file has already been uploaded.',
                     error: 'DUPLICATE_FILE',
                     errorCode: 'DUPLICATE',
+                    data: {
+                        existingDocumentId: existing.id,
+                        existingStatus: existing.parse_status,
+                        existingMatchStatus: existing.match_status,
+                    },
                 },
                 { status: 409 }
             );
