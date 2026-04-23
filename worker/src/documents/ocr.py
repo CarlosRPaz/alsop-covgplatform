@@ -10,6 +10,7 @@ This ensures both text-based (PSIC) and image-based (Bamboo, Aegis) PDFs
 are handled reliably.
 """
 
+import io
 import logging
 from typing import TypedDict
 
@@ -17,6 +18,12 @@ logger = logging.getLogger("worker.documents.ocr")
 
 # Minimum chars to consider a PDF "text-extractable"
 MIN_TEXT_CHARS = 50
+
+# Max pages to OCR — prevents OOM on large binders
+MAX_OCR_PAGES = 10
+
+# OCR DPI — 200 is sufficient for clean text, 300 causes OOM on small servers
+OCR_DPI = 200
 
 
 class ExtractionResult(TypedDict):
@@ -41,7 +48,7 @@ def extract_text_from_pdf_bytes(pdf_bytes: bytes) -> ExtractionResult:
     page_count = 0
 
     try:
-        with pdfplumber.open_from_bytes(pdf_bytes) as pdf:
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
             page_count = len(pdf.pages)
             for page in pdf.pages:
                 page_text = page.extract_text() or ""
@@ -78,6 +85,8 @@ def _extract_with_ocr(pdf_bytes: bytes, fallback_page_count: int) -> ExtractionR
     
     Converts each PDF page to an image, then runs Tesseract OCR.
     Returns combined text from all pages.
+    
+    Memory-safe: limits to MAX_OCR_PAGES and uses OCR_DPI to avoid OOM.
     """
     try:
         from pdf2image import convert_from_bytes
@@ -90,9 +99,11 @@ def _extract_with_ocr(pdf_bytes: bytes, fallback_page_count: int) -> ExtractionR
         )
 
     try:
-        # Convert PDF pages to images (300 DPI for good OCR accuracy)
-        logger.info("Converting PDF to images for OCR (300 DPI)...")
-        images: list[Image.Image] = convert_from_bytes(pdf_bytes, dpi=300)
+        # Convert PDF pages to images (200 DPI to avoid OOM on small servers)
+        logger.info("Converting PDF to images for OCR (%d DPI, max %d pages)...", OCR_DPI, MAX_OCR_PAGES)
+        images: list[Image.Image] = convert_from_bytes(
+            pdf_bytes, dpi=OCR_DPI, last_page=MAX_OCR_PAGES,
+        )
         page_count = len(images)
         logger.info("Converted %d pages to images", page_count)
 
@@ -128,6 +139,9 @@ def _extract_with_ocr(pdf_bytes: bytes, fallback_page_count: int) -> ExtractionR
             except Exception as page_err:
                 logger.error("OCR failed on page %d: %s", i + 1, page_err)
                 ocr_pages.append("")
+            finally:
+                # Free memory immediately after processing each page
+                img.close()
 
         combined_text = "\n\n".join(ocr_pages).strip()
         avg_confidence = (
@@ -157,3 +171,4 @@ def _extract_with_ocr(pdf_bytes: bytes, fallback_page_count: int) -> ExtractionR
         raise
     except Exception as e:
         raise RuntimeError(f"OCR extraction failed: {e}")
+
