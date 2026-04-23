@@ -77,11 +77,11 @@ export async function GET(request: NextRequest) {
                 policies:policy_id (
                     id,
                     policy_number,
-                    carrier
+                    carrier_name
                 ),
                 clients:client_id (
                     id,
-                    full_name
+                    named_insured
                 )
             `)
             .in('id', ids)

@@ -78,8 +78,8 @@ interface DocumentStatus {
     writeback_log: Array<{ field: string; action: string; old_value?: string; new_value?: string }> | null;
     created_at: string;
     updated_at: string;
-    policies: { id: string; policy_number: string; carrier: string } | null;
-    clients: { id: string; full_name: string } | null;
+    policies: { id: string; policy_number: string; carrier_name: string } | null;
+    clients: { id: string; named_insured: string } | null;
     status_message: string;
     action_required: string | null;
 }
@@ -264,9 +264,9 @@ export default function UploadDocumentPage() {
                     id,
                     policy_number,
                     property_address_raw,
-                    clients!inner (full_name)
+                    clients!inner (named_insured)
                 `)
-                .or(`policy_number.ilike.%${searchQuery}%,property_address_raw.ilike.%${searchQuery}%,clients.full_name.ilike.%${searchQuery}%`)
+                .or(`policy_number.ilike.%${searchQuery}%,property_address_raw.ilike.%${searchQuery}%,clients.named_insured.ilike.%${searchQuery}%`)
                 .limit(5);
             setSearchResults(data || []);
         } catch {
@@ -521,7 +521,7 @@ export default function UploadDocumentPage() {
                                 {docStatus?.doc_type && <ReportField icon={<FileUp size={14} />} label="Document Type" value={docStatus.doc_type === 'rce' ? 'Replacement Cost Estimate (RCE)' : docStatus.doc_type === 'dic_dec_page' ? 'DIC Carrier Dec Page' : docStatus.doc_type} />}
                                 {docStatus?.extracted_owner_name && <ReportField icon={<User size={14} />} label="Insured / Owner" value={docStatus.extracted_owner_name} />}
                                 {docStatus?.extracted_address && <ReportField icon={<MapPin size={14} />} label="Property Address" value={docStatus.extracted_address} />}
-                                {docStatus?.policies?.carrier && <ReportField icon={<Shield size={14} />} label="Carrier" value={docStatus.policies.carrier} />}
+                                {docStatus?.policies?.carrier_name && <ReportField icon={<Shield size={14} />} label="Carrier" value={docStatus.policies.carrier_name} />}
                             </div>
 
                             {/* Match Result Banner */}
@@ -582,8 +582,8 @@ export default function UploadDocumentPage() {
                                             <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-high)' }}>
                                                 {docStatus.policies?.policy_number || 'View Policy'}
                                             </div>
-                                            {docStatus.policies?.carrier && (
-                                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>{docStatus.policies.carrier}</div>
+                                            {docStatus.policies?.carrier_name && (
+                                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>{docStatus.policies.carrier_name}</div>
                                             )}
                                         </div>
                                     </Link>
@@ -593,7 +593,7 @@ export default function UploadDocumentPage() {
                                                 <User size={14} style={{ color: '#8b5cf6' }} />
                                                 <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)' }}>Client</span>
                                             </div>
-                                            <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-high)' }}>{docStatus.clients.full_name}</div>
+                                            <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-high)' }}>{docStatus.clients.named_insured}</div>
                                         </div>
                                     )}
                                 </div>
@@ -707,7 +707,7 @@ export default function UploadDocumentPage() {
                                             {searchResults.map(p => (
                                                 <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-default)', background: 'var(--bg-surface)' }}>
                                                     <div>
-                                                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-high)' }}>{p.clients?.full_name}</div>
+                                                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-high)' }}>{p.clients?.named_insured}</div>
                                                         <div style={{ fontSize: '0.72rem', color: 'var(--text-mid)', marginTop: '0.1rem' }}>{p.property_address_raw || 'No address'} • {p.policy_number}</div>
                                                     </div>
                                                     <Button size="sm" variant="primary" disabled={isAssigning} onClick={() => handleAssign(p.id)}>
