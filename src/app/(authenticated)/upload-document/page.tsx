@@ -281,26 +281,32 @@ export default function UploadDocumentPage() {
                     if (clean.length >= 3 && !seen.has(clean)) { seen.add(clean); searchTerms.push(clean); }
                 };
 
-                // 1. Terms from extracted owner name
-                if (docStatus.extracted_owner_name) {
-                    const words = docStatus.extracted_owner_name.replace(/[^a-zA-Z\s-]/g, '').split(/\s+/).filter(Boolean);
-                    if (words.length > 1) {
-                        addTerm(words[words.length - 1]); // last name
-                        addTerm(words[0]); // first name
-                    } else if (words.length === 1) {
-                        addTerm(words[0]);
-                    }
-                }
+                const stopWords = new Set([
+                    'dec', 'page', 'pdf', 'updated', 'new', 'bamboo', 'aegis', 'psic', 'dic', 'document', 'scan', 'copy', 'file',
+                    'trust', 'family', 'dated', 'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'
+                ]);
 
-                // 2. Terms from file name (strip extension + common words)
+                // 1. Terms from file name first (highest signal, agent-provided)
                 if (docStatus.file_name) {
-                    const stopWords = new Set(['dec', 'page', 'pdf', 'updated', 'new', 'bamboo', 'aegis', 'psic', 'dic', 'document', 'scan', 'copy', 'file']);
                     const nameNoExt = docStatus.file_name.replace(/\.[^.]+$/, '');
                     const fileWords = nameNoExt.replace(/[^a-zA-Z\s-]/g, ' ').split(/\s+/).filter(Boolean);
                     for (const w of fileWords) {
                         if (!stopWords.has(w.toLowerCase())) {
                             addTerm(w);
                         }
+                    }
+                }
+
+                // 2. Terms from extracted owner name
+                if (docStatus.extracted_owner_name) {
+                    const words = docStatus.extracted_owner_name.replace(/[^a-zA-Z\s-]/g, '').split(/\s+/).filter(Boolean);
+                    if (words.length > 1) {
+                        const lastWord = words[words.length - 1];
+                        const firstWord = words[0];
+                        if (!stopWords.has(lastWord.toLowerCase())) addTerm(lastWord);
+                        if (!stopWords.has(firstWord.toLowerCase())) addTerm(firstWord);
+                    } else if (words.length === 1) {
+                        if (!stopWords.has(words[0].toLowerCase())) addTerm(words[0]);
                     }
                 }
 
