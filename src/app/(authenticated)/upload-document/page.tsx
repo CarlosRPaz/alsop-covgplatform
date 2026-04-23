@@ -19,6 +19,7 @@ import {
     ChevronRight,
     Copy,
     Search,
+    RefreshCw,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/Button/Button';
@@ -152,10 +153,14 @@ export default function UploadDocumentPage() {
                 // Stop polling on terminal state
                 const terminal = ['parsed', 'needs_review', 'failed'].includes(doc.parse_status);
                 const noMatchDone = doc.match_status === 'no_match' && doc.processing_step === 'complete';
-                if (terminal || noMatchDone) {
+
+                // Detect stalled: stuck in 'processing' for > 5 minutes
+                const isDocStalled = doc.parse_status === 'processing' && doc.updated_at &&
+                    (Date.now() - new Date(doc.updated_at).getTime()) > 5 * 60 * 1000;
+
+                if (terminal || noMatchDone || isDocStalled) {
                     setPhase('done');
                     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-                    // Snapshot final time
                     const elapsed = Math.floor((Date.now() - (startTime || Date.now())) / 1000);
                     setProcessingTime(elapsed >= 60 ? `${Math.floor(elapsed / 60)}m ${elapsed % 60}s` : `${elapsed}s`);
                 }
@@ -380,6 +385,41 @@ export default function UploadDocumentPage() {
     const isSuccess = docStatus?.parse_status === 'parsed' && docStatus?.match_status === 'matched';
     const needsReview = docStatus?.parse_status === 'needs_review' || docStatus?.match_status === 'needs_review' || docStatus?.match_status === 'no_match';
     const isFailed = docStatus?.parse_status === 'failed';
+    const isStalled = phase === 'done' && docStatus?.parse_status === 'processing' && docStatus?.updated_at &&
+        (Date.now() - new Date(docStatus.updated_at).getTime()) > 5 * 60 * 1000;
+    const [isRetrying, setIsRetrying] = useState(false);
+
+    const handleRetry = async () => {
+        if (!documentId) return;
+        setIsRetrying(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+            const res = await fetch('/api/documents/retry', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ documentId }),
+            });
+            if (res.ok) {
+                setIsRetrying(false);
+                setDocStatus(null);
+                setIsDuplicate(false);
+                setAutoRecommendations([]);
+                setAutoSearchDone(false);
+                autoSearchRanRef.current = false;
+                startPolling(documentId);
+            } else {
+                setUploadError('Retry failed. Please try again.');
+                setIsRetrying(false);
+            }
+        } catch {
+            setUploadError('Network error during retry.');
+            setIsRetrying(false);
+        }
+    };
 
     const resetForNewUpload = () => {
         setPhase('idle');
@@ -489,7 +529,7 @@ export default function UploadDocumentPage() {
                         padding: '1rem 1.5rem',
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                         borderBottom: '1px solid var(--border-default)',
-                        background: isSuccess ? '#10b98108' : needsReview ? '#f59e0b08' : isFailed ? '#ef444408' : isDuplicate ? '#6366f108' : 'transparent',
+                        background: isSuccess ? '#10b98108' : needsReview ? '#f59e0b08' : (isFailed || isStalled) ? '#ef444408' : isDuplicate ? '#6366f108' : 'transparent',
                     }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                             {phase === 'uploading' && <Loader2 size={18} style={{ animation: 'spin 1s linear infinite', color: 'var(--accent-primary)' }} />}
@@ -497,15 +537,18 @@ export default function UploadDocumentPage() {
                             {isSuccess && <CheckCircle size={18} style={{ color: '#10b981' }} />}
                             {needsReview && <AlertTriangle size={18} style={{ color: '#f59e0b' }} />}
                             {isFailed && <XCircle size={18} style={{ color: '#ef4444' }} />}
+                            {isStalled && <AlertTriangle size={18} style={{ color: '#ef4444' }} />}
                             {isDuplicate && !docStatus && <Copy size={18} style={{ color: '#6366f1' }} />}
-                            {isDuplicate && docStatus && !isSuccess && !needsReview && !isFailed && <Copy size={18} style={{ color: '#6366f1' }} />}
+                            {isDuplicate && docStatus && !isSuccess && !needsReview && !isFailed && !isStalled && <Copy size={18} style={{ color: '#6366f1' }} />}
 
                             <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-high)' }}>
                                 {phase === 'uploading' ? 'Uploading…' :
                                  phase === 'polling' ? 'Processing Document…' :
-                                 isDuplicate ? 'Duplicate — Already Uploaded' :
+                                 isStalled ? 'Processing Stalled' :
+                                 isDuplicate && !isSuccess && !needsReview && !isFailed ? 'Duplicate — Already Uploaded' :
                                  isSuccess ? 'Processing Complete' :
-                                 needsReview ? 'Review Required' : 'Processing Failed'}
+                                 needsReview ? 'Review Required' :
+                                 isFailed ? 'Processing Failed' : 'Processing Complete'}
                             </span>
 
                             {selectedTypeInfo && (
@@ -596,18 +639,19 @@ export default function UploadDocumentPage() {
                                     padding: '0.85rem 1rem',
                                     borderRadius: '0.5rem',
                                     marginBottom: '1rem',
-                                    background: isSuccess ? '#10b98108' : needsReview ? '#f59e0b08' : isFailed ? '#ef444408' : '#6366f108',
-                                    border: `1px solid ${isSuccess ? '#10b98130' : needsReview ? '#f59e0b30' : isFailed ? '#ef444430' : '#6366f130'}`,
+                                    background: isSuccess ? '#10b98108' : (isStalled || isFailed) ? '#ef444408' : needsReview ? '#f59e0b08' : '#6366f108',
+                                    border: `1px solid ${isSuccess ? '#10b98130' : (isStalled || isFailed) ? '#ef444430' : needsReview ? '#f59e0b30' : '#6366f130'}`,
                                 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
                                         <span style={{
                                             fontSize: '0.82rem', fontWeight: 700,
-                                            color: isSuccess ? '#10b981' : needsReview ? '#f59e0b' : isFailed ? '#ef4444' : '#6366f1',
+                                            color: isSuccess ? '#10b981' : (isStalled || isFailed) ? '#ef4444' : needsReview ? '#f59e0b' : '#6366f1',
                                         }}>
                                             {isSuccess ? '✓ Policy Matched' :
+                                             isStalled ? '⚠ Processing Stalled — Worker Crashed' :
+                                             isFailed ? '✕ Processing Failed' :
                                              docStatus.match_status === 'no_match' ? '✕ No Policy Match Found' :
-                                             needsReview ? '⚠ Review Needed' :
-                                             isFailed ? '✕ Processing Failed' : '— Status Unknown'}
+                                             needsReview ? '⚠ Review Needed' : '✓ Complete'}
                                         </span>
                                         {docStatus.match_confidence !== null && docStatus.match_confidence > 0 && (
                                             <span style={{
@@ -621,8 +665,19 @@ export default function UploadDocumentPage() {
                                         )}
                                     </div>
                                     <p style={{ fontSize: '0.78rem', color: 'var(--text-mid)', lineHeight: 1.5, margin: 0 }}>
-                                        {docStatus.status_message}
+                                        {isStalled
+                                            ? `This document got stuck at "${docStatus.processing_step}" and hasn't progressed. The processing worker may have crashed. Click Retry to re-queue it.`
+                                            : docStatus.status_message}
                                     </p>
+                                    {(isStalled || isFailed) && (
+                                        <div style={{ marginTop: '0.75rem' }}>
+                                            <Button size="sm" variant="primary" onClick={handleRetry} disabled={isRetrying}>
+                                                {isRetrying
+                                                    ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite', marginRight: 6 }} /> Retrying…</>
+                                                    : <><RefreshCw size={14} style={{ marginRight: 6 }} /> Retry Processing</>}
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
