@@ -265,22 +265,49 @@ export default function UploadDocumentPage() {
     useEffect(() => {
         if (!docStatus || autoSearchRanRef.current) return;
         const isNR = docStatus.parse_status === 'needs_review' || docStatus.match_status === 'no_match' || docStatus.match_status === 'needs_review';
-        if (!isNR || !docStatus.extracted_owner_name) return;
+        if (!isNR) return;
+
+        // Need at least one of: extracted owner name OR file name
+        if (!docStatus.extracted_owner_name && !docStatus.file_name) return;
 
         autoSearchRanRef.current = true;
         (async () => {
             try {
-                // Extract last name (first word for trust, last word for individuals)
-                const name = docStatus.extracted_owner_name!;
-                const words = name.replace(/[^a-zA-Z\s-]/g, '').split(/\s+/).filter(Boolean);
-                // Try last name first (last word), then first word if it looks like LAST, FIRST format
-                const searchTerms = words.length > 1 ? [words[words.length - 1], words[0]] : [words[0]];
+                const searchTerms: string[] = [];
+                const seen = new Set<string>();
+
+                const addTerm = (t: string) => {
+                    const clean = t.toLowerCase().trim();
+                    if (clean.length >= 3 && !seen.has(clean)) { seen.add(clean); searchTerms.push(clean); }
+                };
+
+                // 1. Terms from extracted owner name
+                if (docStatus.extracted_owner_name) {
+                    const words = docStatus.extracted_owner_name.replace(/[^a-zA-Z\s-]/g, '').split(/\s+/).filter(Boolean);
+                    if (words.length > 1) {
+                        addTerm(words[words.length - 1]); // last name
+                        addTerm(words[0]); // first name
+                    } else if (words.length === 1) {
+                        addTerm(words[0]);
+                    }
+                }
+
+                // 2. Terms from file name (strip extension + common words)
+                if (docStatus.file_name) {
+                    const stopWords = new Set(['dec', 'page', 'pdf', 'updated', 'new', 'bamboo', 'aegis', 'psic', 'dic', 'document', 'scan', 'copy', 'file']);
+                    const nameNoExt = docStatus.file_name.replace(/\.[^.]+$/, '');
+                    const fileWords = nameNoExt.replace(/[^a-zA-Z\s-]/g, ' ').split(/\s+/).filter(Boolean);
+                    for (const w of fileWords) {
+                        if (!stopWords.has(w.toLowerCase())) {
+                            addTerm(w);
+                        }
+                    }
+                }
 
                 const allResults: any[] = [];
                 const seenIds = new Set<string>();
 
-                for (const term of searchTerms) {
-                    if (term.length < 2) continue;
+                for (const term of searchTerms.slice(0, 4)) {
                     const { data } = await supabase
                         .from('policies')
                         .select(`
@@ -295,7 +322,7 @@ export default function UploadDocumentPage() {
                             )
                         `)
                         .ilike('clients.named_insured', `%${term}%`)
-                        .limit(8);
+                        .limit(6);
 
                     if (data) {
                         for (const row of data) {
@@ -319,22 +346,32 @@ export default function UploadDocumentPage() {
         if (!searchQuery.trim()) return;
         setIsSearching(true);
         try {
-            const { data } = await supabase
-                .from('policies')
-                .select(`
-                    id,
-                    policy_number,
-                    property_address_raw,
-                    carrier_name,
-                    client_id,
-                    clients!inner (
-                        id,
-                        named_insured
-                    )
-                `)
-                .or(`policy_number.ilike.%${searchQuery}%,property_address_raw.ilike.%${searchQuery}%,clients.named_insured.ilike.%${searchQuery}%`)
-                .limit(8);
-            setSearchResults(data || []);
+            // Run two queries: one for policy fields, one for client name
+            // The !inner join + .or() doesn't work correctly across tables in Supabase
+            const q = searchQuery.trim();
+            const [byPolicy, byClient] = await Promise.all([
+                supabase
+                    .from('policies')
+                    .select(`id, policy_number, property_address_raw, carrier_name, client_id, clients (id, named_insured)`)
+                    .or(`policy_number.ilike.%${q}%,property_address_raw.ilike.%${q}%`)
+                    .limit(5),
+                supabase
+                    .from('policies')
+                    .select(`id, policy_number, property_address_raw, carrier_name, client_id, clients!inner (id, named_insured)`)
+                    .ilike('clients.named_insured', `%${q}%`)
+                    .limit(5),
+            ]);
+
+            // Merge + deduplicate
+            const merged: any[] = [];
+            const seenIds = new Set<string>();
+            for (const row of [...(byClient.data || []), ...(byPolicy.data || [])]) {
+                if (!seenIds.has(row.id)) {
+                    seenIds.add(row.id);
+                    merged.push(row);
+                }
+            }
+            setSearchResults(merged.slice(0, 8));
         } catch {
             setSearchResults([]);
         } finally {
