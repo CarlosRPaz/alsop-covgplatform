@@ -1101,14 +1101,8 @@ export async function getDecPageFileUrl(decPageId: string): Promise<string | nul
         const storagePath = sub.storage_path || sub.file_path;
         if (!storagePath) return null;
 
-        // 3. Generate a signed URL (1 hour)
-        const { data: signed, error: signErr } = await supabase
-            .storage
-            .from('dec-pages')
-            .createSignedUrl(storagePath, 3600);
-
-        if (signErr || !signed?.signedUrl) return null;
-        return signed.signedUrl;
+        // 3. Generate signed URL via server-side API (bypass RLS)
+        return _getSignedUrlViaApi(storagePath, 'cfp-raw-decpage');
     } catch (err) {
         console.error('Error getting dec page file URL:', err);
         return null;
@@ -2061,9 +2055,10 @@ export async function fetchDecPageFilesByPolicyId(policyId: string): Promise<Dec
                 parse_status,
                 created_at,
                 submission_id,
-                dec_page_submissions!inner (
+                dec_page_submissions (
                     id,
                     storage_path,
+                    file_path,
                     file_name,
                     file_size,
                     created_at
@@ -2088,7 +2083,7 @@ export async function fetchDecPageFilesByPolicyId(policyId: string): Promise<Dec
             return {
                 id: sub?.id || row.id,
                 dec_page_id: row.id,
-                storage_path: sub?.storage_path || null,
+                storage_path: sub?.storage_path || sub?.file_path || null,
                 file_name: sub?.file_name || null,
                 file_size: sub?.file_size || null,
                 uploaded_at: sub?.created_at || row.created_at,
@@ -2104,28 +2099,56 @@ export async function fetchDecPageFilesByPolicyId(policyId: string): Promise<Dec
         return [];
     }
 }
-
 /**
- * Generate a signed download URL for a file in Supabase Storage.
+ * Internal helper: generate a signed URL via the server-side API route.
+ * This bypasses Supabase storage RLS by using the admin client on the server.
  */
-export async function getDecPageFileDownloadUrl(storagePath: string): Promise<string | null> {
+async function _getSignedUrlViaApi(storagePath: string, bucket: string): Promise<string | null> {
     try {
-        const { data, error } = await supabase.storage
-            .from('cfp-raw-decpage')
-            .createSignedUrl(storagePath, 3600); // 1 hour expiry
-
-        if (error || !data?.signedUrl) {
-            logger.error('API', 'Error creating signed URL', { message: error?.message, storagePath });
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+            logger.error('API', 'No auth session for signed URL request');
             return null;
         }
 
-        return data.signedUrl;
+        const res = await fetch('/api/documents/signed-url', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ storagePath, bucket }),
+        });
+
+        if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            logger.error('API', 'Signed URL API failed', {
+                status: res.status,
+                error: errBody.error,
+                storagePath,
+                bucket,
+            });
+            return null;
+        }
+
+        const { signedUrl } = await res.json();
+        return signedUrl || null;
     } catch (err) {
-        logger.error('API', 'Unexpected error creating signed URL', {
+        logger.error('API', 'Unexpected error getting signed URL', {
             error: err instanceof Error ? err.message : String(err),
+            storagePath,
+            bucket,
         });
         return null;
     }
+}
+
+/**
+ * Generate a signed download URL for a dec page file via server-side API.
+ * Uses the admin client on the server to bypass storage bucket RLS.
+ */
+export async function getDecPageFileDownloadUrl(storagePath: string): Promise<string | null> {
+    return _getSignedUrlViaApi(storagePath, 'cfp-raw-decpage');
 }
 
 // ---------------------------------------------------------------------------
@@ -2216,22 +2239,7 @@ export async function fetchDocumentsNeedingReview(): Promise<PlatformDocumentInf
  * Generate a signed download URL for a platform document.
  */
 export async function getPlatformDocDownloadUrl(storagePath: string, bucket = 'cfp-platform-documents'): Promise<string | null> {
-    try {
-        const { data, error } = await supabase.storage
-            .from(bucket)
-            .createSignedUrl(storagePath, 3600);
-
-        if (error || !data?.signedUrl) {
-            logger.error('API', 'Error creating platform doc URL', { message: error?.message, storagePath });
-            return null;
-        }
-        return data.signedUrl;
-    } catch (err) {
-        logger.error('API', 'Unexpected error creating platform doc URL', {
-            error: err instanceof Error ? err.message : String(err),
-        });
-        return null;
-    }
+    return _getSignedUrlViaApi(storagePath, bucket);
 }
 
 /**

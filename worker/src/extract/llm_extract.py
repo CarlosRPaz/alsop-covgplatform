@@ -290,59 +290,54 @@ NOW PARSE THE TEXT BELOW AND RETURN ONLY VALID JSON:
 ============================================"""
 
 
-def _looks_commercial(addr: str) -> bool:
-    """
-    Return True if addr looks like a commercial/institutional address
-    rather than a residential property location.
-
-    Signals: P.O. Box, suite numbers, floor numbers, high-rise numbers,
-    or known commercial corridors.
-    """
-    upper = addr.upper()
-    commercial_signals = [
-        "SUITE ",
-        "STE ",
-        "STE. ",
-        "P.O. BOX",
-        "PO BOX",
-        "P O BOX",
-        "FLOOR ",
-        "FL ",
-        "DEPT ",
-        "ATTN ",
-        "C/O ",
-    ]
-    return any(s in upper for s in commercial_signals)
+def _normalize_for_compare(addr: str) -> str:
+    """Normalize an address for fuzzy comparison (lowercase, strip punctuation)."""
+    import re
+    return re.sub(r"[^a-z0-9]", "", addr.lower())
 
 
 def _fix_swapped_addresses(extracted: dict) -> None:
     """
-    Detect and fix a known LLM failure mode where property_location and
-    mailing_address are swapped.
+    Detect and fix a known LLM failure mode where property_location is
+    actually the broker's address (or vice-versa).
 
-    CFP is residential homeowner insurance. If the property_location looks
-    like a commercial address (suite, P.O. Box, etc.) while the
-    mailing_address looks residential, they were likely swapped by the LLM
-    when parsing interleaved PDF columns. We swap them back.
+    The broker_address is extracted separately from the "YOUR INSURANCE
+    BROKER" section of the dec page. If the LLM accidentally assigned the
+    broker address as the property_location we swap property_location with
+    mailing_address (the only other candidate address on the page).
+
+    This does NOT assume residential-only — commercial suites are valid
+    property locations.
     """
     prop = extracted.get("property_location")
+    broker = extracted.get("broker_address")
     mail = extracted.get("mailing_address")
 
-    if not prop or not mail:
+    if not prop or not broker:
         return
 
-    prop_is_commercial = _looks_commercial(prop)
-    mail_is_commercial = _looks_commercial(mail)
+    # Compare property_location against broker_address
+    prop_norm = _normalize_for_compare(prop)
+    broker_norm = _normalize_for_compare(broker)
 
-    # If property looks commercial but mailing doesn't → they're swapped
-    if prop_is_commercial and not mail_is_commercial:
-        logger.warning(
-            "Address swap detected: property_location '%s' looks commercial, "
-            "mailing_address '%s' looks residential — swapping",
-            prop, mail,
-        )
-        extracted["property_location"] = mail
-        extracted["mailing_address"] = prop
+    # If property_location matches the broker address → definitely wrong
+    if prop_norm == broker_norm or (len(prop_norm) > 10 and broker_norm.startswith(prop_norm[:20])):
+        if mail:
+            logger.warning(
+                "Broker address swap detected: property_location '%s' matches "
+                "broker_address '%s' — swapping with mailing_address '%s'",
+                prop, broker, mail,
+            )
+            extracted["property_location"] = mail
+            extracted["mailing_address"] = prop
+        else:
+            # No mailing_address to swap with — just clear the bad value
+            logger.warning(
+                "Broker address swap detected: property_location '%s' matches "
+                "broker_address '%s' — clearing property_location (no mailing to swap)",
+                prop, broker,
+            )
+            extracted["property_location"] = None
 
 
 def _build_user_prompt(raw_text: str) -> str:
