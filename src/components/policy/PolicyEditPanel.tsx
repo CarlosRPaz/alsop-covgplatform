@@ -381,12 +381,15 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
                                     </div>
                                     <div className={styles.field}>
                                         <label className={styles.fieldLabel}>Policy Activity</label>
-                                        <input
-                                            className={styles.fieldInput}
+                                        <select
+                                            className={styles.fieldSelect}
                                             value={termForm.policy_activity}
                                             onChange={(e) => setTermForm(f => ({ ...f, policy_activity: e.target.value }))}
-                                            placeholder="e.g. New Business, Renewal"
-                                        />
+                                        >
+                                            <option value="">— Select —</option>
+                                            <option value="Active">Active</option>
+                                            <option value="Cancelled">Cancelled</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
@@ -436,11 +439,18 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
                                     </div>
                                     <div className={styles.field}>
                                         <label className={styles.fieldLabel}>Cancellation Reason</label>
-                                        <input
-                                            className={styles.fieldInput}
+                                        <select
+                                            className={styles.fieldSelect}
                                             value={termForm.cancellation_reason}
                                             onChange={(e) => setTermForm(f => ({ ...f, cancellation_reason: e.target.value }))}
-                                        />
+                                        >
+                                            <option value="">— Select —</option>
+                                            <option value="Non-Pay">Non-Pay</option>
+                                            <option value="Property Sold">Property Sold</option>
+                                            <option value="Insured Elsewhere">Insured Elsewhere</option>
+                                            <option value="Rewritten">Rewritten</option>
+                                            <option value="Insured's Request">Insured's Request</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
@@ -459,11 +469,19 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
                                     </div>
                                     <div className={styles.field}>
                                         <label className={styles.fieldLabel}>Office</label>
-                                        <input
-                                            className={styles.fieldInput}
+                                        <select
+                                            className={styles.fieldSelect}
                                             value={termForm.office}
                                             onChange={(e) => setTermForm(f => ({ ...f, office: e.target.value }))}
-                                        />
+                                        >
+                                            <option value="">— Select —</option>
+                                            <option value="Rancho">Rancho</option>
+                                            <option value="Montebello">Montebello</option>
+                                            <option value="Chino">Chino</option>
+                                            <option value="Montclair">Montclair</option>
+                                            <option value="Rancho/AV">Rancho/AV</option>
+                                            <option value="Claremont">Claremont</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
