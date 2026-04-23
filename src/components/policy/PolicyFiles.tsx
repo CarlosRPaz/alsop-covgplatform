@@ -50,6 +50,8 @@ function getParseStatusBadge(status: string | null): { label: string; color: str
         case 'failed': return { label: 'Failed', color: 'var(--status-error)', icon: <XCircle size={12} /> };
         case 'processing': return { label: 'Processing', color: 'var(--accent-secondary, #6366f1)', icon: <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> };
         case 'queued': return { label: 'Queued', color: 'var(--accent-secondary, #8b5cf6)', icon: <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> };
+        case 'manual': return { label: 'Complete', color: 'var(--status-success)', icon: <CheckCircle size={12} /> };
+        case 'duplicate': return { label: 'Duplicate', color: 'var(--text-muted)', icon: <CheckCircle size={12} /> };
         default: return { label: 'Processing', color: 'var(--text-muted)', icon: <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> };
     }
 }

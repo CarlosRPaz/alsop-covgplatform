@@ -2061,6 +2061,8 @@ export async function fetchDecPageFilesByPolicyId(policyId: string): Promise<Dec
                     file_path,
                     file_name,
                     file_size,
+                    file_hash,
+                    status,
                     created_at
                 )
             `)
@@ -2076,7 +2078,7 @@ export async function fetchDecPageFilesByPolicyId(policyId: string): Promise<Dec
         if (!data) return [];
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return data.map((row: any) => {
+        const rawFiles = data.map((row: any) => {
             const sub = Array.isArray(row.dec_page_submissions)
                 ? row.dec_page_submissions[0]
                 : row.dec_page_submissions;
@@ -2090,8 +2092,34 @@ export async function fetchDecPageFilesByPolicyId(policyId: string): Promise<Dec
                 parse_status: row.parse_status,
                 insured_name: row.insured_name,
                 policy_number: row.policy_number,
+                _sub_status: sub?.status || null,
+                _file_hash: sub?.file_hash || null,
             };
         });
+
+        // Filter out duplicate/failed tracking rows
+        const filtered = rawFiles.filter(f => f._sub_status !== 'duplicate' && f._sub_status !== 'failed');
+
+        // Deduplicate by file_hash — keep only the best version (parsed > needs_review > others)
+        const hashMap = new Map<string, typeof filtered[0]>();
+        const statusPriority: Record<string, number> = { parsed: 0, needs_review: 1 };
+        for (const f of filtered) {
+            const key = f._file_hash || f.id; // Use hash if available, else unique ID
+            const existing = hashMap.get(key);
+            if (!existing) {
+                hashMap.set(key, f);
+            } else {
+                const existingPriority = statusPriority[existing.parse_status || ''] ?? 99;
+                const newPriority = statusPriority[f.parse_status || ''] ?? 99;
+                if (newPriority < existingPriority) {
+                    hashMap.set(key, f);
+                }
+            }
+        }
+
+        // Return deduplicated files (strip internal fields)
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        return [...hashMap.values()].map(({ _sub_status, _file_hash, ...rest }) => rest);
     } catch (err) {
         logger.error('API', 'Unexpected error fetching dec page files', {
             error: err instanceof Error ? err.message : String(err),
