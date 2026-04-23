@@ -161,6 +161,38 @@
     background: var(--accent-primary-subtle);
 }
 
+/* Edit Policy — Promoted CTA */
+.editPolicyBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    height: 36px;
+    padding: 0 1rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: var(--text-inverse);
+    background: linear-gradient(135deg, var(--accent-primary), #7c3aed);
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.25);
+    flex-shrink: 0;
+}
+
+.editPolicyBtn:hover {
+    background: linear-gradient(135deg, #7c3aed, var(--accent-primary));
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.35);
+    transform: translateY(-1px);
+}
+
+.editPolicyBtn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.2);
+}
+
 /* Secondary button (outline with label) */
 .secondaryBtn {
     display: inline-flex;

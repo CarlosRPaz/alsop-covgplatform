@@ -355,6 +355,10 @@ export interface DashboardPolicy {
     created_at?: string;
     // Enrichment status
     is_enriched: boolean;
+    // Term workflow fields
+    payment_status?: string;
+    payment_plan?: string;
+    policy_activity?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -636,7 +640,10 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
                         effective_date,
                         expiration_date,
                         annual_premium,
-                        is_current
+                        is_current,
+                        payment_status,
+                        payment_plan,
+                        policy_activity
                     )
                 `)
                 .eq('clients.is_demo', false);
@@ -705,7 +712,7 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
             // clients is an object (inner join, one-to-one via FK)
             const client = row.clients;
             // policy_terms is an array; find the current term
-            const terms: Array<{ id: string; effective_date?: string; expiration_date?: string; annual_premium?: number; is_current?: boolean }> = row.policy_terms || [];
+            const terms: Array<{ id: string; effective_date?: string; expiration_date?: string; annual_premium?: number; is_current?: boolean; payment_status?: string; payment_plan?: string; policy_activity?: string; }> = row.policy_terms || [];
             const currentTerm = terms.find(t => t.is_current === true) || terms[0] || null;
             const flagInfo = flagMap.get(row.id) || { count: 0, severity: undefined, flags: [] };
 
@@ -726,6 +733,9 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
                 annual_premium: currentTerm?.annual_premium != null
                     ? `$${Number(currentTerm.annual_premium).toLocaleString()}`
                     : undefined,
+                payment_status: currentTerm?.payment_status || undefined,
+                payment_plan: currentTerm?.payment_plan || undefined,
+                policy_activity: currentTerm?.policy_activity || undefined,
                 flag_count: flagInfo.count,
                 highest_severity: flagInfo.severity,
                 flags: flagInfo.flags || [],

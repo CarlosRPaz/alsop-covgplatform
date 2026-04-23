@@ -6,9 +6,9 @@ import Link from 'next/link';
 import styles from './page.module.css';
 import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
-import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload } from 'lucide-react';
+import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload, ShieldCheck } from 'lucide-react';
 import { PropertyBanner } from '@/components/policy/PropertyBanner';
-import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl } from '@/lib/api';
+import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, fetchPlatformDocumentsByPolicyId, getPlatformDocDownloadUrl } from '@/lib/api';
 import { PolicyStatusBar } from '@/components/policy/PolicyStatusBar';
 import { PolicyDashboard } from '@/components/policy/PolicyDashboard';
 import { AgentReviewPanel } from '@/components/policy/AIReport';
@@ -63,6 +63,9 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     const [decPageStoragePath, setDecPageStoragePath] = useState<string | null>(null);
     const [decPageLoading, setDecPageLoading] = useState(false);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const dicFileInputRef = React.useRef<HTMLInputElement>(null);
+    const [dicDocStoragePath, setDicDocStoragePath] = useState<string | null>(null);
+    const [dicDocLoading, setDicDocLoading] = useState(false);
     const [showEmailComposer, setShowEmailComposer] = useState(false);
     const [userRole, setUserRole] = useState<UserRole | null>(null);
     const [roleLoading, setRoleLoading] = useState(true);
@@ -163,6 +166,14 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
         fetchDecPageFilesByPolicyId(id).then(files => {
             if (files.length > 0 && files[0].storage_path) {
                 setDecPageStoragePath(files[0].storage_path);
+            }
+        });
+
+        // Fetch DIC document for the DIC button
+        fetchPlatformDocumentsByPolicyId(id).then(docs => {
+            const dicDoc = docs.find(d => d.doc_type === 'dic_dec_page' && d.storage_path);
+            if (dicDoc?.storage_path) {
+                setDicDocStoragePath(dicDoc.storage_path);
             }
         });
     }, [id]);
@@ -380,17 +391,15 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             case 'files':
                 return (
                     <div className={styles.content}>
-                        <DecPageReview policyId={id} onApproved={() => {
+                        <PolicyFiles policyId={id} onDecPageApproved={() => {
                             // Reload policy data after approval
                             getPolicyDetailById(id).then(detail => {
                                 if (detail) {
+                                    setPolicyDetailRaw(detail);
                                     setDeclaration(mapPolicyDetailToDeclaration(detail));
                                 }
                             });
                         }} />
-                        <div style={{ marginTop: '1.5rem' }}>
-                            <PolicyFiles policyId={id} />
-                        </div>
                     </div>
                 );
             default:
@@ -495,9 +504,12 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
 
                 {/* ── Right: Action Cluster ── */}
                 <div className={styles.actionCluster}>
-                    <button className={styles.iconBtn} onClick={() => setIsEditOpen(true)} title="Edit Policy">
-                        <Settings size={16} />
+                    {/* Edit Policy — Promoted CTA */}
+                    <button className={styles.editPolicyBtn} onClick={() => setIsEditOpen(true)} title="Edit Policy">
+                        <Pencil size={15} />
+                        Edit Policy
                     </button>
+
                     <button
                         className={styles.iconBtn}
                         onClick={() => setShowEmailComposer(true)}
@@ -513,6 +525,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                         Full Analysis
                     </button>
 
+                    {/* ── Dec Page Button (Upload / View) ── */}
                     {!decPageStoragePath ? (
                         <>
                             <input
@@ -525,7 +538,6 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                                     if (!file) return;
                                     setDecPageLoading(true);
                                     try {
-                                        // Use proper pipeline via /api/upload
                                         const { supabase } = await import('@/lib/supabaseClient');
                                         const { data: { session } } = await supabase.auth.getSession();
                                         if (!session?.access_token) {
@@ -548,7 +560,6 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                                             const submissionId = json.data?.submissionId;
                                             toast.success(`Declaration uploaded: ${json.data?.fileName || file.name}`);
 
-                                            // Track in sessionStorage for DecPageObserver
                                             if (submissionId) {
                                                 try {
                                                     const key = 'cfp_pending_dec_uploads';
@@ -560,7 +571,6 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                                                     }
                                                 } catch { /* non-critical */ }
 
-                                                // Trigger DecPageObserver polling + show bg banner
                                                 window.dispatchEvent(new CustomEvent('decPageUploaded'));
                                                 setBgProcessing(true);
                                                 setBgProcessingStep('Queued for processing…');
@@ -610,6 +620,93 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                         >
                             <FileDown size={15} />
                             {decPageLoading ? 'Opening…' : 'Dec Page'}
+                        </button>
+                    )}
+
+                    {/* ── DIC Button (Upload / View) ── */}
+                    {!dicDocStoragePath ? (
+                        <>
+                            <input
+                                type="file"
+                                accept="application/pdf"
+                                ref={dicFileInputRef}
+                                style={{ display: 'none' }}
+                                onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    setDicDocLoading(true);
+                                    try {
+                                        const { supabase } = await import('@/lib/supabaseClient');
+                                        const { data: { session } } = await supabase.auth.getSession();
+                                        if (!session?.access_token) {
+                                            toast.error('Session expired. Please refresh and sign in again.');
+                                            return;
+                                        }
+
+                                        const formData = new FormData();
+                                        formData.set('file', file);
+                                        formData.set('doc_type', 'dic_dec_page');
+                                        formData.set('policy_id', id);
+
+                                        const res = await fetch('/api/documents/upload', {
+                                            method: 'POST',
+                                            headers: { 'Authorization': `Bearer ${session.access_token}` },
+                                            body: formData,
+                                        });
+
+                                        const json = await res.json();
+
+                                        if (res.ok && json.success) {
+                                            toast.success(`DIC uploaded: ${file.name}`);
+                                            // Refresh DIC doc path
+                                            const docs = await fetchPlatformDocumentsByPolicyId(id);
+                                            const dicDoc = docs.find(d => d.doc_type === 'dic_dec_page' && d.storage_path);
+                                            if (dicDoc?.storage_path) setDicDocStoragePath(dicDoc.storage_path);
+                                        } else {
+                                            toast.error(json.message || 'DIC upload failed.');
+                                        }
+                                    } catch (err) {
+                                        console.error(err);
+                                        toast.error('Network error during DIC upload.');
+                                    } finally {
+                                        setDicDocLoading(false);
+                                        if (dicFileInputRef.current) dicFileInputRef.current.value = '';
+                                    }
+                                }}
+                            />
+                            <button
+                                className={styles.secondaryBtn}
+                                disabled={dicDocLoading}
+                                title={dicDocLoading ? 'Uploading...' : 'Upload DIC PDF'}
+                                onClick={() => dicFileInputRef.current?.click()}
+                            >
+                                <Upload size={15} />
+                                {dicDocLoading ? 'Uploading…' : 'Upload DIC'}
+                            </button>
+                        </>
+                    ) : (
+                        <button
+                            className={styles.secondaryBtn}
+                            disabled={dicDocLoading}
+                            title="Open DIC Document"
+                            onClick={async () => {
+                                setDicDocLoading(true);
+                                try {
+                                    const url = await getPlatformDocDownloadUrl(dicDocStoragePath!);
+                                    if (url) {
+                                        window.open(url, '_blank');
+                                    } else {
+                                        toast.error('Could not generate DIC download link.');
+                                    }
+                                } catch {
+                                    toast.error('Failed to open DIC document.');
+                                } finally {
+                                    setDicDocLoading(false);
+                                }
+                            }}
+                        >
+                            <ShieldCheck size={15} />
+                            {dicDocLoading ? 'Opening…' : 'DIC Page'}
                         </button>
                     )}
 

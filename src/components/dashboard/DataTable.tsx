@@ -12,8 +12,8 @@ import { useRouter } from 'next/navigation';
 import { FullWorkupModal } from './FullWorkupModal';
 
 // localStorage keys (v2 — reset to pick up new column order & visibility defaults)
-const LS_VISIBLE_COLUMNS = 'cfp_datatable_visibleColumns_v3';
-const LS_COLUMN_ORDER = 'cfp_datatable_columnOrder_v3';
+const LS_VISIBLE_COLUMNS = 'cfp_datatable_visibleColumns_v4';
+const LS_COLUMN_ORDER = 'cfp_datatable_columnOrder_v4';
 const LS_SELECTED_FLAGS = 'cfp_datatable_selectedFlags';
 const LS_SELECTED_STATUSES = 'cfp_datatable_selectedStatuses';
 const LS_ENRICHMENT_FILTER = 'cfp_datatable_enrichmentFilter';
@@ -27,8 +27,12 @@ const ALL_STATUSES = [
     { value: 'unknown', label: 'Unknown', color: '#64748b' },
     { value: 'cancelled', label: 'Cancelled', color: '#ef4444' },
     { value: 'expired', label: 'Expired', color: '#ef4444' },
-    { value: 'non_renewed', label: 'Non-Renewed', color: '#64748b' },
 ] as const;
+
+// Additional filter dropdown options based on business logic
+const PAYMENT_STATUSES = ["Paid in full", "11-pay", "3-pay"];
+const PAYMENT_PLANS = ["3 Pay", "11 Pay"];
+const POLICY_ACTIVITIES = ["Active", "Cancelled"];
 
 // Helpers
 function loadFromStorage<T>(key: string, fallback: T): T {
@@ -61,6 +65,9 @@ const INITIAL_COLUMNS: ColumnDef[] = [
     { key: 'effective_date', label: 'Effective Date' },
     { key: 'expiration_date', label: 'Expiration Date' },
     { key: 'annual_premium', label: 'Annual Premium' },
+    { key: 'payment_status', label: 'Payment Status' },
+    { key: 'payment_plan', label: 'Payment Plan' },
+    { key: 'policy_activity', label: 'Activity' },
     { key: 'property_address', label: 'Property Address', width: '250px' },
     { key: 'mailing_address', label: 'Mailing Address', width: '250px' },
     { key: 'carrier_name', label: 'Carrier' },
@@ -70,7 +77,7 @@ const INITIAL_COLUMNS: ColumnDef[] = [
 // All columns visible by default
 const DEFAULT_VISIBLE_KEYS = new Set([
     'policy_number', 'flag_count', 'is_enriched', 'named_insured', 'status',
-    'effective_date', 'expiration_date', 'annual_premium',
+    'effective_date', 'expiration_date', 'annual_premium', 'payment_status', 'payment_plan', 'policy_activity',
     'property_address', 'mailing_address', 'carrier_name', 'created_at',
 ]);
 
@@ -285,6 +292,19 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
     const [isEnrichmentMenuOpen, setIsEnrichmentMenuOpen] = useState(false);
     const enrichmentMenuRef = useRef<HTMLDivElement>(null);
 
+    // Dynamic Policy Filter States
+    const [selectedPaymentStatuses, setSelectedPaymentStatuses] = useState<Set<string>>(new Set());
+    const [isPaymentStatusMenuOpen, setIsPaymentStatusMenuOpen] = useState(false);
+    const paymentStatusMenuRef = useRef<HTMLDivElement>(null);
+
+    const [selectedPaymentPlans, setSelectedPaymentPlans] = useState<Set<string>>(new Set());
+    const [isPaymentPlanMenuOpen, setIsPaymentPlanMenuOpen] = useState(false);
+    const paymentPlanMenuRef = useRef<HTMLDivElement>(null);
+
+    const [selectedPolicyActivities, setSelectedPolicyActivities] = useState<Set<string>>(new Set());
+    const [isPolicyActivityMenuOpen, setIsPolicyActivityMenuOpen] = useState(false);
+    const policyActivityMenuRef = useRef<HTMLDivElement>(null);
+
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -405,13 +425,22 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
             if (isEnrichmentMenuOpen && enrichmentMenuRef.current && !enrichmentMenuRef.current.contains(e.target as Node)) {
                 setIsEnrichmentMenuOpen(false);
             }
+            if (isPaymentStatusMenuOpen && paymentStatusMenuRef.current && !paymentStatusMenuRef.current.contains(e.target as Node)) {
+                setIsPaymentStatusMenuOpen(false);
+            }
+            if (isPaymentPlanMenuOpen && paymentPlanMenuRef.current && !paymentPlanMenuRef.current.contains(e.target as Node)) {
+                setIsPaymentPlanMenuOpen(false);
+            }
+            if (isPolicyActivityMenuOpen && policyActivityMenuRef.current && !policyActivityMenuRef.current.contains(e.target as Node)) {
+                setIsPolicyActivityMenuOpen(false);
+            }
             if (isRowsPerPageMenuOpen && rowsPerPageMenuRef.current && !rowsPerPageMenuRef.current.contains(e.target as Node) && rowsPerPageMenuTopRef.current && !rowsPerPageMenuTopRef.current.contains(e.target as Node)) {
                 setIsRowsPerPageMenuOpen(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isFlagMenuOpen, isColumnMenuOpen, isStatusMenuOpen, isEnrichmentMenuOpen, isRowsPerPageMenuOpen]);
+    }, [isFlagMenuOpen, isColumnMenuOpen, isStatusMenuOpen, isEnrichmentMenuOpen, isRowsPerPageMenuOpen, isPaymentStatusMenuOpen, isPaymentPlanMenuOpen, isPolicyActivityMenuOpen]);
 
     const handleSort = (key: keyof DashboardPolicy, direction: 'asc' | 'desc' | null) => {
         if (direction === null) {
@@ -462,6 +491,24 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
         setSelectedStatuses(newSet);
     };
 
+    const togglePaymentStatus = (val: string) => {
+        const newSet = new Set(selectedPaymentStatuses);
+        if (newSet.has(val)) newSet.delete(val); else newSet.add(val);
+        setSelectedPaymentStatuses(newSet);
+    };
+
+    const togglePaymentPlan = (val: string) => {
+        const newSet = new Set(selectedPaymentPlans);
+        if (newSet.has(val)) newSet.delete(val); else newSet.add(val);
+        setSelectedPaymentPlans(newSet);
+    };
+
+    const togglePolicyActivity = (val: string) => {
+        const newSet = new Set(selectedPolicyActivities);
+        if (newSet.has(val)) newSet.delete(val); else newSet.add(val);
+        setSelectedPolicyActivities(newSet);
+    };
+
     // Right-click or kebab icon opens column popup
     const handleColumnHeaderClick = (e: React.MouseEvent, columnKey: string) => {
         e.stopPropagation();
@@ -482,12 +529,15 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
     };
 
     // Check if any filters are active (for the active filters bar)
-    const hasActiveFilters = selectedFlags.size > 0 || flagSeverityFilter !== 'all' || selectedStatuses.size > 0 || enrichmentFilter !== 'all' || Object.values(columnSearchQueries).some(v => v);
+    const hasActiveFilters = selectedFlags.size > 0 || flagSeverityFilter !== 'all' || selectedStatuses.size > 0 || selectedPaymentStatuses.size > 0 || selectedPaymentPlans.size > 0 || selectedPolicyActivities.size > 0 || enrichmentFilter !== 'all' || Object.values(columnSearchQueries).some(v => v);
 
     const clearAllFilters = () => {
         setSelectedFlags(new Set());
         setFlagSeverityFilter('all');
         setSelectedStatuses(new Set());
+        setSelectedPaymentStatuses(new Set());
+        setSelectedPaymentPlans(new Set());
+        setSelectedPolicyActivities(new Set());
         setEnrichmentFilter('all');
         setColumnSearchQueries({});
         setSearchQuery('');
@@ -628,6 +678,18 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
             result = result.filter(item => selectedStatuses.has(item.status));
         }
 
+        if (selectedPaymentStatuses.size > 0) {
+            result = result.filter(item => item.payment_status && selectedPaymentStatuses.has(item.payment_status));
+        }
+
+        if (selectedPaymentPlans.size > 0) {
+            result = result.filter(item => item.payment_plan && selectedPaymentPlans.has(item.payment_plan));
+        }
+
+        if (selectedPolicyActivities.size > 0) {
+            result = result.filter(item => item.policy_activity && selectedPolicyActivities.has(item.policy_activity));
+        }
+
         // Enrichment filter
         if (enrichmentFilter === 'enriched') {
             result = result.filter(item => item.is_enriched);
@@ -636,7 +698,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
         }
 
         return result;
-    }, [data, searchQuery, selectedFlags, selectedStatuses, enrichmentFilter, flagSeverityFilter, columnSearchQueries, initialExpirationFilter, initialStatusFilter]);
+    }, [data, searchQuery, selectedFlags, selectedStatuses, selectedPaymentStatuses, selectedPaymentPlans, selectedPolicyActivities, enrichmentFilter, flagSeverityFilter, columnSearchQueries, initialExpirationFilter, initialStatusFilter]);
 
     const sortedData = useMemo(() => {
         if (!sortConfig) return filteredData;
@@ -957,6 +1019,135 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                         {opt.label}
                                     </button>
                                 ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Policy Activity Filter Pill */}
+                    <div style={{ position: 'relative' }} ref={policyActivityMenuRef}>
+                        <button
+                            onClick={() => setIsPolicyActivityMenuOpen(prev => !prev)}
+                            className={clsx(
+                                styles.pillButton,
+                                selectedPolicyActivities.size > 0 && styles.pillButtonActive
+                            )}
+                        >
+                            <AlertCircle size={16} />
+                            <span>Activity</span>
+                            {selectedPolicyActivities.size > 0 && (
+                                <span className={styles.pillBadge}>{selectedPolicyActivities.size}</span>
+                            )}
+                            <ChevronDown size={14} />
+                        </button>
+
+                        {isPolicyActivityMenuOpen && (
+                            <div className={styles.dropdownMenu}>
+                                <div className={styles.dropdownHeader}>
+                                    <span>Filter by Activity</span>
+                                    {selectedPolicyActivities.size > 0 && (
+                                        <button onClick={() => setSelectedPolicyActivities(new Set())} className={styles.clearLink}>
+                                            clear all
+                                        </button>
+                                    )}
+                                </div>
+                                <div className={styles.flagCheckboxList}>
+                                    {POLICY_ACTIVITIES.map(activity => (
+                                        <label key={activity} className={styles.dropdownItem}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedPolicyActivities.has(activity)}
+                                                onChange={() => togglePolicyActivity(activity)}
+                                            />
+                                            <span>{activity}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Payment Status Filter Pill */}
+                    <div style={{ position: 'relative' }} ref={paymentStatusMenuRef}>
+                        <button
+                            onClick={() => setIsPaymentStatusMenuOpen(prev => !prev)}
+                            className={clsx(
+                                styles.pillButton,
+                                selectedPaymentStatuses.size > 0 && styles.pillButtonActive
+                            )}
+                        >
+                            <CheckSquare size={16} />
+                            <span>Payment Status</span>
+                            {selectedPaymentStatuses.size > 0 && (
+                                <span className={styles.pillBadge}>{selectedPaymentStatuses.size}</span>
+                            )}
+                            <ChevronDown size={14} />
+                        </button>
+
+                        {isPaymentStatusMenuOpen && (
+                            <div className={styles.dropdownMenu}>
+                                <div className={styles.dropdownHeader}>
+                                    <span>Filter by Payment</span>
+                                    {selectedPaymentStatuses.size > 0 && (
+                                        <button onClick={() => setSelectedPaymentStatuses(new Set())} className={styles.clearLink}>
+                                            clear all
+                                        </button>
+                                    )}
+                                </div>
+                                <div className={styles.flagCheckboxList}>
+                                    {PAYMENT_STATUSES.map(status => (
+                                        <label key={status} className={styles.dropdownItem}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedPaymentStatuses.has(status)}
+                                                onChange={() => togglePaymentStatus(status)}
+                                            />
+                                            <span>{status}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Payment Plan Filter Pill */}
+                    <div style={{ position: 'relative' }} ref={paymentPlanMenuRef}>
+                        <button
+                            onClick={() => setIsPaymentPlanMenuOpen(prev => !prev)}
+                            className={clsx(
+                                styles.pillButton,
+                                selectedPaymentPlans.size > 0 && styles.pillButtonActive
+                            )}
+                        >
+                            <CheckSquare size={16} />
+                            <span>Payment Plan</span>
+                            {selectedPaymentPlans.size > 0 && (
+                                <span className={styles.pillBadge}>{selectedPaymentPlans.size}</span>
+                            )}
+                            <ChevronDown size={14} />
+                        </button>
+
+                        {isPaymentPlanMenuOpen && (
+                            <div className={styles.dropdownMenu}>
+                                <div className={styles.dropdownHeader}>
+                                    <span>Filter by Plan</span>
+                                    {selectedPaymentPlans.size > 0 && (
+                                        <button onClick={() => setSelectedPaymentPlans(new Set())} className={styles.clearLink}>
+                                            clear all
+                                        </button>
+                                    )}
+                                </div>
+                                <div className={styles.flagCheckboxList}>
+                                    {PAYMENT_PLANS.map(plan => (
+                                        <label key={plan} className={styles.dropdownItem}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedPaymentPlans.has(plan)}
+                                                onChange={() => togglePaymentPlan(plan)}
+                                            />
+                                            <span>{plan}</span>
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </div>

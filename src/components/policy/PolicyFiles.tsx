@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Upload, FileText, Loader2, Download, Eye, AlertCircle, CheckCircle, XCircle, ChevronDown } from 'lucide-react';
+import { Upload, FileText, Loader2, Download, Eye, AlertCircle, CheckCircle, XCircle, ChevronDown, CheckCircle2, Clock, RotateCcw, ShieldCheck } from 'lucide-react';
 import {
     fetchDecPageFilesByPolicyId,
     getDecPageFileDownloadUrl,
@@ -10,13 +10,18 @@ import {
     getPlatformDocDownloadUrl,
     PlatformDocumentInfo,
     PlatformDocType,
+    fetchDecPagesForPolicy,
+    approveDecPage,
+    DecPageSummary,
 } from '@/lib/api';
 import { supabase } from '@/lib/supabaseClient';
+import { insertActivityEvent } from '@/lib/notes';
 import { useToast } from '@/components/ui/Toast/Toast';
 import styles from './PolicyFiles.module.css';
 
 interface PolicyFilesProps {
     policyId: string;
+    onDecPageApproved?: () => void;
 }
 
 function formatFileSize(bytes: number | null): string {
@@ -40,23 +45,23 @@ function formatDate(dateStr: string): string {
 
 function getParseStatusBadge(status: string | null): { label: string; color: string; icon: React.ReactNode } {
     switch (status) {
-        case 'parsed': return { label: 'Complete', color: '#10b981', icon: <CheckCircle size={12} /> };
-        case 'needs_review': return { label: 'Needs Review', color: '#f59e0b', icon: <AlertCircle size={12} /> };
-        case 'failed': return { label: 'Failed', color: '#ef4444', icon: <XCircle size={12} /> };
-        case 'processing': return { label: 'Processing', color: '#6366f1', icon: <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> };
-        case 'queued': return { label: 'Queued', color: '#8b5cf6', icon: <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> };
-        default: return { label: 'Processing', color: '#6b7280', icon: <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> };
+        case 'parsed': return { label: 'Complete', color: 'var(--status-success)', icon: <CheckCircle size={12} /> };
+        case 'needs_review': return { label: 'Needs Review', color: 'var(--status-warning)', icon: <AlertCircle size={12} /> };
+        case 'failed': return { label: 'Failed', color: 'var(--status-error)', icon: <XCircle size={12} /> };
+        case 'processing': return { label: 'Processing', color: 'var(--accent-secondary, #6366f1)', icon: <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> };
+        case 'queued': return { label: 'Queued', color: 'var(--accent-secondary, #8b5cf6)', icon: <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> };
+        default: return { label: 'Processing', color: 'var(--text-muted)', icon: <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> };
     }
 }
 
-const DOC_TYPE_LABELS: Record<string, { label: string; color: string }> = {
-    dec_page: { label: 'DEC PAGE', color: '#3b82f6' },
-    rce: { label: 'RCE', color: '#10b981' },
-    dic_dec_page: { label: 'DIC', color: '#f97316' },
-    invoice: { label: 'INVOICE', color: '#8b5cf6' },
-    inspection: { label: 'INSPECTION', color: '#ec4899' },
-    endorsement: { label: 'ENDORSEMENT', color: '#06b6d4' },
-    questionnaire: { label: 'QUESTIONNAIRE', color: '#84cc16' },
+const DOC_TYPE_LABELS: Record<string, { label: string; color: string; groupLabel: string }> = {
+    dec_page: { label: 'DEC PAGE', color: '#3b82f6', groupLabel: 'Declaration Pages' },
+    rce: { label: 'RCE', color: '#10b981', groupLabel: 'RCE Documents' },
+    dic_dec_page: { label: 'DIC', color: '#f97316', groupLabel: 'DIC Documents' },
+    invoice: { label: 'INVOICE', color: '#8b5cf6', groupLabel: 'Invoices' },
+    inspection: { label: 'INSPECTION', color: '#ec4899', groupLabel: 'Inspections' },
+    endorsement: { label: 'ENDORSEMENT', color: '#06b6d4', groupLabel: 'Endorsements' },
+    questionnaire: { label: 'QUESTIONNAIRE', color: '#84cc16', groupLabel: 'Questionnaires' },
 };
 
 type UploadDocType = 'dec_page' | PlatformDocType;
@@ -76,26 +81,30 @@ interface UnifiedFile {
     bucket?: string;
 }
 
-export function PolicyFiles({ policyId }: PolicyFilesProps) {
+export function PolicyFiles({ policyId, onDecPageApproved }: PolicyFilesProps) {
     const [decFiles, setDecFiles] = useState<DecPageFileInfo[]>([]);
     const [platformDocs, setPlatformDocs] = useState<PlatformDocumentInfo[]>([]);
+    const [decPages, setDecPages] = useState<DecPageSummary[]>([]);
     const [loading, setLoading] = useState(true);
-    const [downloadingId, setDownloadingId] = useState<string | null>(null);
+    const [actionId, setActionId] = useState<string | null>(null);
     const [isDragOver, setIsDragOver] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadDocType, setUploadDocType] = useState<UploadDocType>('dec_page');
     const [showTypeSelector, setShowTypeSelector] = useState(false);
+    const [approvingId, setApprovingId] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const toast = useToast();
 
     const loadFiles = useCallback(async () => {
         try {
-            const [decData, platformData] = await Promise.all([
+            const [decData, platformData, decPageData] = await Promise.all([
                 fetchDecPageFilesByPolicyId(policyId),
                 fetchPlatformDocumentsByPolicyId(policyId),
+                fetchDecPagesForPolicy(policyId),
             ]);
             setDecFiles(decData);
             setPlatformDocs(platformData);
+            setDecPages(decPageData);
         } catch (err) {
             console.error('Failed to fetch policy files:', err);
         } finally {
@@ -112,6 +121,13 @@ export function PolicyFiles({ policyId }: PolicyFilesProps) {
         window.addEventListener('decPageParsed', handleDecPageParsed);
         return () => window.removeEventListener('decPageParsed', handleDecPageParsed);
     }, [loadFiles]);
+
+    // Build dec page review status map (dec_page_id -> review_status)
+    const decPageReviewMap = new Map<string, DecPageSummary>();
+    decPages.forEach(dp => {
+        // Match by policy_number or created_at proximity
+        decPageReviewMap.set(dp.id, dp);
+    });
 
     // Unify files into a single sorted list
     const allFiles: UnifiedFile[] = [
@@ -140,6 +156,21 @@ export function PolicyFiles({ policyId }: PolicyFilesProps) {
             bucket: 'cfp-platform-documents',
         })),
     ].sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime());
+
+    // Group files by doc_type
+    const groupOrder = ['dec_page', 'dic_dec_page', 'rce', 'invoice', 'inspection', 'endorsement', 'questionnaire'];
+    const grouped = new Map<string, UnifiedFile[]>();
+    allFiles.forEach(f => {
+        const key = f.doc_type;
+        if (!grouped.has(key)) grouped.set(key, []);
+        grouped.get(key)!.push(f);
+    });
+    // Sort groups by defined order, then any remaining
+    const sortedGroupKeys = [...grouped.keys()].sort((a, b) => {
+        const ai = groupOrder.indexOf(a);
+        const bi = groupOrder.indexOf(b);
+        return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    });
 
     // ── Dec page upload (existing pipeline, untouched) ──
     const handleDecPageUpload = useCallback(async (file: File) => {
@@ -280,10 +311,10 @@ export function PolicyFiles({ policyId }: PolicyFilesProps) {
         }
     }, [handleUploadFile]);
 
-    // ── Download / Preview (route to correct bucket) ──
-    const handleFileAction = useCallback(async (file: UnifiedFile) => {
+    // ── View: opens signed URL in a new tab ──
+    const handleView = useCallback(async (file: UnifiedFile) => {
         if (!file.storage_path) return;
-        setDownloadingId(file.id);
+        setActionId(file.id + '_view');
         try {
             let url: string | null = null;
             if (file.source === 'dec_page') {
@@ -293,13 +324,84 @@ export function PolicyFiles({ policyId }: PolicyFilesProps) {
             }
             if (url) {
                 window.open(url, '_blank');
+            } else {
+                toast.error('Could not generate preview link.');
             }
         } catch (err) {
-            console.error('File action failed:', err);
+            console.error('View failed:', err);
+            toast.error('Failed to open file.');
         } finally {
-            setDownloadingId(null);
+            setActionId(null);
         }
-    }, []);
+    }, [toast]);
+
+    // ── Download: forces an actual file download ──
+    const handleDownload = useCallback(async (file: UnifiedFile) => {
+        if (!file.storage_path) return;
+        setActionId(file.id + '_dl');
+        try {
+            let url: string | null = null;
+            if (file.source === 'dec_page') {
+                url = await getDecPageFileDownloadUrl(file.storage_path);
+            } else {
+                url = await getPlatformDocDownloadUrl(file.storage_path, file.bucket);
+            }
+            if (url) {
+                // Force download via a hidden anchor with download attribute
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = file.file_name || 'document.pdf';
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => document.body.removeChild(a), 100);
+            } else {
+                toast.error('Could not generate download link.');
+            }
+        } catch (err) {
+            console.error('Download failed:', err);
+            toast.error('Failed to download file.');
+        } finally {
+            setActionId(null);
+        }
+    }, [toast]);
+
+    // ── Dec Page Approval (inline) ──
+    const handleApproveDecPage = useCallback(async (decPageId: string) => {
+        const confirmed = window.confirm(
+            'Approving this dec page will:\n\n' +
+            '• Overwrite the current policy term with this dec page\'s coverage data\n' +
+            '• Mark any previously approved dec page as "Superseded"\n' +
+            '• This becomes the source of truth for the Policy Review tab\n\n' +
+            'Continue?'
+        );
+        if (!confirmed) return;
+
+        setApprovingId(decPageId);
+        try {
+            const ok = await approveDecPage(decPageId, policyId);
+            if (ok) {
+                toast.success('Dec page approved — policy data updated');
+                const dp = decPages.find(d => d.id === decPageId);
+                await insertActivityEvent({
+                    event_type: 'dec.approved',
+                    title: 'Dec page approved',
+                    detail: dp?.policy_number ? `Policy #${dp.policy_number}` : undefined,
+                    policy_id: policyId,
+                    meta: { dec_page_id: decPageId },
+                });
+                await loadFiles();
+                onDecPageApproved?.();
+            } else {
+                toast.error('Failed to approve — check permissions');
+            }
+        } catch {
+            toast.error('Error approving dec page');
+        } finally {
+            setApprovingId(null);
+        }
+    }, [policyId, decPages, toast, loadFiles, onDecPageApproved]);
 
     if (loading) {
         return (
@@ -314,49 +416,50 @@ export function PolicyFiles({ policyId }: PolicyFilesProps) {
 
     const selectedTypeLabel = DOC_TYPE_LABELS[uploadDocType]?.label || 'DEC PAGE';
 
+    // Find dec page review status for a file
+    const getDecPageReview = (file: UnifiedFile): DecPageSummary | undefined => {
+        if (file.source !== 'dec_page') return undefined;
+        // Match by ID — dec_pages and dec_page_files share the same ID root
+        return decPages.find(dp => dp.id === file.id);
+    };
+
+    const REVIEW_STATUS_CONFIG: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
+        approved: { icon: <CheckCircle2 size={12} />, label: 'Approved', color: 'var(--status-success)' },
+        pending: { icon: <Clock size={12} />, label: 'Pending Review', color: 'var(--status-warning)' },
+        rejected: { icon: <XCircle size={12} />, label: 'Rejected', color: 'var(--status-error)' },
+        superseded: { icon: <RotateCcw size={12} />, label: 'Superseded', color: 'var(--text-muted)' },
+    };
+
     return (
         <div className={styles.container}>
             {/* ── Upload Zone with Doc Type Selector ── */}
             <div className={styles.uploadSection}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                <div className={styles.uploadHeader}>
                     <h3 className={styles.sectionTitle} style={{ marginBottom: 0 }}>Upload Document</h3>
                     <div style={{ position: 'relative' }}>
                         <button
                             onClick={() => setShowTypeSelector(!showTypeSelector)}
+                            className={styles.typeSelectBtn}
                             style={{
-                                display: 'flex', alignItems: 'center', gap: '0.35rem',
-                                padding: '0.35rem 0.75rem', borderRadius: '0.5rem',
-                                background: `${DOC_TYPE_LABELS[uploadDocType]?.color || '#3b82f6'}18`,
-                                color: DOC_TYPE_LABELS[uploadDocType]?.color || '#3b82f6',
-                                border: `1px solid ${DOC_TYPE_LABELS[uploadDocType]?.color || '#3b82f6'}40`,
-                                fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
-                                letterSpacing: '0.03em',
-                            }}
+                                '--type-color': DOC_TYPE_LABELS[uploadDocType]?.color || '#3b82f6',
+                            } as React.CSSProperties}
                         >
                             {selectedTypeLabel}
                             <ChevronDown size={14} />
                         </button>
                         {showTypeSelector && (
-                            <div style={{
-                                position: 'absolute', right: 0, top: '100%', marginTop: '0.25rem',
-                                background: 'var(--card-bg, #1e1e2e)', border: '1px solid var(--border-color, #333)',
-                                borderRadius: '0.5rem', overflow: 'hidden', zIndex: 50,
-                                minWidth: '10rem', boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-                            }}>
+                            <div className={styles.typeDropdown}>
                                 {Object.entries(DOC_TYPE_LABELS).filter(([key]) =>
                                     ['dec_page', 'rce', 'dic_dec_page'].includes(key)
                                 ).map(([key, { label, color }]) => (
                                     <button
                                         key={key}
                                         onClick={() => { setUploadDocType(key as UploadDocType); setShowTypeSelector(false); }}
-                                        style={{
-                                            display: 'block', width: '100%', padding: '0.5rem 0.75rem',
-                                            border: 'none', background: uploadDocType === key ? `${color}15` : 'transparent',
-                                            color: uploadDocType === key ? color : 'var(--text-secondary, #999)',
-                                            textAlign: 'left', cursor: 'pointer', fontSize: '0.8rem',
-                                            fontWeight: uploadDocType === key ? 600 : 400,
-                                        }}
+                                        className={styles.typeDropdownItem}
+                                        data-active={uploadDocType === key || undefined}
+                                        style={{ '--type-color': color } as React.CSSProperties}
                                     >
+                                        <span className={styles.typeDropdownDot} style={{ background: color }} />
                                         {label}
                                     </button>
                                 ))}
@@ -403,7 +506,7 @@ export function PolicyFiles({ policyId }: PolicyFilesProps) {
                 </div>
             </div>
 
-            {/* ── Unified Files List ── */}
+            {/* ── Files List — Grouped by Document Type ── */}
             <div className={styles.filesSection}>
                 <h3 className={styles.sectionTitle}>
                     Policy Documents
@@ -412,98 +515,135 @@ export function PolicyFiles({ policyId }: PolicyFilesProps) {
 
                 {allFiles.length === 0 ? (
                     <div className={styles.emptyState}>
-                        <AlertCircle className={styles.emptyIcon} />
+                        <FileText className={styles.emptyIcon} />
                         <p>No documents linked to this policy yet.</p>
                         <p className={styles.emptyHint}>
                             Drag & drop a PDF above to start processing.
                         </p>
                     </div>
                 ) : (
-                    <div className={styles.fileList}>
-                        {allFiles.map(file => {
-                            const parseStatus = getParseStatusBadge(file.parse_status);
-                            const docTypeInfo = DOC_TYPE_LABELS[file.doc_type] || { label: file.doc_type.toUpperCase(), color: '#6b7280' };
+                    <div className={styles.fileGroups}>
+                        {sortedGroupKeys.map(groupKey => {
+                            const files = grouped.get(groupKey)!;
+                            const typeInfo = DOC_TYPE_LABELS[groupKey] || { label: groupKey.toUpperCase(), color: 'var(--text-muted)', groupLabel: groupKey };
                             return (
-                                <div key={`${file.source}-${file.id}`} className={styles.fileItem}>
-                                    <div className={styles.fileInfo}>
-                                        <FileText className={styles.fileIcon} />
-                                        <div>
-                                            <div className={styles.fileName} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                <span
-                                                    style={{
-                                                        fontSize: '0.65rem',
-                                                        fontWeight: 700,
-                                                        letterSpacing: '0.05em',
-                                                        padding: '0.15rem 0.4rem',
-                                                        borderRadius: '0.25rem',
-                                                        backgroundColor: `${docTypeInfo.color}20`,
-                                                        color: docTypeInfo.color,
-                                                        flexShrink: 0,
-                                                    }}
-                                                >
-                                                    {docTypeInfo.label}
-                                                </span>
-                                                {file.file_name || 'Document'}
-                                            </div>
-                                            <div className={styles.fileMeta}>
-                                                <span
-                                                    className={styles.statusBadge}
-                                                    style={{
-                                                        backgroundColor: `${parseStatus.color}18`,
-                                                        color: parseStatus.color,
-                                                    }}
-                                                >
-                                                    {parseStatus.icon}
-                                                    <span style={{ marginLeft: '0.25rem' }}>{parseStatus.label}</span>
-                                                </span>
-                                                {file.processing_step && file.parse_status === 'processing' && (
-                                                    <span style={{ fontSize: '0.7rem', color: '#6366f1' }}>
-                                                        {file.processing_step.replace(/_/g, ' ')}
-                                                    </span>
-                                                )}
-                                                {file.match_status === 'needs_review' && (
-                                                    <span style={{
-                                                        fontSize: '0.65rem', padding: '0.1rem 0.3rem',
-                                                        borderRadius: '0.2rem', backgroundColor: '#f59e0b18',
-                                                        color: '#f59e0b', fontWeight: 600,
-                                                    }}>
-                                                        Review Required
-                                                    </span>
-                                                )}
-                                                <span>{formatFileSize(file.file_size)}</span>
-                                                <span>{formatDate(file.uploaded_at)}</span>
-                                            </div>
-                                            {file.error_message && file.parse_status !== 'parsed' && (
-                                                <div style={{
-                                                    fontSize: '0.7rem', color: '#ef4444', marginTop: '0.25rem',
-                                                    padding: '0.25rem 0.5rem', background: '#ef444410',
-                                                    borderRadius: '0.3rem', lineHeight: 1.4,
-                                                }}>
-                                                    {file.error_message}
-                                                </div>
-                                            )}
-                                        </div>
+                                <div key={groupKey} className={styles.fileGroup}>
+                                    <div className={styles.fileGroupHeader}>
+                                        <span
+                                            className={styles.fileGroupDot}
+                                            style={{ background: typeInfo.color }}
+                                        />
+                                        <span className={styles.fileGroupTitle}>{typeInfo.groupLabel}</span>
+                                        <span className={styles.fileGroupCount}>{files.length}</span>
                                     </div>
-                                    <div className={styles.fileActions}>
-                                        <button
-                                            className={styles.iconButton}
-                                            title="Preview"
-                                            onClick={() => handleFileAction(file)}
-                                            disabled={!file.storage_path || downloadingId === file.id}
-                                        >
-                                            {downloadingId === file.id
-                                                ? <Loader2 size={16} className={styles.spinnerSmall} />
-                                                : <Eye size={16} />
-                                            }
-                                        </button>
-                                        <button
-                                            className={styles.iconButton}
-                                            title="Download"
-                                            onClick={() => handleFileAction(file)}
-                                            disabled={!file.storage_path || downloadingId === file.id}
-                                        >
-                                            <Download size={16} />
-                                        </button>
+                                    <div className={styles.fileList}>
+                                        {files.map(file => {
+                                            const parseStatus = getParseStatusBadge(file.parse_status);
+                                            const docTypeInfo = DOC_TYPE_LABELS[file.doc_type] || { label: file.doc_type.toUpperCase(), color: 'var(--text-muted)' };
+                                            const decPageReview = getDecPageReview(file);
+
+                                            return (
+                                                <div key={`${file.source}-${file.id}`} className={styles.fileItem}>
+                                                    <div className={styles.fileInfo}>
+                                                        <div className={styles.fileIconWrap} style={{ '--doc-color': docTypeInfo.color } as React.CSSProperties}>
+                                                            <FileText size={18} />
+                                                        </div>
+                                                        <div className={styles.fileDetails}>
+                                                            <div className={styles.fileName}>
+                                                                <span
+                                                                    className={styles.docTypeBadge}
+                                                                    style={{
+                                                                        backgroundColor: `${docTypeInfo.color}18`,
+                                                                        color: docTypeInfo.color,
+                                                                        borderColor: `${docTypeInfo.color}30`,
+                                                                    }}
+                                                                >
+                                                                    {docTypeInfo.label}
+                                                                </span>
+                                                                <span className={styles.fileNameText}>{file.file_name || 'Document'}</span>
+                                                            </div>
+                                                            <div className={styles.fileMeta}>
+                                                                <span
+                                                                    className={styles.statusBadge}
+                                                                    style={{
+                                                                        backgroundColor: `color-mix(in srgb, ${parseStatus.color} 12%, transparent)`,
+                                                                        color: parseStatus.color,
+                                                                    }}
+                                                                >
+                                                                    {parseStatus.icon}
+                                                                    <span>{parseStatus.label}</span>
+                                                                </span>
+                                                                {file.processing_step && file.parse_status === 'processing' && (
+                                                                    <span className={styles.processingStep}>
+                                                                        {file.processing_step.replace(/_/g, ' ')}
+                                                                    </span>
+                                                                )}
+                                                                {/* Dec page review status */}
+                                                                {decPageReview && (
+                                                                    <span
+                                                                        className={styles.statusBadge}
+                                                                        style={{
+                                                                            backgroundColor: `color-mix(in srgb, ${REVIEW_STATUS_CONFIG[decPageReview.review_status]?.color || 'var(--text-muted)'} 12%, transparent)`,
+                                                                            color: REVIEW_STATUS_CONFIG[decPageReview.review_status]?.color || 'var(--text-muted)',
+                                                                        }}
+                                                                    >
+                                                                        {REVIEW_STATUS_CONFIG[decPageReview.review_status]?.icon}
+                                                                        <span>{REVIEW_STATUS_CONFIG[decPageReview.review_status]?.label || 'Unknown'}</span>
+                                                                    </span>
+                                                                )}
+                                                                <span>{formatFileSize(file.file_size)}</span>
+                                                                <span>{formatDate(file.uploaded_at)}</span>
+                                                            </div>
+                                                            {file.error_message && file.parse_status !== 'parsed' && (
+                                                                <div className={styles.errorMessage}>
+                                                                    {file.error_message}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className={styles.fileActions}>
+                                                        {/* Inline approve for pending dec pages */}
+                                                        {decPageReview && (decPageReview.review_status === 'pending' || decPageReview.review_status === 'superseded') && (
+                                                            <button
+                                                                className={styles.approveBtn}
+                                                                onClick={() => handleApproveDecPage(decPageReview.id)}
+                                                                disabled={approvingId === decPageReview.id}
+                                                                title={decPageReview.review_status === 'pending' ? 'Approve this dec page' : 'Re-approve this dec page'}
+                                                            >
+                                                                {approvingId === decPageReview.id ? (
+                                                                    <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                                                                ) : (
+                                                                    <CheckCircle2 size={14} />
+                                                                )}
+                                                                <span>{decPageReview.review_status === 'pending' ? 'Approve' : 'Re-approve'}</span>
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            className={styles.actionBtn}
+                                                            title="View in new tab"
+                                                            onClick={() => handleView(file)}
+                                                            disabled={!file.storage_path || actionId === file.id + '_view'}
+                                                        >
+                                                            {actionId === file.id + '_view'
+                                                                ? <Loader2 size={16} className={styles.spinnerSmall} />
+                                                                : <Eye size={16} />
+                                                            }
+                                                        </button>
+                                                        <button
+                                                            className={styles.actionBtn}
+                                                            title="Download file"
+                                                            onClick={() => handleDownload(file)}
+                                                            disabled={!file.storage_path || actionId === file.id + '_dl'}
+                                                        >
+                                                            {actionId === file.id + '_dl'
+                                                                ? <Loader2 size={16} className={styles.spinnerSmall} />
+                                                                : <Download size={16} />
+                                                            }
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             );

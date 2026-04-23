@@ -72,8 +72,14 @@ def upsert_client(
 
 def upsert_policy(client_id: str, account_id: str, policy_number: str, property_address: str | None) -> str:
     """
-    Upsert a policy by policy_number + normalized property_address.
+    Upsert a policy by policy_number.
     Returns policy.id
+    
+    Matching strategy (ordered):
+        1. Exact match on policy_number + property_address_norm
+        2. Fallback: match on policy_number alone (handles address variations
+           or NULL vs non-NULL addresses that would otherwise cause a unique
+           constraint violation on the policies.policy_number column)
     """
     if not policy_number:
         raise ValueError("policy_number is required to upsert policy")
@@ -82,46 +88,51 @@ def upsert_policy(client_id: str, account_id: str, policy_number: str, property_
     now_iso = datetime.now(timezone.utc).isoformat()
     norm_address = normalize_address(property_address)
 
-    # Note: policy uniqueness is usually by policy_number and carrier, but for MVP
-    # we use policy_number + property_address_norm as per the NextJS implementation logic.
-    query = sb.table("policies").select("id").eq("policy_number", policy_number)
-    
-    # We must match normalized address exactly as well, or if empty, just check policy_number
-    # It's cleaner to query just by policy_number and filter in Python for now.
-    existing_result = query.execute()
-    
-    found_id = None
-    if existing_result.data:
-        for row in existing_result.data:
-            # We need to fetch full row to check norm address if multiple
-            # For robustness, we can just do a multi-field DB query:
-            pass
-            
-    # Refined DB query:
-    existing_query = sb.table("policies").select("id").eq("policy_number", policy_number)
-    if norm_address:
-         existing_query = existing_query.eq("property_address_norm", norm_address)
-    else:
-         existing_query = existing_query.is_("property_address_norm", "null")
-         
-    existing = existing_query.limit(1).execute()
-
     payload = {
         "client_id": client_id,
         "created_by_account_id": account_id,
         "policy_number": policy_number,
         "property_address_raw": property_address,
         "property_address_norm": norm_address,
-        "carrier_name": "California FAIR Plan", # Hardcoding for FAIR Plan MVP
-        "updated_at": now_iso
+        "carrier_name": "California FAIR Plan",  # Hardcoding for FAIR Plan MVP
+        "updated_at": now_iso,
     }
 
-    if existing.data:
-        policy_id = existing.data[0]["id"]
+    # Strategy 1: Exact match on policy_number + property_address_norm
+    exact_query = sb.table("policies").select("id").eq("policy_number", policy_number)
+    if norm_address:
+        exact_query = exact_query.eq("property_address_norm", norm_address)
+    else:
+        exact_query = exact_query.is_("property_address_norm", "null")
+
+    exact = exact_query.limit(1).execute()
+
+    if exact.data:
+        policy_id = exact.data[0]["id"]
         sb.table("policies").update(payload).eq("id", policy_id).execute()
         return policy_id
 
-    # Insert
+    # Strategy 2: Fallback — match by policy_number alone
+    # This catches cases where the same policy was previously ingested
+    # with a different or NULL property address.
+    fallback = (
+        sb.table("policies")
+        .select("id")
+        .eq("policy_number", policy_number)
+        .limit(1)
+        .execute()
+    )
+
+    if fallback.data:
+        policy_id = fallback.data[0]["id"]
+        logger.info(
+            "Policy %s matched by number (address mismatch: existing vs '%s') — updating",
+            policy_number, norm_address,
+        )
+        sb.table("policies").update(payload).eq("id", policy_id).execute()
+        return policy_id
+
+    # No match at all — insert new policy
     result = sb.table("policies").insert(payload).execute()
     if not result.data:
         raise RuntimeError(f"Failed to insert policy {policy_number}")
