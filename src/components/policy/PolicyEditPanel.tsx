@@ -411,12 +411,9 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
                                             onChange={(e) => setTermForm(f => ({ ...f, payment_status: e.target.value }))}
                                         >
                                             <option value="">— Select —</option>
-                                            <option value="Paid in Full">Paid in Full</option>
-                                            <option value="Current">Current</option>
-                                            <option value="Outstanding">Outstanding</option>
-                                            <option value="Past Due">Past Due</option>
-                                            <option value="Cancelled">Cancelled</option>
-                                            <option value="Refund Issued">Refund Issued</option>
+                                            <option value="Paid in full">Paid in full</option>
+                                            <option value="11-pay">11-pay</option>
+                                            <option value="3-pay">3-pay</option>
                                         </select>
                                     </div>
                                 </div>
@@ -429,13 +426,8 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
                                             onChange={(e) => setTermForm(f => ({ ...f, payment_plan: e.target.value }))}
                                         >
                                             <option value="">— Select —</option>
-                                            <option value="Pay in Full">Pay in Full</option>
-                                            <option value="Annual">Annual</option>
-                                            <option value="Semi-Annual">Semi-Annual</option>
-                                            <option value="Quarterly">Quarterly</option>
-                                            <option value="Monthly">Monthly</option>
-                                            <option value="10-Pay">10-Pay</option>
-                                            <option value="Mortgagee Billed">Mortgagee Billed</option>
+                                            <option value="3 Pay">3 Pay</option>
+                                            <option value="11 Pay">11 Pay</option>
                                         </select>
                                     </div>
                                     <div className={styles.field}>
