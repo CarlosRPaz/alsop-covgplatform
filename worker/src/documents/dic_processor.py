@@ -186,7 +186,27 @@ class DICProcessor(DocumentProcessor):
             "reason": "DIC carrier coverages are stored separately and do not overwrite FAIR Plan policy data",
             "timestamp": now_iso,
         })
-
+        # Update policy_terms to flag that a DIC exists
+        if policy_term_id:
+            try:
+                sb.table("policy_terms").update({
+                    "dic_exists": True,
+                    "updated_at": now_iso
+                }).eq("id", policy_term_id).execute()
+                log.append({
+                    "action": "written",
+                    "target": "policy_terms.dic_exists",
+                    "value": "True",
+                    "reason": "DIC document attached",
+                    "timestamp": now_iso,
+                })
+            except Exception as e:
+                log.append({
+                    "action": "error",
+                    "target": "policy_terms.dic_exists",
+                    "error": str(e),
+                    "timestamp": now_iso,
+                })
         # If the DIC dec page has embedded 360Value data, write as enrichments
         # but ONLY if no existing RCE enrichments exist for this policy
         rce_replacement = extracted.get("rce_replacement_cost")

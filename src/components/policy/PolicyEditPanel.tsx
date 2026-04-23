@@ -397,11 +397,15 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
                                 <div className={styles.fieldGroup}>
                                     <div className={styles.field}>
                                         <label className={styles.fieldLabel}>Carrier Status</label>
-                                        <input
-                                            className={styles.fieldInput}
+                                        <select
+                                            className={styles.fieldSelect}
                                             value={termForm.carrier_status}
                                             onChange={(e) => setTermForm(f => ({ ...f, carrier_status: e.target.value }))}
-                                        />
+                                        >
+                                            <option value="">— Select —</option>
+                                            <option value="InForce">InForce</option>
+                                            <option value="Cancelled">Cancelled</option>
+                                        </select>
                                     </div>
                                     <div className={styles.field}>
                                         <label className={styles.fieldLabel}>Payment Status</label>
