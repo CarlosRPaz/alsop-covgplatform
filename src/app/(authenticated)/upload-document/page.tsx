@@ -110,6 +110,9 @@ export default function UploadDocumentPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [autoRecommendations, setAutoRecommendations] = useState<any[]>([]);
+    const [autoSearchDone, setAutoSearchDone] = useState(false);
+    const autoSearchRanRef = useRef(false);
 
     // Clean up on unmount
     useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
@@ -252,7 +255,60 @@ export default function UploadDocumentPage() {
     const handleDrop = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); if (e.dataTransfer.files?.[0]) handleUpload(e.dataTransfer.files[0]); };
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files?.[0]) handleUpload(e.target.files[0]); };
 
-    /* ── Manual Assign ────────────────────────────────────────────────── */
+    /* ── Auto-Recommend on no_match ────────────────────────────────────── */
+
+    useEffect(() => {
+        if (!docStatus || autoSearchRanRef.current) return;
+        const isNR = docStatus.parse_status === 'needs_review' || docStatus.match_status === 'no_match' || docStatus.match_status === 'needs_review';
+        if (!isNR || !docStatus.extracted_owner_name) return;
+
+        autoSearchRanRef.current = true;
+        (async () => {
+            try {
+                // Extract last name (first word for trust, last word for individuals)
+                const name = docStatus.extracted_owner_name!;
+                const words = name.replace(/[^a-zA-Z\s-]/g, '').split(/\s+/).filter(Boolean);
+                // Try last name first (last word), then first word if it looks like LAST, FIRST format
+                const searchTerms = words.length > 1 ? [words[words.length - 1], words[0]] : [words[0]];
+
+                const allResults: any[] = [];
+                const seenIds = new Set<string>();
+
+                for (const term of searchTerms) {
+                    if (term.length < 2) continue;
+                    const { data } = await supabase
+                        .from('policies')
+                        .select(`
+                            id,
+                            policy_number,
+                            property_address_raw,
+                            carrier_name,
+                            client_id,
+                            clients!inner (
+                                id,
+                                named_insured
+                            )
+                        `)
+                        .ilike('clients.named_insured', `%${term}%`)
+                        .limit(8);
+
+                    if (data) {
+                        for (const row of data) {
+                            if (!seenIds.has(row.id)) {
+                                seenIds.add(row.id);
+                                allResults.push(row);
+                            }
+                        }
+                    }
+                }
+
+                setAutoRecommendations(allResults.slice(0, 8));
+            } catch { /* best effort */ }
+            setAutoSearchDone(true);
+        })();
+    }, [docStatus]);
+
+    /* ── Manual Search ────────────────────────────────────────────────── */
 
     const handleSearchPolicies = async () => {
         if (!searchQuery.trim()) return;
@@ -264,10 +320,15 @@ export default function UploadDocumentPage() {
                     id,
                     policy_number,
                     property_address_raw,
-                    clients!inner (named_insured)
+                    carrier_name,
+                    client_id,
+                    clients!inner (
+                        id,
+                        named_insured
+                    )
                 `)
                 .or(`policy_number.ilike.%${searchQuery}%,property_address_raw.ilike.%${searchQuery}%,clients.named_insured.ilike.%${searchQuery}%`)
-                .limit(5);
+                .limit(8);
             setSearchResults(data || []);
         } catch {
             setSearchResults([]);
@@ -275,6 +336,8 @@ export default function UploadDocumentPage() {
             setIsSearching(false);
         }
     };
+
+    /* ── Assign Handler ───────────────────────────────────────────────── */
 
     const handleAssign = async (policyId: string) => {
         if (!documentId) return;
@@ -291,11 +354,14 @@ export default function UploadDocumentPage() {
                 body: JSON.stringify({ documentId, policyId }),
             });
             if (res.ok) {
-                // Re-start pipeline tracker!
                 setSearchQuery('');
                 setSearchResults([]);
+                setAutoRecommendations([]);
+                setAutoSearchDone(false);
+                autoSearchRanRef.current = false;
                 setIsAssigning(false);
                 setDocStatus(null);
+                setIsDuplicate(false);
                 startPolling(documentId);
             } else {
                 setUploadError('Failed to assign document. Please try again.');
@@ -673,50 +739,85 @@ export default function UploadDocumentPage() {
                                 </Button>
                             </div>
 
-                            {/* Manual Assignment UI (for no_match or needs_review) */}
+                            {/* ═══ Assignment Panel ═══ */}
                             {needsReview && (
-                                <div style={{ marginTop: '1.5rem', padding: '1.25rem', borderRadius: '0.5rem', border: '1px solid var(--border-default)', background: 'var(--bg-surface-raised)' }}>
-                                    <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-high)', marginBottom: '0.5rem' }}>Assign Document Manually</h4>
-                                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '1rem', lineHeight: 1.5 }}>
-                                        Search for an existing policy by client name or address to override the automatic matching. If this is a completely new client, please create them on the dashboard first.
-                                    </p>
-                                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                                        <input
-                                            type="text"
-                                            placeholder="Search by client name, address, or policy number..."
-                                            value={searchQuery}
-                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-                                            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleSearchPolicies()}
-                                            style={{
-                                                flex: 1, padding: '0.5rem 0.75rem', borderRadius: '0.375rem',
-                                                border: '1px solid var(--border-default)', background: 'var(--bg-surface)',
-                                                color: 'var(--text-high)', fontSize: '0.82rem'
-                                            }}
-                                        />
-                                        <Button variant="secondary" onClick={handleSearchPolicies} disabled={isSearching}>
-                                            {isSearching ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Search size={16} />}
-                                            <span style={{ marginLeft: 6 }}>Search</span>
-                                        </Button>
+                                <div style={{ marginTop: '1.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-default)', overflow: 'hidden' }}>
+                                    {/* Panel Header */}
+                                    <div style={{ padding: '1rem 1.25rem', background: 'var(--bg-surface-raised)', borderBottom: '1px solid var(--border-default)' }}>
+                                        <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-high)', marginBottom: '0.25rem' }}>
+                                            🔍 Assign to Policy
+                                        </h4>
+                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                                            Review the recommendations below, or search manually. Click a policy number to inspect it in a new tab before assigning.
+                                        </p>
                                     </div>
-                                    
-                                    {searchResults.length > 0 && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                            <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>
-                                                Select a Policy
-                                            </div>
-                                            {searchResults.map(p => (
-                                                <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-default)', background: 'var(--bg-surface)' }}>
-                                                    <div>
-                                                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-high)' }}>{p.clients?.named_insured}</div>
-                                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-mid)', marginTop: '0.1rem' }}>{p.property_address_raw || 'No address'} • {p.policy_number}</div>
-                                                    </div>
-                                                    <Button size="sm" variant="primary" disabled={isAssigning} onClick={() => handleAssign(p.id)}>
-                                                        {isAssigning ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : 'Assign'}
-                                                    </Button>
+
+                                    <div style={{ padding: '1.25rem' }}>
+                                        {/* ── Auto Recommendations ── */}
+                                        {autoRecommendations.length > 0 && (
+                                            <div style={{ marginBottom: '1.25rem' }}>
+                                                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>
+                                                    Possible Matches ({autoRecommendations.length})
                                                 </div>
-                                            ))}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                                    {autoRecommendations.map(p => (
+                                                        <CandidateCard
+                                                            key={p.id}
+                                                            policy={p}
+                                                            docStatus={docStatus}
+                                                            isAssigning={isAssigning}
+                                                            onAssign={() => handleAssign(p.id)}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {autoSearchDone && autoRecommendations.length === 0 && (
+                                            <div style={{ padding: '0.85rem 1rem', borderRadius: '0.5rem', background: '#f59e0b08', border: '1px solid #f59e0b20', marginBottom: '1rem', fontSize: '0.78rem', color: 'var(--text-mid)' }}>
+                                                No automatic matches found for &ldquo;{docStatus?.extracted_owner_name}&rdquo;. Use the search below to find the correct policy.
+                                            </div>
+                                        )}
+
+                                        {/* ── Manual Search ── */}
+                                        <div style={{ borderTop: autoRecommendations.length > 0 ? '1px solid var(--border-default)' : 'none', paddingTop: autoRecommendations.length > 0 ? '1rem' : 0 }}>
+                                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                                                {autoRecommendations.length > 0 ? 'Or Search Manually' : 'Search for a Policy'}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: searchResults.length > 0 ? '0.75rem' : 0 }}>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Client name, address, or policy number..."
+                                                    value={searchQuery}
+                                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                                                    onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleSearchPolicies()}
+                                                    style={{
+                                                        flex: 1, padding: '0.5rem 0.75rem', borderRadius: '0.375rem',
+                                                        border: '1px solid var(--border-default)', background: 'var(--bg-surface)',
+                                                        color: 'var(--text-high)', fontSize: '0.82rem', outline: 'none',
+                                                    }}
+                                                />
+                                                <Button variant="secondary" onClick={handleSearchPolicies} disabled={isSearching}>
+                                                    {isSearching ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Search size={16} />}
+                                                    <span style={{ marginLeft: 6 }}>Search</span>
+                                                </Button>
+                                            </div>
+
+                                            {searchResults.length > 0 && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                                    {searchResults.map(p => (
+                                                        <CandidateCard
+                                                            key={p.id}
+                                                            policy={p}
+                                                            docStatus={docStatus}
+                                                            isAssigning={isAssigning}
+                                                            onAssign={() => handleAssign(p.id)}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -745,4 +846,85 @@ function ReportField({ icon, label, value }: { icon: React.ReactNode; label: str
 
 function formatFieldName(field: string): string {
     return field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/* ── Candidate Comparison Card ────────────────────────────────────── */
+
+function CandidateCard({ policy, docStatus, isAssigning, onAssign }: {
+    policy: any;
+    docStatus: DocumentStatus | null;
+    isAssigning: boolean;
+    onAssign: () => void;
+}) {
+    const clientName = policy.clients?.named_insured || '—';
+    const sysAddress = policy.property_address_raw || 'Not on file';
+    const docName = docStatus?.extracted_owner_name || '—';
+    const docAddress = docStatus?.extracted_address || '—';
+    const clientId = policy.clients?.id || policy.client_id;
+
+    return (
+        <div style={{
+            borderRadius: '0.5rem',
+            border: '1px solid var(--border-default)',
+            background: 'var(--bg-surface)',
+            overflow: 'hidden',
+        }}>
+            {/* Comparison Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', fontSize: '0.75rem' }}>
+                {/* Header row */}
+                <div style={{ padding: '0.5rem 0.75rem', background: '#6366f108', borderBottom: '1px solid var(--border-default)', borderRight: '1px solid var(--border-default)' }}>
+                    <span style={{ fontWeight: 700, color: '#6366f1', fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>From Document</span>
+                </div>
+                <div style={{ padding: '0.5rem 0.75rem', background: 'var(--bg-surface-raised)', borderBottom: '1px solid var(--border-default)' }}>
+                    <span style={{ fontWeight: 700, color: 'var(--accent-primary)', fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>In System</span>
+                </div>
+
+                {/* Name row */}
+                <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border-default)', borderRight: '1px solid var(--border-default)' }}>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '0.15rem' }}>Insured Name</div>
+                    <div style={{ fontWeight: 600, color: 'var(--text-high)' }}>{docName}</div>
+                </div>
+                <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border-default)' }}>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '0.15rem' }}>Named Insured</div>
+                    <div style={{ fontWeight: 600, color: 'var(--text-high)' }}>{clientName}</div>
+                </div>
+
+                {/* Address row */}
+                <div style={{ padding: '0.5rem 0.75rem', borderRight: '1px solid var(--border-default)' }}>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '0.15rem' }}>Property Address</div>
+                    <div style={{ color: 'var(--text-mid)' }}>{docAddress}</div>
+                </div>
+                <div style={{ padding: '0.5rem 0.75rem' }}>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '0.15rem' }}>Property Address</div>
+                    <div style={{ color: 'var(--text-mid)' }}>{sysAddress}</div>
+                </div>
+            </div>
+
+            {/* Action row */}
+            <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '0.6rem 0.75rem',
+                borderTop: '1px solid var(--border-default)',
+                background: 'var(--bg-surface-raised)',
+            }}>
+                <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.72rem' }}>
+                    <a
+                        href={`/policy/${policy.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: 'var(--accent-primary)', textDecoration: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.2rem' }}
+                    >
+                        <Shield size={12} /> {policy.policy_number}
+                        <ExternalLink size={10} style={{ opacity: 0.6 }} />
+                    </a>
+                    {policy.carrier_name && (
+                        <span style={{ color: 'var(--text-muted)' }}>{policy.carrier_name}</span>
+                    )}
+                </div>
+                <Button size="sm" variant="primary" disabled={isAssigning} onClick={onAssign}>
+                    {isAssigning ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : 'Assign to This Policy'}
+                </Button>
+            </div>
+        </div>
+    );
 }
