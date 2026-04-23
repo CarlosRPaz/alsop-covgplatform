@@ -5,43 +5,32 @@ const sb = createClient(
 );
 
 (async () => {
+    const correctPropertyAddr = '2800 Huston Pl, Lancaster, CA 93536';
+    const correctPropertyNorm = '2800 HUSTON PL LANCASTER CA 93536';
+    const correctMailing = '725 S. Figueroa Street, Suite 3900, Los Angeles, CA 90017';
     const now = new Date().toISOString();
 
-    // Requeue the first failed job (reset attempts so it gets picked up)
-    const jobId = 'fc4f6e84-852b-4abf-a519-978b3020d227';
-    const submissionId = 'e5e8eb3a-5ce8-467a-a4cd-f00b56a3520a';
-
-    const { data, error } = await sb.from('ingestion_jobs').update({
-        status: 'queued',
-        attempts: 0,
-        locked_at: null,
-        locked_by: null,
-        run_after: now,
-        last_error: 'Manually requeued after upsert_policy fix',
+    // 1. Fix the policy record
+    const { error: e1 } = await sb.from('policies').update({
+        property_address_raw: correctPropertyAddr,
+        property_address_norm: correctPropertyNorm,
         updated_at: now,
-    }).eq('id', jobId);
-    
-    console.log('REQUEUE JOB:', error ? error.message : 'SUCCESS');
+    }).eq('id', '4bf2ac2c-4a00-454f-9b3f-e1ee9453a9aa');
+    console.log('FIX POLICY:', e1 ? e1.message : 'SUCCESS');
 
-    // Also reset submission status
-    const { error: e2 } = await sb.from('dec_page_submissions').update({
-        status: 'queued',
-        error_message: null,
-        processing_step: 'creating_records',
-        updated_at: now,
-    }).eq('id', submissionId);
-    
-    console.log('RESET SUBMISSION:', e2 ? e2.message : 'SUCCESS');
+    // 2. Fix the dec_page record
+    const { error: e2 } = await sb.from('dec_pages').update({
+        property_location: correctPropertyAddr,
+        mailing_address: correctMailing,
+    }).eq('id', 'b3825e69-8503-44f7-8bb7-9f6d9763a0a2');
+    console.log('FIX DEC_PAGE:', e2 ? e2.message : 'SUCCESS');
 
-    // Mark the second duplicate job as superseded so it doesn't also retry
-    const dupJobId = '447c6fb1-b384-4994-9f47-a75e42f664c1';
-    const { error: e3 } = await sb.from('ingestion_jobs').update({
-        status: 'failed',
-        last_error: 'Superseded — duplicate job for same submission, other job requeued',
+    // 3. Fix the policy_term record
+    const { error: e3 } = await sb.from('policy_terms').update({
+        property_location: correctPropertyAddr,
         updated_at: now,
-    }).eq('id', dupJobId);
-    
-    console.log('SUPERSEDE DUP JOB:', e3 ? e3.message : 'SUCCESS');
+    }).eq('id', 'e1e8f974-e87a-43b3-b3b6-d7b7a7206a6b');
+    console.log('FIX POLICY_TERM:', e3 ? e3.message : 'SUCCESS');
 
     process.exit(0);
 })();

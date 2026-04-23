@@ -290,6 +290,61 @@ NOW PARSE THE TEXT BELOW AND RETURN ONLY VALID JSON:
 ============================================"""
 
 
+def _looks_commercial(addr: str) -> bool:
+    """
+    Return True if addr looks like a commercial/institutional address
+    rather than a residential property location.
+
+    Signals: P.O. Box, suite numbers, floor numbers, high-rise numbers,
+    or known commercial corridors.
+    """
+    upper = addr.upper()
+    commercial_signals = [
+        "SUITE ",
+        "STE ",
+        "STE. ",
+        "P.O. BOX",
+        "PO BOX",
+        "P O BOX",
+        "FLOOR ",
+        "FL ",
+        "DEPT ",
+        "ATTN ",
+        "C/O ",
+    ]
+    return any(s in upper for s in commercial_signals)
+
+
+def _fix_swapped_addresses(extracted: dict) -> None:
+    """
+    Detect and fix a known LLM failure mode where property_location and
+    mailing_address are swapped.
+
+    CFP is residential homeowner insurance. If the property_location looks
+    like a commercial address (suite, P.O. Box, etc.) while the
+    mailing_address looks residential, they were likely swapped by the LLM
+    when parsing interleaved PDF columns. We swap them back.
+    """
+    prop = extracted.get("property_location")
+    mail = extracted.get("mailing_address")
+
+    if not prop or not mail:
+        return
+
+    prop_is_commercial = _looks_commercial(prop)
+    mail_is_commercial = _looks_commercial(mail)
+
+    # If property looks commercial but mailing doesn't → they're swapped
+    if prop_is_commercial and not mail_is_commercial:
+        logger.warning(
+            "Address swap detected: property_location '%s' looks commercial, "
+            "mailing_address '%s' looks residential — swapping",
+            prop, mail,
+        )
+        extracted["property_location"] = mail
+        extracted["mailing_address"] = prop
+
+
 def _build_user_prompt(raw_text: str) -> str:
     """Build the user prompt with trimmed text."""
     trimmed = raw_text[:MAX_TEXT_CHARS]
@@ -349,6 +404,11 @@ def extract_with_llm(raw_text: str) -> dict | None:
                 extracted[key] == "" or extracted[key].lower() == "null"
             ):
                 extracted[key] = None
+
+        # ── Post-extraction sanity check: detect swapped addresses ──
+        # The LLM sometimes confuses the interleaved PDF columns and swaps
+        # property_location ↔ mailing_address. Detect & correct this.
+        _fix_swapped_addresses(extracted)
 
         # Determine if it's a FAIR Plan doc from the text
         upper_text = trimmed_text.upper()
