@@ -50,6 +50,7 @@
     text-align: right;
     max-width: 60%;
     color: var(--text-high);
+    white-space: nowrap;
 }
 
 .row {

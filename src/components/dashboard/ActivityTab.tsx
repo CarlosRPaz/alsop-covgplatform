@@ -181,10 +181,16 @@ export function ActivityTab() {
                                         <span>{activity.uploaded_by}</span>
                                         {isDone && (
                                             <span className={styles.successHints}>
-                                                <Sparkles size={10} />
-                                                <span>Enriched</span>
-                                                <Shield size={10} />
-                                                <span>Flags checked</span>
+                                                {activity.is_enriched ? (
+                                                    <><Sparkles size={10} /><span>Enriched</span></>
+                                                ) : (
+                                                    <><Loader2 size={10} className={styles.spinSlow} /><span style={{ opacity: 0.6 }}>Enriching…</span></>
+                                                )}
+                                                {activity.flags_checked ? (
+                                                    <><Shield size={10} /><span>Flags checked</span></>
+                                                ) : (
+                                                    <><Shield size={10} style={{ opacity: 0.4 }} /><span style={{ opacity: 0.6 }}>Pending</span></>
+                                                )}
                                                 {activity.processing_time_seconds != null && (
                                                     <>
                                                         <Timer size={10} />

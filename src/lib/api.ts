@@ -159,6 +159,12 @@ export interface Declaration {
     dic_company?: string;
     dic_exists?: boolean;
     dic_policy_number?: string;
+    dic_limit_dwelling?: string;
+    dic_limit_other_structures?: string;
+    dic_limit_personal_property?: string;
+    dic_limit_loss_of_use?: string;
+    dic_deductible?: string;
+    dic_annual_premium_raw?: number;
 
     // System Fields
     status: 'Pending Review' | 'Approved' | 'Rejected' | 'Incomplete';
@@ -214,6 +220,12 @@ export interface PolicyTermRow {
     cancellation_reason?: string;
     dic_exists?: boolean;
     dic_policy_number?: string;
+    dic_limit_dwelling?: string;
+    dic_limit_other_structures?: string;
+    dic_limit_personal_property?: string;
+    dic_limit_loss_of_use?: string;
+    dic_deductible?: string;
+    dic_annual_premium_raw?: number;
     sold_by?: string;
     office?: string;
     import_batch_id?: string;
@@ -834,6 +846,13 @@ export interface PolicyDetail {
     mortgagee_2_code?: string;
     // DIC (from dec page)
     dic_company?: string;
+    // DIC coverage limits (from dic_processor writeback)
+    dic_limit_dwelling?: string;
+    dic_limit_other_structures?: string;
+    dic_limit_personal_property?: string;
+    dic_limit_loss_of_use?: string;
+    dic_deductible?: string;
+    dic_annual_premium_raw?: number;
 }
 
 /**
@@ -843,9 +862,18 @@ export interface PolicyDetail {
  */
 export async function getPolicyDetailById(policyId: string): Promise<PolicyDetail | undefined> {
     try {
-        const { data, error } = await supabase
-            .from('policies')
-            .select(`
+        // DIC coverage columns (added by scripts/add_dic_fields.sql)
+        // These are kept in a variable so we can fallback without them if migration hasn't run yet
+        const dicTermFields = `
+                    dic_policy_number,
+                    dic_limit_dwelling,
+                    dic_limit_other_structures,
+                    dic_limit_personal_property,
+                    dic_limit_loss_of_use,
+                    dic_deductible,
+                    dic_annual_premium_raw,`;
+
+        const buildSelect = (includeDicFields: boolean) => `
                 id,
                 policy_number,
                 property_address_raw,
@@ -903,13 +931,29 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
                     payment_status,
                     payment_plan,
                     cancellation_reason,
-                    dic_exists,
+                    dic_exists,${includeDicFields ? dicTermFields : ''}
                     sold_by,
                     office
                 )
-            `)
+            `;
+
+        let result = await supabase
+            .from('policies')
+            .select(buildSelect(true))
             .eq('id', policyId)
             .single();
+
+        // Fallback: if DIC columns don't exist yet, retry without them
+        if (result.error && result.error.message?.includes('does not exist')) {
+            logger.warn('API', 'DIC columns not found, retrying without them. Run scripts/add_dic_fields.sql');
+            result = await supabase
+                .from('policies')
+                .select(buildSelect(false))
+                .eq('id', policyId)
+                .single();
+        }
+
+        const { data, error } = result;
 
         if (error || !data) {
             logger.error('API', `Error fetching policy detail ${policyId}`, {
@@ -953,6 +997,13 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
             payment_plan: currentTerm?.payment_plan || undefined,
             cancellation_reason: currentTerm?.cancellation_reason || undefined,
             dic_exists: currentTerm?.dic_exists ?? undefined,
+            dic_policy_number: currentTerm?.dic_policy_number || undefined,
+            dic_limit_dwelling: currentTerm?.dic_limit_dwelling || undefined,
+            dic_limit_other_structures: currentTerm?.dic_limit_other_structures || undefined,
+            dic_limit_personal_property: currentTerm?.dic_limit_personal_property || undefined,
+            dic_limit_loss_of_use: currentTerm?.dic_limit_loss_of_use || undefined,
+            dic_deductible: currentTerm?.dic_deductible || undefined,
+            dic_annual_premium_raw: currentTerm?.dic_annual_premium_raw ?? undefined,
             sold_by: currentTerm?.sold_by || undefined,
             office: currentTerm?.office || undefined,
             is_current: currentTerm?.is_current ?? undefined,
@@ -1068,6 +1119,12 @@ export function mapPolicyDetailToDeclaration(detail: PolicyDetail): Declaration 
         dic_company: detail.dic_company,
         dic_exists: detail.dic_exists,
         dic_policy_number: detail.dic_policy_number,
+        dic_limit_dwelling: detail.dic_limit_dwelling,
+        dic_limit_other_structures: detail.dic_limit_other_structures,
+        dic_limit_personal_property: detail.dic_limit_personal_property,
+        dic_limit_loss_of_use: detail.dic_limit_loss_of_use,
+        dic_deductible: detail.dic_deductible,
+        dic_annual_premium_raw: detail.dic_annual_premium_raw,
         status: 'Pending Review',
         flags: [],
     };
@@ -2324,6 +2381,9 @@ export interface ActivityFeedItem {
     uploaded_by: string;
     // Processing time (seconds) — computed from updated_at - created_at for completed items
     processing_time_seconds?: number;
+    // Whether enrichment/flags have actually run (for real-time indicators)
+    is_enriched?: boolean;
+    flags_checked?: boolean;
 }
 
 /**
@@ -2364,6 +2424,41 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
 
         if (!data) return [];
 
+        // Collect unique policy IDs for batch enrichment/flags lookup
+        const policyIds = new Set<string>();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const row of data) {
+            const dpRaw = row.dec_pages;
+            const dp = Array.isArray(dpRaw) ? dpRaw[0] : dpRaw;
+            if (dp?.policy_id) policyIds.add(dp.policy_id);
+        }
+
+        // Batch lookup: which policies have enrichments?
+        const enrichedSet = new Set<string>();
+        if (policyIds.size > 0) {
+            const { data: enrichRows } = await supabase
+                .from('property_enrichments')
+                .select('policy_id')
+                .in('policy_id', Array.from(policyIds))
+                .limit(500);
+            if (enrichRows) {
+                for (const e of enrichRows) enrichedSet.add(e.policy_id);
+            }
+        }
+
+        // Batch lookup: which policies have flags evaluated?
+        const flagsSet = new Set<string>();
+        if (policyIds.size > 0) {
+            const { data: flagRows } = await supabase
+                .from('policy_flags')
+                .select('policy_id')
+                .in('policy_id', Array.from(policyIds))
+                .limit(500);
+            if (flagRows) {
+                for (const f of flagRows) flagsSet.add(f.policy_id);
+            }
+        }
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return data.map((row: any) => {
             // dec_pages can be an array (one-to-many) or a single object (FK)
@@ -2396,6 +2491,8 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
                 }
             }
 
+            const pid = dp?.policy_id;
+
             return {
                 id: row.id,
                 type: 'upload' as const,
@@ -2405,10 +2502,12 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
                 error_message: row.error_message,
                 insured_name: dp?.insured_name || undefined,
                 policy_number: dp?.policy_number || undefined,
-                policy_id: dp?.policy_id || undefined,
+                policy_id: pid || undefined,
                 client_id: dp?.client_id || undefined,
                 uploaded_by: uploaderName,
                 processing_time_seconds: processingSeconds,
+                is_enriched: pid ? enrichedSet.has(pid) : false,
+                flags_checked: pid ? flagsSet.has(pid) : false,
             };
         });
     } catch (err) {

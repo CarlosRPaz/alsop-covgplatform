@@ -93,34 +93,17 @@
 
 /* ── Title Block ── */
 .title {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
     font-weight: 700;
     color: var(--text-high);
     letter-spacing: -0.02em;
     line-height: 1.2;
     margin: 0;
+    transition: color 0.15s ease;
 }
 
-.subtitle {
-    font-size: 0.875rem;
-    color: var(--text-muted);
-    margin-top: 0.25rem;
-}
-
-.clientName {
-    font-size: 1rem;
-    font-weight: 600;
+.title:hover {
     color: var(--accent-primary);
-    letter-spacing: -0.01em;
-    cursor: pointer;
-    border-bottom: 1.5px solid transparent;
-    transition: border-color 0.15s ease;
-    margin-top: 0.25rem;
-    display: inline-block;
-}
-
-.clientName:hover {
-    border-color: var(--accent-primary);
 }
 
 /* ── Action Buttons — Unified System ── */
@@ -128,8 +111,10 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding-top: 1.75rem;
+    padding-top: 1.5rem;
     flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .actionDivider {
@@ -211,9 +196,14 @@
     white-space: nowrap;
 }
 
-.secondaryBtn:hover {
+.secondaryBtn:hover:not(:disabled) {
     border-color: var(--border-strong);
     background: var(--accent-primary-subtle);
+}
+
+.secondaryBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 /* Primary button (filled) */

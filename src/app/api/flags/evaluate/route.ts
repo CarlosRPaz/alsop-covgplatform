@@ -244,6 +244,23 @@ const FLAG_CHECKS: FlagCheck[] = [
             return null;
         }
     },
+    {
+        code: 'MISSING_PERSONAL_PROPERTY', severity: 'high', title: 'Missing Personal Property',
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, requires_data: true,
+        check: (ctx) => {
+            if (isMissing(get(ctx, 'limit_personal_property'))) return 'Coverage C — Personal Property limit is missing or $0.';
+            return null;
+        }
+    },
+    {
+        code: 'MISSING_OTHER_STRUCTURES', severity: 'medium', title: 'Missing Other Structures',
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, requires_data: true,
+        check: (ctx) => {
+            if (isCondoOrUnit(ctx)) return null; // Suppress for condos/units
+            if (isMissing(get(ctx, 'limit_other_structures'))) return 'Coverage B — Other Structures limit is missing or $0.';
+            return null;
+        }
+    },
 
     // ── DIC ──
     {

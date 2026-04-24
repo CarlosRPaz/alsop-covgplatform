@@ -334,6 +334,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'policy_id required' }, { status: 400 });
         }
 
+        const pipelineStart = Date.now();
+        const timings: Record<string, number> = {};
         const sb = getSupabaseAdmin();
 
         // 1. Fetch the policy's property address
@@ -367,20 +369,25 @@ export async function POST(request: NextRequest) {
         };
 
         // 2. Satellite image
+        let t0 = Date.now();
         try {
             results.satellite_image = await enrichSatelliteImage(sb, policy_id, address);
         } catch (e) {
             logger.error('Enrichment', `Satellite error: ${e}`);
         }
+        timings.satellite_ms = Date.now() - t0;
 
-        // 2.5 Assessor Data (Mock ATTOM/Estated)
+        // 2.5 Assessor Data (ATTOM)
+        t0 = Date.now();
         try {
             results.assessor_data = await enrichAssessorData(sb, policy_id, address);
         } catch (e) {
             logger.error('Enrichment', `Assessor Data error: ${e}`);
         }
+        timings.assessor_ms = Date.now() - t0;
 
         // 3. Geocode → coordinates
+        t0 = Date.now();
         let coords: { lat: number; lng: number } | null = null;
         try {
             coords = await enrichCoordinates(sb, policy_id, address);
@@ -388,24 +395,30 @@ export async function POST(request: NextRequest) {
         } catch (e) {
             logger.error('Enrichment', `Geocoding error: ${e}`);
         }
+        timings.geocode_ms = Date.now() - t0;
 
         // 4. Fire risk & Street View (needs coordinates)
         if (coords) {
+            t0 = Date.now();
             try {
                 results.fire_risk = await enrichFireRisk(sb, policy_id, address, coords);
             } catch (e) {
                 logger.error('Enrichment', `Fire risk error: ${e}`);
             }
+            timings.fire_risk_ms = Date.now() - t0;
 
+            t0 = Date.now();
             try {
                 results.street_view_image = await enrichStreetViewImage(sb, policy_id, coords);
             } catch (e) {
                 logger.error('Enrichment', `Street View error: ${e}`);
             }
+            timings.street_view_ms = Date.now() - t0;
         }
 
         // 5. AI Vision Analysis (needs satellite image)
         if (results.satellite_image) {
+            t0 = Date.now();
             try {
                 const origin = request.nextUrl.origin;
                 const visionRes = await fetch(`${origin}/api/enrichment/vision-analyze`, {
@@ -422,10 +435,12 @@ export async function POST(request: NextRequest) {
             } catch (e) {
                 logger.error('Enrichment', `Vision analysis error: ${e}`);
             }
+            timings.vision_ai_ms = Date.now() - t0;
         }
 
         // 6. AI Street Vision Analysis (needs street view image)
         if (results.street_view_image) {
+            t0 = Date.now();
             try {
                 const origin = request.nextUrl.origin;
                 const streetVisionRes = await fetch(`${origin}/api/enrichment/street-vision-analyze`, {
@@ -442,9 +457,11 @@ export async function POST(request: NextRequest) {
             } catch (e) {
                 logger.error('Enrichment', `Street Vision analysis error: ${e}`);
             }
+            timings.street_vision_ai_ms = Date.now() - t0;
         }
 
         // 7. Auto-generate report after enrichment
+        t0 = Date.now();
         let reportGenerated = false;
         try {
             const origin = request.nextUrl.origin;
@@ -462,6 +479,12 @@ export async function POST(request: NextRequest) {
             logger.error('Enrichment', `Report generation error: ${e}`);
         }
         results.report_generated = reportGenerated;
+        timings.report_ms = Date.now() - t0;
+
+        timings.total_ms = Date.now() - pipelineStart;
+
+        // Log per-step timing summary
+        logger.info('Enrichment', `Pipeline timings for policy ${policy_id}: ${JSON.stringify(timings)}`);
 
         // 8. Activity event: enrichment complete
         try {
@@ -470,7 +493,7 @@ export async function POST(request: NextRequest) {
                 title: 'Property data enriched',
                 detail: `Satellite: ${results.satellite_image ? '✓' : '✗'}, Street View: ${results.street_view_image ? '✓' : '✗'}, Fire Risk: ${results.fire_risk ? '✓' : '✗'}, AI Vision: ${results.vision_analysis ? '✓' : '✗'}, Report: ${reportGenerated ? '✓' : '✗'}`,
                 policy_id: policy_id,
-                meta: { results },
+                meta: { results, timings },
             });
         } catch (e) {
             logger.warn('Enrichment', `Activity event insert failed (non-fatal): ${e}`);
@@ -479,6 +502,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             message: 'Enrichment complete',
             results,
+            timings,
         });
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -486,3 +510,4 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: msg }, { status: 500 });
     }
 }
+

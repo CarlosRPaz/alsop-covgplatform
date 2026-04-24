@@ -42,6 +42,12 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
         cancellation_reason: policyDetail.cancellation_reason || '',
         dic_exists: policyDetail.dic_exists ?? false,
         dic_policy_number: policyDetail.dic_policy_number || '',
+        dic_limit_dwelling: policyDetail.dic_limit_dwelling || '',
+        dic_limit_other_structures: policyDetail.dic_limit_other_structures || '',
+        dic_limit_personal_property: policyDetail.dic_limit_personal_property || '',
+        dic_limit_loss_of_use: policyDetail.dic_limit_loss_of_use || '',
+        dic_deductible: policyDetail.dic_deductible || '',
+        dic_annual_premium_raw: policyDetail.dic_annual_premium_raw != null ? String(policyDetail.dic_annual_premium_raw) : '',
         sold_by: policyDetail.sold_by || '',
         office: policyDetail.office || '',
         is_current: policyDetail.is_current ?? true,
@@ -209,6 +215,33 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
         if (termForm.dic_policy_number !== (policyDetail.dic_policy_number || '')) {
             termChanges.dic_policy_number = termForm.dic_policy_number || null;
             termChangedFields.push('dic_policy_number');
+        }
+        // DIC coverage fields
+        if (termForm.dic_limit_dwelling !== (policyDetail.dic_limit_dwelling || '')) {
+            termChanges.dic_limit_dwelling = termForm.dic_limit_dwelling || null;
+            termChangedFields.push('dic_limit_dwelling');
+        }
+        if (termForm.dic_limit_other_structures !== (policyDetail.dic_limit_other_structures || '')) {
+            termChanges.dic_limit_other_structures = termForm.dic_limit_other_structures || null;
+            termChangedFields.push('dic_limit_other_structures');
+        }
+        if (termForm.dic_limit_personal_property !== (policyDetail.dic_limit_personal_property || '')) {
+            termChanges.dic_limit_personal_property = termForm.dic_limit_personal_property || null;
+            termChangedFields.push('dic_limit_personal_property');
+        }
+        if (termForm.dic_limit_loss_of_use !== (policyDetail.dic_limit_loss_of_use || '')) {
+            termChanges.dic_limit_loss_of_use = termForm.dic_limit_loss_of_use || null;
+            termChangedFields.push('dic_limit_loss_of_use');
+        }
+        if (termForm.dic_deductible !== (policyDetail.dic_deductible || '')) {
+            termChanges.dic_deductible = termForm.dic_deductible || null;
+            termChangedFields.push('dic_deductible');
+        }
+        const dicPremiumRaw = policyDetail.dic_annual_premium_raw != null ? String(policyDetail.dic_annual_premium_raw) : '';
+        if (termForm.dic_annual_premium_raw !== dicPremiumRaw) {
+            const parsed = parseCurrency(termForm.dic_annual_premium_raw);
+            termChanges.dic_annual_premium_raw = parsed;
+            termChangedFields.push('dic_annual_premium_raw');
         }
         if (termForm.sold_by !== (policyDetail.sold_by || '')) {
             termChanges.sold_by = termForm.sold_by || null;
@@ -502,7 +535,7 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
                                 </div>
 
                                 {termForm.dic_exists && (
-                                    <div style={{ marginTop: '0.5rem' }}>
+                                    <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                         <div className={styles.field}>
                                             <label className={`${styles.fieldLabel} ${dicError ? styles.fieldLabelError : ''}`}>
                                                 DIC Policy Number {dicError && <span className={styles.requiredBadge}>Required</span>}
@@ -513,6 +546,38 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
                                                 onChange={(e) => setTermForm(f => ({ ...f, dic_policy_number: e.target.value }))}
                                                 placeholder="Enter associated DIC policy number"
                                             />
+                                        </div>
+
+                                        <div className={styles.groupLabel} style={{ fontSize: '0.7rem', marginTop: '0.5rem', color: 'var(--text-muted)' }}>DIC Coverage Limits</div>
+                                        <div className={styles.row}>
+                                            <div className={styles.field}>
+                                                <label className={styles.fieldLabel}>DIC Dwelling</label>
+                                                <input className={styles.fieldInput} value={termForm.dic_limit_dwelling} onChange={(e) => setTermForm(f => ({ ...f, dic_limit_dwelling: e.target.value }))} placeholder="$0" />
+                                            </div>
+                                            <div className={styles.field}>
+                                                <label className={styles.fieldLabel}>DIC Other Structures</label>
+                                                <input className={styles.fieldInput} value={termForm.dic_limit_other_structures} onChange={(e) => setTermForm(f => ({ ...f, dic_limit_other_structures: e.target.value }))} placeholder="$0" />
+                                            </div>
+                                        </div>
+                                        <div className={styles.row}>
+                                            <div className={styles.field}>
+                                                <label className={styles.fieldLabel}>DIC Personal Property</label>
+                                                <input className={styles.fieldInput} value={termForm.dic_limit_personal_property} onChange={(e) => setTermForm(f => ({ ...f, dic_limit_personal_property: e.target.value }))} placeholder="$0" />
+                                            </div>
+                                            <div className={styles.field}>
+                                                <label className={styles.fieldLabel}>DIC Loss of Use</label>
+                                                <input className={styles.fieldInput} value={termForm.dic_limit_loss_of_use} onChange={(e) => setTermForm(f => ({ ...f, dic_limit_loss_of_use: e.target.value }))} placeholder="$0" />
+                                            </div>
+                                        </div>
+                                        <div className={styles.row}>
+                                            <div className={styles.field}>
+                                                <label className={styles.fieldLabel}>DIC Deductible</label>
+                                                <input className={styles.fieldInput} value={termForm.dic_deductible} onChange={(e) => setTermForm(f => ({ ...f, dic_deductible: e.target.value }))} placeholder="$0" />
+                                            </div>
+                                            <div className={styles.field}>
+                                                <label className={styles.fieldLabel}>DIC Annual Premium</label>
+                                                <input className={styles.fieldInput} value={termForm.dic_annual_premium_raw} onChange={(e) => setTermForm(f => ({ ...f, dic_annual_premium_raw: e.target.value }))} placeholder="$0" />
+                                            </div>
                                         </div>
                                     </div>
                                 )}

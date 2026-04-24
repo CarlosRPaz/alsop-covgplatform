@@ -13,7 +13,7 @@ from typing import Any
 from ..supabase_client import get_supabase
 from ..db.flags import insert_activity_event
 from .ocr import extract_text_from_pdf_bytes, ExtractionResult
-from .matcher import match_document_to_policy, MatchResult
+from .matcher import match_document_to_policy, match_candidates_for_review, MatchResult
 
 logger = logging.getLogger("worker.documents.base")
 
@@ -196,9 +196,17 @@ class DocumentProcessor(ABC):
                 })
             else:
                 self.update_step("matching_policy")
-                logger.info("%s step=match_policy owner=%s addr=%s", self._log_prefix, owner_name, address_raw)
+                logger.info("%s step=match_policy owner=%s addr=%s doc_type=%s", self._log_prefix, owner_name, address_raw, self.doc_type)
 
-                match = match_document_to_policy(owner_name, address_raw, self.account_id)
+                # DIC/RCE have different policy numbers — never auto-link.
+                # Gather candidates for agent review instead.
+                if self.doc_type in ("dic_dec_page", "rce"):
+                    match = match_candidates_for_review(
+                        owner_name, address_raw, self.account_id,
+                        doc_type=self.doc_type,
+                    )
+                else:
+                    match = match_document_to_policy(owner_name, address_raw, self.account_id)
 
                 self.update_document({
                     "match_status": match["status"],

@@ -192,22 +192,64 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
         const fileBuffer = Buffer.from(fileArrayBuffer);
         const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
-        // Check for existing duplicate (exact file match by same account) that wasn't a failure
+        // Check for existing duplicate (exact file match by same account)
+        // Only block if the original was successfully processed or is actively processing.
+        // Stuck/errored submissions should NOT block re-uploads (Tahseen Halool bug fix).
         const { data: existingDuplicate } = await supabaseAdmin
             .from('dec_page_submissions')
-            .select('id, status')
+            .select('id, status, error_message, processing_step')
             .eq('file_hash', fileHash)
             .eq('account_id', accountId)
-            .neq('status', 'failed') // Could be pending, uploaded, processed, etc.
+            .neq('status', 'failed')
+            .neq('status', 'duplicate')
             .limit(1)
             .maybeSingle();
 
         if (existingDuplicate) {
-            logger.info('Upload', 'Duplicate file detected, skipping upload and processing', {
-                fileHash,
-                existingId: existingDuplicate.id,
-                accountId
-            });
+            // Check if the "duplicate" is actually stuck/errored — if so, supersede it
+            // rather than blocking the re-upload. This prevents dead-end loops where
+            // a failed original blocks all re-uploads forever.
+            const isStuck = existingDuplicate.error_message && (
+                existingDuplicate.status === 'queued' ||
+                existingDuplicate.status === 'pending' ||
+                (existingDuplicate.status === 'uploaded' && existingDuplicate.error_message)
+            );
+
+            if (isStuck) {
+                logger.info('Upload', 'Original submission is stuck/errored — superseding it', {
+                    originalId: existingDuplicate.id,
+                    originalStatus: existingDuplicate.status,
+                    originalError: existingDuplicate.error_message?.substring(0, 100),
+                });
+
+                // Mark the stuck original as failed so it doesn't block future uploads
+                await supabaseAdmin
+                    .from('dec_page_submissions')
+                    .update({
+                        status: 'failed',
+                        error_message: 'Superseded by re-upload',
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq('id', existingDuplicate.id);
+
+                // Also fail its stuck ingestion jobs
+                await supabaseAdmin
+                    .from('ingestion_jobs')
+                    .update({
+                        status: 'failed',
+                        last_error: 'Superseded by re-upload of same file',
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq('submission_id', existingDuplicate.id)
+                    .neq('status', 'done');
+
+                // Fall through to normal upload flow below (no return)
+            } else {
+                logger.info('Upload', 'Duplicate file detected, skipping upload and processing', {
+                    fileHash,
+                    existingId: existingDuplicate.id,
+                    accountId
+                });
 
             // Insert a tracking record for the duplicate attempt (status='duplicate')
             // This displays beautifully on the Agent Activity Feed without breaking things.
@@ -283,6 +325,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
                 },
                 { status: 200 } // Send success so the UI clears the upload state smoothly
             );
+            } // end else (not stuck)
         }
 
         // ---------------------------------------------------------------

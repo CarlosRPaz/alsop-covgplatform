@@ -25,6 +25,25 @@ from ..supabase_client import get_supabase
 logger = logging.getLogger("worker.documents.matcher")
 
 
+def _fetch_all(table_query) -> list[dict]:
+    """Fetch ALL rows from a Supabase query using range-based pagination.
+
+    PostgREST enforces a server-side maximum of 1000 rows per request
+    that cannot be overridden via .limit(). We must paginate with .range().
+    """
+    PAGE = 1000
+    offset = 0
+    all_rows: list[dict] = []
+    while True:
+        res = table_query.range(offset, offset + PAGE - 1).execute()
+        batch = res.data or []
+        all_rows.extend(batch)
+        if len(batch) < PAGE:
+            break
+        offset += PAGE
+    return all_rows
+
+
 # ── Normalization ────────────────────────────────────────────────────────────
 
 # Common street abbreviation expansions
@@ -108,6 +127,16 @@ def normalize_name(raw: str | None) -> str | None:
     # Strip known suffixes
     words = s.split()
     filtered = [w for w in words if w not in NAME_SUFFIXES]
+
+    # Strip single-character middle initials (e.g. MARK S ADAMS → MARK ADAMS)
+    # This prevents middle initials from reducing similarity scores.
+    # Only strip if there are 3+ tokens and the single char is not first or last.
+    if len(filtered) >= 3:
+        filtered = [
+            w for i, w in enumerate(filtered)
+            if not (len(w) == 1 and 0 < i < len(filtered) - 1)
+        ]
+
     s = " ".join(filtered)
 
     # Collapse whitespace
@@ -239,16 +268,85 @@ def match_document_to_policy(
     )
 
     if not exact_candidates:
+        # Before relying on a fuzzy address (which can hallucinate matches for similar street names),
+        # try an exact or strong name match if we have a name. This handles policies that have
+        # missing (NULL) addresses in the database, like newly created FAIR Plan policies.
+        if norm_name:
+            try:
+                all_clients = _fetch_all(sb.table("clients").select("id, named_insured"))
+                best_client_id = None
+                best_client_name = None
+                best_client_sim = 0.0
+                
+                for c in all_clients:
+                    c_name = normalize_name(c.get("named_insured"))
+                    if c_name:
+                        sim = _similarity(norm_name, c_name)
+                        if sim > best_client_sim and sim >= 0.85:
+                            best_client_sim = sim
+                            best_client_id = c["id"]
+                            best_client_name = c.get("named_insured")
+                
+                if best_client_id:
+                    # Find policies for this client
+                    pol_res = sb.table("policies").select("id, client_id, policy_number, property_address_raw").eq("client_id", best_client_id).execute()
+                    pols = pol_res.data or []
+                    
+                    if len(pols) == 1:
+                        pol = pols[0]
+                        pol_addr = pol.get("property_address_raw")
+                        
+                        log_step(
+                            "name_fallback", "found",
+                            f"No exact address matches, but found EXACTLY 1 policy for matching client '{best_client_name}' ({best_client_sim:.0%} match)",
+                            {"client_id": best_client_id, "policy_id": pol["id"]}
+                        )
+                        
+                        # Fetch policy term id
+                        term_id = None
+                        term_res = sb.table("policy_terms").select("id").eq("policy_id", pol["id"]).eq("is_current", True).limit(1).execute()
+                        if term_res.data:
+                            term_id = term_res.data[0]["id"]
+                            
+                        # If the DB policy has an address and it's quite different, flag for review
+                        if pol_addr:
+                            pol_addr_norm = normalize_address(pol_addr)
+                            if pol_addr_norm and _similarity(norm_address, pol_addr_norm) < 0.85:
+                                return MatchResult(
+                                    status="needs_review",
+                                    policy_id=pol["id"], client_id=best_client_id, policy_term_id=term_id,
+                                    confidence=0.5, match_log=match_log,
+                                    review_reason=f"Owner name matched '{best_client_name}', but the document's address ('{extracted_address}') differs from the policy's address ('{pol_addr}').",
+                                    action_items=["Verify if this document belongs to this policy, or if the address needs updating."]
+                                )
+                                
+                        # Otherwise, strong name match + no conflicting address -> auto or strong review
+                        if best_client_sim >= 0.95:
+                            return MatchResult(
+                                status="matched",
+                                policy_id=pol["id"], client_id=best_client_id, policy_term_id=term_id,
+                                confidence=0.8, match_log=match_log, review_reason=None, action_items=[]
+                            )
+                        else:
+                            return MatchResult(
+                                status="needs_review",
+                                policy_id=pol["id"], client_id=best_client_id, policy_term_id=term_id,
+                                confidence=round(best_client_sim * 0.7, 2), match_log=match_log,
+                                review_reason=f"Matches client '{best_client_name}' ({best_client_sim:.0%} similar). Policy has no address in DB to compare.",
+                                action_items=["Confirm this is the correct policy for the insured."]
+                            )
+            except Exception as e:
+                logger.error("Name fallback failed: %s", e)
+
         # Try fuzzy address match — query all policies for this account and score
         try:
-            all_policies = (
+            all_policies_data = _fetch_all(
                 sb.table("policies")
                 .select("id, client_id, policy_number, property_address_norm, property_address_raw")
                 .not_.is_("property_address_norm", "null")
-                .execute()
             )
             fuzzy_candidates = []
-            for p in (all_policies.data or []):
+            for p in all_policies_data:
                 sim = _similarity(norm_address, p.get("property_address_norm", ""))
                 if sim >= 0.85:
                     fuzzy_candidates.append({**p, "_addr_sim": sim})
@@ -470,14 +568,246 @@ def match_document_to_policy(
         confidence=0.3,
         match_log=match_log,
         review_reason=(
-            f"Address matched but the owner name is significantly different. "
-            f"Document: '{extracted_owner_name}' — "
-            f"Policy: '{best.get('named_insured')}'. "
-            f"This may be a different owner at the same address."
+            f"Found {len(candidates)} possible match(es). "
+            f"DIC/RCE documents require manual confirmation — "
+            f"please review the candidates below and assign to the correct policy."
         ),
         action_items=[
-            "Verify if this is a new owner or a name formatting difference.",
-            "If wrong policy, search for the correct one and link manually.",
-            "If new owner, you may need to update the client record.",
+            "Review the candidate matches below.",
+            "Compare insured names and property addresses.",
+            "Click 'Assign' on the correct policy.",
+        ],
+    )
+
+
+# ── Candidate-Based Matching (DIC / RCE) ────────────────────────────────────
+
+def match_candidates_for_review(
+    extracted_owner_name: str | None,
+    extracted_address: str | None,
+    account_id: str,
+    doc_type: str = "dic_dec_page",
+) -> MatchResult:
+    """
+    Gather match candidates by BOTH name and address — never auto-link.
+
+    DIC and RCE documents have different policy numbers than the CFP policy,
+    so we can't match by policy number. Instead we find all plausible
+    candidates and always return 'needs_review' so the agent picks the
+    correct one.
+
+    Candidates are stored in match_log under steps with step='candidates'
+    and a 'candidates' list in details. Each candidate has:
+      - policy_id, client_id, policy_number, carrier_name
+      - named_insured, property_address_raw
+      - name_similarity, address_similarity
+      - match_source: 'name' | 'address' | 'both'
+
+    The frontend uses these to render a comparison UI.
+    """
+    match_log: list[MatchLogEntry] = []
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    def log_step(step: str, result: str, reason: str, details: dict | None = None):
+        entry: MatchLogEntry = {
+            "step": step,
+            "candidates_found": 0,
+            "result": result,
+            "reason": reason,
+            "details": details or {},
+            "timestamp": now_iso,
+        }
+        match_log.append(entry)
+        logger.info("Match step=%s result=%s reason=%s", step, result, reason)
+
+    norm_address = normalize_address(extracted_address)
+    norm_name = normalize_name(extracted_owner_name)
+
+    if not norm_address and not norm_name:
+        log_step("validate_inputs", "no_match", "Neither name nor address extracted from document")
+        return MatchResult(
+            status="no_match",
+            policy_id=None, client_id=None, policy_term_id=None,
+            confidence=0.0,
+            match_log=match_log,
+            review_reason="Could not extract owner name or property address from this document.",
+            action_items=["Manually search for the correct policy and link this document."],
+        )
+
+    sb = get_supabase()
+    seen_policy_ids: set[str] = set()
+    candidates: list[dict] = []
+
+    # ── Step 1: Name-based candidates ────────────────────────────────
+    if norm_name:
+        try:
+            all_clients = _fetch_all(sb.table("clients").select("id, named_insured"))
+            name_matches: list[tuple[str, str, float]] = []
+
+            for c in all_clients:
+                c_insured = c.get("named_insured")
+                c_norm = normalize_name(c_insured)
+                if c_norm:
+                    sim = _similarity(norm_name, c_norm)
+                    if sim >= 0.60:
+                        name_matches.append((c["id"], c_insured, sim))
+
+            name_matches.sort(key=lambda x: x[2], reverse=True)
+
+            for client_id, client_name, name_sim in name_matches[:8]:
+                pol_res = (
+                    sb.table("policies")
+                    .select("id, policy_number, carrier_name, property_address_raw, property_address_norm")
+                    .eq("client_id", client_id)
+                    .execute()
+                )
+                for pol in (pol_res.data or []):
+                    if pol["id"] in seen_policy_ids:
+                        continue
+                    seen_policy_ids.add(pol["id"])
+
+                    addr_sim = 0.0
+                    if norm_address and pol.get("property_address_norm"):
+                        addr_sim = _similarity(norm_address, pol["property_address_norm"])
+
+                    candidates.append({
+                        "policy_id": pol["id"],
+                        "client_id": client_id,
+                        "policy_number": pol.get("policy_number"),
+                        "carrier_name": pol.get("carrier_name"),
+                        "named_insured": client_name,
+                        "property_address_raw": pol.get("property_address_raw"),
+                        "name_similarity": round(name_sim, 3),
+                        "address_similarity": round(addr_sim, 3),
+                        "match_source": "name",
+                    })
+
+            log_step(
+                "name_search", "found" if name_matches else "empty",
+                f"Found {len(name_matches)} client(s) matching name '{extracted_owner_name}'",
+                {"query_name": extracted_owner_name, "normalized": norm_name, "hits": len(name_matches)},
+            )
+        except Exception as e:
+            logger.error("Name-based candidate search failed: %s", e)
+            log_step("name_search", "error", f"Name search failed: {e}")
+
+    # ── Step 2: Address-based candidates ─────────────────────────────
+    if norm_address:
+        try:
+            all_policies_data = _fetch_all(
+                sb.table("policies")
+                .select("id, client_id, policy_number, carrier_name, property_address_norm, property_address_raw")
+                .not_.is_("property_address_norm", "null")
+            )
+
+            addr_hits = 0
+            for p in all_policies_data:
+                if p["id"] in seen_policy_ids:
+                    # Already found by name — upgrade match_source to 'both'
+                    p_norm = p.get("property_address_norm", "")
+                    if p_norm:
+                        addr_sim = _similarity(norm_address, p_norm)
+                        if addr_sim >= 0.80:
+                            for c in candidates:
+                                if c["policy_id"] == p["id"]:
+                                    c["address_similarity"] = round(addr_sim, 3)
+                                    c["match_source"] = "both"
+                                    break
+                    continue
+
+                p_norm = p.get("property_address_norm", "")
+                if not p_norm:
+                    continue
+                addr_sim = _similarity(norm_address, p_norm)
+                if addr_sim >= 0.80:
+                    addr_hits += 1
+                    client_name = None
+                    name_sim = 0.0
+                    cid = p.get("client_id")
+                    if cid:
+                        try:
+                            cr = sb.table("clients").select("named_insured").eq("id", cid).limit(1).execute()
+                            if cr.data:
+                                client_name = cr.data[0].get("named_insured")
+                                if norm_name and client_name:
+                                    name_sim = _similarity(norm_name, normalize_name(client_name) or "")
+                        except Exception:
+                            pass
+
+                    seen_policy_ids.add(p["id"])
+                    candidates.append({
+                        "policy_id": p["id"],
+                        "client_id": cid,
+                        "policy_number": p.get("policy_number"),
+                        "carrier_name": p.get("carrier_name"),
+                        "named_insured": client_name,
+                        "property_address_raw": p.get("property_address_raw"),
+                        "name_similarity": round(name_sim, 3),
+                        "address_similarity": round(addr_sim, 3),
+                        "match_source": "address",
+                    })
+
+            log_step(
+                "address_search", "found" if addr_hits else "empty",
+                f"Found {addr_hits} additional address match(es) for '{extracted_address}'",
+                {"query_address": extracted_address, "normalized": norm_address, "hits": addr_hits},
+            )
+        except Exception as e:
+            logger.error("Address-based candidate search failed: %s", e)
+            log_step("address_search", "error", f"Address search failed: {e}")
+
+    # ── Sort: 'both' first, then by combined score ───────────────────
+    def _sort_key(c: dict) -> tuple:
+        source_rank = 0 if c["match_source"] == "both" else (1 if c["match_source"] == "name" else 2)
+        combined = c["name_similarity"] * 0.6 + c["address_similarity"] * 0.4
+        return (source_rank, -combined)
+
+    candidates.sort(key=_sort_key)
+    candidates = candidates[:10]
+
+    # ── Store candidates in match_log ────────────────────────────────
+    log_step(
+        "candidates", "found" if candidates else "empty",
+        f"Gathered {len(candidates)} total candidate(s) for agent review",
+        {"candidates": candidates},
+    )
+
+    if not candidates:
+        return MatchResult(
+            status="no_match",
+            policy_id=None, client_id=None, policy_term_id=None,
+            confidence=0.0,
+            match_log=match_log,
+            review_reason=(
+                f"No matching policies found for '{extracted_owner_name or '?'}' "
+                f"at '{extracted_address or '?'}'. Manual assignment required."
+            ),
+            action_items=[
+                "Search for the correct policy by name or address.",
+                "If this is a new property, create a new client/policy record first.",
+            ],
+        )
+
+    # Best candidate for pre-selection hint (agent still must confirm)
+    best = candidates[0]
+    return MatchResult(
+        status="needs_review",
+        policy_id=best["policy_id"],
+        client_id=best["client_id"],
+        policy_term_id=None,
+        confidence=round(
+            best["name_similarity"] * 0.6 + best["address_similarity"] * 0.4,
+            2,
+        ),
+        match_log=match_log,
+        review_reason=(
+            f"Found {len(candidates)} possible match(es). "
+            f"DIC/RCE documents require manual confirmation — "
+            f"please review the candidates and assign to the correct policy."
+        ),
+        action_items=[
+            "Review the candidate matches below.",
+            "Compare insured names and property addresses.",
+            "Click 'Assign' on the correct policy.",
         ],
     )

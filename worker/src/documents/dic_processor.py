@@ -151,9 +151,9 @@ class DICProcessor(DocumentProcessor):
         # Remove None values
         payload = {k: v for k, v in payload.items() if v is not None}
 
-        result = sb.table("doc_data_dic").insert(payload).execute()
+        result = sb.table("doc_data_dic").upsert(payload, on_conflict="document_id").execute()
         if not result.data:
-            raise RuntimeError("Failed to insert doc_data_dic row")
+            raise RuntimeError("Failed to upsert doc_data_dic row")
 
         return result.data[0]["id"]
 
@@ -164,35 +164,47 @@ class DICProcessor(DocumentProcessor):
         policy_term_id: str | None,
     ) -> list[dict]:
         """
-        DIC data writeback — INTENTIONALLY MINIMAL.
+        DIC data writeback — writes to SEPARATE dic_limit_* columns.
         
-        DIC carrier dec page data does NOT overwrite main policy fields.
-        The only writebacks are:
-        1. Activity event logging that a DIC document was processed
-        2. Store the embedded 360Value data as enrichments (if present)
-           ONLY if no existing RCE data exists for this policy
-        
-        All coverage data stays in doc_data_dic and is display-only
-        in the policy detail view.
+        DIC carrier dec page data does NOT overwrite main CFP policy fields.
+        Writebacks:
+        1. Set dic_exists = True on the policy term
+        2. Write DIC coverages to dedicated dic_limit_* columns on policy_terms
+        3. Write DIC policy number to policy_terms
+        4. Store embedded 360Value data as enrichments (if present and no
+           existing RCE data exists)
         """
         sb = get_supabase()
         now_iso = datetime.now(timezone.utc).isoformat()
         log: list[dict] = []
 
-        # Log that we intentionally skip coverage writeback
-        log.append({
-            "action": "skipped",
-            "target": "policy_terms.coverages",
-            "reason": "DIC carrier coverages are stored separately and do not overwrite FAIR Plan policy data",
-            "timestamp": now_iso,
-        })
-        # Update policy_terms to flag that a DIC exists
+        # Update policy_terms with DIC flag + DIC coverages (separate columns)
         if policy_term_id:
+            # Build the update payload — dic_exists + all DIC coverage fields
+            dic_update: dict[str, Any] = {
+                "dic_exists": True,
+                "updated_at": now_iso,
+            }
+
+            # Map extracted DIC fields → policy_terms dic_limit_* columns
+            dic_field_map = {
+                "cov_a_dwelling": "dic_limit_dwelling",
+                "cov_b_other_struct": "dic_limit_other_structures",
+                "cov_c_personal_prop": "dic_limit_personal_property",
+                "cov_e_add_living": "dic_limit_loss_of_use",
+                "deductible": "dic_deductible",
+                "total_charge": "dic_annual_premium_raw",
+                "policy_number": "dic_policy_number",
+            }
+
+            for src_key, dest_col in dic_field_map.items():
+                val = extracted.get(src_key)
+                if val is not None:
+                    dic_update[dest_col] = val
+
             try:
-                sb.table("policy_terms").update({
-                    "dic_exists": True,
-                    "updated_at": now_iso
-                }).eq("id", policy_term_id).execute()
+                sb.table("policy_terms").update(dic_update).eq("id", policy_term_id).execute()
+
                 log.append({
                     "action": "written",
                     "target": "policy_terms.dic_exists",
@@ -200,10 +212,25 @@ class DICProcessor(DocumentProcessor):
                     "reason": "DIC document attached",
                     "timestamp": now_iso,
                 })
+
+                # Log each DIC coverage field that was written
+                written_covg = [
+                    col for src, col in dic_field_map.items()
+                    if extracted.get(src) is not None
+                ]
+                if written_covg:
+                    log.append({
+                        "action": "written",
+                        "target": "policy_terms.dic_coverages",
+                        "fields": written_covg,
+                        "reason": "DIC coverages stored in separate dic_limit_* columns (CFP data untouched)",
+                        "timestamp": now_iso,
+                    })
+
             except Exception as e:
                 log.append({
                     "action": "error",
-                    "target": "policy_terms.dic_exists",
+                    "target": "policy_terms.dic_update",
                     "error": str(e),
                     "timestamp": now_iso,
                 })

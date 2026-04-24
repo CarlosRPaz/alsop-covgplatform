@@ -83,6 +83,8 @@ function DashboardContent() {
         'MISSING_DWELLING_REPLACEMENT_COST': 'Missing Dwelling Replacement Cost',
         'MISSING_PERSONAL_PROPERTY_REPLACEMENT_COST': 'Missing Personal Property RC',
         'MISSING_FENCES_COVERAGE': 'Missing Fences Coverage',
+        'MISSING_PERSONAL_PROPERTY': 'Missing Personal Property',
+        'MISSING_OTHER_STRUCTURES': 'Missing Other Structures',
         'SEVERE_UNDERINSURANCE_ESTIMATE': 'Severe Underinsurance (Modeled Estimate)',
         'DWELLING_RC_INCLUDED_LOW_ORDINANCE': 'RC Included, Low Ordinance/Law',
         'FAIR_RENTAL_VALUE_ZERO_OR_MISSING': 'Fair Rental Value Zero or Missing',

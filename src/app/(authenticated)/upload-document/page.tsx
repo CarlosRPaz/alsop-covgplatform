@@ -68,7 +68,7 @@ interface DocumentStatus {
     processing_step: string;
     match_status: string;
     match_confidence: number | null;
-    match_log: Array<{ step: string; result: string; candidates?: number; reason?: string }> | null;
+    match_log: Array<{ step: string; result: string; candidates?: number; reason?: string; details?: Record<string, any> }> | null;
     error_message: string | null;
     policy_id: string | null;
     client_id: string | null;
@@ -260,86 +260,84 @@ export default function UploadDocumentPage() {
     const handleDrop = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); if (e.dataTransfer.files?.[0]) handleUpload(e.dataTransfer.files[0]); };
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files?.[0]) handleUpload(e.target.files[0]); };
 
-    /* ── Auto-Recommend on no_match ────────────────────────────────────── */
+    /* ── Auto-Recommend from backend candidates ─────────────────────────── */
 
     useEffect(() => {
         if (!docStatus || autoSearchRanRef.current) return;
         const isNR = docStatus.parse_status === 'needs_review' || docStatus.match_status === 'no_match' || docStatus.match_status === 'needs_review';
         if (!isNR) return;
 
-        // Need at least one of: extracted owner name OR file name
-        if (!docStatus.extracted_owner_name && !docStatus.file_name) return;
-
         autoSearchRanRef.current = true;
+
+        // Extract candidates from the match_log (populated by backend matcher)
+        const candidateStep = docStatus.match_log?.find((l: any) => l.step === 'candidates');
+        const backendCandidates = candidateStep?.details?.candidates as any[] | undefined;
+
+        if (backendCandidates && backendCandidates.length > 0) {
+            // Transform backend candidates into the shape the CandidateCard expects
+            const transformed = backendCandidates.map((c: any) => ({
+                id: c.policy_id,
+                policy_number: c.policy_number,
+                property_address_raw: c.property_address_raw,
+                carrier_name: c.carrier_name,
+                client_id: c.client_id,
+                clients: { id: c.client_id, named_insured: c.named_insured },
+                // Backend-scored similarity values for display
+                _name_similarity: c.name_similarity,
+                _address_similarity: c.address_similarity,
+                _match_source: c.match_source,
+            }));
+            setAutoRecommendations(transformed);
+            setAutoSearchDone(true);
+            return;
+        }
+
+        // Fallback: client-side search if backend didn't provide candidates
+        // (e.g. older documents processed before this update)
+        if (!docStatus.extracted_owner_name && !docStatus.file_name) {
+            setAutoSearchDone(true);
+            return;
+        }
+
         (async () => {
             try {
                 const searchTerms: string[] = [];
                 const seen = new Set<string>();
-
                 const addTerm = (t: string) => {
                     const clean = t.toLowerCase().trim();
                     if (clean.length >= 3 && !seen.has(clean)) { seen.add(clean); searchTerms.push(clean); }
                 };
-
                 const stopWords = new Set([
                     'dec', 'page', 'pdf', 'updated', 'new', 'bamboo', 'aegis', 'psic', 'dic', 'document', 'scan', 'copy', 'file',
                     'trust', 'family', 'dated', 'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'
                 ]);
 
-                // 1. Terms from file name first (highest signal, agent-provided)
                 if (docStatus.file_name) {
                     const nameNoExt = docStatus.file_name.replace(/\.[^.]+$/, '');
-                    const fileWords = nameNoExt.replace(/[^a-zA-Z\s-]/g, ' ').split(/\s+/).filter(Boolean);
-                    for (const w of fileWords) {
-                        if (!stopWords.has(w.toLowerCase())) {
-                            addTerm(w);
-                        }
+                    for (const w of nameNoExt.replace(/[^a-zA-Z\s-]/g, ' ').split(/\s+/).filter(Boolean)) {
+                        if (!stopWords.has(w.toLowerCase())) addTerm(w);
                     }
                 }
-
-                // 2. Terms from extracted owner name
                 if (docStatus.extracted_owner_name) {
-                    const words = docStatus.extracted_owner_name.replace(/[^a-zA-Z\s-]/g, '').split(/\s+/).filter(Boolean);
-                    if (words.length > 1) {
-                        const lastWord = words[words.length - 1];
-                        const firstWord = words[0];
-                        if (!stopWords.has(lastWord.toLowerCase())) addTerm(lastWord);
-                        if (!stopWords.has(firstWord.toLowerCase())) addTerm(firstWord);
-                    } else if (words.length === 1) {
-                        if (!stopWords.has(words[0].toLowerCase())) addTerm(words[0]);
+                    for (const w of docStatus.extracted_owner_name.replace(/[^a-zA-Z\s-]/g, '').split(/\s+/).filter(Boolean)) {
+                        if (!stopWords.has(w.toLowerCase())) addTerm(w);
                     }
                 }
 
                 const allResults: any[] = [];
                 const seenIds = new Set<string>();
-
                 for (const term of searchTerms.slice(0, 4)) {
                     const { data } = await supabase
                         .from('policies')
-                        .select(`
-                            id,
-                            policy_number,
-                            property_address_raw,
-                            carrier_name,
-                            client_id,
-                            clients!inner (
-                                id,
-                                named_insured
-                            )
-                        `)
+                        .select(`id, policy_number, property_address_raw, carrier_name, client_id, clients!inner (id, named_insured)`)
                         .ilike('clients.named_insured', `%${term}%`)
                         .limit(6);
-
                     if (data) {
                         for (const row of data) {
-                            if (!seenIds.has(row.id)) {
-                                seenIds.add(row.id);
-                                allResults.push(row);
-                            }
+                            if (!seenIds.has(row.id)) { seenIds.add(row.id); allResults.push(row); }
                         }
                     }
                 }
-
                 setAutoRecommendations(allResults.slice(0, 8));
             } catch { /* best effort */ }
             setAutoSearchDone(true);
@@ -955,10 +953,17 @@ function CandidateCard({ policy, docStatus, isAssigning, onAssign }: {
     onAssign: () => void;
 }) {
     const clientName = policy.clients?.named_insured || '—';
-    const sysAddress = policy.property_address_raw || 'Not on file';
+    const sysAddress = policy.property_address_raw || 'No address on file';
     const docName = docStatus?.extracted_owner_name || '—';
     const docAddress = docStatus?.extracted_address || '—';
-    const clientId = policy.clients?.id || policy.client_id;
+
+    // Backend-scored similarities (from match_candidates_for_review)
+    const nameSim: number | null = policy._name_similarity ?? null;
+    const addrSim: number | null = policy._address_similarity ?? null;
+    const matchSource: string | null = policy._match_source ?? null;
+
+    const sourceColor = matchSource === 'both' ? '#10b981' : matchSource === 'name' ? '#6366f1' : '#f59e0b';
+    const sourceLabel = matchSource === 'both' ? 'Name + Address' : matchSource === 'name' ? 'Name Match' : matchSource === 'address' ? 'Address Match' : null;
 
     return (
         <div style={{
@@ -967,6 +972,27 @@ function CandidateCard({ policy, docStatus, isAssigning, onAssign }: {
             background: 'var(--bg-surface)',
             overflow: 'hidden',
         }}>
+            {/* Match source badge */}
+            {sourceLabel && (
+                <div style={{ padding: '0.4rem 0.75rem', background: `${sourceColor}08`, borderBottom: '1px solid var(--border-default)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{
+                        fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.4rem',
+                        borderRadius: '999px', background: `${sourceColor}18`, color: sourceColor,
+                        textTransform: 'uppercase', letterSpacing: '0.04em',
+                    }}>{sourceLabel}</span>
+                    {nameSim !== null && nameSim > 0 && (
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                            Name: <strong style={{ color: nameSim >= 0.85 ? '#10b981' : nameSim >= 0.6 ? '#f59e0b' : 'var(--text-muted)' }}>{Math.round(nameSim * 100)}%</strong>
+                        </span>
+                    )}
+                    {addrSim !== null && addrSim > 0 && (
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                            Address: <strong style={{ color: addrSim >= 0.85 ? '#10b981' : addrSim >= 0.6 ? '#f59e0b' : 'var(--text-muted)' }}>{Math.round(addrSim * 100)}%</strong>
+                        </span>
+                    )}
+                </div>
+            )}
+
             {/* Comparison Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', fontSize: '0.75rem' }}>
                 {/* Header row */}
@@ -984,7 +1010,7 @@ function CandidateCard({ policy, docStatus, isAssigning, onAssign }: {
                 </div>
                 <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border-default)' }}>
                     <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '0.15rem' }}>Named Insured</div>
-                    <div style={{ fontWeight: 600, color: 'var(--text-high)' }}>{clientName}</div>
+                    <div style={{ fontWeight: 600, color: nameSim !== null && nameSim >= 0.85 ? '#10b981' : 'var(--text-high)' }}>{clientName}</div>
                 </div>
 
                 {/* Address row */}
@@ -994,7 +1020,7 @@ function CandidateCard({ policy, docStatus, isAssigning, onAssign }: {
                 </div>
                 <div style={{ padding: '0.5rem 0.75rem' }}>
                     <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '0.15rem' }}>Property Address</div>
-                    <div style={{ color: 'var(--text-mid)' }}>{sysAddress}</div>
+                    <div style={{ color: sysAddress === 'No address on file' ? 'var(--text-muted)' : addrSim !== null && addrSim >= 0.85 ? '#10b981' : 'var(--text-mid)', fontStyle: sysAddress === 'No address on file' ? 'italic' : 'normal' }}>{sysAddress}</div>
                 </div>
             </div>
 

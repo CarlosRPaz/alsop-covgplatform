@@ -6,11 +6,14 @@ import Link from 'next/link';
 import styles from './page.module.css';
 import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
-import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload, ShieldCheck, MapPin, Phone } from 'lucide-react';
 import { PropertyBanner } from '@/components/policy/PropertyBanner';
 import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, fetchPlatformDocumentsByPolicyId, getPlatformDocDownloadUrl } from '@/lib/api';
 import { PolicyStatusBar } from '@/components/policy/PolicyStatusBar';
-import { PolicyDashboard } from '@/components/policy/PolicyDashboard';
+import { PolicyOverviewTab } from '@/components/policy/tabs/PolicyOverviewTab';
+import { PolicyCfpDetailsTab } from '@/components/policy/tabs/PolicyCfpDetailsTab';
+import { PolicyDicDetailsTab } from '@/components/policy/tabs/PolicyDicDetailsTab';
+import { PolicyRceTab } from '@/components/policy/tabs/PolicyRceTab';
 import { AgentReviewPanel } from '@/components/policy/AIReport';
 import { PolicyFiles } from '@/components/policy/PolicyFiles';
 import { PolicyFlags } from '@/components/policy/PolicyFlags';
@@ -27,7 +30,10 @@ import { getUserProfile, UserRole } from '@/lib/auth';
 import { ClientPolicyView } from './client-view';
 
 const policyTabs = [
-    { id: 'review', label: 'POLICY REVIEW' },
+    { id: 'overview', label: 'OVERVIEW' },
+    { id: 'cfp', label: 'POLICY' },
+    { id: 'dic', label: 'DIC POLICY' },
+    { id: 'rce', label: 'RCE DATA' },
     { id: 'flags', label: 'FLAGS' },
     { id: 'notes', label: 'NOTES' },
     { id: 'activity', label: 'ACTIVITY' },
@@ -44,7 +50,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     const [declaration, setDeclaration] = useState<Declaration | undefined>(undefined);
 
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('review');
+    const [activeTab, setActiveTab] = useState('overview');
     const [copied, setCopied] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [policyDetailRaw, setPolicyDetailRaw] = useState<PolicyDetail | null>(null);
@@ -356,14 +362,32 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
 
     const renderTabContent = () => {
         switch (activeTab) {
-            case 'review':
+            case 'overview':
                 return (
                     <div className={styles.content}>
-                        <PolicyDashboard declaration={declaration!} enrichments={enrichments} policyDetail={policyDetailRaw || undefined} />
+                        <PolicyOverviewTab declaration={declaration!} policyDetail={policyDetailRaw || undefined} enrichments={enrichments} />
                         <AgentReviewPanel
                             reportRow={reportRow}
                             reportLink={reportRow ? `/report/${reportRow.id}` : undefined}
                         />
+                    </div>
+                );
+            case 'cfp':
+                return (
+                    <div className={styles.content}>
+                        <PolicyCfpDetailsTab declaration={declaration!} policyDetail={policyDetailRaw || undefined} enrichments={enrichments} />
+                    </div>
+                );
+            case 'dic':
+                return (
+                    <div className={styles.content}>
+                        <PolicyDicDetailsTab declaration={declaration!} policyDetail={policyDetailRaw || undefined} />
+                    </div>
+                );
+            case 'rce':
+                return (
+                    <div className={styles.content}>
+                        <PolicyRceTab declaration={declaration!} enrichments={enrichments} />
                     </div>
                 );
             case 'flags':
@@ -392,7 +416,6 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                 return (
                     <div className={styles.content}>
                         <PolicyFiles policyId={id} onDecPageApproved={() => {
-                            // Reload policy data after approval
                             getPolicyDetailById(id).then(detail => {
                                 if (detail) {
                                     setPolicyDetailRaw(detail);
@@ -467,46 +490,120 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                 onEnrich={handleEnrich}
             />
 
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* Policy Identity Header                                        */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
             <div className={styles.header}>
-                {/* ── Left: Title Block ── */}
-                <div>
+                {/* ── Left: Policy Identity ── */}
+                <div style={{ flex: 1, minWidth: 0 }}>
                     <Link href="/dashboard">
                         <button className={styles.backButton}>
                             <ArrowLeft size={14} />
                             Dashboard
                         </button>
                     </Link>
-                    <h1 className={styles.title}>Policy Review</h1>
-                    <div
-                        className={styles.subtitle}
-                        onClick={copyPolicyNumber}
-                        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-                        title="Click to copy policy number"
-                    >
-                        <span>
-                            Policy <strong style={{ color: 'var(--accent-primary)' }}>{declaration.policy_number}</strong>
-                        </span>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); copyPolicyNumber(); }}
-                            className={styles.copyBtn}
-                            style={{ color: copied ? '#34d399' : '#4b5563' }}
-                        >
-                            {copied ? <Check size={12} /> : <Copy size={12} />}
-                        </button>
-                    </div>
-                    <span
-                        className={styles.clientName}
+
+                    {/* Insured Name — Primary Heading */}
+                    <h1
+                        className={styles.title}
                         onClick={() => declaration.client_id && router.push(`/client/${declaration.client_id}`)}
+                        style={{ cursor: declaration.client_id ? 'pointer' : 'default' }}
+                        title={declaration.client_id ? 'View client profile' : undefined}
                     >
                         {declaration.insured_name}
-                    </span>
+                    </h1>
+
+                    {/* Policy # + Address row */}
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        marginTop: '0.35rem',
+                        flexWrap: 'wrap',
+                    }}>
+                        {/* Policy Number — Copyable chip */}
+                        <div
+                            onClick={copyPolicyNumber}
+                            title="Click to copy policy number"
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                padding: '0.2rem 0.6rem',
+                                background: 'rgba(99, 102, 241, 0.08)',
+                                border: '1px solid rgba(99, 102, 241, 0.2)',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontSize: '0.8rem',
+                                fontWeight: 600,
+                                color: 'var(--accent-primary)',
+                                letterSpacing: '0.01em',
+                                transition: 'all 0.15s ease',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {declaration.policy_number}
+                            <span style={{ color: copied ? '#34d399' : 'var(--text-muted)', display: 'inline-flex' }}>
+                                {copied ? <Check size={12} /> : <Copy size={12} />}
+                            </span>
+                        </div>
+
+                        {/* Property Address */}
+                        {policyDetailRaw?.property_address && (
+                            <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem',
+                                fontSize: '0.8rem',
+                                color: 'var(--text-mid)',
+                                fontWeight: 500,
+                            }}>
+                                <MapPin size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                                {policyDetailRaw.property_address}
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Contact row */}
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '1rem',
+                        marginTop: '0.35rem',
+                        flexWrap: 'wrap',
+                    }}>
+                        {declaration.client_email && (
+                            <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem',
+                                fontSize: '0.72rem',
+                                color: 'var(--text-muted)',
+                            }}>
+                                <Mail size={11} style={{ flexShrink: 0 }} />
+                                {declaration.client_email}
+                            </span>
+                        )}
+                        {declaration.client_phone && (
+                            <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem',
+                                fontSize: '0.72rem',
+                                color: 'var(--text-muted)',
+                            }}>
+                                <Phone size={11} style={{ flexShrink: 0 }} />
+                                {declaration.client_phone}
+                            </span>
+                        )}
+                    </div>
                 </div>
 
-                {/* ── Right: Action Cluster ── */}
+                {/* ── Right: Action Ribbon ── */}
                 <div className={styles.actionCluster}>
-                    {/* Edit Policy — Promoted CTA */}
+                    {/* Group 1: Primary Actions */}
                     <button className={styles.editPolicyBtn} onClick={() => setIsEditOpen(true)} title="Edit Policy">
-                        <Pencil size={15} />
+                        <Pencil size={14} />
                         Edit Policy
                     </button>
 
@@ -520,12 +617,65 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
 
                     <div className={styles.actionDivider} />
 
-                    <button className={styles.secondaryBtn} onClick={() => setIsWorkupOpen(true)}>
-                        <Zap size={15} />
+                    {/* Group 2: Analysis & Reports */}
+                    <button className={styles.secondaryBtn} onClick={() => setIsWorkupOpen(true)} title="Run full analysis">
+                        <Zap size={14} />
                         Full Analysis
                     </button>
 
-                    {/* ── Dec Page Button (Upload / View) ── */}
+                    {reportRow ? (
+                        <button
+                            className={styles.primaryBtn}
+                            onClick={() => router.push(`/report/${reportRow.id}`)}
+                            title="View coverage review report"
+                        >
+                            <ExternalLink size={14} />
+                            View Report
+                        </button>
+                    ) : (
+                        <button
+                            className={styles.secondaryBtn}
+                            disabled={isGeneratingReport}
+                            title="Generate coverage review report"
+                            onClick={async () => {
+                                setIsGeneratingReport(true);
+                                try {
+                                    const res = await fetch('/api/reports/generate', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ policyId: id }),
+                                    });
+                                    if (res.ok) {
+                                        const data = await res.json();
+                                        if (data.report) {
+                                            setReportRow(data.report);
+                                            router.push(`/report/${data.report.id}`);
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.error('Report generation failed:', e);
+                                } finally {
+                                    setIsGeneratingReport(false);
+                                }
+                            }}
+                        >
+                            {isGeneratingReport ? (
+                                <>
+                                    <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                                    Generating…
+                                </>
+                            ) : (
+                                <>
+                                    <FileText size={14} />
+                                    Generate Report
+                                </>
+                            )}
+                        </button>
+                    )}
+
+                    <div className={styles.actionDivider} />
+
+                    {/* Group 3: Document Actions */}
                     {!decPageStoragePath ? (
                         <>
                             <input
@@ -593,8 +743,8 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                                 title={decPageLoading ? 'Uploading...' : 'Upload Dec Page PDF'}
                                 onClick={() => fileInputRef.current?.click()}
                             >
-                                <Upload size={15} />
-                                {decPageLoading ? 'Uploading…' : 'Upload Dec Page'}
+                                <Upload size={14} />
+                                {decPageLoading ? 'Uploading…' : 'Dec Page'}
                             </button>
                         </>
                     ) : (
@@ -618,12 +768,12 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                                 }
                             }}
                         >
-                            <FileDown size={15} />
+                            <FileDown size={14} />
                             {decPageLoading ? 'Opening…' : 'Dec Page'}
                         </button>
                     )}
 
-                    {/* ── DIC Button (Upload / View) ── */}
+                    {/* DIC Button */}
                     {!dicDocStoragePath ? (
                         <>
                             <input
@@ -658,7 +808,6 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
 
                                         if (res.ok && json.success) {
                                             toast.success(`DIC uploaded: ${file.name}`);
-                                            // Refresh DIC doc path
                                             const docs = await fetchPlatformDocumentsByPolicyId(id);
                                             const dicDoc = docs.find(d => d.doc_type === 'dic_dec_page' && d.storage_path);
                                             if (dicDoc?.storage_path) setDicDocStoragePath(dicDoc.storage_path);
@@ -680,8 +829,8 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                                 title={dicDocLoading ? 'Uploading...' : 'Upload DIC PDF'}
                                 onClick={() => dicFileInputRef.current?.click()}
                             >
-                                <Upload size={15} />
-                                {dicDocLoading ? 'Uploading…' : 'Upload DIC'}
+                                <Upload size={14} />
+                                {dicDocLoading ? 'Uploading…' : 'DIC'}
                             </button>
                         </>
                     ) : (
@@ -705,67 +854,8 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                                 }
                             }}
                         >
-                            <ShieldCheck size={15} />
-                            {dicDocLoading ? 'Opening…' : 'DIC Page'}
-                        </button>
-                    )}
-
-                    {reportRow ? (
-                        <button
-                            className={styles.primaryBtn}
-                            onClick={() => router.push(`/report/${reportRow.id}`)}
-                        >
-                            <ExternalLink size={15} />
-                            View Report
-                        </button>
-                    ) : (
-                        <button
-                            className={styles.dangerOutlineBtn}
-                            disabled={isGeneratingReport}
-                            onClick={async () => {
-                                setIsGeneratingReport(true);
-                                try {
-                                    const res = await fetch('/api/reports/generate', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ policyId: id }),
-                                    });
-                                    if (res.ok) {
-                                        const data = await res.json();
-                                        if (data.report) {
-                                            setReportRow(data.report);
-                                            router.push(`/report/${data.report.id}`);
-                                        }
-                                    }
-                                } catch (e) {
-                                    console.error('Report generation failed:', e);
-                                } finally {
-                                    setIsGeneratingReport(false);
-                                }
-                            }}
-                        >
-                            {isGeneratingReport ? (
-                                <>
-                                    <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
-                                    Generating…
-                                </>
-                            ) : (
-                                <>
-                                    <FileText size={15} />
-                                    Generate Report
-                                </>
-                            )}
-                        </button>
-                    )}
-
-                    {reportRow && (
-                        <button
-                            className={styles.secondaryBtn}
-                            onClick={() => setShowEmailComposer(true)}
-                            title="Email report to client"
-                        >
-                            <Mail size={15} />
-                            Email Report
+                            <ShieldCheck size={14} />
+                            {dicDocLoading ? 'Opening…' : 'DIC'}
                         </button>
                     )}
                 </div>
@@ -828,7 +918,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
 
             {/* Tab Navigation */}
             <div className={styles.tabsWrapper}>
-                <Tabs tabs={policyTabs} defaultTab="review" activeTab={activeTab} onChange={setActiveTab} />
+                <Tabs tabs={policyTabs} defaultTab="overview" activeTab={activeTab} onChange={setActiveTab} />
             </div>
 
             {/* Tab Content */}

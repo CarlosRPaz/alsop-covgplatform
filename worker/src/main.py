@@ -83,14 +83,21 @@ def process_job(job: dict) -> None:
     """
     Full lifecycle for one ingestion job.
 
-    Pipeline stages (with live UI step tracking):
-      1. Download PDF
-      2. Extract text (pdfplumber/OCR)          → step: extracting_text
-      3. Parse declaration fields (LLM/regex)    → step: parsing_fields
-      4. Create lifecycle records (client/policy) → step: creating_records
-      5. Full enrichment via API (ATTOM, vision) → step: enriching_property
-      6. Flag evaluation via API                 → step: evaluating_flags
-      7. Done                                    → step: complete
+    Pipeline — two phases:
+
+      PHASE 1: FAST PATH (~15s) — blocks until complete
+        1. Download PDF
+        2. Extract text (pdfplumber/OCR)          → step: extracting_text
+        3. Parse declaration fields (LLM/regex)    → step: parsing_fields
+        4. Create lifecycle records (client/policy) → step: creating_records
+        5. Mark complete → submission: parsed      → step: complete
+
+      PHASE 2: BACKGROUND ENRICHMENT — continues after job is done
+        6. Full enrichment via API (ATTOM, vision) → activity: enrichment.completed
+        7. Flag evaluation via API                 → activity: flags evaluated
+        (Report is auto-generated inside enrichment)
+
+    The agent sees the policy in ~15s. Enrichment data populates as it arrives.
 
     Uses try/except/finally to guarantee the job NEVER stays in 'processing':
       - On success: job -> done, submission -> parsed
@@ -242,60 +249,84 @@ def process_job(job: dict) -> None:
                 )
 
         # ─────────────────────────────────────────────────────────────
-        # 10. FULL ENRICHMENT via API  ── UI step: enriching_property
-        #
-        # This replaces the old minimal enrichment (satellite + geocode
-        # + fire risk only). Now calls the production Next.js API which
-        # runs the COMPLETE pipeline: ATTOM, satellite, street view,
-        # AI vision, fire risk, geocoding, AND auto-generates a report.
+        # 10. EARLY COMPLETION — Mark job done NOW so the agent can
+        #     start working on the policy immediately (~15s).
+        #     Enrichment, flags, and report run as a background
+        #     continuation in the same thread after this point.
         # ─────────────────────────────────────────────────────────────
-        if policy_id:
-            current_step = "full_enrichment_api"
-            update_submission_step(submission_id, "enriching_property")
-            logger.info("job_id=%s step=%s policy_id=%s", job_id, current_step, policy_id)
-            try:
-                enrich_result = trigger_full_enrichment(policy_id)
-                if not enrich_result.get("success"):
-                    logger.warning(
-                        "job_id=%s full enrichment returned non-success (non-fatal): %s",
-                        job_id, enrich_result.get("error"),
-                    )
-            except Exception as enrich_exc:
-                logger.warning(
-                    "job_id=%s full enrichment failed (non-fatal): %s",
-                    job_id, enrich_exc,
-                )
-
-            # 11. RE-EVALUATE FLAGS with enriched data  ── UI step: evaluating_flags
-            current_step = "flag_evaluation_api"
-            update_submission_step(submission_id, "evaluating_flags")
-            logger.info("job_id=%s step=%s policy_id=%s", job_id, current_step, policy_id)
-            try:
-                flag_result = trigger_flag_evaluation(policy_id)
-                if not flag_result.get("success"):
-                    logger.warning(
-                        "job_id=%s flag evaluation returned non-success (non-fatal): %s",
-                        job_id, flag_result.get("error"),
-                    )
-            except Exception as flag_exc:
-                logger.warning(
-                    "job_id=%s flag evaluation API failed (non-fatal): %s",
-                    job_id, flag_exc,
-                )
-
-        # 12. Mark job done  ── UI step: complete
         current_step = "complete_job"
         update_submission_step(submission_id, "complete")
         logger.info("job_id=%s step=%s", job_id, current_step)
         complete_job(job_id)
         job_completed = True  # MUST be set AFTER complete_job succeeds
 
-        # 13. Mark submission parsed
+        # Mark submission parsed (updates updated_at → fast processing time)
         current_step = "update_submission_parsed"
         update_submission_status(submission_id, "parsed")
 
-        elapsed = _time.monotonic() - job_start
-        logger.info("<<< job_id=%s submission_id=%s step=finished status=done elapsed=%.2fs", job_id, submission_id, elapsed)
+        parse_elapsed = _time.monotonic() - job_start
+        logger.info("<<< job_id=%s submission_id=%s step=parsed status=done parse_elapsed=%.2fs",
+                     job_id, submission_id, parse_elapsed)
+
+        # ─────────────────────────────────────────────────────────────
+        # 11. BACKGROUND ENRICHMENT — Runs AFTER job is marked done.
+        #     Order: enrichment → flags → report (each depends on prior).
+        #     Failures here are non-fatal; the policy is already saved.
+        #     Each step creates its own activity event for agent visibility.
+        # ─────────────────────────────────────────────────────────────
+        if policy_id:
+            bg_start = _time.monotonic()
+            logger.info(">>> job_id=%s starting background enrichment for policy_id=%s",
+                         job_id, policy_id)
+
+            # 11a. FULL ENRICHMENT (ATTOM, satellite, vision, geocoding, fire risk)
+            enrichment_ok = False
+            try:
+                enrich_result = trigger_full_enrichment(policy_id)
+                enrichment_ok = enrich_result.get("success", False)
+                if not enrichment_ok:
+                    logger.warning(
+                        "job_id=%s bg_enrichment returned non-success: %s",
+                        job_id, enrich_result.get("error"),
+                    )
+                else:
+                    logger.info("job_id=%s bg_enrichment completed in %.2fs",
+                                job_id, _time.monotonic() - bg_start)
+            except Exception as enrich_exc:
+                logger.warning(
+                    "job_id=%s bg_enrichment failed (non-fatal): %s",
+                    job_id, enrich_exc,
+                )
+
+            # 11b. FLAG EVALUATION (must run AFTER enrichment for accurate flags)
+            flags_ok = False
+            if enrichment_ok:
+                try:
+                    flag_result = trigger_flag_evaluation(policy_id)
+                    flags_ok = flag_result.get("success", False)
+                    if not flags_ok:
+                        logger.warning(
+                            "job_id=%s bg_flags returned non-success: %s",
+                            job_id, flag_result.get("error"),
+                        )
+                    else:
+                        logger.info("job_id=%s bg_flags completed", job_id)
+                except Exception as flag_exc:
+                    logger.warning(
+                        "job_id=%s bg_flags failed (non-fatal): %s",
+                        job_id, flag_exc,
+                    )
+            else:
+                # Still try flags even without enrichment — some flags are data-only
+                try:
+                    flag_result = trigger_flag_evaluation(policy_id)
+                    flags_ok = flag_result.get("success", False)
+                except Exception:
+                    pass
+
+            bg_elapsed = _time.monotonic() - bg_start
+            logger.info("<<< job_id=%s bg_enrichment_total elapsed=%.2fs enrichment=%s flags=%s",
+                         job_id, bg_elapsed, enrichment_ok, flags_ok)
 
     except Exception as exc:
         error_msg = str(exc)
