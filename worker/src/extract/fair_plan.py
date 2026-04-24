@@ -154,6 +154,22 @@ def _extract_policy_number(text: str) -> str | None:
     return None
 
 
+# Known-bad patterns that the regex parser mistakenly captures as names
+# from PDF form metadata, section headers, and interleaved columns.
+_BAD_NAME_PATTERNS = [
+    r"(?i)^copy\b",                    # "Copy Cfp-R3A (09/2019)" — PDF form name
+    r"(?i)^name\s+and\b",              # "Name And" — partial header capture
+    r"(?i)cfp-r3a",                     # FAIR Plan form identifier
+    r"(?i)^insured\s+name",            # Section header fragment
+    r"(?i)^mailing\s+address",         # Section header fragment
+    r"(?i)^property\s+location",       # Section header fragment
+    r"(?i)^declarations?",             # Document type label
+    r"(?i)^dwelling\s+insurance",      # Document type label
+    r"(?i)^california\s+fair",         # Carrier name, not insured
+    r"\(\d{2}/\d{4}\)",               # Form revision dates like (09/2019)
+]
+
+
 def _looks_like_name(text: str) -> bool:
     """Heuristic: does this text look like a person or company name?"""
     if not text or len(text) < 2:
@@ -162,6 +178,10 @@ def _looks_like_name(text: str) -> bool:
     words = text.split()
     if len(words) > 8:
         return False
+    # Reject known-bad patterns from PDF form metadata
+    for pat in _BAD_NAME_PATTERNS:
+        if re.search(pat, text):
+            return False
     # Reject if it contains legal / policy / exclusion keywords
     reject_keywords = [
         "CRIME", "ELEMENT", "INCREASING", "NECESSARY", "EXCLUSION",

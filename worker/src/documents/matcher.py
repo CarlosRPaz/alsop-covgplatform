@@ -128,15 +128,6 @@ def normalize_name(raw: str | None) -> str | None:
     words = s.split()
     filtered = [w for w in words if w not in NAME_SUFFIXES]
 
-    # Strip single-character middle initials (e.g. MARK S ADAMS → MARK ADAMS)
-    # This prevents middle initials from reducing similarity scores.
-    # Only strip if there are 3+ tokens and the single char is not first or last.
-    if len(filtered) >= 3:
-        filtered = [
-            w for i, w in enumerate(filtered)
-            if not (len(w) == 1 and 0 < i < len(filtered) - 1)
-        ]
-
     s = " ".join(filtered)
 
     # Collapse whitespace
@@ -649,7 +640,7 @@ def match_candidates_for_review(
                 c_norm = normalize_name(c_insured)
                 if c_norm:
                     sim = _similarity(norm_name, c_norm)
-                    if sim >= 0.60:
+                    if sim >= 0.85:
                         name_matches.append((c["id"], c_insured, sim))
 
             name_matches.sort(key=lambda x: x[2], reverse=True)

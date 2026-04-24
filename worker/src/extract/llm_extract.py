@@ -346,9 +346,17 @@ def _build_user_prompt(raw_text: str) -> str:
     return trimmed
 
 
+MAX_LLM_RETRIES = 3
+
+
 def extract_with_llm(raw_text: str) -> dict | None:
     """
     Extract declaration fields from raw text using OpenAI GPT-4o-mini.
+
+    Retries up to MAX_LLM_RETRIES times with exponential backoff on transient
+    failures (rate limits, timeouts, API errors). This is critical because the
+    regex fallback parser cannot reliably handle interleaved-column PDF layouts
+    and will produce garbage data if used.
 
     Returns a dict:
     {
@@ -358,85 +366,98 @@ def extract_with_llm(raw_text: str) -> dict | None:
         "parse_status": str  # "parsed" | "needs_review"
     }
 
-    Returns None if the LLM call fails (caller should fall back to regex).
+    Returns None if the LLM call fails after all retries.
     """
+    import time as _time
+
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         logger.warning("OPENAI_API_KEY not set -- skipping LLM extraction")
         return None
 
-    try:
-        client = OpenAI(api_key=api_key)
+    client = OpenAI(api_key=api_key)
+    trimmed_text = raw_text[:MAX_TEXT_CHARS]
 
-        trimmed_text = raw_text[:MAX_TEXT_CHARS]
+    for attempt in range(1, MAX_LLM_RETRIES + 1):
+        try:
+            logger.info(
+                "Sending %d chars to GPT-4o-mini for extraction (attempt %d/%d)",
+                len(trimmed_text), attempt, MAX_LLM_RETRIES,
+            )
 
-        logger.info(
-            "Sending %d chars to GPT-4o-mini for extraction",
-            len(trimmed_text),
-        )
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": trimmed_text},
+                ],
+                temperature=0.0,
+                max_tokens=2000,
+                response_format={"type": "json_object"},
+            )
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": trimmed_text},
-            ],
-            temperature=0.0,
-            max_tokens=2000,
-            response_format={"type": "json_object"},
-        )
+            content = response.choices[0].message.content
+            if not content:
+                logger.error("LLM returned empty content (attempt %d/%d)", attempt, MAX_LLM_RETRIES)
+                if attempt < MAX_LLM_RETRIES:
+                    _time.sleep(2 ** attempt)
+                    continue
+                return None
 
-        content = response.choices[0].message.content
-        if not content:
-            logger.error("LLM returned empty content")
+            extracted: dict[str, Any] = json.loads(content)
+
+            # Normalize: convert empty strings to None (keep booleans as-is)
+            for key in extracted:
+                if isinstance(extracted[key], str) and (
+                    extracted[key] == "" or extracted[key].lower() == "null"
+                ):
+                    extracted[key] = None
+
+            # ── Post-extraction sanity check: detect swapped addresses ──
+            # The LLM sometimes confuses the interleaved PDF columns and swaps
+            # property_location ↔ mailing_address. Detect & correct this.
+            _fix_swapped_addresses(extracted)
+
+            # Determine if it's a FAIR Plan doc from the text
+            upper_text = trimmed_text.upper()
+            is_fair_plan = (
+                "FAIR PLAN" in upper_text
+                or "CALIFORNIA FAIR PLAN" in upper_text
+                or "CFP" in (extracted.get("policy_number") or "").upper()
+            )
+
+            # Determine missing lifecycle fields
+            missing = [f for f in LIFECYCLE_FIELDS if not extracted.get(f)]
+
+            # Determine parse status
+            parse_status = "parsed" if not missing else "needs_review"
+
+            logger.info(
+                "LLM extraction complete. is_fair_plan=%s, insured=%s, policy=%s, missing=%s",
+                is_fair_plan,
+                extracted.get("insured_name"),
+                extracted.get("policy_number"),
+                missing,
+            )
+
+            return {
+                "is_fair_plan": is_fair_plan,
+                "extracted_data": extracted,
+                "missing_fields": missing,
+                "parse_status": parse_status,
+            }
+
+        except json.JSONDecodeError as e:
+            logger.error("Failed to parse LLM response as JSON (attempt %d/%d): %s", attempt, MAX_LLM_RETRIES, e)
+            if attempt < MAX_LLM_RETRIES:
+                _time.sleep(2 ** attempt)
+                continue
+            return None
+        except Exception as e:
+            logger.error("LLM extraction failed (attempt %d/%d): %s", attempt, MAX_LLM_RETRIES, e)
+            if attempt < MAX_LLM_RETRIES:
+                _time.sleep(2 ** attempt)
+                continue
             return None
 
-        extracted: dict[str, Any] = json.loads(content)
-
-        # Normalize: convert empty strings to None (keep booleans as-is)
-        for key in extracted:
-            if isinstance(extracted[key], str) and (
-                extracted[key] == "" or extracted[key].lower() == "null"
-            ):
-                extracted[key] = None
-
-        # ── Post-extraction sanity check: detect swapped addresses ──
-        # The LLM sometimes confuses the interleaved PDF columns and swaps
-        # property_location ↔ mailing_address. Detect & correct this.
-        _fix_swapped_addresses(extracted)
-
-        # Determine if it's a FAIR Plan doc from the text
-        upper_text = trimmed_text.upper()
-        is_fair_plan = (
-            "FAIR PLAN" in upper_text
-            or "CALIFORNIA FAIR PLAN" in upper_text
-            or "CFP" in (extracted.get("policy_number") or "").upper()
-        )
-
-        # Determine missing lifecycle fields
-        missing = [f for f in LIFECYCLE_FIELDS if not extracted.get(f)]
-
-        # Determine parse status
-        parse_status = "parsed" if not missing else "needs_review"
-
-        logger.info(
-            "LLM extraction complete. is_fair_plan=%s, insured=%s, policy=%s, missing=%s",
-            is_fair_plan,
-            extracted.get("insured_name"),
-            extracted.get("policy_number"),
-            missing,
-        )
-
-        return {
-            "is_fair_plan": is_fair_plan,
-            "extracted_data": extracted,
-            "missing_fields": missing,
-            "parse_status": parse_status,
-        }
-
-    except json.JSONDecodeError as e:
-        logger.error("Failed to parse LLM response as JSON: %s", e)
-        return None
-    except Exception as e:
-        logger.error("LLM extraction failed: %s", e)
-        return None
+    return None
