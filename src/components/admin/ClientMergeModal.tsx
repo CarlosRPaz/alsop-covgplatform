@@ -31,7 +31,7 @@ interface ClientMergeModalProps {
     onConfirm: (survivorId: string, mergedIds: string[], consolidatePayload: Record<string, any>, keepDocs: boolean) => Promise<void>;
 }
 
-type FieldKey = 'named_insured' | 'email' | 'phone' | 'address';
+type FieldKey = 'named_insured' | 'email' | 'phone' | 'mailing_address_raw';
 
 export default function ClientMergeModal({ survivor, candidates, onClose, onConfirm }: ClientMergeModalProps) {
     // All records: survivor first, then N candidates
@@ -43,7 +43,7 @@ export default function ClientMergeModal({ survivor, candidates, onClose, onConf
             named_insured: 0,
             email: 0,
             phone: 0,
-            address: 0,
+            mailing_address_raw: 0,
         };
         // Auto-select first record that has data
         for (const key of ['email', 'phone'] as FieldKey[]) {
@@ -54,7 +54,7 @@ export default function ClientMergeModal({ survivor, candidates, onClose, onConf
         }
         if (!survivor.mailing_address_raw) {
             const idx = allRecords.findIndex((r) => r.mailing_address_raw);
-            if (idx >= 0) defaults.address = idx;
+            if (idx >= 0) defaults.mailing_address_raw = idx;
         }
         return defaults;
     });
@@ -92,7 +92,7 @@ export default function ClientMergeModal({ survivor, candidates, onClose, onConf
             payload.email = selSource('email').email;
             payload.phone = selSource('phone').phone;
 
-            const addrSource = selSource('address');
+            const addrSource = selSource('mailing_address_raw');
             payload.mailing_address_raw = addrSource.mailing_address_raw;
             payload.mailing_address_norm = addrSource.mailing_address_norm;
 
@@ -211,7 +211,7 @@ export default function ClientMergeModal({ survivor, candidates, onClose, onConf
                             {renderFieldRow('Named Insured', 'named_insured', (r) => r.named_insured)}
                             {renderFieldRow('Email Address', 'email', (r) => r.email)}
                             {renderFieldRow('Phone Number', 'phone', (r) => r.phone)}
-                            {renderFieldRow('Mailing Address', 'address', (r) => r.mailing_address_raw)}
+                            {renderFieldRow('Mailing Address', 'mailing_address_raw', (r) => r.mailing_address_raw)}
                         </div>
                     </div>
 

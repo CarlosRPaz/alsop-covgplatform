@@ -53,8 +53,8 @@ export class DuplicateEngine {
                     const normA = normalizePolicyNumber(a.policy_number);
                     const normB = normalizePolicyNumber(b.policy_number);
                     
-                    const hasSuffixA = normA.sequenceSuffix ? 1 : 0;
-                    const hasSuffixB = normB.sequenceSuffix ? 1 : 0;
+                    const hasSuffixA = normA.suffix ? 1 : 0;
+                    const hasSuffixB = normB.suffix ? 1 : 0;
                     
                     if (hasSuffixA !== hasSuffixB) {
                         return hasSuffixA - hasSuffixB; // 0 comes before 1
