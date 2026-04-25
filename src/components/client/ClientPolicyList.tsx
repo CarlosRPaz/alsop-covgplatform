@@ -9,6 +9,17 @@ interface ClientPolicyListProps {
     clientId: string;
 }
 
+/** Format ISO date string to MM-DD-YY */
+function formatShortDate(dateStr: string | null | undefined): string {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const yy = String(d.getFullYear()).slice(-2);
+    return `${mm}-${dd}-${yy}`;
+}
+
 export function ClientPolicyList({ clientId }: ClientPolicyListProps) {
     const router = useRouter();
     const [policies, setPolicies] = React.useState<DashboardPolicy[]>([]);
@@ -98,8 +109,8 @@ export function ClientPolicyList({ clientId }: ClientPolicyListProps) {
                                         <span style={{ color: '#4ade80', fontSize: '0.75rem', fontWeight: 600 }}>✓ None</span>
                                     )}
                                 </td>
-                                <td className={styles.td}>{policy.effective_date || '—'}</td>
-                                <td className={styles.td}>{policy.expiration_date || '—'}</td>
+                                <td className={styles.td}>{formatShortDate(policy.effective_date)}</td>
+                                <td className={styles.td}>{formatShortDate(policy.expiration_date)}</td>
                                 <td className={styles.td}>{policy.annual_premium || '—'}</td>
                                 <td className={styles.td}>
                                     <span className={`${styles.statusBadge} ${styles[`status${(policy.status || 'unknown').replace(/\s/g, '')}`]}`}>

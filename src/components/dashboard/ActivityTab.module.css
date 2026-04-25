@@ -116,6 +116,33 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex-wrap: wrap;
+}
+
+.actionTextMerge {
+    color: #a78bfa;
+}
+
+.statusIconMerge {
+    color: #a78bfa;
+}
+
+.statusIconDoc {
+    color: #38bdf8;
+}
+
+.rowMerge {
+    border-left: 2px solid rgba(167, 139, 250, 0.3);
+    padding-left: 0.75rem;
+}
+
+.detailText {
+    width: 100%;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.125rem;
+    white-space: normal;
+    line-height: 1.4;
 }
 
 .statusLabel {

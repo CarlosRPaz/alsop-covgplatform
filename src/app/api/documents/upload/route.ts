@@ -323,6 +323,24 @@ export async function POST(request: NextRequest): Promise<NextResponse<DocumentU
             jobQueued: !jobError,
         });
 
+        // Activity Event for Dashboard Feed (fire-and-forget)
+        const docLabel = docType === 'rce' ? 'RCE Report' : docType === 'dic_dec_page' ? 'DIC Declaration' : docType.toUpperCase();
+        Promise.resolve(
+            supabaseAdmin.from('activity_events').insert({
+                actor_user_id: accountId,
+                event_type: `doc.uploaded.${docType}`,
+                title: `${docLabel} uploaded`,
+                detail: `File: ${file.name} (${(file.size / 1024).toFixed(0)} KB)`,
+                policy_id: policyId || null,
+                meta: {
+                    document_id: documentId,
+                    doc_type: docType,
+                    file_name: file.name,
+                    file_size: file.size,
+                },
+            })
+        ).catch(() => { /* non-fatal */ });
+
         return NextResponse.json(
             {
                 success: true,

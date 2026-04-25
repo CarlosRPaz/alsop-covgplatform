@@ -2367,7 +2367,7 @@ export async function linkDocumentToPolicy(
 
 export interface ActivityFeedItem {
     id: string;
-    type: 'upload';
+    type: 'upload' | 'merge';
     status: string;
     created_at: string;
     file_path: string | null;
@@ -2384,11 +2384,15 @@ export interface ActivityFeedItem {
     // Whether enrichment/flags have actually run (for real-time indicators)
     is_enriched?: boolean;
     flags_checked?: boolean;
+    // Merge event extras
+    event_type?: string;
+    title?: string;
+    detail?: string;
+    meta?: Record<string, any>;
 }
 
 /**
- * Fetch recent declaration uploads for the activity feed.
- * Joins dec_page_submissions → dec_pages (for insured/policy info).
+ * Fetch recent uploads + merge events for the dashboard activity feed.
  */
 export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]> {
     try {
@@ -2460,14 +2464,12 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
         }
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return data.map((row: any) => {
-            // dec_pages can be an array (one-to-many) or a single object (FK)
+        const uploadItems = data.map((row: any) => {
             const dpRaw = row.dec_pages;
             const dp = Array.isArray(dpRaw)
                 ? (dpRaw.length > 0 ? dpRaw[0] : null)
                 : (dpRaw || null);
 
-            // Resolve uploader name from accounts join
             const acct = row.accounts;
             let uploaderName = 'Unknown';
             if (acct) {
@@ -2477,16 +2479,14 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
                 if (fullName) {
                     uploaderName = fullName;
                 } else {
-                    // Fallback to role label
                     uploaderName = acct.role === 'agent' ? 'Agent' : acct.role === 'customer' ? 'Client' : 'User';
                 }
             }
 
-            // Compute processing time for completed items
             let processingSeconds: number | undefined;
             if ((row.status === 'parsed' || row.status === 'done') && row.updated_at && row.created_at) {
                 const elapsed = (new Date(row.updated_at).getTime() - new Date(row.created_at).getTime()) / 1000;
-                if (elapsed > 0 && elapsed < 3600) { // Sanity check: between 0 and 1 hour
+                if (elapsed > 0 && elapsed < 3600) {
                     processingSeconds = Math.round(elapsed);
                 }
             }
@@ -2510,6 +2510,38 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
                 flags_checked: pid ? flagsSet.has(pid) : false,
             };
         });
+
+        // ── Source B: Merge events only ──
+        const { data: mergeData } = await supabase
+            .from('activity_events')
+            .select('id, event_type, title, detail, client_id, policy_id, meta, created_at')
+            .in('event_type', ['merge.client', 'merge.policy'])
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+        const mergeItems: ActivityFeedItem[] = (mergeData || []).map((ev: any) => ({
+            id: ev.id,
+            type: 'merge' as const,
+            status: 'done',
+            created_at: ev.created_at,
+            file_path: null,
+            uploaded_by: 'System',
+            event_type: ev.event_type,
+            title: ev.title,
+            detail: ev.detail,
+            client_id: ev.client_id || ev.meta?.survivor_id || undefined,
+            insured_name: ev.meta?.survivor_name || undefined,
+            policy_number: ev.meta?.survivor_policy_number || undefined,
+            policy_id: ev.policy_id || undefined,
+            meta: ev.meta,
+        }));
+
+        // Merge + sort chronologically
+        const combined = [...uploadItems, ...mergeItems]
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            .slice(0, limit);
+
+        return combined;
     } catch (err) {
         logger.error('API', 'Unexpected error fetching activity feed', {
             error: err instanceof Error ? err.message : String(err),
@@ -2517,6 +2549,47 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
         return [];
     }
 }
+
+// ---------------------------------------------------------------------------
+// Entity Activity (Policy / Client detail pages)
+// ---------------------------------------------------------------------------
+
+export interface EntityActivityEvent {
+    id: string;
+    event_type: string;
+    title: string;
+    detail: string | null;
+    created_at: string;
+    meta: Record<string, any> | null;
+}
+
+export async function fetchEntityActivity(
+    entityType: 'policy' | 'client',
+    entityId: string,
+    limit = 20
+): Promise<EntityActivityEvent[]> {
+    try {
+        const col = entityType === 'policy' ? 'policy_id' : 'client_id';
+        const { data, error } = await supabase
+            .from('activity_events')
+            .select('id, event_type, title, detail, created_at, meta')
+            .eq(col, entityId)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+        if (error) {
+            logger.error('API', `Error fetching ${entityType} activity`, { message: error.message });
+            return [];
+        }
+        return data || [];
+    } catch (err) {
+        logger.error('API', `Unexpected error fetching ${entityType} activity`, {
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return [];
+    }
+}
+
 
 // ---------------------------------------------------------------------------
 // Dec Page Review & Approval

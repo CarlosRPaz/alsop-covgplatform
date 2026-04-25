@@ -107,9 +107,10 @@ export function SidebarSearch({ collapsed }: SidebarSearchProps) {
                 display: 'flex', alignItems: 'center', gap: '0.4rem',
                 padding: '0.35rem 0.65rem', borderRadius: '6px',
                 background: 'var(--bg-surface-raised)',
-                border: '1px solid var(--border-default)',
+                borderWidth: '1px',
+                borderStyle: 'solid',
+                borderColor: isOpen ? 'var(--accent-primary)' : 'var(--border-default)',
                 transition: 'border-color 0.15s ease',
-                ...(isOpen ? { borderColor: 'var(--accent-primary)' } : {}),
             }}>
                 <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                 <input

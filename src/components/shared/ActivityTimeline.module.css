@@ -75,6 +75,11 @@
     color: var(--status-info);
 }
 
+.icon.merge_event {
+    background: rgba(167, 139, 250, 0.12);
+    color: #a78bfa;
+}
+
 .content {
     flex: 1;
     min-width: 0;

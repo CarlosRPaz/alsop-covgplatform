@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Upload, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, RefreshCw, Sparkles, Shield, Timer } from 'lucide-react';
+import { FileText, Upload, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, RefreshCw, Sparkles, Shield, Timer, Merge } from 'lucide-react';
 import { fetchActivityFeed, ActivityFeedItem } from '@/lib/api';
 import styles from './ActivityTab.module.css';
 
@@ -39,7 +39,10 @@ function getStatusConfig(status: string): { label: string; cssKey: string } {
     }
 }
 
-function StatusIcon({ status }: { status: string }) {
+function StatusIcon({ status, type }: { status: string; type?: string }) {
+    if (type === 'merge') {
+        return <Merge size={14} className={styles.statusIconMerge} />;
+    }
     switch (status) {
         case 'parsed':
         case 'done':
@@ -124,10 +127,10 @@ export function ActivityTab() {
                             const isFailed = activity.status === 'failed';
 
                             return (
-                                <div key={`${activity.id}-${idx}`} className={styles.row}>
+                                <div key={`${activity.id}-${idx}`} className={`${styles.row} ${activity.type === 'merge' ? styles.rowMerge : ''}`}>
                                     {/* Status icon */}
                                     <div className={styles.statusCol}>
-                                        <StatusIcon status={activity.status} />
+                                        <StatusIcon status={activity.status} type={activity.type} />
                                     </div>
 
                                     {/* Main info */}
@@ -143,7 +146,9 @@ export function ActivityTab() {
                                         )}
 
                                         {/* Action description */}
-                                        <span className={styles.actionText}>Dec Page Uploaded</span>
+                                        <span className={`${styles.actionText} ${activity.type === 'merge' ? styles.actionTextMerge : ''}`}>
+                                            {activity.type === 'merge' ? 'Client Records Consolidated' : 'Dec Page Uploaded'}
+                                        </span>
 
                                         {/* Client / Policy links */}
                                         {activity.insured_name && (
@@ -174,17 +179,26 @@ export function ActivityTab() {
                                                 </span>
                                             </>
                                         )}
+
+                                        {/* Detail text for merge events */}
+                                        {activity.type === 'merge' && activity.detail && (
+                                            <div className={styles.detailText}>{activity.detail}</div>
+                                        )}
                                     </div>
 
                                     {/* Supporting context for completed items */}
                                     <div className={styles.uploaderCol}>
                                         <span>{activity.uploaded_by}</span>
-                                        {isDone && (
+                                        {activity.type === 'upload' && isDone && (
                                             <span className={styles.successHints}>
                                                 {activity.is_enriched ? (
                                                     <><Sparkles size={10} /><span>Enriched</span></>
                                                 ) : (
-                                                    <><Loader2 size={10} className={styles.spinSlow} /><span style={{ opacity: 0.6 }}>Enriching…</span></>
+                                                    (new Date().getTime() - new Date(activity.created_at).getTime() > 120_000) ? (
+                                                        <><Sparkles size={10} style={{ opacity: 0.4 }} /><span style={{ opacity: 0.6 }}>Unenriched</span></>
+                                                    ) : (
+                                                        <><Loader2 size={10} className={styles.spinSlow} /><span style={{ opacity: 0.6 }}>Enriching…</span></>
+                                                    )
                                                 )}
                                                 {activity.flags_checked ? (
                                                     <><Shield size={10} /><span>Flags checked</span></>

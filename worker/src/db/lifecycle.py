@@ -70,16 +70,16 @@ def upsert_client(
     return result.data[0]["id"]
 
 
+from ..utils.normalization import normalize_policy_number
+
 def upsert_policy(client_id: str, account_id: str, policy_number: str, property_address: str | None) -> str:
     """
-    Upsert a policy by policy_number.
+    Upsert a policy by policy_number under the Global Base Policy Invariant.
     Returns policy.id
     
     Matching strategy (ordered):
-        1. Exact match on policy_number + property_address_norm
-        2. Fallback: match on policy_number alone (handles address variations
-           or NULL vs non-NULL addresses that would otherwise cause a unique
-           constraint violation on the policies.policy_number column)
+        1. Exact match on Base Policy + property_address_norm
+        2. Fallback: match on Base Policy alone
     """
     if not policy_number:
         raise ValueError("policy_number is required to upsert policy")
@@ -87,19 +87,24 @@ def upsert_policy(client_id: str, account_id: str, policy_number: str, property_
     sb = get_supabase()
     now_iso = datetime.now(timezone.utc).isoformat()
     norm_address = normalize_address(property_address)
+    
+    # Enforce Global Invariant
+    norm_res = normalize_policy_number(policy_number)
+    base_policy_num = norm_res["base_policy"] or policy_number
+    # The suffix is not stored directly on the policy table; it acts as term lineage
 
     payload = {
         "client_id": client_id,
         "created_by_account_id": account_id,
-        "policy_number": policy_number,
+        "policy_number": base_policy_num,
         "property_address_raw": property_address,
         "property_address_norm": norm_address,
         "carrier_name": "California FAIR Plan",  # Hardcoding for FAIR Plan MVP
         "updated_at": now_iso,
     }
 
-    # Strategy 1: Exact match on policy_number + property_address_norm
-    exact_query = sb.table("policies").select("id").eq("policy_number", policy_number)
+    # Strategy 1: Exact match on Base Policy + property_address_norm
+    exact_query = sb.table("policies").select("id").eq("policy_number", base_policy_num)
     if norm_address:
         exact_query = exact_query.eq("property_address_norm", norm_address)
     else:
@@ -112,13 +117,13 @@ def upsert_policy(client_id: str, account_id: str, policy_number: str, property_
         sb.table("policies").update(payload).eq("id", policy_id).execute()
         return policy_id
 
-    # Strategy 2: Fallback — match by policy_number alone
+    # Strategy 2: Fallback — match by Base Policy alone
     # This catches cases where the same policy was previously ingested
     # with a different or NULL property address.
     fallback = (
         sb.table("policies")
         .select("id")
-        .eq("policy_number", policy_number)
+        .eq("policy_number", base_policy_num)
         .limit(1)
         .execute()
     )
@@ -127,7 +132,7 @@ def upsert_policy(client_id: str, account_id: str, policy_number: str, property_
         policy_id = fallback.data[0]["id"]
         logger.info(
             "Policy %s matched by number (address mismatch: existing vs '%s') — updating",
-            policy_number, norm_address,
+            base_policy_num, norm_address,
         )
         sb.table("policies").update(payload).eq("id", policy_id).execute()
         return policy_id
@@ -135,7 +140,7 @@ def upsert_policy(client_id: str, account_id: str, policy_number: str, property_
     # No match at all — insert new policy
     result = sb.table("policies").insert(payload).execute()
     if not result.data:
-        raise RuntimeError(f"Failed to insert policy {policy_number}")
+        raise RuntimeError(f"Failed to insert policy {base_policy_num}")
     return result.data[0]["id"]
 
 

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     FileText, RefreshCw, UserPlus, Clock, MessageSquare,
-    Pin, Archive, Pencil, Upload, Sparkles, FileBarChart, Zap, CheckCircle2, XCircle, Shield
+    Pin, Archive, Pencil, Upload, Sparkles, FileBarChart, Zap, CheckCircle2, XCircle, Shield, Merge, FileUp
 } from 'lucide-react';
 import styles from './ActivityTimeline.module.css';
 import { fetchActivityEvents, ActivityEventRow } from '@/lib/notes';
@@ -36,6 +36,11 @@ const EVENT_CONFIG: Record<string, { icon: React.ReactNode; css: string }> = {
     'workup.completed': { icon: <CheckCircle2 size={16} />, css: 'policy_created' },
     'workup.failed': { icon: <XCircle size={16} />, css: 'dec_upload' },
     'flags.checked': { icon: <Shield size={16} />, css: 'term_renewal' },
+    'merge.client': { icon: <Merge size={16} />, css: 'merge_event' },
+    'merge.policy': { icon: <Merge size={16} />, css: 'merge_event' },
+    'doc.uploaded.rce': { icon: <FileUp size={16} />, css: 'dec_upload' },
+    'doc.uploaded.dic_dec_page': { icon: <FileUp size={16} />, css: 'dec_upload' },
+    'valuation.completed': { icon: <FileBarChart size={16} />, css: 'policy_created' },
 };
 
 export function ActivityTimeline({ clientId, policyId }: ActivityTimelineProps) {

@@ -5,8 +5,9 @@ import { format } from "date-fns";
 import { fetchRecentSubmissions, SubmissionDebugRow } from "@/lib/api";
 import {
     FileText, AlertCircle, CheckCircle, Clock, RefreshCw,
-    ChevronRight, X, Database, Loader2,
+    ChevronRight, X, Database, Loader2, Users
 } from "lucide-react";
+import Link from "next/link";
 
 export default function SubmissionsDebug() {
     const [submissions, setSubmissions] = useState<SubmissionDebugRow[]>([]);
@@ -71,7 +72,55 @@ export default function SubmissionsDebug() {
     return (
         <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '1.5rem' }}>
 
-            {/* Header */}
+            {/* System Administration Banner */}
+            <div style={{
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.06) 0%, rgba(59, 130, 246, 0.03) 100%)',
+                border: '1px solid rgba(16, 185, 129, 0.2)',
+                borderRadius: '12px',
+                padding: '1.25rem 1.5rem',
+                marginBottom: '2rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{
+                        width: '3rem', height: '3rem', borderRadius: '50%',
+                        background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--status-success)'
+                    }}>
+                        <Users size={20} />
+                    </div>
+                    <div>
+                        <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-high)', marginBottom: '0.2rem' }}>
+                            Identity Resolution Center
+                        </h2>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+                            Review anomalous duplicate records to maintain database integrity.
+                        </p>
+                    </div>
+                </div>
+                
+                <Link
+                    href="/admin/duplicates"
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: '0.375rem',
+                        padding: '0.6rem 1.125rem', borderRadius: '8px',
+                        background: 'var(--status-success)', 
+                        color: '#ffffff', 
+                        fontSize: '0.82rem', fontWeight: 600,
+                        cursor: 'pointer', transition: 'all 0.2s ease',
+                        textDecoration: 'none',
+                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(16, 185, 129, 0.3)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.2)'; }}
+                >
+                    Review Duplicates <ChevronRight size={14} style={{ marginTop: '2px' }} />
+                </Link>
+            </div>
+
+            {/* Submissions Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
                 <div>
                     <h1 style={{ fontSize: '1.375rem', fontWeight: 700, color: 'var(--text-high)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
@@ -82,19 +131,22 @@ export default function SubmissionsDebug() {
                         Last {submissions.length} ingestion jobs — document upload, PDF extraction, and parse results
                     </p>
                 </div>
-                <button
-                    onClick={loadData}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: '0.375rem',
-                        padding: '0.5rem 0.875rem', borderRadius: '8px',
-                        background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
-                        color: 'var(--text-mid)', fontSize: '0.78rem', fontWeight: 500,
-                        cursor: 'pointer', transition: 'all 0.15s',
-                    }}
-                >
-                    <RefreshCw size={13} /> Refresh
-                </button>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <button
+                        onClick={loadData}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '0.375rem',
+                            padding: '0.5rem 0.875rem', borderRadius: '8px',
+                            background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
+                            color: 'var(--text-mid)', fontSize: '0.78rem', fontWeight: 500,
+                            cursor: 'pointer', transition: 'all 0.15s',
+                        }}
+                    >
+                        <RefreshCw size={13} /> Refresh
+                    </button>
+                </div>
             </div>
+
 
             {/* Summary strip */}
             <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>
