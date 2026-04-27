@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Upload, FileText, Loader2, Download, Eye, AlertCircle, CheckCircle, XCircle, ChevronDown, CheckCircle2, Clock, RotateCcw, ShieldCheck } from 'lucide-react';
+import { Upload, FileText, Loader2, Download, Eye, AlertCircle, CheckCircle, XCircle, ChevronDown, CheckCircle2, Clock, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react';
 import {
     fetchDecPageFilesByPolicyId,
     getDecPageFileDownloadUrl,
@@ -12,6 +12,7 @@ import {
     PlatformDocType,
     fetchDecPagesForPolicy,
     approveDecPage,
+    deleteDocument,
     DecPageSummary,
 } from '@/lib/api';
 import { supabase } from '@/lib/supabaseClient';
@@ -369,6 +370,28 @@ export function PolicyFiles({ policyId, onDecPageApproved }: PolicyFilesProps) {
         }
     }, [toast]);
 
+    // ── Delete: Removes file from DB and Storage ──
+    const handleDelete = useCallback(async (file: UnifiedFile) => {
+        const confirmMsg = `Are you sure you want to delete ${file.file_name || 'this document'}?\nThis action cannot be undone.`;
+        if (!window.confirm(confirmMsg)) return;
+
+        setActionId(file.id + '_delete');
+        try {
+            const success = await deleteDocument(file.id, file.source);
+            if (success) {
+                toast.success('Document deleted successfully.');
+                await loadFiles();
+            } else {
+                toast.error('Failed to delete document.');
+            }
+        } catch (err) {
+            console.error('Delete failed:', err);
+            toast.error('Failed to delete document.');
+        } finally {
+            setActionId(null);
+        }
+    }, [toast, loadFiles]);
+
     // ── Dec Page Approval (inline) ──
     const handleApproveDecPage = useCallback(async (decPageId: string) => {
         const confirmed = window.confirm(
@@ -640,6 +663,17 @@ export function PolicyFiles({ policyId, onDecPageApproved }: PolicyFilesProps) {
                                                             {actionId === file.id + '_dl'
                                                                 ? <Loader2 size={16} className={styles.spinnerSmall} />
                                                                 : <Download size={16} />
+                                                            }
+                                                        </button>
+                                                        <button
+                                                            className={styles.actionBtn}
+                                                            title="Delete file"
+                                                            onClick={() => handleDelete(file)}
+                                                            disabled={actionId === file.id + '_delete'}
+                                                        >
+                                                            {actionId === file.id + '_delete'
+                                                                ? <Loader2 size={16} className={styles.spinnerSmall} />
+                                                                : <Trash2 size={16} style={{ color: 'var(--status-error)' }} />
                                                             }
                                                         </button>
                                                     </div>

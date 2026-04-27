@@ -91,7 +91,8 @@ export class DuplicateEngine {
             .from('clients')
             .select(`
                 id, named_insured, email, phone, mailing_address_raw, mailing_address_norm, created_at,
-                policies(id, policy_number, carrier_name, property_address_raw, status, created_at),
+                policies(id, policy_number, carrier_name, property_address_raw, status, created_at,
+                    policy_terms(id, effective_date, expiration_date, annual_premium, is_current)),
                 dec_pages(id)
             `);
 

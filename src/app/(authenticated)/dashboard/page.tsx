@@ -88,6 +88,7 @@ function DashboardContent() {
         'SEVERE_UNDERINSURANCE_ESTIMATE': 'Severe Underinsurance (Modeled Estimate)',
         'DWELLING_RC_INCLUDED_LOW_ORDINANCE': 'RC Included, Low Ordinance/Law',
         'FAIR_RENTAL_VALUE_ZERO_OR_MISSING': 'Fair Rental Value Zero or Missing',
+        'LOSS_OF_USE_ZERO_OR_MISSING': 'Loss of Use Zero or Missing',
         'INFLATION_GUARD_NOT_INCLUDED': 'Inflation Guard Not Included',
         'DUPLICATE_ID_IN_TABLE': 'Possible Duplicate Policy',
         'MISSING_PERILS_INSURED': 'Missing Perils Insured Against',

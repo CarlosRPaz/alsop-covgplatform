@@ -767,6 +767,22 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
  * Full detail for a single policy — used by the policy review page.
  * Combines policy, client, current term, and (optionally) the latest dec_page.
  */
+/** Lightweight term summary used by the Term History panel. */
+export interface PolicyTermSummary {
+    id: string;
+    effective_date?: string;
+    expiration_date?: string;
+    annual_premium?: number;
+    is_current?: boolean;
+    carrier_status?: string;
+    property_location?: string;
+    limit_dwelling?: string;
+    deductible?: string;
+    source_dec_page_id?: string;
+    source_policy_number?: string;
+    created_at?: string;
+}
+
 export interface PolicyDetail {
     // Policy
     id: string;
@@ -853,6 +869,8 @@ export interface PolicyDetail {
     dic_limit_loss_of_use?: string;
     dic_deductible?: string;
     dic_annual_premium_raw?: number;
+    // All terms (for Term History panel)
+    all_terms?: PolicyTermSummary[];
 }
 
 /**
@@ -969,6 +987,52 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
         const terms: any[] = row.policy_terms || [];
         const currentTerm = terms.find(t => t.is_current === true) || terms[0] || null;
 
+        // Build all-terms array for the Term History panel
+        const allTermsSorted: PolicyTermSummary[] = terms
+            .map((t: any) => ({
+                id: t.id,
+                effective_date: t.effective_date,
+                expiration_date: t.expiration_date,
+                annual_premium: t.annual_premium,
+                is_current: t.is_current,
+                carrier_status: t.carrier_status,
+                property_location: t.property_location,
+                limit_dwelling: t.limit_dwelling,
+                deductible: t.deductible,
+                source_dec_page_id: t.source_dec_page_id,
+                created_at: t.created_at,
+            }))
+            .sort((a: PolicyTermSummary, b: PolicyTermSummary) => {
+                const da = a.effective_date ? new Date(a.effective_date).getTime() : 0;
+                const db = b.effective_date ? new Date(b.effective_date).getTime() : 0;
+                return db - da; // newest first
+            });
+
+        // Enrich terms with source_policy_number from their dec pages
+        const decPageIds = allTermsSorted
+            .map(t => t.source_dec_page_id)
+            .filter((id): id is string => !!id);
+
+        if (decPageIds.length > 0) {
+            const { data: decPages } = await supabase
+                .from('dec_pages')
+                .select('id, policy_number')
+                .in('id', decPageIds);
+
+            if (decPages) {
+                const dpMap = new Map(decPages.map(dp => [dp.id, dp.policy_number]));
+                for (const term of allTermsSorted) {
+                    if (term.source_dec_page_id) {
+                        const dpPolicyNum = dpMap.get(term.source_dec_page_id);
+                        // Only set if it differs from the parent policy number (shows suffix/variant)
+                        if (dpPolicyNum && dpPolicyNum !== row.policy_number) {
+                            term.source_policy_number = dpPolicyNum;
+                        }
+                    }
+                }
+            }
+        }
+
         return {
             id: row.id,
             policy_number: row.policy_number || 'N/A',
@@ -1048,6 +1112,7 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
             mortgagee_2_address: currentTerm?.mortgagee_2_address || undefined,
             mortgagee_2_code: currentTerm?.mortgagee_2_code || undefined,
             dic_company: undefined,
+            all_terms: allTermsSorted,
         };
     } catch (err) {
         logger.error('API', `Unexpected error fetching policy detail ${policyId}`, {
@@ -2735,15 +2800,49 @@ export async function approveDecPage(decPageId: string, policyId: string): Promi
             .eq('review_status', 'approved')
             .neq('id', decPageId);
 
+        // Look up client_id from the policy so we can link fully
+        const { data: policyRow } = await supabase
+            .from('policies')
+            .select('client_id')
+            .eq('id', policyId)
+            .single();
+
         await supabase
             .from('dec_pages')
-            .update({ review_status: 'approved' })
+            .update({
+                review_status: 'approved',
+                policy_id: policyId,
+                client_id: policyRow?.client_id || null,
+                policy_term_id: termId,
+            })
             .eq('id', decPageId);
 
         logger.info('API', `Dec page ${decPageId} approved for policy ${policyId}`);
         return true;
     } catch (err) {
         logger.error('API', 'Error in approveDecPage', { error: String(err) });
+        return false;
+    }
+}
+
+export async function deleteDocument(id: string, source: 'dec_page' | 'platform'): Promise<boolean> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return false;
+
+    try {
+        const response = await fetch('/api/documents/delete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ id, source }),
+        });
+
+        const result = await response.json();
+        return result.success;
+    } catch (e) {
+        logger.error('API', 'Error in deleteDocument', { error: String(e) });
         return false;
     }
 }

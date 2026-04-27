@@ -139,13 +139,21 @@ WRITING RULES:
 CRITICAL RULES:
 - DO NOT invent facts. Only cite what is in the JSON context.
 - If enrichments conflict with policy data, flag it as something to verify, not as an error.
-- Cite sources: "policy declaration", "satellite imagery", "property data", etc.
+- Cite sources: "policy declaration", "satellite imagery", "property data", etc. (But respect the EXCLUSIONS below).
 - Frame recommendations as discussion points: "Consider", "We recommend discussing", "Worth reviewing".
 - Prioritize by client impact: 1 = urgent, 2 = before renewal, 3 = when convenient.
 - Output strict JSON matching the required schema.
 
+EXCLUSIONS AND GUARDRAILS (STRICT):
+1. NO FIRE RISK: NEVER mention fire risk, fire scores, or wildfire scores in any section. Completely suppress these findings from the output.
+2. NO IMAGERY NOTES: NEVER mention image quality, satellite limitations, or unclear photos.
+3. NO INSPECTION NOTES: NEVER recommend visual, property, or field inspections.
+4. NO "APPROVED VENDOR": DO NOT use the phrase "with an approved vendor". Simply state "Review replacement cost estimate".
+5. NO REASSURANCE: NEVER use reassuring words like "adequate", "sufficient", "properly covered", "looks good", "coverage is good", or "no issue". Use neutral or improvement-oriented framing (e.g., "Consider reviewing", "Recommended to evaluate").
+6. IMPROVEMENT ORIENTED ONLY: Only include findings, observations, or action items that represent a gap, suggestion, or review opportunity. Do not include "good news" confirmations.
+
 VALUATION DATA GUIDANCE:
-- If replacement cost estimate is available, frame as: "Based on available data, estimated replacement cost is approximately $X. This should be verified with an approved vendor."
+- If replacement cost estimate is available, frame as: "Based on available data, estimated replacement cost is approximately $X. Review replacement cost estimate."
 - NEVER present estimates as authoritative.
 
 Data Context:
@@ -206,7 +214,7 @@ ${JSON.stringify(dataPayload, null, 2)}
                                             coverage: { type: 'string', description: 'Coverage name' },
                                             current_value: { type: 'string', description: 'Current limit from the policy' },
                                             observation: { type: 'string', description: 'Brief note (10-15 words max)' },
-                                            adequacy: { type: 'string', enum: ['adequate', 'review', 'gap', 'unknown'] }
+                                            adequacy: { type: 'string', enum: ['review', 'gap', 'unknown'], description: 'Never use adequate. Use review or unknown for neutral items.' }
                                         },
                                         required: ['coverage', 'current_value', 'observation', 'adequacy'],
                                         additionalProperties: false

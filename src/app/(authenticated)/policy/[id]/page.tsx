@@ -22,6 +22,7 @@ import { ActivityTimeline } from '@/components/shared/ActivityTimeline';
 import { NotesPanel } from '@/components/shared/NotesPanel';
 import { DecPageReview } from '@/components/policy/DecPageReview';
 import { PolicyEditPanel } from '@/components/policy/PolicyEditPanel';
+import { TermHistoryPanel } from '@/components/policy/TermHistoryPanel';
 import { FullWorkupModal } from '@/components/dashboard/FullWorkupModal';
 import { PolicyEmailComposer } from '@/components/email/PolicyEmailComposer';
 import { useRecentlyVisited } from '@/hooks/useRecentlyVisited';
@@ -31,6 +32,7 @@ import { ClientPolicyView } from './client-view';
 
 const policyTabs = [
     { id: 'overview', label: 'OVERVIEW' },
+    { id: 'terms', label: 'TERMS' },
     { id: 'cfp', label: 'POLICY' },
     { id: 'dic', label: 'DIC POLICY' },
     { id: 'rce', label: 'RCE DATA' },
@@ -369,6 +371,16 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                         <AgentReviewPanel
                             reportRow={reportRow}
                             reportLink={reportRow ? `/report/${reportRow.id}` : undefined}
+                        />
+                    </div>
+                );
+            case 'terms':
+                return (
+                    <div className={styles.content}>
+                        <TermHistoryPanel
+                            terms={policyDetailRaw?.all_terms || []}
+                            activeTermId={policyDetailRaw?.policy_term_id}
+                            policyNumber={policyDetailRaw?.policy_number}
                         />
                     </div>
                 );

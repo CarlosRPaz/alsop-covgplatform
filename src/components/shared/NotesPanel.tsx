@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import {
     NoteRow, fetchNotes, fetchClientOnlyNotes, createNote, updateNote,
-    getCurrentUserId, getCurrentUserRole
+    getCurrentUserId, getCurrentUserRole, NOTE_TAGS
 } from '@/lib/notes';
 import styles from './NotesPanel.module.css';
 
@@ -15,22 +15,6 @@ interface NotesPanelProps {
     clientId: string;
     policyId?: string;
     showPolicySections?: boolean;
-}
-
-const DUMMY_TAGS = ['Underwriting', 'Billing', 'General', 'Renewal', 'Claim'];
-
-// Deterministic random tags based on note ID
-function getDummyTags(id: string): string[] {
-    let sum = 0;
-    for (let i = 0; i < id.length; i++) {
-        sum += id.charCodeAt(i);
-    }
-    const numTags = (sum % 2) + 1; // 1 or 2 tags
-    const tags = [];
-    for (let i = 0; i < numTags; i++) {
-        tags.push(DUMMY_TAGS[(sum + i) % DUMMY_TAGS.length]);
-    }
-    return tags;
 }
 
 function getRelativeTime(ts: string) {
@@ -48,9 +32,11 @@ export function NotesPanel({ clientId, policyId, showPolicySections }: NotesPane
     const [loading, setLoading] = useState(true);
     const [showArchived, setShowArchived] = useState(false);
     const [newBody, setNewBody] = useState('');
+    const [newTags, setNewTags] = useState<string[]>([]);
     const [saving, setSaving] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editBody, setEditBody] = useState('');
+    const [editTags, setEditTags] = useState<string[]>([]);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [currentRole, setCurrentRole] = useState<string | null>(null);
     const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
@@ -104,8 +90,10 @@ export function NotesPanel({ clientId, policyId, showPolicySections }: NotesPane
                 client_id: clientId,
                 policy_id: policyId || null,
                 body: newBody.trim(),
+                tags: newTags,
             });
             setNewBody('');
+            setNewTags([]);
             showToast('success', 'Note added');
             // reset limit to 20 when adding a new note to see it at the top
             setLimit(20);
@@ -117,7 +105,7 @@ export function NotesPanel({ clientId, policyId, showPolicySections }: NotesPane
         }
     };
 
-    const handleUpdate = async (noteId: string, updates: { body?: string; is_pinned?: boolean; is_archived?: boolean }) => {
+    const handleUpdate = async (noteId: string, updates: { body?: string; is_pinned?: boolean; is_archived?: boolean; tags?: string[] }) => {
         try {
             await updateNote(noteId, updates);
             if (updates.body !== undefined) {
@@ -135,7 +123,7 @@ export function NotesPanel({ clientId, policyId, showPolicySections }: NotesPane
     };
 
     const renderNote = (note: NoteRow) => {
-        const tags = getDummyTags(note.id);
+        const tags = Array.isArray(note.meta?.tags) ? note.meta.tags as string[] : [];
         if (selectedTag && !tags.includes(selectedTag)) return null;
 
         return (
@@ -155,7 +143,11 @@ export function NotesPanel({ clientId, policyId, showPolicySections }: NotesPane
                             <button title={note.is_pinned ? 'Unpin' : 'Pin'} onClick={() => handleUpdate(note.id, { is_pinned: !note.is_pinned })} className={styles.noteAction}>
                                 {note.is_pinned ? <PinOff size={14} /> : <Pin size={14} />}
                             </button>
-                            <button title="Edit" onClick={() => { setEditingId(note.id); setEditBody(note.body); }} className={styles.noteAction}>
+                            <button title="Edit" onClick={() => { 
+                                setEditingId(note.id); 
+                                setEditBody(note.body); 
+                                setEditTags(Array.isArray(note.meta?.tags) ? note.meta.tags as string[] : []);
+                            }} className={styles.noteAction}>
                                 <Pencil size={14} />
                             </button>
                             <button title={note.is_archived ? 'Restore' : 'Archive'} onClick={() => handleUpdate(note.id, { is_archived: !note.is_archived })} className={styles.noteAction}>
@@ -173,11 +165,24 @@ export function NotesPanel({ clientId, policyId, showPolicySections }: NotesPane
                             className={styles.textarea}
                             rows={3}
                         />
+                        <div className={styles.tagSelector}>
+                            {NOTE_TAGS.map(tag => (
+                                <span 
+                                    key={tag} 
+                                    className={`${styles.tagOption} ${editTags.includes(tag) ? styles.tagSelected : ''}`}
+                                    onClick={() => {
+                                        setEditTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+                                    }}
+                                >
+                                    {tag}
+                                </span>
+                            ))}
+                        </div>
                         <div className={styles.editActions}>
                             <button onClick={() => setEditingId(null)} className={styles.cancelBtn}>
                                 <X size={14} /> Cancel
                             </button>
-                            <button onClick={() => handleUpdate(note.id, { body: editBody.trim() })} disabled={!editBody.trim()} className={styles.saveBtn}>
+                            <button onClick={() => handleUpdate(note.id, { body: editBody.trim(), tags: editTags })} disabled={!editBody.trim()} className={styles.saveBtn}>
                                 Save edits
                             </button>
                         </div>
@@ -229,7 +234,7 @@ export function NotesPanel({ clientId, policyId, showPolicySections }: NotesPane
                     >
                         All
                     </button>
-                    {DUMMY_TAGS.map(tag => (
+                    {NOTE_TAGS.map(tag => (
                         <button
                             key={tag}
                             className={`${styles.filterChip} ${selectedTag === tag ? styles.activeFilter : ''}`}
@@ -248,18 +253,33 @@ export function NotesPanel({ clientId, policyId, showPolicySections }: NotesPane
             <div className={styles.newNote}>
                 <div className={styles.newNoteInputWrapper}>
                     <MessageSquarePlus className={styles.newNoteIcon} size={16} />
-                    <textarea
-                        value={newBody}
-                        onChange={(e) => setNewBody(e.target.value)}
-                        placeholder="Write a new note..."
-                        className={styles.newNoteTextarea}
-                        rows={1}
-                        onInput={(e) => {
-                            const target = e.target as HTMLTextAreaElement;
-                            target.style.height = 'auto';
-                            target.style.height = target.scrollHeight + 'px';
-                        }}
-                    />
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <textarea
+                            value={newBody}
+                            onChange={(e) => setNewBody(e.target.value)}
+                            placeholder="Write a new note..."
+                            className={styles.newNoteTextarea}
+                            rows={1}
+                            onInput={(e) => {
+                                const target = e.target as HTMLTextAreaElement;
+                                target.style.height = 'auto';
+                                target.style.height = target.scrollHeight + 'px';
+                            }}
+                        />
+                        <div className={styles.tagSelector}>
+                            {NOTE_TAGS.map(tag => (
+                                <span 
+                                    key={tag} 
+                                    className={`${styles.tagOption} ${newTags.includes(tag) ? styles.tagSelected : ''}`}
+                                    onClick={() => {
+                                        setNewTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+                                    }}
+                                >
+                                    {tag}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
                 </div>
                 <button onClick={handleCreate} disabled={saving || !newBody.trim()} className={styles.addBtn}>
                     {saving ? 'Saving...' : 'Post Note'}

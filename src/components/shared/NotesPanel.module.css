@@ -293,6 +293,38 @@
     margin-top: 0.25rem;
 }
 
+.tagSelector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    padding-top: 0.25rem;
+}
+
+.tagOption {
+    display: inline-flex;
+    align-items: center;
+    background: transparent;
+    border: 1px solid var(--border-default);
+    color: var(--text-muted);
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--radius-xs);
+    font-size: 0.65rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.tagOption:hover {
+    border-color: var(--border-strong);
+    color: var(--text-mid);
+}
+
+.tagSelected {
+    background: var(--accent-secondary-muted);
+    border-color: var(--accent-secondary);
+    color: var(--accent-secondary);
+}
+
 .tagsContainer {
     display: flex;
     flex-wrap: wrap;

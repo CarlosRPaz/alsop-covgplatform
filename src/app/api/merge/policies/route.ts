@@ -44,6 +44,32 @@ export async function POST(req: Request) {
 
         if (termsError) throw termsError;
 
+        // 2b. Recalculate is_current for the survivor — after merging,
+        // multiple terms may have is_current=true. Fix: only the term
+        // with the latest expiration_date should be current.
+        const { data: allTerms } = await supabaseAdmin
+            .from('policy_terms')
+            .select('id, expiration_date')
+            .eq('policy_id', survivor_id)
+            .order('expiration_date', { ascending: false, nullsFirst: false });
+
+        if (allTerms && allTerms.length > 1) {
+            const winnerId = allTerms[0].id;
+            const loserIds = allTerms.slice(1).map(t => t.id);
+
+            await supabaseAdmin
+                .from('policy_terms')
+                .update({ is_current: true })
+                .eq('id', winnerId);
+
+            if (loserIds.length > 0) {
+                await supabaseAdmin
+                    .from('policy_terms')
+                    .update({ is_current: false })
+                    .in('id', loserIds);
+            }
+        }
+
         // 3. Remap Dec Pages lineage to Survivor
         const { error: decError } = await supabaseAdmin
             .from('dec_pages')

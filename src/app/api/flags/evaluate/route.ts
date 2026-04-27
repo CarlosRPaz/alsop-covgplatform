@@ -131,6 +131,17 @@ function checkFairRentalValue(ctx: EvalCtx): string | null {
     return null;
 }
 
+function checkLossOfUse(ctx: EvalCtx): string | null {
+    // Only check if DIC is explicitly true or expected
+    const dic = ctx.term.dic_exists;
+    if (dic === false) return null; // Suppress if client definitively has no DIC policy
+
+    const val = get(ctx, 'dic_limit_loss_of_use');
+    if (!val) return 'Loss of Use coverage is missing.';
+    if (isZeroOrMissing(val)) return 'Loss of Use coverage is $0.';
+    return null;
+}
+
 // ── Rule registry ────────────────────────────────────────────
 
 const FLAG_CHECKS: FlagCheck[] = [
@@ -280,6 +291,11 @@ const FLAG_CHECKS: FlagCheck[] = [
         code: 'FAIR_RENTAL_VALUE_ZERO_OR_MISSING', severity: 'high', title: 'Fair Rental Value Zero or Missing',
         category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, requires_data: true,
         check: checkFairRentalValue
+    },
+    {
+        code: 'LOSS_OF_USE_ZERO_OR_MISSING', severity: 'high', title: 'Loss of Use Zero or Missing',
+        category: 'coverage_gap', entity_scope: 'policy', auto_resolve: true, requires_data: true,
+        check: checkLossOfUse
     },
     {
         code: 'INFLATION_GUARD_NOT_INCLUDED', severity: 'medium', title: 'Inflation Guard Not Included',

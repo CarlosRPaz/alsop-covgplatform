@@ -111,6 +111,9 @@ export default function DuplicateReview() {
                         <span className={styles.badge}>{duplicateClients.length} Actionable</span>
                     )}
                 </div>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', lineHeight: 1.5, margin: '-0.75rem 0 0' }}>
+                    Multiple client records that refer to the same person. Merging consolidates their contact data and re-parents all policies &amp; documents under a single survivor record.
+                </p>
 
                 {duplicateClients.length === 0 ? (
                     <div className={styles.emptyState}>
@@ -207,6 +210,9 @@ export default function DuplicateReview() {
                         <span className={styles.badge}>{duplicatePolicies.length} Actionable</span>
                     )}
                 </div>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', lineHeight: 1.5, margin: '-0.75rem 0 0' }}>
+                    Separate policy records that share the same base policy number. Binding extracts the sub-term&apos;s data (dates, premiums, documents) and attaches it to the root policy as an additional term.
+                </p>
 
                 {duplicatePolicies.length === 0 ? (
                     <div className={styles.emptyState}>

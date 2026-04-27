@@ -1,8 +1,21 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { X, Check, FileStack, ShieldAlert, Merge, RefreshCw, ChevronRight, ChevronLeft, Shield } from "lucide-react";
+import React, { useState, useMemo, useCallback } from "react";
+import {
+    X, Check, FileStack, Merge, RefreshCw, Shield, ShieldCheck,
+    Crown, ArrowRightLeft, ChevronDown, ChevronUp, Mail, Phone, MapPin, User, Calendar, DollarSign
+} from "lucide-react";
 import styles from "./ClientMergeModal.module.css";
+
+/* ── Data Interfaces ── */
+
+interface PolicyTermBrief {
+    id: string;
+    effective_date?: string;
+    expiration_date?: string;
+    annual_premium?: number;
+    is_current?: boolean;
+}
 
 interface PolicyBrief {
     id: string;
@@ -11,6 +24,7 @@ interface PolicyBrief {
     property_address_raw?: string;
     status?: string;
     created_at?: string;
+    policy_terms?: PolicyTermBrief[];
 }
 
 interface ClientData {
@@ -22,6 +36,7 @@ interface ClientData {
     mailing_address_norm?: string;
     policies?: PolicyBrief[];
     dec_pages?: any[];
+    created_at?: string;
 }
 
 interface ClientMergeModalProps {
@@ -33,11 +48,50 @@ interface ClientMergeModalProps {
 
 type FieldKey = 'named_insured' | 'email' | 'phone' | 'mailing_address_raw';
 
-export default function ClientMergeModal({ survivor, candidates, onClose, onConfirm }: ClientMergeModalProps) {
-    // All records: survivor first, then N candidates
+const FIELD_META: { key: FieldKey; label: string; icon: React.ReactNode }[] = [
+    { key: 'named_insured', label: 'Named Insured', icon: <User size={14} /> },
+    { key: 'email', label: 'Email', icon: <Mail size={14} /> },
+    { key: 'phone', label: 'Phone', icon: <Phone size={14} /> },
+    { key: 'mailing_address_raw', label: 'Mailing Address', icon: <MapPin size={14} /> },
+];
+
+/* ── Helper: extract current term from a policy ── */
+function getCurrentTerm(policy: PolicyBrief): PolicyTermBrief | null {
+    const terms = policy.policy_terms || [];
+    return terms.find(t => t.is_current) || terms[0] || null;
+}
+
+/* ── Helper: format premium ── */
+function fmtPremium(val?: number): string {
+    if (val == null) return '—';
+    return `$${val.toLocaleString()}`;
+}
+
+/* ── Helper: format date MM/DD/YYYY ── */
+function fmtDate(d?: string): string {
+    if (!d) return '—';
+    const dt = new Date(d + 'T00:00:00');
+    return dt.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+}
+
+/* ════════════════════════════════════════════════════════════════════════════ */
+
+export default function ClientMergeModal({ survivor: initialSurvivor, candidates: initialCandidates, onClose, onConfirm }: ClientMergeModalProps) {
+
+    // ── Survivor swap state ──
+    // "allRecordIds[0]" is always the current survivor
+    const allOriginal = useMemo(() => [initialSurvivor, ...initialCandidates], [initialSurvivor, initialCandidates]);
+    const [survivorIndex, setSurvivorIndex] = useState(0);
+
+    // Recompute survivor + candidates from swap state
+    const survivor = allOriginal[survivorIndex];
+    const candidates = useMemo(
+        () => allOriginal.filter((_, i) => i !== survivorIndex),
+        [allOriginal, survivorIndex]
+    );
     const allRecords = useMemo(() => [survivor, ...candidates], [survivor, candidates]);
-    
-    // Field selections: which record index to use for each field (0 = survivor)
+
+    // ── Field selections: which record index (in allRecords) to use for each field ──
     const [selections, setSelections] = useState<Record<FieldKey, number>>(() => {
         const defaults: Record<FieldKey, number> = {
             named_insured: 0,
@@ -45,43 +99,101 @@ export default function ClientMergeModal({ survivor, candidates, onClose, onConf
             phone: 0,
             mailing_address_raw: 0,
         };
-        // Auto-select first record that has data
+        const all = [initialSurvivor, ...initialCandidates];
         for (const key of ['email', 'phone'] as FieldKey[]) {
-            if (!survivor[key]) {
-                const idx = allRecords.findIndex((r) => (r as any)[key]);
+            if (!initialSurvivor[key]) {
+                const idx = all.findIndex((r) => (r as any)[key]);
                 if (idx >= 0) defaults[key] = idx;
             }
         }
-        if (!survivor.mailing_address_raw) {
-            const idx = allRecords.findIndex((r) => r.mailing_address_raw);
+        if (!initialSurvivor.mailing_address_raw) {
+            const idx = all.findIndex((r) => r.mailing_address_raw);
             if (idx >= 0) defaults.mailing_address_raw = idx;
         }
         return defaults;
     });
 
-    const [keepDocs, setKeepDocs] = useState(true);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    
-    // Horizontal scroll for 3+ candidate columns
-    const [scrollOffset, setScrollOffset] = useState(0);
-    const maxVisibleCandidates = 2; // show up to 2 candidates at a time beside survivor
-    const canScrollLeft = scrollOffset > 0;
-    const canScrollRight = scrollOffset + maxVisibleCandidates < candidates.length;
-    const visibleCandidates = candidates.slice(scrollOffset, scrollOffset + maxVisibleCandidates);
-
-    // Collect ALL policies across every record for the policy panel
-    const allPolicies = useMemo(() => {
-        const map: { policy: PolicyBrief; ownerId: string; ownerName: string }[] = [];
-        for (const rec of allRecords) {
-            if (rec.policies) {
-                for (const p of rec.policies) {
-                    map.push({ policy: p, ownerId: rec.id, ownerName: rec.named_insured });
-                }
+    // ── Selective policy migration ──
+    // Key: policy ID, Value: whether to migrate it (only relevant for candidate policies)
+    const [policyMigration, setPolicyMigration] = useState<Record<string, boolean>>(() => {
+        const map: Record<string, boolean> = {};
+        for (const c of initialCandidates) {
+            for (const p of (c.policies || [])) {
+                map[p.id] = true; // default: migrate all
             }
         }
         return map;
-    }, [allRecords]);
+    });
 
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>(() => {
+        // All cards start expanded
+        const map: Record<string, boolean> = {};
+        allOriginal.forEach(r => { map[r.id] = true; });
+        return map;
+    });
+
+    const toggleCard = useCallback((clientId: string) => {
+        setExpandedCards(prev => ({ ...prev, [clientId]: !prev[clientId] }));
+    }, []);
+
+    const togglePolicyMigration = useCallback((policyId: string) => {
+        setPolicyMigration(prev => ({ ...prev, [policyId]: !prev[policyId] }));
+    }, []);
+
+    // ── Survivor swap handler ──
+    const handleSwapSurvivor = useCallback((originalIndex: number) => {
+        setSurvivorIndex(originalIndex);
+        // Reset field selections to favor the new survivor
+        const newSurvivor = allOriginal[originalIndex];
+        const newAll = [newSurvivor, ...allOriginal.filter((_, i) => i !== originalIndex)];
+        const defaults: Record<FieldKey, number> = {
+            named_insured: 0,
+            email: 0,
+            phone: 0,
+            mailing_address_raw: 0,
+        };
+        for (const key of ['email', 'phone'] as FieldKey[]) {
+            if (!newSurvivor[key]) {
+                const idx = newAll.findIndex(r => (r as any)[key]);
+                if (idx >= 0) defaults[key] = idx;
+            }
+        }
+        if (!newSurvivor.mailing_address_raw) {
+            const idx = newAll.findIndex(r => r.mailing_address_raw);
+            if (idx >= 0) defaults.mailing_address_raw = idx;
+        }
+        setSelections(defaults);
+
+        // Reset policy migration for new candidate set
+        const map: Record<string, boolean> = {};
+        const newCandidates = allOriginal.filter((_, i) => i !== originalIndex);
+        for (const c of newCandidates) {
+            for (const p of (c.policies || [])) {
+                map[p.id] = true;
+            }
+        }
+        setPolicyMigration(map);
+    }, [allOriginal]);
+
+    // ── Select field from a specific record ──
+    const selectField = useCallback((fieldKey: FieldKey, recordIndex: number) => {
+        setSelections(prev => ({ ...prev, [fieldKey]: recordIndex }));
+    }, []);
+
+    // ── Compute merge summary ──
+    const migratePolicyCount = useMemo(() => {
+        return Object.values(policyMigration).filter(Boolean).length;
+    }, [policyMigration]);
+
+    const survivorPolicyCount = (survivor.policies || []).length;
+    const totalPoliciesAfterMerge = survivorPolicyCount + migratePolicyCount;
+
+    const anyPoliciesExcluded = useMemo(() => {
+        return Object.values(policyMigration).some(v => !v);
+    }, [policyMigration]);
+
+    // ── Submit handler ──
     const handleConfirm = async () => {
         setIsSubmitting(true);
         try {
@@ -91,12 +203,20 @@ export default function ClientMergeModal({ survivor, candidates, onClose, onConf
             payload.named_insured = selSource('named_insured').named_insured;
             payload.email = selSource('email').email;
             payload.phone = selSource('phone').phone;
-
             const addrSource = selSource('mailing_address_raw');
             payload.mailing_address_raw = addrSource.mailing_address_raw;
             payload.mailing_address_norm = addrSource.mailing_address_norm;
 
-            await onConfirm(survivor.id, candidates.map((c) => c.id), payload, keepDocs);
+            // Attach policy exclusion list (policies NOT to migrate)
+            const excludedPolicies = Object.entries(policyMigration)
+                .filter(([, migrate]) => !migrate)
+                .map(([id]) => id);
+            if (excludedPolicies.length > 0) {
+                payload._excluded_policy_ids = excludedPolicies;
+            }
+
+            const keepDocs = migratePolicyCount > 0 || !anyPoliciesExcluded;
+            await onConfirm(survivor.id, candidates.map(c => c.id), payload, keepDocs);
             onClose();
         } catch (error) {
             console.error("Failed to execute guided merge", error);
@@ -105,40 +225,165 @@ export default function ClientMergeModal({ survivor, candidates, onClose, onConf
         }
     };
 
-    // Dynamic column count: label + survivor + visible candidates
-    const colCount = 1 + 1 + visibleCandidates.length;
-    const gridCols = `140px ${'1fr '.repeat(colCount - 1).trim()}`;
-
-    const renderFieldRow = (label: string, fieldKey: FieldKey, valueExtractor: (r: ClientData) => string | undefined) => {
-        // All visible records in order: [survivor, ...visibleCandidates]
-        const visibleRecords = [survivor, ...visibleCandidates];
+    // ── Render a single profile card ──
+    const renderProfileCard = (record: ClientData, recordIndex: number, isSurvivor: boolean) => {
+        const originalIndex = allOriginal.findIndex(r => r.id === record.id);
+        const isExpanded = expandedCards[record.id] !== false;
+        const policies = record.policies || [];
+        const decPages = record.dec_pages || [];
 
         return (
-            <div className={styles.fieldRow} style={{ gridTemplateColumns: gridCols }}>
-                <div className={styles.fieldLabel}>{label}</div>
-                {visibleRecords.map((rec, localIdx) => {
-                    const val = valueExtractor(rec);
-                    // Map local index to global allRecords index
-                    const globalIdx = localIdx === 0 ? 0 : (scrollOffset + localIdx);
-                    const isSelected = selections[fieldKey] === globalIdx;
+            <div key={record.id} className={`${styles.profileCard} ${isSurvivor ? styles.profileCardSurvivor : styles.profileCardCandidate}`}>
 
-                    return (
-                        <div
-                            key={rec.id}
-                            className={`${styles.valueCard} ${!val ? styles.valueCardEmpty : ''} ${isSelected ? styles.valueCardSelected : ''}`}
-                            onClick={() => val && setSelections((s) => ({ ...s, [fieldKey]: globalIdx }))}
-                        >
-                            {val ? (
-                                <>
-                                    <div className={styles.valText}>{val}</div>
-                                    <div className={styles.radioCircle}><Check size={12} /></div>
-                                </>
+                {/* Card Header */}
+                <div className={styles.cardHeader} onClick={() => toggleCard(record.id)}>
+                    <div className={styles.cardHeaderLeft}>
+                        {isSurvivor ? (
+                            <div className={styles.roleBadgeSurvivor}>
+                                <Crown size={12} /> Survivor
+                            </div>
+                        ) : (
+                            <div className={styles.roleBadgeCandidate}>
+                                Candidate {recordIndex}
+                            </div>
+                        )}
+                        <span className={styles.cardClientName}>{record.named_insured}</span>
+                    </div>
+                    <div className={styles.cardHeaderRight}>
+                        <div className={styles.cardStats}>
+                            <span className={styles.statChip}>
+                                <Shield size={11} />
+                                {policies.length} {policies.length === 1 ? 'policy' : 'policies'}
+                            </span>
+                            <span className={styles.statChip}>
+                                <FileStack size={11} />
+                                {decPages.length} docs
+                            </span>
+                        </div>
+                        {!isSurvivor && (
+                            <button
+                                className={styles.swapBtn}
+                                onClick={(e) => { e.stopPropagation(); handleSwapSurvivor(originalIndex); }}
+                                title="Promote to Survivor"
+                            >
+                                <ArrowRightLeft size={13} /> Make Survivor
+                            </button>
+                        )}
+                        {isExpanded ? <ChevronUp size={16} className={styles.chevron} /> : <ChevronDown size={16} className={styles.chevron} />}
+                    </div>
+                </div>
+
+                {isExpanded && (
+                    <div className={styles.cardBody}>
+                        {/* Created date */}
+                        <div className={styles.createdDate}>
+                            <Calendar size={12} />
+                            Created {record.created_at ? new Date(record.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown'}
+                        </div>
+
+                        {/* Contact Fields */}
+                        <div className={styles.fieldsSection}>
+                            <div className={styles.fieldsSectionTitle}>Contact Information</div>
+                            {FIELD_META.map(({ key, label, icon }) => {
+                                const val = key === 'mailing_address_raw' ? record.mailing_address_raw : (record as any)[key];
+                                const isSelected = selections[key] === recordIndex;
+                                const hasValue = !!val;
+
+                                return (
+                                    <div
+                                        key={key}
+                                        className={`${styles.fieldRow} ${isSelected ? styles.fieldRowSelected : ''} ${!hasValue ? styles.fieldRowEmpty : ''}`}
+                                        onClick={() => hasValue && selectField(key, recordIndex)}
+                                    >
+                                        <div className={styles.fieldIcon}>{icon}</div>
+                                        <div className={styles.fieldContent}>
+                                            <div className={styles.fieldLabel}>{label}</div>
+                                            <div className={styles.fieldValue}>
+                                                {hasValue ? val : <span className={styles.noData}>Not provided</span>}
+                                            </div>
+                                        </div>
+                                        {hasValue && (
+                                            <div className={`${styles.selectionIndicator} ${isSelected ? styles.selectionIndicatorActive : ''}`}>
+                                                {isSelected && <Check size={10} strokeWidth={3} />}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Policy Inventory */}
+                        <div className={styles.policyInventory}>
+                            <div className={styles.policyInventoryHeader}>
+                                <Shield size={14} />
+                                <span>Policy Inventory</span>
+                                <span className={styles.policyChipCount}>{policies.length}</span>
+                            </div>
+
+                            {policies.length === 0 ? (
+                                <div className={styles.noPolicies}>
+                                    No policies linked to this client record
+                                </div>
                             ) : (
-                                <div className={styles.emptyText}>No data mapping</div>
+                                <>
+                                    {isSurvivor ? (
+                                        <div className={styles.policyKeptLabel}>
+                                            <ShieldCheck size={11} />
+                                            These policies belong to the survivor — they will always be kept
+                                        </div>
+                                    ) : (
+                                        <div className={styles.policyMigrateLabel}>
+                                            <Check size={11} />
+                                            Checked policies will be migrated to the survivor after merge
+                                        </div>
+                                    )}
+                                    <div className={styles.policyRows}>
+                                        {policies.map(policy => {
+                                            const term = getCurrentTerm(policy);
+                                            const isCandidate = !isSurvivor;
+                                            const isMigrating = isCandidate ? (policyMigration[policy.id] !== false) : true;
+
+                                            return (
+                                                <div key={policy.id} className={`${styles.policyRow} ${!isMigrating && isCandidate ? styles.policyRowExcluded : ''}`}>
+                                                    {/* Migration toggle for candidate policies */}
+                                                    {isCandidate && (
+                                                        <div
+                                                            className={`${styles.migrateCheckbox} ${isMigrating ? styles.migrateCheckboxChecked : ''}`}
+                                                            onClick={(e) => { e.stopPropagation(); togglePolicyMigration(policy.id); }}
+                                                        >
+                                                            {isMigrating && <Check size={10} strokeWidth={3} />}
+                                                        </div>
+                                                    )}
+                                                    {isSurvivor && (
+                                                        <div className={styles.survivorPolicyIcon}>
+                                                            <ShieldCheck size={14} />
+                                                        </div>
+                                                    )}
+
+                                                    <div className={styles.policyRowContent}>
+                                                        <div className={styles.policyRowTop}>
+                                                            <span className={styles.policyNum}>{policy.policy_number}</span>
+                                                            {policy.carrier_name && <span className={styles.policyCarrier}>{policy.carrier_name}</span>}
+                                                        </div>
+                                                        {policy.property_address_raw && (
+                                                            <div className={styles.policyAddr}>{policy.property_address_raw}</div>
+                                                        )}
+                                                        {term && (
+                                                            <div className={styles.policyTermInfo}>
+                                                                <span><DollarSign size={11} /> {fmtPremium(term.annual_premium)}</span>
+                                                                <span><Calendar size={11} /> {fmtDate(term.effective_date)} – {fmtDate(term.expiration_date)}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </>
                             )}
                         </div>
-                    );
-                })}
+                    </div>
+                )}
             </div>
         );
     };
@@ -147,132 +392,80 @@ export default function ClientMergeModal({ survivor, candidates, onClose, onConf
         <div className={styles.overlay}>
             <div className={styles.modal}>
 
+                {/* Header */}
                 <div className={styles.header}>
                     <div className={styles.title}>
                         <Merge style={{ color: "var(--accent-primary)" }} />
                         Guided Identity Consolidation
-                        {candidates.length > 1 && (
-                            <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-muted)', background: 'var(--bg-surface-raised)', padding: '0.15rem 0.6rem', borderRadius: '999px' }}>
-                                {candidates.length} candidates detected
-                            </span>
-                        )}
+                        <span className={styles.candidateCountBadge}>
+                            {candidates.length} {candidates.length === 1 ? 'candidate' : 'candidates'} detected
+                        </span>
                     </div>
                     <button onClick={onClose} className={styles.closeButton} disabled={isSubmitting}>
                         <X size={20} />
                     </button>
                 </div>
 
+                {/* Content: Profile Cards */}
                 <div className={styles.content}>
+                    <div className={styles.cardsContainer}>
+                        {/* Survivor Card */}
+                        {renderProfileCard(survivor, 0, true)}
 
-                    {/* Column Headers with scroll nav */}
-                    <div>
-                        <div className={styles.gridHeader} style={{ gridTemplateColumns: gridCols }}>
-                            <div className={styles.headerCell}>Data Point</div>
-                            <div className={`${styles.headerCell} ${styles.survivorHeader}`}>
-                                <ShieldAlert size={14} /> Survivor
-                            </div>
-                            {visibleCandidates.map((c, i) => (
-                                <div key={c.id} className={`${styles.headerCell} ${styles.candidateHeader}`}>
-                                    Candidate {scrollOffset + i + 1}
-                                    {candidates.length > maxVisibleCandidates && (
-                                        <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>
-                                            ({scrollOffset + i + 1}/{candidates.length})
-                                        </span>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Scroll controls for 3+ candidates */}
-                        {candidates.length > maxVisibleCandidates && (
-                            <div className={styles.scrollControls}>
-                                <button
-                                    disabled={!canScrollLeft}
-                                    onClick={() => setScrollOffset((o) => Math.max(0, o - 1))}
-                                    className={styles.scrollBtn}
-                                >
-                                    <ChevronLeft size={14} /> Previous
-                                </button>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                    Showing {scrollOffset + 1}–{Math.min(scrollOffset + maxVisibleCandidates, candidates.length)} of {candidates.length}
-                                </span>
-                                <button
-                                    disabled={!canScrollRight}
-                                    onClick={() => setScrollOffset((o) => Math.min(candidates.length - maxVisibleCandidates, o + 1))}
-                                    className={styles.scrollBtn}
-                                >
-                                    Next <ChevronRight size={14} />
-                                </button>
-                            </div>
-                        )}
-
-                        {/* Contact Fields */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                            {renderFieldRow('Named Insured', 'named_insured', (r) => r.named_insured)}
-                            {renderFieldRow('Email Address', 'email', (r) => r.email)}
-                            {renderFieldRow('Phone Number', 'phone', (r) => r.phone)}
-                            {renderFieldRow('Mailing Address', 'mailing_address_raw', (r) => r.mailing_address_raw)}
-                        </div>
+                        {/* Candidate Cards */}
+                        {candidates.map((c, i) => renderProfileCard(c, i + 1, false))}
                     </div>
 
-                    {/* ── Policy Inventory Panel ── */}
-                    {allPolicies.length > 0 && (
-                        <div className={styles.policySection}>
-                            <div className={styles.policySectionHeader}>
-                                <Shield size={16} style={{ color: 'var(--status-info)' }} />
-                                <span>Associated Policy Inventory</span>
-                                <span className={styles.policyCount}>{allPolicies.length} total</span>
-                            </div>
+                    {/* ── Merge Summary ── */}
+                    <div className={styles.summarySection}>
+                        <div className={styles.summaryTitle}>Merge Summary</div>
 
-                            <div className={styles.policyList}>
-                                {allPolicies.map(({ policy, ownerName }, i) => {
-                                    const isSurvivorPolicy = allRecords[0].policies?.some((p) => p.id === policy.id);
+                        <div className={styles.summaryGrid}>
+                            {/* Selected fields summary */}
+                            <div className={styles.summaryBlock}>
+                                <div className={styles.summaryBlockLabel}>Surviving Contact Data</div>
+                                {FIELD_META.map(({ key, label, icon }) => {
+                                    const source = allRecords[selections[key]];
+                                    const val = (source as any)[key];
+                                    const sourceLabel = selections[key] === 0 ? 'Survivor' : `Candidate ${selections[key]}`;
                                     return (
-                                        <div key={policy.id} className={styles.policyCard}>
-                                            <div className={styles.policyCardTop}>
-                                                <div className={styles.policyNumber}>{policy.policy_number}</div>
-                                                <div className={`${styles.policyBadge} ${isSurvivorPolicy ? styles.policyBadgeSurvivor : styles.policyBadgeCandidate}`}>
-                                                    {isSurvivorPolicy ? 'Survivor' : 'Candidate'}
-                                                </div>
-                                            </div>
-                                            <div className={styles.policyMeta}>
-                                                {policy.carrier_name && <span>{policy.carrier_name}</span>}
-                                                {policy.property_address_raw && <span className={styles.policyAddr}>{policy.property_address_raw}</span>}
-                                            </div>
-                                            <div className={styles.policyOwner}>
-                                                Linked to: {ownerName}
-                                            </div>
+                                        <div key={key} className={styles.summaryFieldRow}>
+                                            <span className={styles.summaryFieldIcon}>{icon}</span>
+                                            <span className={styles.summaryFieldLabel}>{label}:</span>
+                                            <span className={styles.summaryFieldValue}>{val || '—'}</span>
+                                            <span className={styles.summaryFieldSource}>from {sourceLabel}</span>
                                         </div>
                                     );
                                 })}
                             </div>
 
-                            <div className={styles.policyNote}>
-                                When "Migrate External Attachments" is enabled, all candidate policies will be re-parented to the Survivor client record. Duplicate policy numbers across clients will be handled by the Term Downcasting engine.
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ── Options ── */}
-                    <div className={styles.optionsSection}>
-                        <div className={styles.optionRow} onClick={() => setKeepDocs(!keepDocs)}>
-                            <div className={`${styles.checkbox} ${keepDocs ? styles.checkboxChecked : ''}`}>
-                                {keepDocs && <Check size={14} strokeWidth={3} />}
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ color: "var(--text-high)", fontWeight: 600, fontSize: "0.95rem", marginBottom: "2px" }}>
-                                    Migrate External Attachments
+                            {/* Policy consolidation summary */}
+                            <div className={styles.summaryBlock}>
+                                <div className={styles.summaryBlockLabel}>Policy Consolidation</div>
+                                <div className={styles.summaryStatRow}>
+                                    <span>Survivor policies (kept as-is)</span>
+                                    <strong>{survivorPolicyCount}</strong>
                                 </div>
-                                <div style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
-                                    All policies, terms, and DEC pages linked to every target candidate will be structurally re-parented to the Survivor Record.
+                                <div className={styles.summaryStatRow}>
+                                    <span>Candidate policies to migrate</span>
+                                    <strong className={migratePolicyCount > 0 ? styles.accentGreen : ''}>{migratePolicyCount}</strong>
+                                </div>
+                                {anyPoliciesExcluded && (
+                                    <div className={`${styles.summaryStatRow} ${styles.summaryStatWarn}`}>
+                                        <span>Policies excluded (will be orphaned)</span>
+                                        <strong>{Object.values(policyMigration).filter(v => !v).length}</strong>
+                                    </div>
+                                )}
+                                <div className={styles.summaryStatTotal}>
+                                    <span>Total after merge</span>
+                                    <strong>{totalPoliciesAfterMerge}</strong>
                                 </div>
                             </div>
-                            <FileStack className={styles.optionLockIcon} size={24} />
                         </div>
                     </div>
-
                 </div>
 
+                {/* Footer */}
                 <div className={styles.footer}>
                     <button className={styles.btnCancel} onClick={onClose} disabled={isSubmitting}>
                         Cancel

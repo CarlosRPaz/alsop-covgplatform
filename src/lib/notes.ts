@@ -2,8 +2,10 @@ import { supabase } from './supabaseClient';
 import { logger } from './logger';
 
 // ---------------------------------------------------------------------------
-// Types
+// Types & Constants
 // ---------------------------------------------------------------------------
+
+export const NOTE_TAGS = ['Underwriting', 'Billing', 'General', 'Renewal', 'Claim'];
 
 export interface NoteRow {
     id: string;
@@ -152,8 +154,14 @@ export async function createNote(fields: {
     client_id: string;
     policy_id?: string | null;
     body: string;
+    tags?: string[];
 }): Promise<NoteRow | null> {
     const userId = await getCurrentUserId();
+    const metaPayload: Record<string, unknown> = {};
+    if (fields.tags) {
+        metaPayload.tags = fields.tags;
+    }
+
     const { data, error } = await supabase
         .from('notes')
         .insert({
@@ -161,6 +169,7 @@ export async function createNote(fields: {
             policy_id: fields.policy_id || null,
             body: fields.body,
             author_user_id: userId,
+            meta: metaPayload,
         })
         .select()
         .single();
@@ -184,9 +193,17 @@ export async function createNote(fields: {
 
 export async function updateNote(
     noteId: string,
-    updates: { body?: string; is_pinned?: boolean; is_archived?: boolean }
+    updates: { body?: string; is_pinned?: boolean; is_archived?: boolean; tags?: string[] }
 ): Promise<boolean> {
     const payload: Record<string, unknown> = { ...updates, updated_at: new Date().toISOString() };
+    delete payload.tags; // handled separately below
+
+    if (updates.tags) {
+        // Fetch existing meta to avoid overwriting other keys
+        const { data: existing } = await supabase.from('notes').select('meta').eq('id', noteId).single();
+        const existingMeta = (existing?.meta as Record<string, unknown>) || {};
+        payload.meta = { ...existingMeta, tags: updates.tags };
+    }
     const { error, data } = await supabase
         .from('notes')
         .update(payload)
