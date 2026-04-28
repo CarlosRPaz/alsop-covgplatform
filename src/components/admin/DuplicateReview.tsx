@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Copy, AlertCircle, CheckCircle2, X, Merge, RefreshCw, Users, ShieldAlert } from "lucide-react";
+import { Copy, AlertCircle, CheckCircle2, X, Merge, RefreshCw, Users, ShieldAlert, Search } from "lucide-react";
 import ClientMergeModal from "./ClientMergeModal";
 import styles from "./DuplicateReview.module.css";
 
@@ -10,6 +10,7 @@ export default function DuplicateReview() {
     const [selectedPolicy, setSelectedPolicy] = useState<string | null>(null);
     const [isMerging, setIsMerging] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState("");
     // Modal State
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [activeMergeGroup, setActiveMergeGroup] = useState<any | null>(null);
@@ -98,8 +99,43 @@ export default function DuplicateReview() {
         );
     }
 
+    const filteredClients = duplicateClients.filter(group => {
+        if (!searchQuery) return true;
+        const q = searchQuery.toLowerCase();
+        const survivorName = String(group.details?.survivor?.named_insured || '').toLowerCase();
+        if (survivorName.includes(q)) return true;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return group.details?.duplicates?.some((d: any) => String(d.named_insured || '').toLowerCase().includes(q));
+    });
+
+    const filteredPolicies = duplicatePolicies.filter(group => {
+        if (!searchQuery) return true;
+        const q = searchQuery.toLowerCase();
+        const survivorNum = String(group.details?.survivor?.policy_number || '').toLowerCase();
+        if (survivorNum.includes(q)) return true;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return group.details?.duplicates?.some((d: any) => String(d.policy_number || '').toLowerCase().includes(q));
+    });
+
     return (
-        <div className={styles.workspace}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ position: 'relative', width: '100%', maxWidth: '400px' }}>
+                <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                    type="text"
+                    placeholder="Search duplicates by name or policy number..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{
+                        width: '100%', padding: '0.625rem 0.75rem 0.625rem 2.25rem',
+                        background: 'var(--bg-surface-raised)', border: '1px solid var(--border-default)',
+                        borderRadius: '8px', fontSize: '0.85rem', color: 'var(--text-high)',
+                        outline: 'none'
+                    }}
+                />
+            </div>
+            
+            <div className={styles.workspace}>
             {/* Clients Column */}
             <div className={styles.column}>
                 <div className={styles.header}>
@@ -107,22 +143,22 @@ export default function DuplicateReview() {
                         <Users size={18} style={{ color: "var(--status-success)" }} />
                         Identified Client Duplicates
                     </h3>
-                    {duplicateClients.length > 0 && (
-                        <span className={styles.badge}>{duplicateClients.length} Actionable</span>
+                    {filteredClients.length > 0 && (
+                        <span className={styles.badge}>{filteredClients.length} Actionable</span>
                     )}
                 </div>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', lineHeight: 1.5, margin: '-0.75rem 0 0' }}>
                     Multiple client records that refer to the same person. Merging consolidates their contact data and re-parents all policies &amp; documents under a single survivor record.
                 </p>
 
-                {duplicateClients.length === 0 ? (
+                {filteredClients.length === 0 ? (
                     <div className={styles.emptyState}>
                         <CheckCircle2 size={32} className="icon" />
                         <h4 style={{ color: "var(--text-high)", fontWeight: 600, marginBottom: "0.25rem" }}>All Clear</h4>
-                        <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>No duplicate clients found matching the identity footprint limit.</p>
+                        <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>No duplicate clients found matching the search criteria.</p>
                     </div>
                 ) : (
-                    duplicateClients.map((group, groupIdx) => (
+                    filteredClients.map((group, groupIdx) => (
                         <div
                             key={group.survivor_id}
                             className={`${styles.card} ${selectedClient === group.survivor_id ? styles.cardActiveClient : ''}`}
@@ -206,22 +242,22 @@ export default function DuplicateReview() {
                         <ShieldAlert size={18} style={{ color: "var(--status-info)" }} />
                         Suspected Policy Mergers
                     </h3>
-                    {duplicatePolicies.length > 0 && (
-                        <span className={styles.badge}>{duplicatePolicies.length} Actionable</span>
+                    {filteredPolicies.length > 0 && (
+                        <span className={styles.badge}>{filteredPolicies.length} Actionable</span>
                     )}
                 </div>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', lineHeight: 1.5, margin: '-0.75rem 0 0' }}>
                     Separate policy records that share the same base policy number. Binding extracts the sub-term&apos;s data (dates, premiums, documents) and attaches it to the root policy as an additional term.
                 </p>
 
-                {duplicatePolicies.length === 0 ? (
+                {filteredPolicies.length === 0 ? (
                     <div className={styles.emptyState}>
                         <CheckCircle2 size={32} className="icon" />
                         <h4 style={{ color: "var(--text-high)", fontWeight: 600, marginBottom: "0.25rem" }}>All Clear</h4>
-                        <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>All policy variants are correctly tracked to their base numbers.</p>
+                        <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>No policy variants found matching the search criteria.</p>
                     </div>
                 ) : (
-                    duplicatePolicies.map((group, groupIdx) => (
+                    filteredPolicies.map((group, groupIdx) => (
                         <div
                             key={group.survivor_id}
                             className={`${styles.card} ${selectedPolicy === group.survivor_id ? styles.cardActivePolicy : ''}`}
@@ -294,6 +330,7 @@ export default function DuplicateReview() {
                     onConfirm={handleMergeClient}
                 />
             )}
+        </div>
         </div>
     );
 }

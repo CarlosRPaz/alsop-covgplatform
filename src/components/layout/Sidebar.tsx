@@ -45,8 +45,8 @@ export function Sidebar({ userRole }: SidebarProps) {
         { label: 'Upload Documents', href: '/upload-document', icon: FileUp },
     ];
 
-    // Admin-only nav items
-    const adminNavItems = userRole === 'admin' ? [
+    // Admin/Service shared nav items
+    const adminNavItems = (userRole === 'admin' || userRole === 'service') ? [
         { label: 'Submissions', href: '/admin/submissions', icon: FileText },
     ] : [];
 
@@ -138,7 +138,7 @@ export function Sidebar({ userRole }: SidebarProps) {
                     {/* Admin-only section */}
                     {bottomNavItems.length > 0 && (
                         <>
-                            {(!collapsed || isMobile) && <div className={styles.sectionTitle} style={{ marginTop: '1.5rem' }}>Admin</div>}
+                            {(!collapsed || isMobile) && <div className={styles.sectionTitle} style={{ marginTop: '1.5rem' }}>Operations</div>}
                             {collapsed && !isMobile && <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.5rem' }} />}
                             {bottomNavItems.map((item) => {
                                 const isActive = pathname.startsWith(item.href);

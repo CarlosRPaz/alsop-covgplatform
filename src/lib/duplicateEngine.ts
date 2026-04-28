@@ -22,13 +22,29 @@ export class DuplicateEngine {
      */
     static async findPolicyDuplicates(): Promise<DuplicateGroup[]> {
         const supabaseAdmin = getSupabaseAdmin();
-        const { data: policies, error } = await supabaseAdmin
-            .from('policies')
-            .select('id, policy_number, created_at, client_id, property_address_norm');
+        let policies: any[] = [];
+        let hasMore = true;
+        let page = 0;
+        const pageSize = 1000;
 
-        if (error || !policies) {
-            console.error("Error fetching policies for duplicate detection", error);
-            return [];
+        while (hasMore) {
+            const { data, error } = await supabaseAdmin
+                .from('policies')
+                .select('id, policy_number, created_at, client_id, property_address_norm')
+                .range(page * pageSize, (page + 1) * pageSize - 1);
+
+            if (error) {
+                console.error("Error fetching policies for duplicate detection", error);
+                return [];
+            }
+
+            if (data && data.length > 0) {
+                policies = policies.concat(data);
+                if (data.length < pageSize) hasMore = false;
+                else page++;
+            } else {
+                hasMore = false;
+            }
         }
 
         // Group by Normalized Base Policy
@@ -87,18 +103,34 @@ export class DuplicateEngine {
      */
     static async findClientDuplicates(): Promise<DuplicateGroup[]> {
         const supabaseAdmin = getSupabaseAdmin();
-        const { data: clients, error } = await supabaseAdmin
-            .from('clients')
-            .select(`
-                id, named_insured, email, phone, mailing_address_raw, mailing_address_norm, created_at,
-                policies(id, policy_number, carrier_name, property_address_raw, status, created_at,
-                    policy_terms(id, effective_date, expiration_date, annual_premium, is_current)),
-                dec_pages(id)
-            `);
+        let clients: any[] = [];
+        let hasMore = true;
+        let page = 0;
+        const pageSize = 1000;
 
-        if (error || !clients) {
-            console.error("Error fetching clients for duplicate detection", error);
-            return [];
+        while (hasMore) {
+            const { data, error } = await supabaseAdmin
+                .from('clients')
+                .select(`
+                    id, named_insured, email, phone, mailing_address_raw, mailing_address_norm, created_at,
+                    policies(id, policy_number, carrier_name, property_address_raw, status, created_at,
+                        policy_terms(id, effective_date, expiration_date, annual_premium, is_current)),
+                    dec_pages(id)
+                `)
+                .range(page * pageSize, (page + 1) * pageSize - 1);
+
+            if (error) {
+                console.error("Error fetching clients for duplicate detection", error);
+                return [];
+            }
+
+            if (data && data.length > 0) {
+                clients = clients.concat(data);
+                if (data.length < pageSize) hasMore = false;
+                else page++;
+            } else {
+                hasMore = false;
+            }
         }
 
         // Very basic string normalization grouping for Phase B MVP
