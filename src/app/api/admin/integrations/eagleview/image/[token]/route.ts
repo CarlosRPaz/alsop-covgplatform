@@ -8,31 +8,41 @@ export async function GET(
     context: { params: Promise<{ token: string }> }
 ) {
     try {
-        // Next.js 16: params is a Promise and must be awaited
         const { token } = await context.params;
         if (!token) {
             return NextResponse.json({ success: false, message: 'Missing image token' }, { status: 400 });
         }
 
-        // Verify Authentication — accept via query string (for <img> tags) or Authorization header
+        // Accept session via query string (?session=) for <img> tags, or via cookies
         const url = new URL(request.url);
-        const queryToken = url.searchParams.get('session');
-        const authHeader = request.headers.get('authorization');
-        
-        const sessionToken = queryToken || (authHeader ? authHeader.replace('Bearer ', '') : null);
+        const querySession = url.searchParams.get('session');
 
-        if (!sessionToken) {
-            return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
+        if (!querySession) {
+            logger.error('Admin', 'EagleView image: no session token provided');
+            return NextResponse.json({ success: false, message: 'No session token' }, { status: 401 });
         }
 
+        // Validate session with admin client
         const admin = getSupabaseAdmin();
-        const { data: { user }, error: authError } = await admin.auth.getUser(sessionToken);
-
-        if (authError || !user) {
-            return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
+        
+        let user;
+        try {
+            const { data, error } = await admin.auth.getUser(querySession);
+            if (error) {
+                logger.error('Admin', 'EagleView image: auth.getUser failed', { error: error.message });
+                return NextResponse.json({ success: false, message: 'Auth failed: ' + error.message }, { status: 401 });
+            }
+            user = data.user;
+        } catch (authErr: any) {
+            logger.error('Admin', 'EagleView image: auth exception', { error: authErr.message });
+            return NextResponse.json({ success: false, message: 'Auth exception' }, { status: 401 });
         }
 
-        // Check role from accounts table (same pattern as property-data-test route)
+        if (!user) {
+            return NextResponse.json({ success: false, message: 'No user found' }, { status: 401 });
+        }
+
+        // Check role
         const { data: profile } = await admin
             .from('accounts')
             .select('role')
@@ -40,38 +50,29 @@ export async function GET(
             .single();
 
         if (profile?.role !== 'admin' && profile?.role !== 'service') {
-            return NextResponse.json({ success: false, message: 'Forbidden' }, { status: 403 });
+            logger.error('Admin', 'EagleView image: forbidden role', { role: profile?.role, userId: user.id });
+            return NextResponse.json({ success: false, message: 'Forbidden: role=' + profile?.role }, { status: 403 });
         }
 
-        // Fetch EagleView Access Token
+        // Fetch EagleView image
         const evToken = await getEagleViewToken();
         const baseUrl = process.env.EAGLEVIEW_API_BASE_URL || 'https://sandbox.apis.eagleview.com';
-        
         const imageUrl = `${baseUrl}/property/v2/image/${token}`;
 
-        logger.info('Admin', 'Fetching EagleView image', { imageToken: token.substring(0, 8) + '...' });
-
-        // Fetch the image from EagleView
         const response = await fetch(imageUrl, {
             method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${evToken}`
-            }
+            headers: { 'Authorization': `Bearer ${evToken}` }
         });
 
         if (!response.ok) {
             const errText = await response.text();
-            logger.error('Admin', 'EagleView Image Fetch failed', { status: response.status, token: token.substring(0, 8), response: errText });
-            return NextResponse.json({ success: false, message: `EagleView API error: ${response.status}` }, { status: response.status });
+            logger.error('Admin', 'EagleView image fetch failed', { status: response.status, errText: errText.substring(0, 200) });
+            return NextResponse.json({ success: false, message: `EagleView: ${response.status}` }, { status: response.status });
         }
 
-        // Get the Content-Type from the EagleView response (usually image/png)
         const contentType = response.headers.get('content-type') || 'image/png';
-        
-        // Buffer the entire image and return as a complete response
-        // (streaming response.body can fail in Next.js Turbopack)
         const imageBuffer = await response.arrayBuffer();
-        
+
         return new NextResponse(imageBuffer, {
             status: 200,
             headers: {
@@ -82,7 +83,7 @@ export async function GET(
         });
 
     } catch (error: any) {
-        logger.error('Admin', 'Unexpected error in EagleView image route', { error: error.message });
-        return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
+        logger.error('Admin', 'EagleView image: uncaught error', { error: error.message, stack: error.stack?.substring(0, 300) });
+        return NextResponse.json({ success: false, message: 'Internal error: ' + error.message }, { status: 500 });
     }
 }
