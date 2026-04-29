@@ -6,9 +6,9 @@ import { Loader2, Search, Satellite, Code, LayoutDashboard, Copy, Check, MapPin,
 import { useToast } from '@/components/ui/Toast/Toast';
 
 const SAMPLE_ADDRESSES = [
-    { label: 'Sample 1 - Omaha NE (Sandbox Bounds)', value: '1001 Fort St, Omaha, NE 68102' },
-    { label: 'Sample 2 - Omaha NE (Sandbox Bounds)', value: '1100 Harney St, Omaha, NE 68102' },
-    { label: 'Sample 3 - Omaha NE (Sandbox Bounds)', value: '1312 Jackson St, Omaha, NE 68102' },
+    { label: 'Sample 1 - Omaha NE (Valid Sandbox Bounds)', value: '4220 BARKER AVE, OMAHA, NE 68105' },
+    { label: 'Sample 2 - Omaha NE (Valid Sandbox Bounds)', value: '822 S 49TH ST, OMAHA, NE 68106' },
+    { label: 'Sample 3 - Omaha NE (Valid Sandbox Bounds)', value: '5157 JONES ST, OMAHA, NE 68106' },
 ];
 
 export default function EagleViewSandboxSection() {

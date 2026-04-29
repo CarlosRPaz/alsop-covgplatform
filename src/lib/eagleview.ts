@@ -92,10 +92,11 @@ export async function fetchEagleViewPropertyData(address: string, maxWaitMs = 30
     }
 
     const postData = await postRes.json();
-    const requestId = postData.requestId;
+    const requestId = postData.request?.id || postData.requestId;
 
     if (!requestId) {
-        throw new Error('No requestId returned from EagleView POST request.');
+        console.error("NO REQUEST ID, POST DATA WAS:", postData);
+        throw new Error('No requestId returned from EagleView POST request. Response: ' + JSON.stringify(postData));
     }
 
     logger.info('EagleView', 'Request submitted, polling for results...', { requestId });
@@ -129,7 +130,8 @@ export async function fetchEagleViewPropertyData(address: string, maxWaitMs = 30
         const getData = await getRes.json();
         
         // Check if status is complete. If 'status' field doesn't exist, assume we got the data.
-        if (getData.status === 'processing' || getData.status === 'pending') {
+        const status = getData.status ? getData.status.toLowerCase() : '';
+        if (status === 'processing' || status === 'pending' || status === 'in progress') {
             continue;
         }
 
