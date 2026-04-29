@@ -65,7 +65,7 @@ export async function getEagleViewToken(): Promise<string> {
  * Helper to fetch property data. Initiates a POST request, then polls the GET result endpoint.
  * This simplifies the frontend's job by handling the polling server-side up to a timeout.
  */
-export async function fetchEagleViewPropertyData(address: string, maxWaitMs = 30000): Promise<any> {
+export async function fetchEagleViewPropertyData(address: string, maxWaitMs = 60000): Promise<any> {
     const token = await getEagleViewToken();
     const config = getConfig();
 
