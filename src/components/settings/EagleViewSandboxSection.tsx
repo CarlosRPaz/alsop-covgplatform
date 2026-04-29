@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { Loader2, Search, Satellite, Code, LayoutDashboard, Copy, Check, MapPin, AlertCircle } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast/Toast';
+import EagleViewReportModal from './EagleViewReportModal';
 
 const SAMPLE_ADDRESSES = [
     { label: 'Sample 1 - Omaha NE (Valid Sandbox Bounds)', value: '4220 BARKER AVE, OMAHA, NE 68105' },
@@ -16,6 +17,7 @@ export default function EagleViewSandboxSection() {
     const [result, setResult] = useState<any | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'formatted' | 'raw'>('formatted');
+    const [isReportOpen, setIsReportOpen] = useState(false);
     const [copied, setCopied] = useState(false);
     const toast = useToast();
 
@@ -228,6 +230,20 @@ export default function EagleViewSandboxSection() {
                             >
                                 <Code size={14} /> Raw JSON Response
                             </button>
+                            <button
+                                onClick={() => setIsReportOpen(true)}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                    padding: '0.4rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 500,
+                                    border: '1px solid var(--accent-primary)',
+                                    background: 'var(--accent-primary)',
+                                    color: 'white',
+                                    cursor: 'pointer',
+                                    marginLeft: '1rem'
+                                }}
+                            >
+                                <LayoutDashboard size={14} /> View Detailed Report
+                            </button>
                         </div>
                         
                         {viewMode === 'raw' && (
@@ -294,6 +310,10 @@ export default function EagleViewSandboxSection() {
                         </div>
                     </div>
                 </div>
+            )}
+            
+            {isReportOpen && result && (
+                <EagleViewReportModal result={result} onClose={() => setIsReportOpen(false)} />
             )}
         </div>
     );
