@@ -77,7 +77,7 @@ function Section({ title, icon, defaultOpen = true, children }: {
     return (
         <div style={{
             background: '#fff', borderRadius: 12, border: '1px solid rgba(0,0,0,0.06)',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.02)', overflow: 'hidden',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
         }}>
             <button
                 onClick={() => setOpen(o => !o)}
@@ -264,9 +264,9 @@ export default function EagleViewReportModal({ result, onClose }: EagleViewRepor
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem',
         }}>
             <div onClick={e => e.stopPropagation()} style={{
-                background: '#F8F7F4', width: '100%', maxWidth: 1200, maxHeight: '94vh',
+                background: '#F8F7F4', width: '100%', maxWidth: 1200, height: '94vh',
                 borderRadius: 16, display: 'flex', flexDirection: 'column',
-                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', overflow: 'hidden',
+                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
             }}>
                 {/* ─ Header ─ */}
                 <div style={{
@@ -299,7 +299,9 @@ export default function EagleViewReportModal({ result, onClose }: EagleViewRepor
                 </div>
 
                 {/* ─ Scrollable body ─ */}
-                <div style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ padding: '24px', overflowY: 'scroll', flex: 1, minHeight: 0 }}>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
                     {/* General Conditions */}
                     <Section title="General Property Details" icon={<Info size={18} color="#2243B6" />}>
@@ -473,6 +475,7 @@ export default function EagleViewReportModal({ result, onClose }: EagleViewRepor
                         )}
                     </Section>
 
+                    </div>{/* end flex column wrapper */}
                 </div>
             </div>
         </div>
