@@ -20,6 +20,7 @@ import {
     Copy,
     Search,
     RefreshCw,
+    UserPlus,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/Button/Button';
@@ -76,10 +77,10 @@ interface DocumentStatus {
     extracted_owner_name: string | null;
     extracted_address: string | null;
     writeback_status: string | null;
-    writeback_log: Array<{ field: string; action: string; old_value?: string; new_value?: string }> | null;
+    writeback_log: Array<{ field?: string; target?: string; action: string; old_value?: string; new_value?: string; existing_value?: string; value?: string }> | null;
     created_at: string;
     updated_at: string;
-    policies: { id: string; policy_number: string; carrier_name: string } | null;
+    policies: { id: string; policy_number: string; carrier_name: string; property_address_raw?: string; client_id?: string; clients?: { id: string; named_insured: string } | null } | null;
     clients: { id: string; named_insured: string } | null;
     status_message: string;
     action_required: string | null;
@@ -114,6 +115,7 @@ export default function UploadDocumentPage() {
     const [autoRecommendations, setAutoRecommendations] = useState<any[]>([]);
     const [autoSearchDone, setAutoSearchDone] = useState(false);
     const autoSearchRanRef = useRef(false);
+    const [isCreatingClient, setIsCreatingClient] = useState(false);
 
     // Clean up on unmount
     useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
@@ -416,6 +418,38 @@ export default function UploadDocumentPage() {
         } catch {
             setUploadError('Network error during assignment.');
             setIsAssigning(false);
+        }
+    };
+
+    const handleCreateAndAssign = async () => {
+        if (!documentId || !docStatus) return;
+        setIsCreatingClient(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+            const res = await fetch('/api/documents/create-and-assign', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    documentId,
+                    ownerName: docStatus.extracted_owner_name || 'Unknown Insured',
+                    propertyAddress: docStatus.extracted_address || '',
+                    carrierName: 'California FAIR Plan',
+                }),
+            });
+            if (res.ok) {
+                // Re-poll to get updated status
+                setAutoRecommendations([]);
+                autoSearchRanRef.current = false;
+                startPolling(documentId);
+            } else {
+                const err = await res.json();
+                setUploadError(err.error || 'Failed to create client');
+            }
+        } catch {
+            setUploadError('Network error creating client');
+        } finally {
+            setIsCreatingClient(false);
         }
     };
 
@@ -723,8 +757,12 @@ export default function UploadDocumentPage() {
                             )}
 
                             {/* Policy & Client Actionable Cards */}
-                            {docStatus?.policy_id && (
-                                <div style={{ display: 'grid', gridTemplateColumns: docStatus.clients ? '1fr 1fr' : '1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                            {docStatus?.policy_id && (() => {
+                                // Resolve client from document or through policy
+                                const resolvedClient = docStatus.clients || docStatus.policies?.clients || null;
+                                const resolvedClientId = docStatus.client_id || docStatus.policies?.client_id || null;
+                                return (
+                                <div style={{ display: 'grid', gridTemplateColumns: resolvedClient ? '1fr 1fr' : '1fr', gap: '0.75rem', marginBottom: '1rem' }}>
                                     <Link href={`/policy/${docStatus.policy_id}`} style={{ textDecoration: 'none' }}>
                                         <div
                                             style={{
@@ -747,19 +785,45 @@ export default function UploadDocumentPage() {
                                             {docStatus.policies?.carrier_name && (
                                                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>{docStatus.policies.carrier_name}</div>
                                             )}
+                                            {docStatus.policies?.property_address_raw && (
+                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.35rem', paddingTop: '0.35rem', borderTop: '1px solid var(--border-default)' }}>
+                                                    <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Address: </span>
+                                                    {docStatus.policies.property_address_raw}
+                                                </div>
+                                            )}
                                         </div>
                                     </Link>
-                                    {docStatus.clients && (
-                                        <div style={{ padding: '0.85rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border-default)', background: 'var(--bg-surface-raised)' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem' }}>
-                                                <User size={14} style={{ color: '#8b5cf6' }} />
-                                                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)' }}>Client</span>
+                                    {resolvedClient && (
+                                        <Link href={`/client/${resolvedClientId || resolvedClient.id}`} style={{ textDecoration: 'none' }}>
+                                            <div
+                                                style={{
+                                                    padding: '0.85rem 1rem', borderRadius: '0.5rem',
+                                                    border: '1px solid var(--border-default)',
+                                                    background: 'var(--bg-surface-raised)',
+                                                    cursor: 'pointer', transition: 'border-color 0.15s',
+                                                    height: '100%',
+                                                }}
+                                                onMouseEnter={e => (e.currentTarget.style.borderColor = '#8b5cf6')}
+                                                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border-default)')}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem' }}>
+                                                    <User size={14} style={{ color: '#8b5cf6' }} />
+                                                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)' }}>Client / Insured</span>
+                                                    <ExternalLink size={11} style={{ color: 'var(--text-muted)', marginLeft: 'auto' }} />
+                                                </div>
+                                                <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-high)' }}>{resolvedClient.named_insured}</div>
+                                                {docStatus.extracted_owner_name && resolvedClient.named_insured.toLowerCase() !== docStatus.extracted_owner_name.toLowerCase() && (
+                                                    <div style={{ fontSize: '0.68rem', color: '#f59e0b', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                                        <AlertTriangle size={11} />
+                                                        <span>Document says: {docStatus.extracted_owner_name}</span>
+                                                    </div>
+                                                )}
                                             </div>
-                                            <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-high)' }}>{docStatus.clients.named_insured}</div>
-                                        </div>
+                                        </Link>
                                     )}
                                 </div>
-                            )}
+                                );
+                            })()}
 
                             {/* Writeback Log */}
                             {docStatus?.writeback_log && docStatus.writeback_log.length > 0 && (
@@ -769,7 +833,7 @@ export default function UploadDocumentPage() {
                                         Data Written to Policy
                                     </h4>
                                     <div style={{ borderRadius: '0.5rem', border: '1px solid var(--border-default)', overflow: 'hidden', fontSize: '0.75rem' }}>
-                                        {docStatus.writeback_log.map((entry, i) => (
+                                        {docStatus.writeback_log.filter(entry => entry.field && entry.action).map((entry, i) => (
                                             <div key={i} style={{
                                                 display: 'flex', alignItems: 'center', gap: '0.5rem',
                                                 padding: '0.4rem 0.75rem',
@@ -779,11 +843,11 @@ export default function UploadDocumentPage() {
                                                 {entry.action === 'written' && <CheckCircle size={12} style={{ color: '#10b981', flexShrink: 0 }} />}
                                                 {entry.action === 'skipped' && <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', width: 12, textAlign: 'center' }}>—</span>}
                                                 {entry.action === 'conflict' && <AlertTriangle size={12} style={{ color: '#ef4444', flexShrink: 0 }} />}
-                                                <span style={{ fontWeight: 600, color: 'var(--text-mid)', minWidth: '10rem' }}>{formatFieldName(entry.field)}</span>
+                                                <span style={{ fontWeight: 600, color: 'var(--text-mid)', minWidth: '10rem' }}>{formatFieldName(entry.field || entry.target || '')}</span>
                                                 <span style={{ color: 'var(--text-muted)' }}>
-                                                    {entry.action === 'written' ? `→ ${entry.new_value}` :
+                                                    {entry.action === 'written' ? `→ ${entry.new_value || entry.value || ''}` :
                                                      entry.action === 'skipped' ? 'Already correct' :
-                                                     `Conflict: existing "${entry.old_value}" vs new "${entry.new_value}"`}
+                                                     `Conflict: existing "${entry.old_value || entry.existing_value || ''}" vs new "${entry.new_value || entry.value || ''}"`}
                                                 </span>
                                             </div>
                                         ))}
@@ -870,8 +934,25 @@ export default function UploadDocumentPage() {
                                         )}
 
                                         {autoSearchDone && autoRecommendations.length === 0 && (
-                                            <div style={{ padding: '0.85rem 1rem', borderRadius: '0.5rem', background: '#f59e0b08', border: '1px solid #f59e0b20', marginBottom: '1rem', fontSize: '0.78rem', color: 'var(--text-mid)' }}>
-                                                No automatic matches found for &ldquo;{docStatus?.extracted_owner_name}&rdquo;. Use the search below to find the correct policy.
+                                            <div style={{ padding: '1.25rem', borderRadius: '0.5rem', background: 'var(--bg-surface-raised)', border: '1px solid var(--border-default)', marginBottom: '1rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                                    <AlertTriangle size={16} style={{ color: '#f59e0b' }} />
+                                                    <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-high)' }}>No Matching Policies Found</span>
+                                                </div>
+                                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0 0 0.75rem', lineHeight: 1.5 }}>
+                                                    No existing policies match &ldquo;{docStatus?.extracted_owner_name}&rdquo; at &ldquo;{docStatus?.extracted_address}&rdquo;.
+                                                    You can create a new client profile, or search manually below.
+                                                </p>
+                                                <Button
+                                                    size="sm"
+                                                    variant="primary"
+                                                    onClick={handleCreateAndAssign}
+                                                    disabled={isCreatingClient}
+                                                >
+                                                    {isCreatingClient
+                                                        ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite', marginRight: 6 }} /> Creating…</>
+                                                        : <><UserPlus size={14} style={{ marginRight: 6 }} /> Create New Client & Policy</>}
+                                                </Button>
                                             </div>
                                         )}
 
@@ -941,6 +1022,7 @@ function ReportField({ icon, label, value }: { icon: React.ReactNode; label: str
 }
 
 function formatFieldName(field: string): string {
+    if (!field) return '—';
     return field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 

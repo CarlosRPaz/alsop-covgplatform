@@ -239,7 +239,7 @@ export function PolicyOverviewTab({ declaration, policyDetail, enrichments = [] 
                     <h3>Status &amp; Policy Period</h3>
                     <div className={styles.field}>
                         <label>Status:</label>
-                        <span className={`${styles.status} ${styles[declaration.status.toLowerCase().replace(' ', '')]}`}>
+                        <span className={`${styles.status} ${styles[(declaration.status || 'pending').toLowerCase().replace(' ', '')]}`}>
                             {declaration.status}
                         </span>
                     </div>

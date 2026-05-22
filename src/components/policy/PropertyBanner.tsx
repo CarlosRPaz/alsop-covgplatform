@@ -366,7 +366,7 @@ export function PropertyBanner({
                             {currentSlide.icon}
                             <span>{currentSlide.source.name}</span>
                             <span className={styles.sourceDot}>·</span>
-                            <span className={styles.sourceType}>{currentSlide.source.type.replace('_', ' ')}</span>
+                            <span className={styles.sourceType}>{(currentSlide.source.type || 'unknown').replace('_', ' ')}</span>
                             {currentSlide.source.confidence === 'high' && (
                                 <span className={styles.confidenceCheck}>✓</span>
                             )}
@@ -440,7 +440,7 @@ export function PropertyBanner({
                                 </div>
                                 <div className={styles.modalMetaItem}>
                                     <span className={styles.modalMetaLabel}>Type</span>
-                                    <span style={{ textTransform: 'capitalize' }}>{currentSlide.source.type.replace('_', ' ')}</span>
+                                    <span style={{ textTransform: 'capitalize' }}>{(currentSlide.source.type || 'unknown').replace('_', ' ')}</span>
                                 </div>
                                 <div className={styles.modalMetaItem}>
                                     <span className={styles.modalMetaLabel}>Fetched</span>

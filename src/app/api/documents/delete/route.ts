@@ -34,12 +34,57 @@ export async function POST(request: NextRequest) {
             bucket = 'cfp-raw-decpage';
             storagePath = data.storage_path || data.file_path;
         } else if (source === 'platform') {
-            const { data, error } = await admin.from('platform_documents').select('storage_path').eq('id', id).single();
+            const { data, error } = await admin.from('platform_documents').select('storage_path, doc_type, policy_id, policy_term_id, writeback_log').eq('id', id).single();
             if (error || !data) {
                 return NextResponse.json({ success: false, message: 'Record not found' }, { status: 404 });
             }
             bucket = 'cfp-platform-documents';
             storagePath = data.storage_path;
+
+            // RCE-specific cleanup before deleting the document
+            if (data.doc_type === 'rce' && data.policy_id) {
+                // a. Delete extracted RCE data
+                const { error: rceErr } = await admin.from('doc_data_rce').delete().eq('document_id', id);
+                if (rceErr) {
+                    logger.warn('DocumentDelete', 'Failed to delete doc_data_rce', { id, error: rceErr });
+                }
+
+                // b. Delete RCE-sourced property enrichments
+                const { error: enrichErr } = await admin.from('property_enrichments').delete().eq('policy_id', data.policy_id).eq('source_name', 'rce_360value');
+                if (enrichErr) {
+                    logger.warn('DocumentDelete', 'Failed to delete property_enrichments', { policyId: data.policy_id, error: enrichErr });
+                }
+
+                // c. Rollback policy_terms fields written by this document
+                if (data.policy_term_id && Array.isArray(data.writeback_log)) {
+                    const writeEntries = (data.writeback_log as Array<{ action?: string; target?: string; value?: unknown }>)
+                        .filter((e) => e.action === 'written' && typeof e.target === 'string' && e.target.startsWith('policy_terms.'));
+
+                    if (writeEntries.length > 0) {
+                        const { data: currentTerm } = await admin.from('policy_terms').select('*').eq('id', data.policy_term_id).single();
+
+                        if (currentTerm) {
+                            const nullUpdates: Record<string, null> = {};
+                            for (const entry of writeEntries) {
+                                const field = (entry.target as string).replace('policy_terms.', '');
+                                if (field in currentTerm && currentTerm[field] === entry.value) {
+                                    nullUpdates[field] = null;
+                                }
+                            }
+                            if (Object.keys(nullUpdates).length > 0) {
+                                const { error: rollbackErr } = await admin.from('policy_terms').update(nullUpdates).eq('id', data.policy_term_id);
+                                if (rollbackErr) {
+                                    logger.warn('DocumentDelete', 'Failed to rollback policy_terms', { termId: data.policy_term_id, error: rollbackErr });
+                                } else {
+                                    logger.info('DocumentDelete', 'Rolled back policy_terms fields', { termId: data.policy_term_id, fields: Object.keys(nullUpdates) });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                logger.info('DocumentDelete', 'RCE cleanup complete', { id, policyId: data.policy_id });
+            }
         } else {
             return NextResponse.json({ success: false, message: 'Invalid source' }, { status: 400 });
         }

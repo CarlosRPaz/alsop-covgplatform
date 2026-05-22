@@ -499,7 +499,7 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
                     </div>
                     <div className={styles.field}>
                         <label>Status:</label>
-                        <span className={`${styles.status} ${styles[declaration.status.toLowerCase().replace(' ', '')]}`}>
+                        <span className={`${styles.status} ${styles[(declaration.status || 'pending').toLowerCase().replace(' ', '')]}`}>
                             {declaration.status}
                         </span>
                     </div>

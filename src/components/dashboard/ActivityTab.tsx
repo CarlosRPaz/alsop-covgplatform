@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Upload, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, RefreshCw, Sparkles, Shield, Timer, Merge } from 'lucide-react';
+import { FileText, Upload, Loader2, CheckCircle, CheckCircle2, Clock, AlertTriangle, XCircle, RefreshCw, Sparkles, Shield, Timer, Merge } from 'lucide-react';
 import { fetchActivityFeed, ActivityFeedItem } from '@/lib/api';
 import styles from './ActivityTab.module.css';
 
@@ -39,7 +39,12 @@ function getStatusConfig(status: string): { label: string; cssKey: string } {
     }
 }
 
-function StatusIcon({ status, type }: { status: string; type?: string }) {
+function StatusIcon({ status, type, event_type }: { status: string; type?: string; event_type?: string }) {
+    if (type === 'document') {
+        if (event_type === 'document.processed') return <CheckCircle size={14} style={{ color: '#10b981' }} />;
+        if (event_type === 'document.failed') return <XCircle size={14} style={{ color: '#ef4444' }} />;
+        return <AlertTriangle size={14} style={{ color: '#f59e0b' }} />;
+    }
     if (type === 'merge') {
         return <Merge size={14} className={styles.statusIconMerge} />;
     }
@@ -130,7 +135,7 @@ export function ActivityTab() {
                                 <div key={`${activity.id}-${idx}`} className={`${styles.row} ${activity.type === 'merge' ? styles.rowMerge : ''}`}>
                                     {/* Status icon */}
                                     <div className={styles.statusCol}>
-                                        <StatusIcon status={activity.status} type={activity.type} />
+                                        <StatusIcon status={activity.status} type={activity.type} event_type={activity.event_type} />
                                     </div>
 
                                     {/* Main info */}
@@ -147,7 +152,7 @@ export function ActivityTab() {
 
                                         {/* Action description */}
                                         <span className={`${styles.actionText} ${activity.type === 'merge' ? styles.actionTextMerge : ''}`}>
-                                            {activity.type === 'merge' ? 'Client Records Consolidated' : 'Dec Page Uploaded'}
+                                            {activity.type === 'merge' ? 'Client Records Consolidated' : activity.type === 'document' ? (activity.title || 'Document Event') : 'Dec Page Uploaded'}
                                         </span>
 
                                         {/* Client / Policy links */}
@@ -182,6 +187,11 @@ export function ActivityTab() {
 
                                         {/* Detail text for merge events */}
                                         {activity.type === 'merge' && activity.detail && (
+                                            <div className={styles.detailText}>{activity.detail}</div>
+                                        )}
+
+                                        {/* Detail text for document events */}
+                                        {activity.type === 'document' && activity.detail && (
                                             <div className={styles.detailText}>{activity.detail}</div>
                                         )}
                                     </div>

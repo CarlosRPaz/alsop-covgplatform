@@ -372,7 +372,10 @@ export function PolicyFiles({ policyId, onDecPageApproved }: PolicyFilesProps) {
 
     // ── Delete: Removes file from DB and Storage ──
     const handleDelete = useCallback(async (file: UnifiedFile) => {
-        const confirmMsg = `Are you sure you want to delete ${file.file_name || 'this document'}?\nThis action cannot be undone.`;
+        const isRce = file.source === 'platform' && file.doc_type === 'rce';
+        const confirmMsg = isRce
+            ? `Delete "${file.file_name || 'this RCE'}"?\n\nThis will also remove all RCE enrichment data (replacement cost, sq footage, year built, etc.) that was written to this policy.\n\nThis action cannot be undone.`
+            : `Are you sure you want to delete ${file.file_name || 'this document'}?\nThis action cannot be undone.`;
         if (!window.confirm(confirmMsg)) return;
 
         setActionId(file.id + '_delete');

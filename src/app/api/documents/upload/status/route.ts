@@ -77,7 +77,13 @@ export async function GET(request: NextRequest) {
                 policies:policy_id (
                     id,
                     policy_number,
-                    carrier_name
+                    carrier_name,
+                    property_address_raw,
+                    client_id,
+                    clients:client_id (
+                        id,
+                        named_insured
+                    )
                 ),
                 clients:client_id (
                     id,

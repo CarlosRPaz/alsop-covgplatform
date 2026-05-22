@@ -750,11 +750,27 @@ def match_candidates_for_review(
     # ── Sort: 'both' first, then by combined score ───────────────────
     def _sort_key(c: dict) -> tuple:
         source_rank = 0 if c["match_source"] == "both" else (1 if c["match_source"] == "name" else 2)
-        combined = c["name_similarity"] * 0.6 + c["address_similarity"] * 0.4
+        combined = c["name_similarity"] * 0.5 + c["address_similarity"] * 0.5
         return (source_rank, -combined)
 
     candidates.sort(key=_sort_key)
     candidates = candidates[:10]
+
+    # ── Filter: remove weak candidates ───────────────────────────────
+    # To survive with a bad name match (<0.50), the address must be near-perfect (≥0.95).
+    # To survive with a bad address match (<0.95), the name must be at least recognizable (≥0.50).
+    pre_filter_count = len(candidates)
+    candidates = [
+        c for c in candidates
+        if c["name_similarity"] >= 0.50 or c["address_similarity"] >= 0.95
+    ]
+    filtered_out = pre_filter_count - len(candidates)
+    if filtered_out:
+        log_step(
+            "filter_weak", "filtered",
+            f"Removed {filtered_out} weak candidate(s) (name<0.50 AND address<0.95)",
+            {"before": pre_filter_count, "after": len(candidates)},
+        )
 
     # ── Store candidates in match_log ────────────────────────────────
     log_step(
@@ -779,6 +795,44 @@ def match_candidates_for_review(
             ],
         )
 
+    # ── Auto-attach: exactly 1 strong candidate ─────────────────────
+    strong = [
+        c for c in candidates
+        if c["name_similarity"] >= 0.95 and c["address_similarity"] >= 0.95
+    ]
+    if len(strong) == 1:
+        auto = strong[0]
+        policy_term_id = None
+        try:
+            term_res = (
+                sb.table("policy_terms")
+                .select("id")
+                .eq("policy_id", auto["policy_id"])
+                .eq("is_current", True)
+                .limit(1)
+                .execute()
+            )
+            if term_res.data:
+                policy_term_id = term_res.data[0]["id"]
+        except Exception as e:
+            logger.warning("Failed to fetch policy_term for auto-attach: %s", e)
+
+        log_step(
+            "auto_attach", "matched",
+            f"Single strong candidate: name={auto['name_similarity']:.0%} address={auto['address_similarity']:.0%} → auto-linked",
+            {"policy_id": auto["policy_id"], "client_id": auto["client_id"]},
+        )
+        return MatchResult(
+            status="matched",
+            policy_id=auto["policy_id"],
+            client_id=auto["client_id"],
+            policy_term_id=policy_term_id,
+            confidence=round((auto["name_similarity"] + auto["address_similarity"]) / 2, 2),
+            match_log=match_log,
+            review_reason=None,
+            action_items=[],
+        )
+
     # Best candidate for pre-selection hint (agent still must confirm)
     best = candidates[0]
     return MatchResult(
@@ -787,14 +841,14 @@ def match_candidates_for_review(
         client_id=best["client_id"],
         policy_term_id=None,
         confidence=round(
-            best["name_similarity"] * 0.6 + best["address_similarity"] * 0.4,
+            best["name_similarity"] * 0.5 + best["address_similarity"] * 0.5,
             2,
         ),
         match_log=match_log,
         review_reason=(
             f"Found {len(candidates)} possible match(es). "
             f"DIC/RCE documents require manual confirmation — "
-            f"please review the candidates and assign to the correct policy."
+            f"please review the candidates below and assign to the correct policy."
         ),
         action_items=[
             "Review the candidate matches below.",

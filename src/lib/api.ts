@@ -2432,7 +2432,7 @@ export async function linkDocumentToPolicy(
 
 export interface ActivityFeedItem {
     id: string;
-    type: 'upload' | 'merge';
+    type: 'upload' | 'merge' | 'document';
     status: string;
     created_at: string;
     file_path: string | null;
@@ -2601,8 +2601,42 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
             meta: ev.meta,
         }));
 
+        // Source C — Document upload events
+        let docItems: ActivityFeedItem[] = [];
+        try {
+            const { data: docEvents } = await supabase
+                .from('activity_events')
+                .select('*')
+                .in('event_type', [
+                    'document.processed', 'document.needs_review',
+                    'document.no_match', 'document.failed',
+                ])
+                .order('created_at', { ascending: false })
+                .limit(limit);
+            if (docEvents) {
+                for (const evt of docEvents) {
+                    docItems.push({
+                        id: evt.id,
+                        type: 'document' as const,
+                        event_type: evt.event_type,
+                        title: evt.title,
+                        detail: evt.detail,
+                        policy_id: evt.policy_id,
+                        client_id: evt.client_id,
+                        created_at: evt.created_at,
+                        meta: evt.meta || {},
+                        status: 'done',
+                        file_path: null,
+                        uploaded_by: 'System',
+                    });
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to fetch document events:', e);
+        }
+
         // Merge + sort chronologically
-        const combined = [...uploadItems, ...mergeItems]
+        const combined = [...uploadItems, ...mergeItems, ...docItems]
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
             .slice(0, limit);
 
