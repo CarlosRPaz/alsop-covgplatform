@@ -3036,6 +3036,32 @@ export async function deleteDocument(id: string, source: 'dec_page' | 'platform'
     }
 }
 
+/**
+ * Reassign a platform document (e.g. RCE) from its current policy to a new one.
+ * This cleans up old extracted data, enrichments, and policy_terms writebacks
+ * from the previous policy before re-queuing for processing on the new target.
+ */
+export async function reassignDocument(documentId: string, newPolicyId: string): Promise<{ success: boolean; message?: string }> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return { success: false, message: 'Not authenticated' };
+
+    try {
+        const response = await fetch('/api/documents/reassign', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ documentId, newPolicyId }),
+        });
+
+        return await response.json();
+    } catch (e) {
+        logger.error('API', 'Error in reassignDocument', { error: String(e) });
+        return { success: false, message: 'Network error' };
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Update Helpers (Edit MVP)
 // ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
     Loader2,
     CheckCircle,
@@ -92,6 +92,7 @@ type TrackerPhase = 'idle' | 'uploading' | 'polling' | 'done';
 
 export default function UploadDocumentPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [selectedType, setSelectedType] = useState<DocTypeKey | null>(null);
     const [isDragOver, setIsDragOver] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
@@ -116,6 +117,69 @@ export default function UploadDocumentPage() {
     const [autoSearchDone, setAutoSearchDone] = useState(false);
     const autoSearchRanRef = useRef(false);
     const [isCreatingClient, setIsCreatingClient] = useState(false);
+
+    // Reassign mode state
+    const [isReassignMode, setIsReassignMode] = useState(false);
+    const [reassignDocInfo, setReassignDocInfo] = useState<{
+        id: string;
+        file_name: string;
+        doc_type: string;
+        policy_number?: string;
+        insured_name?: string;
+        property_address?: string;
+        policy_id?: string;
+        client_id?: string;
+    } | null>(null);
+    const reassignInitRef = useRef(false);
+
+    // ── Reassign mode: load document info from ?reassign=DOC_ID ──
+    useEffect(() => {
+        const reassignId = searchParams.get('reassign');
+        if (!reassignId || reassignInitRef.current) return;
+        reassignInitRef.current = true;
+
+        setIsReassignMode(true);
+        setDocumentId(reassignId);
+        setPhase('done');
+
+        (async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) return;
+
+                // Fetch the document with its policy/client info
+                const { data: doc } = await supabase
+                    .from('platform_documents')
+                    .select(`
+                        id, file_name, doc_type, policy_id, client_id,
+                        extracted_owner_name, extracted_address,
+                        policies (id, policy_number, property_address_raw, carrier_name,
+                            clients (id, named_insured)
+                        )
+                    `)
+                    .eq('id', reassignId)
+                    .single();
+
+                if (doc) {
+                    const policy = doc.policies as any;
+                    const client = policy?.clients as any;
+                    setReassignDocInfo({
+                        id: doc.id,
+                        file_name: doc.file_name || 'Unknown file',
+                        doc_type: doc.doc_type || 'rce',
+                        policy_number: policy?.policy_number,
+                        insured_name: client?.named_insured || doc.extracted_owner_name,
+                        property_address: policy?.property_address_raw || doc.extracted_address,
+                        policy_id: doc.policy_id,
+                        client_id: doc.client_id,
+                    });
+                    setUploadedFileName(doc.file_name || '');
+                }
+            } catch {
+                setUploadError('Failed to load document for reassignment.');
+            }
+        })();
+    }, [searchParams]);
 
     // Clean up on unmount
     useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
@@ -394,13 +458,20 @@ export default function UploadDocumentPage() {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) return;
-            const res = await fetch('/api/documents/assign', {
+
+            // In reassign mode, use the reassign endpoint (cleans up old data)
+            const endpoint = isReassignMode ? '/api/documents/reassign' : '/api/documents/assign';
+            const body = isReassignMode
+                ? { documentId, newPolicyId: policyId }
+                : { documentId, policyId };
+
+            const res = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${session.access_token}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ documentId, policyId }),
+                body: JSON.stringify(body),
             });
             if (res.ok) {
                 setSearchQuery('');
@@ -411,13 +482,15 @@ export default function UploadDocumentPage() {
                 setIsAssigning(false);
                 setDocStatus(null);
                 setIsDuplicate(false);
+                setIsReassignMode(false);
+                setReassignDocInfo(null);
                 startPolling(documentId);
             } else {
-                setUploadError('Failed to assign document. Please try again.');
+                setUploadError(`Failed to ${isReassignMode ? 'reassign' : 'assign'} document. Please try again.`);
                 setIsAssigning(false);
             }
         } catch {
-            setUploadError('Network error during assignment.');
+            setUploadError(`Network error during ${isReassignMode ? 'reassignment' : 'assignment'}.`);
             setIsAssigning(false);
         }
     };
@@ -461,8 +534,8 @@ export default function UploadDocumentPage() {
     };
 
     const selectedTypeInfo = DOC_TYPES.find(t => t.key === selectedType);
-    const showSelector = phase === 'idle';
-    const showTracker = phase !== 'idle';
+    const showSelector = phase === 'idle' && !isReassignMode;
+    const showTracker = phase !== 'idle' && !isReassignMode;
     const isTerminal = phase === 'done';
     const isSuccess = docStatus?.parse_status === 'parsed' && docStatus?.match_status === 'matched';
     const needsReview = docStatus?.parse_status === 'needs_review' || docStatus?.match_status === 'needs_review' || docStatus?.match_status === 'no_match';
@@ -523,10 +596,146 @@ export default function UploadDocumentPage() {
                     <ArrowLeft size={20} />
                 </button>
                 <div>
-                    <h1 style={{ fontSize: '1.375rem', fontWeight: 700, color: 'var(--text-high)', marginBottom: '0.15rem' }}>Upload Document</h1>
-                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Upload RCE, DIC, or other policy documents for automatic processing</p>
+                    <h1 style={{ fontSize: '1.375rem', fontWeight: 700, color: 'var(--text-high)', marginBottom: '0.15rem' }}>
+                        {isReassignMode ? 'Reassign Document' : 'Upload Document'}
+                    </h1>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                        {isReassignMode
+                            ? 'Move this document to a different policy. Old data will be cleaned up automatically.'
+                            : 'Upload RCE, DIC, or other policy documents for automatic processing'}
+                    </p>
                 </div>
             </div>
+
+            {/* ── Reassign Context Banner ── */}
+            {isReassignMode && reassignDocInfo && (
+                <div style={{
+                    background: '#f59e0b08',
+                    border: '1px solid #f59e0b30',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: '1.25rem 1.5rem',
+                    marginBottom: '1.25rem',
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                        <RefreshCw size={16} style={{ color: '#f59e0b' }} />
+                        <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#f59e0b' }}>Reassigning Document</span>
+                        <span style={{
+                            fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.4rem',
+                            borderRadius: '0.25rem', backgroundColor: '#10b98120', color: '#10b981',
+                            marginLeft: '0.25rem',
+                        }}>
+                            {reassignDocInfo.doc_type?.toUpperCase() || 'RCE'}
+                        </span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem 1.5rem', fontSize: '0.78rem' }}>
+                        <div>
+                            <span style={{ color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>File</span>
+                            <div style={{ color: 'var(--text-high)', fontWeight: 600, marginTop: '0.15rem' }}>{reassignDocInfo.file_name}</div>
+                        </div>
+                        {reassignDocInfo.insured_name && (
+                            <div>
+                                <span style={{ color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Currently Assigned To</span>
+                                <div style={{ color: 'var(--text-high)', fontWeight: 600, marginTop: '0.15rem' }}>{reassignDocInfo.insured_name}</div>
+                            </div>
+                        )}
+                        {reassignDocInfo.policy_number && (
+                            <div>
+                                <span style={{ color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Current Policy</span>
+                                <div style={{ color: 'var(--text-high)', fontWeight: 600, marginTop: '0.15rem' }}>{reassignDocInfo.policy_number}</div>
+                            </div>
+                        )}
+                        {reassignDocInfo.property_address && (
+                            <div>
+                                <span style={{ color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Property Address</span>
+                                <div style={{ color: 'var(--text-high)', fontWeight: 600, marginTop: '0.15rem' }}>{reassignDocInfo.property_address}</div>
+                            </div>
+                        )}
+                    </div>
+                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.75rem', lineHeight: 1.5 }}>
+                        Search for a new policy below. When you reassign, the old RCE data, enrichments, and policy term writebacks will be automatically cleaned up from the current policy.
+                    </p>
+                </div>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════════
+                 REASSIGN MODE — Standalone Assignment Panel
+                 ═══════════════════════════════════════════════════════════ */}
+            {isReassignMode && (
+                <div style={{
+                    background: 'var(--bg-surface)',
+                    border: '1px solid #f59e0b30',
+                    borderRadius: 'var(--radius-lg)',
+                    overflow: 'hidden',
+                    marginBottom: '1.25rem',
+                }}>
+                    <div style={{ padding: '1rem 1.25rem', background: '#f59e0b08', borderBottom: '1px solid var(--border-default)' }}>
+                        <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-high)', marginBottom: '0.25rem' }}>
+                            🔄 Select New Policy
+                        </h4>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                            Search by client name, property address, or policy number to find the correct policy.
+                        </p>
+                    </div>
+
+                    <div style={{ padding: '1.25rem' }}>
+                        {/* Error message */}
+                        {uploadError && (
+                            <div style={{ padding: '0.75rem 1rem', borderRadius: '0.5rem', background: '#ef444410', border: '1px solid #ef444430', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <XCircle size={16} style={{ color: '#ef4444', flexShrink: 0 }} />
+                                <span style={{ fontSize: '0.8rem', color: '#ef4444' }}>{uploadError}</span>
+                            </div>
+                        )}
+
+                        {/* Manual Search */}
+                        <div>
+                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                                Search for a Policy
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: searchResults.length > 0 ? '0.75rem' : 0 }}>
+                                <input
+                                    type="text"
+                                    placeholder="Client name, address, or policy number..."
+                                    value={searchQuery}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                                    onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleSearchPolicies()}
+                                    style={{
+                                        flex: 1, padding: '0.5rem 0.75rem', borderRadius: '0.375rem',
+                                        border: '1px solid var(--border-default)', background: 'var(--bg-surface)',
+                                        color: 'var(--text-high)', fontSize: '0.82rem', outline: 'none',
+                                    }}
+                                    autoFocus
+                                />
+                                <Button variant="secondary" onClick={handleSearchPolicies} disabled={isSearching}>
+                                    {isSearching ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Search size={16} />}
+                                    <span style={{ marginLeft: 6 }}>Search</span>
+                                </Button>
+                            </div>
+
+                            {searchResults.length > 0 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                    {searchResults.map(p => (
+                                        <CandidateCard
+                                            key={p.id}
+                                            policy={p}
+                                            docStatus={docStatus}
+                                            isAssigning={isAssigning}
+                                            onAssign={() => handleAssign(p.id)}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Cancel button */}
+                        <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-default)', display: 'flex', gap: '0.5rem' }}>
+                            <Button size="sm" variant="ghost" onClick={() => router.back()}>
+                                Cancel
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
 
             {/* ═══════════════════════════════════════════════════════════
                  SELECTOR / DROP ZONE (only shown in idle state)
@@ -907,12 +1116,12 @@ export default function UploadDocumentPage() {
                             </div>
 
                             {/* ═══ Assignment Panel ═══ */}
-                            {needsReview && (
-                                <div style={{ marginTop: '1.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-default)', overflow: 'hidden' }}>
+                            {(needsReview || isReassignMode) && (
+                                <div style={{ marginTop: '1.5rem', borderRadius: '0.75rem', border: `1px solid ${isReassignMode ? '#f59e0b30' : 'var(--border-default)'}`, overflow: 'hidden' }}>
                                     {/* Panel Header */}
-                                    <div style={{ padding: '1rem 1.25rem', background: 'var(--bg-surface-raised)', borderBottom: '1px solid var(--border-default)' }}>
+                                    <div style={{ padding: '1rem 1.25rem', background: isReassignMode ? '#f59e0b08' : 'var(--bg-surface-raised)', borderBottom: '1px solid var(--border-default)' }}>
                                         <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-high)', marginBottom: '0.25rem' }}>
-                                            🔍 Assign to Policy
+                                            {isReassignMode ? '🔄 Select New Policy' : '🔍 Assign to Policy'}
                                         </h4>
                                         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
                                             Review the recommendations below, or search manually. Click a policy number to inspect it in a new tab before assigning.

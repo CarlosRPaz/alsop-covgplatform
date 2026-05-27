@@ -238,6 +238,23 @@ export function ActivityTab() {
                                             </>
                                         )}
 
+                                        {/* "Reassign RCE" link for RCE upload events */}
+                                        {isDoc && activity.document_id && activity.doc_type === 'rce' && (
+                                            <>
+                                                <span className={styles.divider}>·</span>
+                                                <span
+                                                    className={styles.reassignLink}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        router.push(`/upload-document?reassign=${activity.document_id}`);
+                                                    }}
+                                                >
+                                                    <RefreshCw size={10} />
+                                                    Reassign RCE
+                                                </span>
+                                            </>
+                                        )}
+
                                         {/* Detail text for merge events */}
                                         {isMerge && activity.detail && (
                                             <div className={styles.detailText}>{activity.detail}</div>

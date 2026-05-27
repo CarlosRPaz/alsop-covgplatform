@@ -177,6 +177,27 @@
     color: #7dd3fc;
 }
 
+.reassignLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #f59e0b;
+    cursor: pointer;
+    padding: 0.1rem 0.5rem;
+    border-radius: 9999px;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    transition: all 0.15s ease;
+}
+
+.reassignLink:hover {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.4);
+    color: #fbbf24;
+}
+
 .statusLabel {
     font-size: 0.7rem;
     font-weight: 600;
