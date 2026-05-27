@@ -2,12 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
 import { logger } from '@/lib/logger';
 
+function normalizeAddress(raw: string | null): string | null {
+    if (!raw) return null;
+    return raw.toUpperCase().replace(/,/g, '').replace(/\s+/g, ' ').trim() || null;
+}
+
 /**
  * POST /api/documents/reassign
- * Body: { documentId: string; newPolicyId: string }
  *
- * Reassigns a platform document (typically an RCE) from its current policy
- * to a new target policy. Performs full cleanup of old data before reassigning:
+ * Mode 1 — Reassign to existing policy:
+ *   Body: { documentId: string; newPolicyId: string }
+ *
+ * Mode 2 — Reassign to a NEW client/policy:
+ *   Body: { documentId: string; createNew: true; ownerName: string; propertyAddress?: string }
+ *
+ * Both modes perform full cleanup of old data before reassigning:
  *   1. Deletes extracted data (doc_data_rce, doc_data_dic)
  *   2. Deletes RCE-sourced property enrichments from old policy
  *   3. Rolls back any policy_terms fields written by this document
@@ -21,16 +30,28 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
         }
 
-        let body: { documentId: string; newPolicyId: string };
+        let body: {
+            documentId: string;
+            newPolicyId?: string;
+            createNew?: boolean;
+            ownerName?: string;
+            propertyAddress?: string;
+        };
         try {
             body = await request.json();
         } catch {
             return NextResponse.json({ success: false, message: 'Invalid JSON body' }, { status: 400 });
         }
 
-        const { documentId, newPolicyId } = body;
-        if (!documentId || !newPolicyId) {
-            return NextResponse.json({ success: false, message: 'Missing documentId or newPolicyId' }, { status: 400 });
+        const { documentId, newPolicyId, createNew, ownerName, propertyAddress } = body;
+        if (!documentId) {
+            return NextResponse.json({ success: false, message: 'Missing documentId' }, { status: 400 });
+        }
+        if (!createNew && !newPolicyId) {
+            return NextResponse.json({ success: false, message: 'Missing newPolicyId or createNew flag' }, { status: 400 });
+        }
+        if (createNew && !ownerName) {
+            return NextResponse.json({ success: false, message: 'Missing ownerName for new client creation' }, { status: 400 });
         }
 
         const admin = getSupabaseAdmin();
@@ -49,15 +70,71 @@ export async function POST(request: NextRequest) {
         const oldPolicyId = doc.policy_id;
         const oldTermId = doc.policy_term_id;
 
-        // 2. Verify new policy exists and get its client_id
-        const { data: newPolicy, error: newPolicyError } = await admin
-            .from('policies')
-            .select('id, client_id')
-            .eq('id', newPolicyId)
-            .single();
+        // 2. Resolve or create the target policy
+        let targetPolicyId: string;
+        let targetClientId: string;
 
-        if (newPolicyError || !newPolicy) {
-            return NextResponse.json({ success: false, message: 'Target policy not found.' }, { status: 404 });
+        if (createNew) {
+            // ── Create new client + policy ──
+            // Check for existing client with same name to prevent duplicates
+            const { data: existingClients } = await admin
+                .from('clients')
+                .select('id')
+                .ilike('named_insured', ownerName!.trim())
+                .limit(1);
+
+            if (existingClients && existingClients.length > 0) {
+                targetClientId = existingClients[0].id;
+                logger.info('DocumentReassign', 'Reusing existing client', { clientId: targetClientId, ownerName });
+            } else {
+                const { data: clientRow, error: clientError } = await admin
+                    .from('clients')
+                    .insert({
+                        named_insured: ownerName!.trim(),
+                        created_by_account_id: doc.account_id,
+                    })
+                    .select('id')
+                    .single();
+
+                if (clientError || !clientRow) {
+                    logger.error('DocumentReassign', 'Failed to create client', { error: clientError?.message });
+                    return NextResponse.json({ success: false, message: 'Failed to create client record' }, { status: 500 });
+                }
+                targetClientId = clientRow.id;
+            }
+
+            // Create policy
+            const { data: policyRow, error: policyError } = await admin
+                .from('policies')
+                .insert({
+                    client_id: targetClientId,
+                    created_by_account_id: doc.account_id,
+                    policy_number: 'PENDING',
+                    property_address_raw: propertyAddress || null,
+                    property_address_norm: normalizeAddress(propertyAddress || null),
+                    carrier_name: 'California FAIR Plan',
+                })
+                .select('id')
+                .single();
+
+            if (policyError || !policyRow) {
+                logger.error('DocumentReassign', 'Failed to create policy', { error: policyError?.message });
+                return NextResponse.json({ success: false, message: 'Failed to create policy record' }, { status: 500 });
+            }
+            targetPolicyId = policyRow.id;
+        } else {
+            // ── Verify existing target policy ──
+            const { data: newPolicy, error: newPolicyError } = await admin
+                .from('policies')
+                .select('id, client_id')
+                .eq('id', newPolicyId!)
+                .single();
+
+            if (newPolicyError || !newPolicy) {
+                return NextResponse.json({ success: false, message: 'Target policy not found.' }, { status: 404 });
+            }
+            targetPolicyId = newPolicy.id;
+            targetClientId = newPolicy.client_id;
         }
 
         // ── CLEANUP: Remove old data from previous policy ──
@@ -135,8 +212,8 @@ export async function POST(request: NextRequest) {
         const { error: updateError } = await admin
             .from('platform_documents')
             .update({
-                policy_id: newPolicyId,
-                client_id: newPolicy.client_id,
+                policy_id: targetPolicyId,
+                client_id: targetClientId,
                 policy_term_id: null,
                 match_status: 'manual',
                 match_confidence: 1.0,
@@ -176,14 +253,17 @@ export async function POST(request: NextRequest) {
                 actor_user_id: doc.account_id,
                 event_type: 'doc.reassigned',
                 title: 'Document Reassigned',
-                detail: `${doc.doc_type?.toUpperCase() || 'Document'} reassigned to a different policy`,
-                policy_id: newPolicyId,
-                client_id: newPolicy.client_id,
+                detail: createNew
+                    ? `${doc.doc_type?.toUpperCase() || 'Document'} reassigned to new client: ${ownerName}`
+                    : `${doc.doc_type?.toUpperCase() || 'Document'} reassigned to a different policy`,
+                policy_id: targetPolicyId,
+                client_id: targetClientId,
                 meta: {
                     document_id: documentId,
                     doc_type: doc.doc_type,
                     old_policy_id: oldPolicyId,
-                    new_policy_id: newPolicyId,
+                    new_policy_id: targetPolicyId,
+                    created_new_client: !!createNew,
                 },
             });
         } catch {
@@ -193,12 +273,17 @@ export async function POST(request: NextRequest) {
         logger.info('DocumentReassign', 'Document reassigned and re-queued', {
             documentId,
             oldPolicyId,
-            newPolicyId,
+            newPolicyId: targetPolicyId,
+            createdNew: !!createNew,
         });
 
         return NextResponse.json({
             success: true,
-            message: 'Document reassigned. Processing will begin shortly.',
+            message: createNew
+                ? 'New client profile created and document reassigned. Processing will begin shortly.'
+                : 'Document reassigned. Processing will begin shortly.',
+            clientId: targetClientId,
+            policyId: targetPolicyId,
         });
 
     } catch (error) {

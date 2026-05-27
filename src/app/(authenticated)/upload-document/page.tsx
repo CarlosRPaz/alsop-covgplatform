@@ -131,6 +131,9 @@ export default function UploadDocumentPage() {
         client_id?: string;
     } | null>(null);
     const reassignInitRef = useRef(false);
+    const [reassignCandidates, setReassignCandidates] = useState<any[]>([]);
+    const [reassignAutoSearchDone, setReassignAutoSearchDone] = useState(false);
+    const reassignAutoSearchRef = useRef(false);
 
     // ── Reassign mode: load document info from ?reassign=DOC_ID ──
     useEffect(() => {
@@ -180,6 +183,56 @@ export default function UploadDocumentPage() {
             }
         })();
     }, [searchParams]);
+
+    // ── Reassign mode: auto-search for candidate policies by insured name ──
+    useEffect(() => {
+        if (!reassignDocInfo || reassignAutoSearchRef.current) return;
+        reassignAutoSearchRef.current = true;
+
+        const insuredName = reassignDocInfo.insured_name;
+        if (!insuredName) {
+            setReassignAutoSearchDone(true);
+            return;
+        }
+
+        (async () => {
+            try {
+                // Extract search terms from the insured name
+                const stopWords = new Set(['trust', 'family', 'the', 'and', 'of', 'for', 'inc', 'llc', 'ltd']);
+                const terms = insuredName
+                    .replace(/[^a-zA-Z\s-]/g, '')
+                    .split(/\s+/)
+                    .filter(w => w.length >= 3 && !stopWords.has(w.toLowerCase()))
+                    .slice(0, 3);
+
+                const allResults: any[] = [];
+                const seenIds = new Set<string>();
+
+                // Exclude the current policy from results
+                const currentPolicyId = reassignDocInfo.policy_id;
+
+                for (const term of terms) {
+                    const { data } = await supabase
+                        .from('policies')
+                        .select(`id, policy_number, property_address_raw, carrier_name, client_id, clients!inner (id, named_insured)`)
+                        .ilike('clients.named_insured', `%${term}%`)
+                        .limit(8);
+                    if (data) {
+                        for (const row of data) {
+                            if (!seenIds.has(row.id) && row.id !== currentPolicyId) {
+                                seenIds.add(row.id);
+                                allResults.push(row);
+                            }
+                        }
+                    }
+                }
+                setReassignCandidates(allResults.slice(0, 8));
+            } catch {
+                // Best effort
+            }
+            setReassignAutoSearchDone(true);
+        })();
+    }, [reassignDocInfo]);
 
     // Clean up on unmount
     useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
@@ -533,6 +586,36 @@ export default function UploadDocumentPage() {
         }
     };
 
+    // ── Create new client + policy during reassign (cleans up old data first) ──
+    const handleReassignCreateNew = async () => {
+        if (!documentId || !reassignDocInfo) return;
+        setIsCreatingClient(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+            const res = await fetch('/api/documents/reassign', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    documentId,
+                    createNew: true,
+                    ownerName: reassignDocInfo.insured_name || 'Unknown Insured',
+                    propertyAddress: reassignDocInfo.property_address || '',
+                }),
+            });
+            const result = await res.json();
+            if (res.ok && result.success) {
+                router.push(`/client/${result.clientId}`);
+            } else {
+                setUploadError(result.message || 'Failed to create client');
+            }
+        } catch {
+            setUploadError('Network error creating client');
+        } finally {
+            setIsCreatingClient(false);
+        }
+    };
+
     const selectedTypeInfo = DOC_TYPES.find(t => t.key === selectedType);
     const showSelector = phase === 'idle' && !isReassignMode;
     const showTracker = phase !== 'idle' && !isReassignMode;
@@ -686,34 +769,22 @@ export default function UploadDocumentPage() {
                             </div>
                         )}
 
-                        {/* Manual Search */}
-                        <div>
-                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
-                                Search for a Policy
+                        {/* Loading state while auto-searching */}
+                        {!reassignAutoSearchDone && (
+                            <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                <Loader2 size={20} style={{ animation: 'spin 1s linear infinite', marginBottom: '0.5rem' }} />
+                                <div style={{ fontSize: '0.78rem' }}>Searching for matching policies…</div>
                             </div>
-                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: searchResults.length > 0 ? '0.75rem' : 0 }}>
-                                <input
-                                    type="text"
-                                    placeholder="Client name, address, or policy number..."
-                                    value={searchQuery}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-                                    onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleSearchPolicies()}
-                                    style={{
-                                        flex: 1, padding: '0.5rem 0.75rem', borderRadius: '0.375rem',
-                                        border: '1px solid var(--border-default)', background: 'var(--bg-surface)',
-                                        color: 'var(--text-high)', fontSize: '0.82rem', outline: 'none',
-                                    }}
-                                    autoFocus
-                                />
-                                <Button variant="secondary" onClick={handleSearchPolicies} disabled={isSearching}>
-                                    {isSearching ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Search size={16} />}
-                                    <span style={{ marginLeft: 6 }}>Search</span>
-                                </Button>
-                            </div>
+                        )}
 
-                            {searchResults.length > 0 && (
+                        {/* ── Auto Recommendations ── */}
+                        {reassignAutoSearchDone && reassignCandidates.length > 0 && (
+                            <div style={{ marginBottom: '1.25rem' }}>
+                                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>
+                                    Possible Matches ({reassignCandidates.length})
+                                </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                                    {searchResults.map(p => (
+                                    {reassignCandidates.map(p => (
                                         <CandidateCard
                                             key={p.id}
                                             policy={p}
@@ -723,8 +794,92 @@ export default function UploadDocumentPage() {
                                         />
                                     ))}
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
+
+                        {/* ── No Matches Found ── */}
+                        {reassignAutoSearchDone && reassignCandidates.length === 0 && (
+                            <div style={{ padding: '1.25rem', borderRadius: '0.5rem', background: 'var(--bg-surface-raised)', border: '1px solid var(--border-default)', marginBottom: '1.25rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                    <AlertTriangle size={16} style={{ color: '#f59e0b' }} />
+                                    <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-high)' }}>No Other Matching Policies Found</span>
+                                </div>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0 0 0.75rem', lineHeight: 1.5 }}>
+                                    No other policies match &ldquo;{reassignDocInfo?.insured_name || 'the insured'}&rdquo;.
+                                    You can create a new client profile, or search manually below.
+                                </p>
+                                <Button
+                                    size="sm"
+                                    variant="primary"
+                                    onClick={handleReassignCreateNew}
+                                    disabled={isCreatingClient}
+                                >
+                                    {isCreatingClient
+                                        ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite', marginRight: 6 }} /> Creating Profile…</>
+                                        : <><UserPlus size={14} style={{ marginRight: 6 }} /> Create New Client Profile</>}
+                                </Button>
+                            </div>
+                        )}
+
+                        {/* ── Manual Search ── */}
+                        {reassignAutoSearchDone && (
+                            <div style={{ borderTop: reassignCandidates.length > 0 ? '1px solid var(--border-default)' : 'none', paddingTop: reassignCandidates.length > 0 ? '1rem' : 0 }}>
+                                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                                    {reassignCandidates.length > 0 ? 'Or Search Manually' : 'Search for a Policy'}
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: searchResults.length > 0 ? '0.75rem' : 0 }}>
+                                    <input
+                                        type="text"
+                                        placeholder="Client name, address, or policy number..."
+                                        value={searchQuery}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                                        onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleSearchPolicies()}
+                                        style={{
+                                            flex: 1, padding: '0.5rem 0.75rem', borderRadius: '0.375rem',
+                                            border: '1px solid var(--border-default)', background: 'var(--bg-surface)',
+                                            color: 'var(--text-high)', fontSize: '0.82rem', outline: 'none',
+                                        }}
+                                    />
+                                    <Button variant="secondary" onClick={handleSearchPolicies} disabled={isSearching}>
+                                        {isSearching ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Search size={16} />}
+                                        <span style={{ marginLeft: 6 }}>Search</span>
+                                    </Button>
+                                </div>
+
+                                {searchResults.length > 0 && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                        {searchResults.map(p => (
+                                            <CandidateCard
+                                                key={p.id}
+                                                policy={p}
+                                                docStatus={docStatus}
+                                                isAssigning={isAssigning}
+                                                onAssign={() => handleAssign(p.id)}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Create New Client button — also shown below manual search when there ARE auto-results */}
+                                {reassignCandidates.length > 0 && (
+                                    <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-default)' }}>
+                                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                                            Or Create New
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={handleReassignCreateNew}
+                                            disabled={isCreatingClient}
+                                        >
+                                            {isCreatingClient
+                                                ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite', marginRight: 6 }} /> Creating…</>
+                                                : <><UserPlus size={14} style={{ marginRight: 6 }} /> Create New Client Profile</>}
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Cancel button */}
                         <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-default)', display: 'flex', gap: '0.5rem' }}>
