@@ -4,6 +4,7 @@ import { use } from 'react';
 import { ClientInfo } from '@/components/client/ClientInfo';
 import { ClientPolicyList } from '@/components/client/ClientPolicyList';
 import { ClientSummaryStats } from '@/components/client/ClientSummaryStats';
+import { ClientFiles } from '@/components/client/ClientFiles';
 import { ActivityTimeline } from '@/components/shared/ActivityTimeline';
 import { NotesPanel } from '@/components/shared/NotesPanel';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs/Breadcrumbs';
@@ -28,6 +29,7 @@ export default function ClientPage({ params }: PageProps) {
             <ClientInfo clientId={id} />
             <ClientSummaryStats clientId={id} />
             <ClientPolicyList clientId={id} />
+            <ClientFiles clientId={id} />
 
             {/* Notes Section */}
             <div style={{

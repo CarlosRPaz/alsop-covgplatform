@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
 import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload, ShieldCheck, MapPin, Phone } from 'lucide-react';
 import { PropertyBanner } from '@/components/policy/PropertyBanner';
-import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, fetchPlatformDocumentsByPolicyId, getPlatformDocDownloadUrl } from '@/lib/api';
+import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, fetchPlatformDocumentsByPolicyId, getPlatformDocDownloadUrl, fetchRceDocDataByPolicyId, RceDocData } from '@/lib/api';
 import { PolicyStatusBar } from '@/components/policy/PolicyStatusBar';
 import { PolicyOverviewTab } from '@/components/policy/tabs/PolicyOverviewTab';
 import { PolicyCfpDetailsTab } from '@/components/policy/tabs/PolicyCfpDetailsTab';
@@ -79,6 +79,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     const [roleLoading, setRoleLoading] = useState(true);
     const [bgProcessing, setBgProcessing] = useState(false);
     const [bgProcessingStep, setBgProcessingStep] = useState<string | null>(null);
+    const [rceDocData, setRceDocData] = useState<RceDocData[]>([]);
 
     // Detect user role for client vs agent view
     useEffect(() => {
@@ -164,6 +165,9 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
 
         // Fetch property enrichments (source-tracked data)
         getPropertyEnrichments(id).then(setEnrichments);
+
+        // Fetch full RCE document data (doc_data_rce)
+        fetchRceDocDataByPolicyId(id).then(setRceDocData);
 
         // Fetch report existence
         getLatestReportForPolicy(id).then(r => {
@@ -399,7 +403,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             case 'rce':
                 return (
                     <div className={styles.content}>
-                        <PolicyRceTab declaration={declaration!} enrichments={enrichments} />
+                        <PolicyRceTab declaration={declaration!} enrichments={enrichments} rceDocData={rceDocData} />
                     </div>
                 );
             case 'flags':

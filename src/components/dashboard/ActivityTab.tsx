@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Upload, Loader2, CheckCircle, CheckCircle2, Clock, AlertTriangle, XCircle, RefreshCw, Sparkles, Shield, Timer, Merge } from 'lucide-react';
+import { FileText, Upload, Loader2, CheckCircle, CheckCircle2, Clock, AlertTriangle, XCircle, RefreshCw, Sparkles, Shield, Timer, Merge, ExternalLink } from 'lucide-react';
 import { fetchActivityFeed, ActivityFeedItem } from '@/lib/api';
 import styles from './ActivityTab.module.css';
 
@@ -41,9 +41,13 @@ function getStatusConfig(status: string): { label: string; cssKey: string } {
 
 function StatusIcon({ status, type, event_type }: { status: string; type?: string; event_type?: string }) {
     if (type === 'document') {
+        const isUpload = (event_type || '').startsWith('doc.uploaded.');
+        if (isUpload) return <FileText size={14} className={styles.statusIconDoc} />;
         if (event_type === 'document.processed') return <CheckCircle size={14} style={{ color: '#10b981' }} />;
         if (event_type === 'document.failed') return <XCircle size={14} style={{ color: '#ef4444' }} />;
-        return <AlertTriangle size={14} style={{ color: '#f59e0b' }} />;
+        if (event_type === 'document.needs_review') return <AlertTriangle size={14} style={{ color: '#f59e0b' }} />;
+        if (event_type === 'document.no_match') return <AlertTriangle size={14} style={{ color: '#f97316' }} />;
+        return <FileText size={14} className={styles.statusIconDoc} />;
     }
     if (type === 'merge') {
         return <Merge size={14} className={styles.statusIconMerge} />;
@@ -63,6 +67,26 @@ function StatusIcon({ status, type, event_type }: { status: string; type?: strin
         default:
             return <AlertTriangle size={14} className={styles.statusIconDefault} />;
     }
+}
+
+const DOC_TYPE_LABELS: Record<string, string> = {
+    rce: 'RCE Report',
+    dic_dec_page: 'DIC Declaration',
+    invoice: 'Invoice',
+    inspection: 'Inspection Report',
+    endorsement: 'Endorsement',
+    questionnaire: 'Questionnaire',
+};
+
+function getDocumentActionLabel(activity: ActivityFeedItem): string {
+    const docLabel = DOC_TYPE_LABELS[activity.doc_type || ''] || activity.doc_type?.toUpperCase() || 'Document';
+    const isUpload = (activity.event_type || '').startsWith('doc.uploaded.');
+    if (isUpload) return `${docLabel} Uploaded`;
+    if (activity.event_type === 'document.processed') return `${docLabel} Processed`;
+    if (activity.event_type === 'document.needs_review') return `${docLabel} Needs Review`;
+    if (activity.event_type === 'document.no_match') return `${docLabel} — No Match`;
+    if (activity.event_type === 'document.failed') return `${docLabel} Failed`;
+    return activity.title || 'Document Event';
 }
 
 const MAX_VISIBLE = 25;
@@ -131,8 +155,20 @@ export function ActivityTab() {
                             const isDone = activity.status === 'parsed' || activity.status === 'done';
                             const isFailed = activity.status === 'failed';
 
+                            const isMerge = activity.type === 'merge';
+                            const isDoc = activity.type === 'document';
+                            const isDocUpload = isDoc && (activity.event_type || '').startsWith('doc.uploaded.');
+                            const isDocProcessed = isDoc && activity.event_type === 'document.processed';
+                            const isDocNeedsAction = isDoc && (activity.event_type === 'document.needs_review' || activity.event_type === 'document.no_match');
+                            const isDocFailed = isDoc && activity.event_type === 'document.failed';
+                            const rowClass = [
+                                styles.row,
+                                isMerge ? styles.rowMerge : '',
+                                isDoc ? styles.rowDoc : '',
+                            ].filter(Boolean).join(' ');
+
                             return (
-                                <div key={`${activity.id}-${idx}`} className={`${styles.row} ${activity.type === 'merge' ? styles.rowMerge : ''}`}>
+                                <div key={`${activity.id}-${idx}`} className={rowClass}>
                                     {/* Status icon */}
                                     <div className={styles.statusCol}>
                                         <StatusIcon status={activity.status} type={activity.type} event_type={activity.event_type} />
@@ -151,11 +187,11 @@ export function ActivityTab() {
                                         )}
 
                                         {/* Action description */}
-                                        <span className={`${styles.actionText} ${activity.type === 'merge' ? styles.actionTextMerge : ''}`}>
-                                            {activity.type === 'merge' ? 'Client Records Consolidated' : activity.type === 'document' ? (activity.title || 'Document Event') : 'Dec Page Uploaded'}
+                                        <span className={`${styles.actionText} ${isMerge ? styles.actionTextMerge : ''} ${isDoc ? styles.actionTextDoc : ''}`}>
+                                            {isMerge ? 'Client Records Consolidated' : isDoc ? getDocumentActionLabel(activity) : 'Dec Page Uploaded'}
                                         </span>
 
-                                        {/* Client / Policy links */}
+                                        {/* Client link — always show when available (not all docs have policies) */}
                                         {activity.insured_name && (
                                             <>
                                                 <span className={styles.divider}>·</span>
@@ -185,14 +221,38 @@ export function ActivityTab() {
                                             </>
                                         )}
 
+                                        {/* "View RCE Data" verification link for processed RCE documents */}
+                                        {isDoc && activity.policy_id && (isDocProcessed || isDocUpload) && activity.doc_type === 'rce' && (
+                                            <>
+                                                <span className={styles.divider}>·</span>
+                                                <span
+                                                    className={styles.viewDataLink}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        router.push(`/policy/${activity.policy_id}?tab=rce`);
+                                                    }}
+                                                >
+                                                    <ExternalLink size={10} />
+                                                    View RCE Data
+                                                </span>
+                                            </>
+                                        )}
+
                                         {/* Detail text for merge events */}
-                                        {activity.type === 'merge' && activity.detail && (
+                                        {isMerge && activity.detail && (
                                             <div className={styles.detailText}>{activity.detail}</div>
                                         )}
 
                                         {/* Detail text for document events */}
-                                        {activity.type === 'document' && activity.detail && (
+                                        {isDoc && activity.detail && (
                                             <div className={styles.detailText}>{activity.detail}</div>
+                                        )}
+
+                                        {/* File name hint for document uploads */}
+                                        {isDoc && activity.file_name && (
+                                            <div className={styles.detailText} style={{ opacity: 0.7 }}>
+                                                {activity.file_name}
+                                            </div>
                                         )}
                                     </div>
 
@@ -220,6 +280,22 @@ export function ActivityTab() {
                                                         <Timer size={10} />
                                                         <span>{activity.processing_time_seconds}s</span>
                                                     </>
+                                                )}
+                                            </span>
+                                        )}
+                                        {isDoc && !isDocFailed && (
+                                            <span className={styles.successHints}>
+                                                {isDocProcessed && (
+                                                    <><CheckCircle size={10} style={{ color: '#10b981' }} /><span>Matched</span></>
+                                                )}
+                                                {isDocNeedsAction && (
+                                                    <><AlertTriangle size={10} style={{ color: '#f59e0b' }} /><span>Review needed</span></>
+                                                )}
+                                                {isDocUpload && (
+                                                    <><Clock size={10} /><span>Processing</span></>
+                                                )}
+                                                {activity.match_confidence != null && activity.match_confidence > 0 && (
+                                                    <span style={{ opacity: 0.7 }}>{Math.round(activity.match_confidence * 100)}%</span>
                                                 )}
                                             </span>
                                         )}

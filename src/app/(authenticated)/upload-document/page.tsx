@@ -275,27 +275,28 @@ export default function UploadDocumentPage() {
         const candidateStep = docStatus.match_log?.find((l: any) => l.step === 'candidates');
         const backendCandidates = candidateStep?.details?.candidates as any[] | undefined;
 
-        if (backendCandidates && backendCandidates.length > 0) {
-            // Transform backend candidates into the shape the CandidateCard expects
-            const transformed = backendCandidates.map((c: any) => ({
-                id: c.policy_id,
-                policy_number: c.policy_number,
-                property_address_raw: c.property_address_raw,
-                carrier_name: c.carrier_name,
-                client_id: c.client_id,
-                clients: { id: c.client_id, named_insured: c.named_insured },
-                // Backend-scored similarity values for display
-                _name_similarity: c.name_similarity,
-                _address_similarity: c.address_similarity,
-                _match_source: c.match_source,
-            }));
-            setAutoRecommendations(transformed);
+        // If backend ran the matcher and returned candidates (even empty array), trust it — skip fallback
+        if (backendCandidates !== undefined) {
+            if (backendCandidates.length > 0) {
+                const transformed = backendCandidates.map((c: any) => ({
+                    id: c.policy_id,
+                    policy_number: c.policy_number,
+                    property_address_raw: c.property_address_raw,
+                    carrier_name: c.carrier_name,
+                    client_id: c.client_id,
+                    clients: { id: c.client_id, named_insured: c.named_insured },
+                    _name_similarity: c.name_similarity,
+                    _address_similarity: c.address_similarity,
+                    _match_source: c.match_source,
+                }));
+                setAutoRecommendations(transformed);
+            }
+            // 0 candidates = no match, don't run fallback
             setAutoSearchDone(true);
             return;
         }
 
-        // Fallback: client-side search if backend didn't provide candidates
-        // (e.g. older documents processed before this update)
+        // Fallback: client-side search ONLY for older documents processed before the matcher update
         if (!docStatus.extracted_owner_name && !docStatus.file_name) {
             setAutoSearchDone(true);
             return;
@@ -421,7 +422,7 @@ export default function UploadDocumentPage() {
         }
     };
 
-    const handleCreateAndAssign = async () => {
+    const handleCreateAndAssign = async (createPolicy = true) => {
         if (!documentId || !docStatus) return;
         setIsCreatingClient(true);
         try {
@@ -435,13 +436,19 @@ export default function UploadDocumentPage() {
                     ownerName: docStatus.extracted_owner_name || 'Unknown Insured',
                     propertyAddress: docStatus.extracted_address || '',
                     carrierName: 'California FAIR Plan',
+                    createPolicy,
                 }),
             });
             if (res.ok) {
-                // Re-poll to get updated status
-                setAutoRecommendations([]);
-                autoSearchRanRef.current = false;
-                startPolling(documentId);
+                const result = await res.json();
+                if (result.success && result.clientId) {
+                    router.push(`/client/${result.clientId}`);
+                } else {
+                    // Re-poll to get updated status
+                    setAutoRecommendations([]);
+                    autoSearchRanRef.current = false;
+                    startPolling(documentId);
+                }
             } else {
                 const err = await res.json();
                 setUploadError(err.error || 'Failed to create client');
@@ -946,12 +953,12 @@ export default function UploadDocumentPage() {
                                                 <Button
                                                     size="sm"
                                                     variant="primary"
-                                                    onClick={handleCreateAndAssign}
+                                                    onClick={() => handleCreateAndAssign(false)}
                                                     disabled={isCreatingClient}
                                                 >
                                                     {isCreatingClient
-                                                        ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite', marginRight: 6 }} /> Creating…</>
-                                                        : <><UserPlus size={14} style={{ marginRight: 6 }} /> Create New Client & Policy</>}
+                                                        ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite', marginRight: 6 }} /> Creating Profile…</>
+                                                        : <><UserPlus size={14} style={{ marginRight: 6 }} /> Create Client Profile Only</>}
                                                 </Button>
                                             </div>
                                         )}

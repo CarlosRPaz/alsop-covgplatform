@@ -145,6 +145,38 @@
     line-height: 1.4;
 }
 
+/* Document event row */
+.rowDoc {
+    border-left: 2px solid rgba(56, 189, 248, 0.3);
+    padding-left: 0.75rem;
+}
+
+.actionTextDoc {
+    color: #38bdf8;
+}
+
+/* View RCE Data link */
+.viewDataLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #38bdf8;
+    cursor: pointer;
+    padding: 0.1rem 0.5rem;
+    border-radius: 9999px;
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    transition: all 0.15s ease;
+}
+
+.viewDataLink:hover {
+    background: rgba(56, 189, 248, 0.15);
+    border-color: rgba(56, 189, 248, 0.4);
+    color: #7dd3fc;
+}
+
 .statusLabel {
     font-size: 0.7rem;
     font-weight: 600;

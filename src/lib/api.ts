@@ -2357,6 +2357,35 @@ export async function fetchPlatformDocumentsByPolicyId(policyId: string): Promis
 }
 
 /**
+ * Fetch platform documents linked to a client.
+ */
+export async function fetchPlatformDocumentsByClientId(clientId: string): Promise<PlatformDocumentInfo[]> {
+    try {
+        const { data, error } = await supabase
+            .from('platform_documents')
+            .select(`
+                id, doc_type, file_name, file_size, storage_path,
+                parse_status, processing_step, match_status, match_confidence,
+                error_message, extracted_owner_name, extracted_address,
+                writeback_status, policy_id, client_id, created_at, updated_at
+            `)
+            .eq('client_id', clientId)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            logger.error('API', 'Error fetching client platform documents', { message: error.message, clientId });
+            return [];
+        }
+        return (data || []) as PlatformDocumentInfo[];
+    } catch (err) {
+        logger.error('API', 'Unexpected error fetching client platform documents', {
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return [];
+    }
+}
+
+/**
  * Fetch platform documents needing agent review.
  */
 export async function fetchDocumentsNeedingReview(): Promise<PlatformDocumentInfo[]> {
@@ -2454,6 +2483,13 @@ export interface ActivityFeedItem {
     title?: string;
     detail?: string;
     meta?: Record<string, any>;
+    // Document-specific fields
+    doc_type?: string;
+    document_id?: string;
+    match_status?: string;
+    writeback_status?: string;
+    match_confidence?: number;
+    file_name?: string;
 }
 
 /**
@@ -2601,33 +2637,96 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
             meta: ev.meta,
         }));
 
-        // Source C — Document upload events
+        // Source C — Document upload + processing events (including RCE, DIC, etc.)
         let docItems: ActivityFeedItem[] = [];
         try {
             const { data: docEvents } = await supabase
                 .from('activity_events')
                 .select('*')
-                .in('event_type', [
-                    'document.processed', 'document.needs_review',
-                    'document.no_match', 'document.failed',
-                ])
+                .or(
+                    'event_type.in.(document.processed,document.needs_review,document.no_match,document.failed),' +
+                    'event_type.like.doc.uploaded.%'
+                )
                 .order('created_at', { ascending: false })
                 .limit(limit);
-            if (docEvents) {
+            if (docEvents && docEvents.length > 0) {
+                // Batch lookup: get policy_number for linked policies
+                const docPolicyIds = new Set<string>();
+                const docClientIds = new Set<string>();
                 for (const evt of docEvents) {
+                    if (evt.policy_id) docPolicyIds.add(evt.policy_id);
+                    if (evt.client_id) docClientIds.add(evt.client_id);
+                }
+
+                const policyNumberMap = new Map<string, string>();
+                if (docPolicyIds.size > 0) {
+                    const { data: policyRows } = await supabase
+                        .from('policies')
+                        .select('id, policy_number')
+                        .in('id', Array.from(docPolicyIds))
+                        .limit(200);
+                    if (policyRows) {
+                        for (const p of policyRows) {
+                            if (p.policy_number) policyNumberMap.set(p.id, p.policy_number);
+                        }
+                    }
+                }
+
+                const clientNameMap = new Map<string, string>();
+                if (docClientIds.size > 0) {
+                    const { data: clientRows } = await supabase
+                        .from('clients')
+                        .select('id, named_insured')
+                        .in('id', Array.from(docClientIds))
+                        .limit(200);
+                    if (clientRows) {
+                        for (const c of clientRows) {
+                            if (c.named_insured) clientNameMap.set(c.id, c.named_insured);
+                        }
+                    }
+                }
+
+                for (const evt of docEvents) {
+                    const meta = evt.meta || {};
+                    const isUploadEvent = (evt.event_type || '').startsWith('doc.uploaded.');
+                    const docType = meta.doc_type || (isUploadEvent ? evt.event_type.replace('doc.uploaded.', '') : undefined);
+
+                    // Resolve insured_name: client table → meta.owner_name → null
+                    const resolvedInsuredName = (evt.client_id && clientNameMap.get(evt.client_id))
+                        || meta.owner_name || undefined;
+
+                    // Resolve policy_number from policies table
+                    const resolvedPolicyNumber = (evt.policy_id && policyNumberMap.get(evt.policy_id)) || undefined;
+
+                    // Determine display status
+                    let docStatus = 'done';
+                    if (evt.event_type === 'document.failed') docStatus = 'failed';
+                    else if (evt.event_type === 'document.needs_review') docStatus = 'needs_review';
+                    else if (evt.event_type === 'document.no_match') docStatus = 'no_match';
+                    else if (isUploadEvent) docStatus = 'uploaded';
+
                     docItems.push({
                         id: evt.id,
                         type: 'document' as const,
                         event_type: evt.event_type,
                         title: evt.title,
                         detail: evt.detail,
-                        policy_id: evt.policy_id,
-                        client_id: evt.client_id,
+                        policy_id: evt.policy_id || undefined,
+                        client_id: evt.client_id || undefined,
+                        insured_name: resolvedInsuredName,
+                        policy_number: resolvedPolicyNumber,
                         created_at: evt.created_at,
-                        meta: evt.meta || {},
-                        status: 'done',
+                        meta: meta,
+                        status: docStatus,
                         file_path: null,
                         uploaded_by: 'System',
+                        // Document-specific fields
+                        doc_type: docType,
+                        document_id: meta.document_id || undefined,
+                        match_status: meta.match_status || undefined,
+                        writeback_status: meta.writeback_status || undefined,
+                        match_confidence: meta.confidence || undefined,
+                        file_name: meta.file_name || undefined,
                     });
                 }
             }
@@ -3343,5 +3442,111 @@ export async function bulkUpdatePolicyStatus(policyIds: string[], status: string
     } catch (e) {
         logger.error('API', 'Failed to bulk update status', { policyIds, status, error: e instanceof Error ? e.message : String(e) });
         return false;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// RCE Document Data (doc_data_rce)
+// ═══════════════════════════════════════════════════════════════════════
+
+export interface RceDocData {
+    id: string;
+    document_id: string;
+    valuation_id: string | null;
+    date_entered: string | null;
+    date_calculated: string | null;
+    created_by: string | null;
+    stories: string | null;
+    use_type: string | null;
+    style: string | null;
+    sq_feet: number | null;
+    year_built: string | null;
+    quality_grade: string | null;
+    site_access: string | null;
+    cost_per_sqft: number | null;
+    foundation_shape: string | null;
+    foundation_material: string | null;
+    foundation_type: string | null;
+    property_slope: string | null;
+    roof_year: string | null;
+    roof_cover: string | null;
+    roof_shape: string | null;
+    roof_construction: string | null;
+    wall_finish: string | null;
+    wall_construction: string | null;
+    num_dormers: string | null;
+    avg_wall_height: string | null;
+    floor_coverings: string | null;
+    ceiling_finish: string | null;
+    interior_wall_material: string | null;
+    interior_wall_finish: string | null;
+    rooms: unknown;
+    garage_info: unknown;
+    porch_info: unknown;
+    heating: string | null;
+    air_conditioning: string | null;
+    fireplace_info: unknown;
+    home_features: unknown;
+    replacement_cost: number | null;
+    replacement_range_low: number | null;
+    replacement_range_high: number | null;
+    actual_cash_value: number | null;
+    acv_age: string | null;
+    acv_condition: string | null;
+    cost_breakdown: unknown;
+    created_at: string;
+    // Joined from platform_documents
+    file_name?: string;
+    extracted_owner_name?: string;
+    extracted_address?: string;
+}
+
+/**
+ * Fetch full RCE extracted data for a policy via its linked platform_documents.
+ * Returns the doc_data_rce rows joined with document metadata.
+ */
+export async function fetchRceDocDataByPolicyId(policyId: string): Promise<RceDocData[]> {
+    try {
+        // Step 1: Find RCE documents linked to this policy
+        const { data: docs, error: docError } = await supabase
+            .from('platform_documents')
+            .select('id, file_name, extracted_owner_name, extracted_address')
+            .eq('policy_id', policyId)
+            .eq('doc_type', 'rce')
+            .not('parse_status', 'eq', 'failed');
+
+        if (docError || !docs || docs.length === 0) {
+            return [];
+        }
+
+        // Step 2: Fetch doc_data_rce for those document IDs
+        const docIds = docs.map(d => d.id);
+        const { data: rceRows, error: rceError } = await supabase
+            .from('doc_data_rce')
+            .select('*')
+            .in('document_id', docIds)
+            .order('created_at', { ascending: false });
+
+        if (rceError || !rceRows || rceRows.length === 0) {
+            return [];
+        }
+
+        // Step 3: Merge document metadata into RCE rows
+        const docMap = new Map(docs.map(d => [d.id, d]));
+        return rceRows.map(row => {
+            const doc = docMap.get(row.document_id);
+            return {
+                ...row,
+                file_name: doc?.file_name,
+                extracted_owner_name: doc?.extracted_owner_name,
+                extracted_address: doc?.extracted_address,
+            } as RceDocData;
+        });
+    } catch (err) {
+        logger.error('API', 'Failed to fetch RCE doc data', {
+            policyId,
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return [];
     }
 }

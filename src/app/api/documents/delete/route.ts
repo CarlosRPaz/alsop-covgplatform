@@ -95,7 +95,13 @@ export async function POST(request: NextRequest) {
             await admin.from('dec_pages').delete().eq('id', id);
             await admin.from('dec_page_submissions').delete().eq('duplicate_of', id); // Optionally clean up linked submissions
         } else {
-            await admin.from('platform_documents').delete().eq('id', id);
+            // Clean up FK references first
+            await admin.from('ingestion_jobs').delete().eq('document_id', id);
+            const { error: delErr } = await admin.from('platform_documents').delete().eq('id', id);
+            if (delErr) {
+                logger.error('DocumentDelete', 'Failed to delete platform_documents row', { id, error: delErr.message, code: delErr.code });
+                return NextResponse.json({ success: false, message: `Delete failed: ${delErr.message}` }, { status: 500 });
+            }
         }
 
         // 3. Delete from Storage

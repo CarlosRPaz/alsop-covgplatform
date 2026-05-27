@@ -12,8 +12,9 @@ function normalizeAddress(raw: string | null): string | null {
 interface CreateAndAssignBody {
     documentId: string;
     ownerName: string;
-    propertyAddress: string;
+    propertyAddress?: string;
     carrierName?: string;
+    createPolicy?: boolean;
 }
 
 export async function POST(request: NextRequest) {
@@ -53,58 +54,76 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const { documentId, ownerName, propertyAddress, carrierName } = body;
+        const { documentId, ownerName, propertyAddress, carrierName, createPolicy = true } = body;
 
-        if (!documentId || !ownerName || !propertyAddress) {
+        if (!documentId || !ownerName || (createPolicy && !propertyAddress)) {
             return NextResponse.json(
-                { success: false, message: 'Missing required fields: documentId, ownerName, propertyAddress' },
+                { success: false, message: 'Missing required fields: documentId, ownerName' + (createPolicy ? ', propertyAddress' : '') },
                 { status: 400 }
             );
         }
 
-        // ── 3. Create client ────────────────────────────────────────────
-        const { data: clientRow, error: clientError } = await supabaseAdmin
+        // ── 3. Create or Find client ────────────────────────────────────
+        // Check for existing client with exact same name to prevent duplicates
+        const { data: existingClients } = await supabaseAdmin
             .from('clients')
-            .insert({
-                named_insured: ownerName,
-                created_by_account_id: user.id,
-            })
             .select('id')
-            .single();
+            .ilike('named_insured', ownerName.trim())
+            .limit(1);
 
-        if (clientError || !clientRow) {
-            logger.error('CreateAndAssign', 'Failed to create client', { error: clientError?.message });
-            return NextResponse.json(
-                { success: false, message: 'Failed to create client record' },
-                { status: 500 }
-            );
+        let clientId: string;
+
+        if (existingClients && existingClients.length > 0) {
+            clientId = existingClients[0].id;
+            logger.info('CreateAndAssign', 'Reusing existing client to prevent duplication', { clientId, ownerName });
+        } else {
+            const { data: clientRow, error: clientError } = await supabaseAdmin
+                .from('clients')
+                .insert({
+                    named_insured: ownerName.trim(),
+                    created_by_account_id: user.id,
+                    mailing_address_raw: !createPolicy ? propertyAddress : null,
+                    mailing_address_norm: !createPolicy && propertyAddress ? normalizeAddress(propertyAddress) : null,
+                })
+                .select('id')
+                .single();
+
+            if (clientError || !clientRow) {
+                logger.error('CreateAndAssign', 'Failed to create client', { error: clientError?.message });
+                return NextResponse.json(
+                    { success: false, message: 'Failed to create client record' },
+                    { status: 500 }
+                );
+            }
+            clientId = clientRow.id;
         }
 
-        const clientId = clientRow.id;
+        // ── 4. Create policy (Optional) ─────────────────────────────────
+        let policyId: string | null = null;
+        if (createPolicy) {
+            const { data: policyRow, error: policyError } = await supabaseAdmin
+                .from('policies')
+                .insert({
+                    client_id: clientId,
+                    created_by_account_id: user.id,
+                    policy_number: 'PENDING',
+                    property_address_raw: propertyAddress,
+                    property_address_norm: normalizeAddress(propertyAddress || null),
+                    carrier_name: carrierName || 'Unknown',
+                })
+                .select('id')
+                .single();
 
-        // ── 4. Create policy ────────────────────────────────────────────
-        const { data: policyRow, error: policyError } = await supabaseAdmin
-            .from('policies')
-            .insert({
-                client_id: clientId,
-                created_by_account_id: user.id,
-                policy_number: 'PENDING',
-                property_address_raw: propertyAddress,
-                property_address_norm: normalizeAddress(propertyAddress),
-                carrier_name: carrierName || 'Unknown',
-            })
-            .select('id')
-            .single();
+            if (policyError || !policyRow) {
+                logger.error('CreateAndAssign', 'Failed to create policy', { error: policyError?.message, clientId });
+                return NextResponse.json(
+                    { success: false, message: 'Failed to create policy record' },
+                    { status: 500 }
+                );
+            }
 
-        if (policyError || !policyRow) {
-            logger.error('CreateAndAssign', 'Failed to create policy', { error: policyError?.message, clientId });
-            return NextResponse.json(
-                { success: false, message: 'Failed to create policy record' },
-                { status: 500 }
-            );
+            policyId = policyRow.id;
         }
-
-        const policyId = policyRow.id;
 
         // ── 5. Update platform_documents ────────────────────────────────
         const { error: docUpdateError } = await supabaseAdmin
@@ -126,23 +145,25 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // ── 6. Queue ingestion job for writeback ────────────────────────
-        const now = new Date().toISOString();
-        const { error: jobError } = await supabaseAdmin
-            .from('ingestion_jobs')
-            .insert({
-                document_id: documentId,
-                status: 'pending',
-                max_attempts: 5,
-                created_at: now,
-                updated_at: now,
-            });
+        // ── 6. Queue ingestion job for writeback (only if policy exists) ─
+        if (createPolicy) {
+            const now = new Date().toISOString();
+            const { error: jobError } = await supabaseAdmin
+                .from('ingestion_jobs')
+                .insert({
+                    document_id: documentId,
+                    status: 'pending',
+                    max_attempts: 5,
+                    created_at: now,
+                    updated_at: now,
+                });
 
-        if (jobError) {
-            logger.warn('CreateAndAssign', 'Failed to queue ingestion job', { error: jobError.message, documentId });
+            if (jobError) {
+                logger.warn('CreateAndAssign', 'Failed to queue ingestion job', { error: jobError.message, documentId });
+            }
         }
 
-        logger.info('CreateAndAssign', 'Created client + policy and assigned document', {
+        logger.info('CreateAndAssign', 'Created client and assigned document', {
             clientId,
             policyId,
             documentId,
