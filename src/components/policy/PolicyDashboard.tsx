@@ -308,12 +308,7 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
                     <h3>Property Details</h3>
                     <div className={styles.field}>
                         <label>Location:</label>
-                        <EditableValue
-                            value={getVal('property_location', declaration.property_location)}
-                            originalValue={declaration.property_location}
-                            onSave={(v) => handleOverrideSave('property_location', v, declaration.property_location || '')}
-                            label="Property Location"
-                        />
+                        <span>{declaration.property_location || '—'}</span>
                     </div>
                     <div className={styles.field}>
                         <label>Year Built:</label>

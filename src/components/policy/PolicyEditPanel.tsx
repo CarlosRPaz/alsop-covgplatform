@@ -27,6 +27,7 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
     const [policyForm, setPolicyForm] = useState({
         policy_number: policyDetail.policy_number || '',
         carrier_name: policyDetail.carrier_name || '',
+        property_address_raw: policyDetail.property_address || '',
         status: policyDetail.status || '',
     });
 
@@ -62,6 +63,7 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
     const isDirty = useCallback(() => {
         if (policyForm.policy_number !== (policyDetail.policy_number || '')) return true;
         if (policyForm.carrier_name !== (policyDetail.carrier_name || '')) return true;
+        if (policyForm.property_address_raw !== (policyDetail.property_address || '')) return true;
         if (policyForm.status !== (policyDetail.status || '')) return true;
         if (termForm.effective_date !== (policyDetail.effective_date || '')) return true;
         if (termForm.expiration_date !== (policyDetail.expiration_date || '')) return true;
@@ -143,6 +145,10 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
         if (policyForm.carrier_name !== (policyDetail.carrier_name || '')) {
             policyChanges.carrier_name = policyForm.carrier_name;
             policyChangedFields.push('carrier_name');
+        }
+        if (policyForm.property_address_raw !== (policyDetail.property_address || '')) {
+            policyChanges.property_address_raw = policyForm.property_address_raw;
+            policyChangedFields.push('property_address');
         }
         if (policyForm.status !== (policyDetail.status || '')) {
             policyChanges.status = policyForm.status;
@@ -347,6 +353,17 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
                                     className={styles.fieldInput}
                                     value={policyForm.carrier_name}
                                     onChange={(e) => setPolicyForm(f => ({ ...f, carrier_name: e.target.value }))}
+                                />
+                            </div>
+                        </div>
+                        <div className={styles.fieldGroupFull}>
+                            <div className={styles.field}>
+                                <label className={styles.fieldLabel}>Property Address</label>
+                                <input
+                                    className={styles.fieldInput}
+                                    value={policyForm.property_address_raw}
+                                    onChange={(e) => setPolicyForm(f => ({ ...f, property_address_raw: e.target.value }))}
+                                    placeholder="e.g. 1742 HAPPY TRL, TOPANGA, CA 90290"
                                 />
                             </div>
                         </div>
