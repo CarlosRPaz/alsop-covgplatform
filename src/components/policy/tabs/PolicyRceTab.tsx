@@ -248,7 +248,7 @@ export function PolicyRceTab({ declaration, enrichments = [], rceDocData = [] }:
                                 <Field label="Interior Wall Material" value={rce!.interior_wall_material} />
                                 <Field label="Interior Wall Finish" value={rce!.interior_wall_finish} />
                             </div>
-                            {rce!.rooms && (
+                            {!!rce!.rooms && (
                                 <div style={{ marginTop: '0.75rem' }}>
                                     <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-mid)', marginBottom: '0.4rem' }}>
                                         Rooms
@@ -279,7 +279,7 @@ export function PolicyRceTab({ declaration, enrichments = [], rceDocData = [] }:
                                 </h3>
                                 <Field label="Garage" value={rce!.garage_info} />
                                 <Field label="Porch" value={rce!.porch_info} />
-                                {rce!.home_features && (
+                                {!!rce!.home_features && (
                                     <div style={{ marginTop: '0.5rem' }}>
                                         <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-mid)', marginBottom: '0.25rem' }}>
                                             Home Features
@@ -291,7 +291,7 @@ export function PolicyRceTab({ declaration, enrichments = [], rceDocData = [] }:
                         </div>
 
                         {/* ── Cost Breakdown ── */}
-                        {rce!.cost_breakdown && (
+                        {!!rce!.cost_breakdown && (
                             <Card className={styles.card} style={{ marginBottom: '1rem' }}>
                                 <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                     <DollarSign size={16} style={{ color: '#22c55e' }} />
