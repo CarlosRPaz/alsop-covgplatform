@@ -70,6 +70,30 @@ export async function POST(req: Request) {
             }
         }
 
+        // 2c. Propagate property address from current term to survivor policy
+        // if the surviving policy has no address but a term does
+        if (!survivor.property_address_norm) {
+            const { data: currentTerm } = await supabaseAdmin
+                .from('policy_terms')
+                .select('property_location')
+                .eq('policy_id', survivor_id)
+                .eq('is_current', true)
+                .not('property_location', 'is', null)
+                .single();
+
+            if (currentTerm?.property_location) {
+                const norm = currentTerm.property_location.toUpperCase().replace(/,/g, '').replace(/\s+/g, ' ').trim();
+                await supabaseAdmin
+                    .from('policies')
+                    .update({
+                        property_address_raw: currentTerm.property_location,
+                        property_address_norm: norm,
+                    })
+                    .eq('id', survivor_id);
+                console.log(`Propagated property address "${currentTerm.property_location}" to survivor policy ${survivor_id}`);
+            }
+        }
+
         // 3. Remap Dec Pages lineage to Survivor
         const { error: decError } = await supabaseAdmin
             .from('dec_pages')

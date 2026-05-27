@@ -195,6 +195,36 @@ export async function POST(req: Request) {
                             }
                         }
 
+                        // Propagate property address from current term to survivor policy
+                        // if the surviving policy has no address but a term does
+                        const { data: polSurvivorFull } = await supabaseAdmin
+                            .from('policies')
+                            .select('property_address_raw')
+                            .eq('id', policySurvivor.id)
+                            .single();
+
+                        if (!polSurvivorFull?.property_address_raw) {
+                            const { data: currentTerm } = await supabaseAdmin
+                                .from('policy_terms')
+                                .select('property_location')
+                                .eq('policy_id', policySurvivor.id)
+                                .eq('is_current', true)
+                                .not('property_location', 'is', null)
+                                .single();
+
+                            if (currentTerm?.property_location) {
+                                const norm = currentTerm.property_location.toUpperCase().replace(/,/g, '').replace(/\s+/g, ' ').trim();
+                                await supabaseAdmin
+                                    .from('policies')
+                                    .update({
+                                        property_address_raw: currentTerm.property_location,
+                                        property_address_norm: norm,
+                                    })
+                                    .eq('id', policySurvivor.id);
+                                console.log(`Propagated property address "${currentTerm.property_location}" to policy ${policySurvivor.id}`);
+                            }
+                        }
+
                         // Log audit for the policy merge
                         supabaseAdmin.from('merge_logs').insert({
                             entity_type: 'policy',
