@@ -296,20 +296,51 @@ def _normalize_for_compare(addr: str) -> str:
     return re.sub(r"[^a-z0-9]", "", addr.lower())
 
 
+def _is_po_box(addr: str) -> bool:
+    """Check if an address is a PO Box (not a valid insured property location)."""
+    import re
+    return bool(re.search(r"(?i)\bP\.?\s*O\.?\s*BOX\b", addr))
+
+
+def _is_physical_street_address(addr: str) -> bool:
+    """
+    Heuristic: does this look like a physical street address?
+    Must start with a number and contain a street-type word.
+    """
+    import re
+    if not addr:
+        return False
+    addr_upper = addr.upper().strip()
+    # Must start with a street number
+    if not re.match(r"^\d+", addr_upper):
+        return False
+    # Must contain a common street suffix or directional
+    street_words = (
+        r"\b(?:ST|STREET|AVE|AVENUE|BLVD|BOULEVARD|DR|DRIVE|LN|LANE|RD|ROAD|"
+        r"CT|COURT|CIR|CIRCLE|WAY|PL|PLACE|TRL|TRAIL|TERR?|TERRACE|"
+        r"HWY|HIGHWAY|PKWY|PARKWAY|SQ|SQUARE|LOOP|PATH|RUN|PASS)\b"
+    )
+    return bool(re.search(street_words, addr_upper))
+
+
 def _fix_swapped_addresses(extracted: dict) -> None:
     """
-    Detect and fix a known LLM failure mode where property_location is
-    actually the broker's address (or vice-versa).
+    Detect and fix known LLM failure modes where property_location is wrong.
 
-    The broker_address is extracted separately from the "YOUR INSURANCE
-    BROKER" section of the dec page. If the LLM accidentally assigned the
-    broker address as the property_location we swap property_location with
-    mailing_address (the only other candidate address on the page).
+    Checks performed (in order):
+      1. CFP corporate address used as property → replace with mailing_address
+      2. Broker address used as property → swap with mailing_address
+      3. PO Box used as property → swap with mailing_address (PO Boxes
+         cannot be insured property locations)
+      4. Property is missing but mailing_address is a physical street
+         → use mailing_address as property_location
 
-    This does NOT assume residential-only — commercial suites are valid
-    property locations.
+    The correct property address is ALWAYS prioritized. If the LLM placed
+    the real property address into the wrong field, these checks recover it.
     """
-    # ── Check for CFP corporate address mistakenly used as property ──
+    import re
+
+    # ── Check 1: CFP corporate address mistakenly used as property ──
     _CFP_ADDRESSES = [
         "725sfigueroastreetsuite3900losangelesca90017",
         "725sfigueroastlosangelesca90017",
@@ -320,7 +351,7 @@ def _fix_swapped_addresses(extracted: dict) -> None:
         for cfp_addr in _CFP_ADDRESSES:
             if cfp_addr in prop_cfp_norm or prop_cfp_norm.startswith(cfp_addr[:20]):
                 mail = extracted.get("mailing_address")
-                if mail:
+                if mail and not _is_po_box(mail):
                     logger.warning(
                         "CFP corporate address detected as property_location: '%s' "
                         "— replacing with mailing_address '%s'",
@@ -330,41 +361,70 @@ def _fix_swapped_addresses(extracted: dict) -> None:
                 else:
                     logger.warning(
                         "CFP corporate address detected as property_location: '%s' "
-                        "— clearing (no mailing_address to use)",
+                        "— clearing (no usable mailing_address)",
                         prop_raw,
                     )
                     extracted["property_location"] = None
                 break
 
+    # ── Check 2: Broker address used as property ──
     prop = extracted.get("property_location")
     broker = extracted.get("broker_address")
     mail = extracted.get("mailing_address")
 
-    if not prop or not broker:
-        return
+    if prop and broker:
+        prop_norm = _normalize_for_compare(prop)
+        broker_norm = _normalize_for_compare(broker)
 
-    # Compare property_location against broker_address
-    prop_norm = _normalize_for_compare(prop)
-    broker_norm = _normalize_for_compare(broker)
+        if prop_norm == broker_norm or (len(prop_norm) > 10 and broker_norm.startswith(prop_norm[:20])):
+            if mail and not _is_po_box(mail):
+                logger.warning(
+                    "Broker address swap detected: property_location '%s' matches "
+                    "broker_address '%s' — swapping with mailing_address '%s'",
+                    prop, broker, mail,
+                )
+                extracted["property_location"] = mail
+                extracted["mailing_address"] = prop
+            else:
+                logger.warning(
+                    "Broker address swap detected: property_location '%s' matches "
+                    "broker_address '%s' — clearing property_location (no usable mailing to swap)",
+                    prop, broker,
+                )
+                extracted["property_location"] = None
 
-    # If property_location matches the broker address → definitely wrong
-    if prop_norm == broker_norm or (len(prop_norm) > 10 and broker_norm.startswith(prop_norm[:20])):
-        if mail:
+    # ── Check 3: PO Box used as property → not a valid insured location ──
+    prop = extracted.get("property_location")
+    mail = extracted.get("mailing_address")
+
+    if prop and _is_po_box(prop):
+        if mail and not _is_po_box(mail) and _is_physical_street_address(mail):
             logger.warning(
-                "Broker address swap detected: property_location '%s' matches "
-                "broker_address '%s' — swapping with mailing_address '%s'",
-                prop, broker, mail,
+                "PO Box detected as property_location: '%s' "
+                "— replacing with physical mailing_address '%s'",
+                prop, mail,
             )
             extracted["property_location"] = mail
             extracted["mailing_address"] = prop
         else:
-            # No mailing_address to swap with — just clear the bad value
             logger.warning(
-                "Broker address swap detected: property_location '%s' matches "
-                "broker_address '%s' — clearing property_location (no mailing to swap)",
-                prop, broker,
+                "PO Box detected as property_location: '%s' "
+                "— clearing (no physical mailing_address to use)",
+                prop,
             )
             extracted["property_location"] = None
+
+    # ── Check 4: Property still missing — try to recover from mailing ──
+    prop = extracted.get("property_location")
+    mail = extracted.get("mailing_address")
+
+    if not prop and mail and not _is_po_box(mail) and _is_physical_street_address(mail):
+        logger.info(
+            "property_location missing — using mailing_address '%s' as fallback "
+            "(it appears to be a physical street address)",
+            mail,
+        )
+        extracted["property_location"] = mail
 
 
 def _build_user_prompt(raw_text: str) -> str:

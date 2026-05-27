@@ -80,6 +80,10 @@ def upsert_policy(client_id: str, account_id: str, policy_number: str, property_
     Matching strategy (ordered):
         1. Exact match on Base Policy + property_address_norm
         2. Fallback: match on Base Policy alone
+
+    Address protection: If the policy already has a property_address_raw and
+    the new extraction returns null/empty, the existing address is preserved.
+    A correct address is never overwritten with nothing.
     """
     if not policy_number:
         raise ValueError("policy_number is required to upsert policy")
@@ -97,14 +101,18 @@ def upsert_policy(client_id: str, account_id: str, policy_number: str, property_
         "client_id": client_id,
         "created_by_account_id": account_id,
         "policy_number": base_policy_num,
-        "property_address_raw": property_address,
-        "property_address_norm": norm_address,
         "carrier_name": "California FAIR Plan",  # Hardcoding for FAIR Plan MVP
         "updated_at": now_iso,
     }
 
+    # Only include address fields if we have a new address to write.
+    # This prevents overwriting a previously correct address with null.
+    if property_address:
+        payload["property_address_raw"] = property_address
+        payload["property_address_norm"] = norm_address
+
     # Strategy 1: Exact match on Base Policy + property_address_norm
-    exact_query = sb.table("policies").select("id").eq("policy_number", base_policy_num)
+    exact_query = sb.table("policies").select("id, property_address_raw").eq("policy_number", base_policy_num)
     if norm_address:
         exact_query = exact_query.eq("property_address_norm", norm_address)
     else:
@@ -122,7 +130,7 @@ def upsert_policy(client_id: str, account_id: str, policy_number: str, property_
     # with a different or NULL property address.
     fallback = (
         sb.table("policies")
-        .select("id")
+        .select("id, property_address_raw")
         .eq("policy_number", base_policy_num)
         .limit(1)
         .execute()
@@ -130,10 +138,21 @@ def upsert_policy(client_id: str, account_id: str, policy_number: str, property_
 
     if fallback.data:
         policy_id = fallback.data[0]["id"]
-        logger.info(
-            "Policy %s matched by number (address mismatch: existing vs '%s') — updating",
-            base_policy_num, norm_address,
-        )
+        existing_address = fallback.data[0].get("property_address_raw")
+
+        # If we have no new address but the existing policy has one, preserve it
+        if not property_address and existing_address:
+            logger.info(
+                "Policy %s matched by number — preserving existing address '%s' "
+                "(new extraction returned no address)",
+                base_policy_num, existing_address,
+            )
+        else:
+            logger.info(
+                "Policy %s matched by number (address: '%s' → '%s') — updating",
+                base_policy_num, existing_address, property_address,
+            )
+
         sb.table("policies").update(payload).eq("id", policy_id).execute()
         return policy_id
 
