@@ -309,6 +309,33 @@ def _fix_swapped_addresses(extracted: dict) -> None:
     This does NOT assume residential-only — commercial suites are valid
     property locations.
     """
+    # ── Check for CFP corporate address mistakenly used as property ──
+    _CFP_ADDRESSES = [
+        "725sfigueroastreetsuite3900losangelesca90017",
+        "725sfigueroastlosangelesca90017",
+    ]
+    prop_raw = extracted.get("property_location")
+    if prop_raw:
+        prop_cfp_norm = _normalize_for_compare(prop_raw)
+        for cfp_addr in _CFP_ADDRESSES:
+            if cfp_addr in prop_cfp_norm or prop_cfp_norm.startswith(cfp_addr[:20]):
+                mail = extracted.get("mailing_address")
+                if mail:
+                    logger.warning(
+                        "CFP corporate address detected as property_location: '%s' "
+                        "— replacing with mailing_address '%s'",
+                        prop_raw, mail,
+                    )
+                    extracted["property_location"] = mail
+                else:
+                    logger.warning(
+                        "CFP corporate address detected as property_location: '%s' "
+                        "— clearing (no mailing_address to use)",
+                        prop_raw,
+                    )
+                    extracted["property_location"] = None
+                break
+
     prop = extracted.get("property_location")
     broker = extracted.get("broker_address")
     mail = extracted.get("mailing_address")

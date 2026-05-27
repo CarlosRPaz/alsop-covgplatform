@@ -217,6 +217,15 @@ export function PolicyOverviewTab({ declaration, policyDetail, enrichments = [] 
                         Property Details
                     </h3>
                     <div className={styles.field}>
+                        <label>Property Location:</label>
+                        <EditableValue
+                            value={getVal('property_location', declaration.property_location)}
+                            originalValue={declaration.property_location}
+                            onSave={(v) => handleOverrideSave('property_location', v, declaration.property_location || '')}
+                            label="Property Location"
+                        />
+                    </div>
+                    <div className={styles.field}>
                         <label>Year Built:</label>
                         <span>{declaration.year_built > 0 ? declaration.year_built : '—'}</span>
                     </div>
