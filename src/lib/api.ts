@@ -1033,9 +1033,16 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
             }
         }
 
+        // Resolve the display policy number: if the current term came from a
+        // dec page with a suffixed policy number (e.g. "CFP 0102162693 02"),
+        // show that instead of the base policy number.
+        const currentTermSorted = allTermsSorted.find(t => t.id === currentTerm?.id);
+        const displayPolicyNumber = currentTermSorted?.source_policy_number
+            || row.policy_number || 'N/A';
+
         return {
             id: row.id,
-            policy_number: row.policy_number || 'N/A',
+            policy_number: displayPolicyNumber,
             property_address: row.property_address_raw || row.property_address_norm || 'No address',
             carrier_name: row.carrier_name || undefined,
             status: row.status || 'unknown',
@@ -1285,7 +1292,8 @@ export async function fetchPoliciesByClientId(clientId: string): Promise<Dashboa
                     effective_date,
                     expiration_date,
                     annual_premium,
-                    is_current
+                    is_current,
+                    source_dec_page_id
                 ),
                 policy_flags (
                     id,
@@ -1309,6 +1317,26 @@ export async function fetchPoliciesByClientId(clientId: string): Promise<Dashboa
             return [];
         }
 
+        // Batch lookup: resolve current term dec page policy numbers for suffix display
+        const decPagePolicyMap = new Map<string, string>();
+        const allDecPageIds = new Set<string>();
+        for (const row of data as any[]) {
+            const terms = row.policy_terms || [];
+            const currentTerm = terms.find((t: any) => t.is_current === true) || terms[0] || null;
+            if (currentTerm?.source_dec_page_id) allDecPageIds.add(currentTerm.source_dec_page_id);
+        }
+        if (allDecPageIds.size > 0) {
+            const { data: decPages } = await supabase
+                .from('dec_pages')
+                .select('id, policy_number')
+                .in('id', Array.from(allDecPageIds));
+            if (decPages) {
+                for (const dp of decPages) {
+                    if (dp.policy_number) decPagePolicyMap.set(dp.id, dp.policy_number);
+                }
+            }
+        }
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return data.map((row: any) => {
             const client = row.clients;
@@ -1323,9 +1351,16 @@ export async function fetchPoliciesByClientId(clientId: string): Promise<Dashboa
             );
             const highestSev = sortedFlags.length > 0 ? sortedFlags[0].severity : undefined;
 
+            // Resolve display policy number from current term's dec page
+            let displayPolicyNum = row.policy_number || 'N/A';
+            if (currentTerm?.source_dec_page_id) {
+                const decPageNum = decPagePolicyMap.get(currentTerm.source_dec_page_id);
+                if (decPageNum) displayPolicyNum = decPageNum;
+            }
+
             return {
                 id: row.id,
-                policy_number: row.policy_number || 'N/A',
+                policy_number: displayPolicyNum,
                 property_address: row.property_address_raw || 'No address',
                 status: row.status || 'unknown',
                 carrier_name: row.carrier_name || undefined,
