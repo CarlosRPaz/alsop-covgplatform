@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
+import { normalizePolicyNumber } from '@/lib/normalization';
 
 export async function POST(req: Request) {
     const supabaseAdmin = getSupabaseAdmin();
+    const policyMergeLog: string[] = [];
     try {
         const body = await req.json();
         const { survivor_id, merged_id, performed_by, consolidated_fields, keep_documents = true } = body;
@@ -67,9 +69,155 @@ export async function POST(req: Request) {
                 .update({ client_id: survivor_id })
                 .eq('client_id', merged_id);
             if (enrichError) console.error('Non-fatal: Failed to remap property_enrichments:', enrichError.message);
+
+            // ────────────────────────────────────────────────────────────
+            // 2f. AUTO-DEDUPLICATE POLICIES by base policy number
+            // After remapping, the survivor may now have two separate
+            // policy records that share the same base policy number
+            // (e.g. "CFP 0102162693 01" and "CFP 0102162693 02").
+            // We auto-merge them so terms are consolidated under one policy.
+            // ────────────────────────────────────────────────────────────
+            try {
+                const { data: allPolicies } = await supabaseAdmin
+                    .from('policies')
+                    .select('id, policy_number, created_at')
+                    .eq('client_id', survivor_id);
+
+                if (allPolicies && allPolicies.length > 1) {
+                    // Group by normalized base policy number
+                    const policyGroups = new Map<string, typeof allPolicies>();
+                    for (const pol of allPolicies) {
+                        const { basePolicy } = normalizePolicyNumber(pol.policy_number);
+                        if (!basePolicy) continue;
+                        if (!policyGroups.has(basePolicy)) policyGroups.set(basePolicy, []);
+                        policyGroups.get(basePolicy)!.push(pol);
+                    }
+
+                    for (const [baseNum, cluster] of policyGroups.entries()) {
+                        if (cluster.length < 2) continue;
+
+                        // Sort: prefer pure base (no suffix) first, then oldest
+                        cluster.sort((a, b) => {
+                            const normA = normalizePolicyNumber(a.policy_number);
+                            const normB = normalizePolicyNumber(b.policy_number);
+                            const hasSuffixA = normA.suffix ? 1 : 0;
+                            const hasSuffixB = normB.suffix ? 1 : 0;
+                            if (hasSuffixA !== hasSuffixB) return hasSuffixA - hasSuffixB;
+                            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+                        });
+
+                        const policySurvivor = cluster[0];
+                        const policyDuplicates = cluster.slice(1);
+
+                        for (const polDup of policyDuplicates) {
+                            console.log(`Auto-merging policy "${polDup.policy_number}" (${polDup.id}) into "${policySurvivor.policy_number}" (${policySurvivor.id})`);
+
+                            // Reparent policy_terms
+                            const { error: termsErr } = await supabaseAdmin
+                                .from('policy_terms')
+                                .update({ policy_id: policySurvivor.id })
+                                .eq('policy_id', polDup.id);
+                            if (termsErr) {
+                                console.error(`Failed to reparent terms for policy ${polDup.id}:`, termsErr.message);
+                                continue; // Skip this policy merge but don't fail the whole operation
+                            }
+
+                            // Reparent dec_pages
+                            await supabaseAdmin
+                                .from('dec_pages')
+                                .update({ policy_id: policySurvivor.id })
+                                .eq('policy_id', polDup.id);
+
+                            // Reparent policy_flags
+                            await supabaseAdmin
+                                .from('policy_flags')
+                                .update({ policy_id: policySurvivor.id })
+                                .eq('policy_id', polDup.id);
+
+                            // Reparent property_enrichments
+                            await supabaseAdmin
+                                .from('property_enrichments')
+                                .update({ policy_id: policySurvivor.id })
+                                .eq('policy_id', polDup.id);
+
+                            // Reparent platform_documents
+                            await supabaseAdmin
+                                .from('platform_documents')
+                                .update({ policy_id: policySurvivor.id })
+                                .eq('policy_id', polDup.id);
+
+                            // Reparent notes
+                            await supabaseAdmin
+                                .from('notes')
+                                .update({ policy_id: policySurvivor.id })
+                                .eq('policy_id', polDup.id);
+
+                            // Reparent activity_events
+                            await supabaseAdmin
+                                .from('activity_events')
+                                .update({ policy_id: policySurvivor.id })
+                                .eq('policy_id', polDup.id);
+
+                            // Delete the duplicate policy record
+                            const { error: polDelErr } = await supabaseAdmin
+                                .from('policies')
+                                .delete()
+                                .eq('id', polDup.id);
+
+                            if (polDelErr) {
+                                console.error(`Failed to delete duplicate policy ${polDup.id}:`, polDelErr.message);
+                            } else {
+                                policyMergeLog.push(`${polDup.policy_number} → ${policySurvivor.policy_number}`);
+                            }
+                        }
+
+                        // Recalculate is_current: only the term with the latest expiration_date is current
+                        const { data: allTerms } = await supabaseAdmin
+                            .from('policy_terms')
+                            .select('id, expiration_date')
+                            .eq('policy_id', policySurvivor.id)
+                            .order('expiration_date', { ascending: false, nullsFirst: false });
+
+                        if (allTerms && allTerms.length > 1) {
+                            const winnerId = allTerms[0].id;
+                            const loserIds = allTerms.slice(1).map(t => t.id);
+
+                            await supabaseAdmin
+                                .from('policy_terms')
+                                .update({ is_current: true })
+                                .eq('id', winnerId);
+
+                            if (loserIds.length > 0) {
+                                await supabaseAdmin
+                                    .from('policy_terms')
+                                    .update({ is_current: false })
+                                    .in('id', loserIds);
+                            }
+                        }
+
+                        // Log audit for the policy merge
+                        supabaseAdmin.from('merge_logs').insert({
+                            entity_type: 'policy',
+                            survivor_id: policySurvivor.id,
+                            merged_id: policyDuplicates.map(p => p.id).join(','),
+                            performed_by: performed_by || 'auto:client-merge',
+                            merge_details: {
+                                auto_triggered_by: 'client_merge',
+                                client_survivor_id: survivor_id,
+                                client_merged_id: merged_id,
+                                policy_survivor: policySurvivor,
+                                policy_duplicates: policyDuplicates,
+                            }
+                        }).then(r => { if (r.error) console.error('Policy merge audit log error:', r.error.message); });
+                    }
+                }
+            } catch (policyDedup) {
+                console.error('Non-fatal: Auto policy dedup failed:', policyDedup);
+                // Don't fail the client merge if policy dedup has an issue
+            }
         }
 
-        // 2f. Activity events — always remap regardless of keep_documents
+        // 2g. Activity events — always remap regardless of keep_documents
         // These are historical records, not documents
         const { error: actError } = await supabaseAdmin
             .from('activity_events')
@@ -77,7 +225,7 @@ export async function POST(req: Request) {
             .eq('client_id', merged_id);
         if (actError) console.error('Non-fatal: Failed to remap activity_events:', actError.message);
 
-        // 2g. Notes — always remap
+        // 2h. Notes — always remap
         const { error: noteError } = await supabaseAdmin
             .from('notes')
             .update({ client_id: survivor_id })
@@ -109,7 +257,6 @@ export async function POST(req: Request) {
 
         if (delError) {
             console.error('Client delete failed after remapping:', delError.message);
-            // Return a detailed error so the agent knows what happened
             return NextResponse.json({
                 error: `Merge partially completed: records were migrated to survivor, but the duplicate profile could not be deleted. Reason: ${delError.message}`,
                 partial: true,
@@ -129,19 +276,22 @@ export async function POST(req: Request) {
                 merge_details: {
                     survivor_state: survivor,
                     duplicate_state: duplicate,
-                    consolidated_fields: finalConsolidatedFields
+                    consolidated_fields: finalConsolidatedFields,
+                    auto_policy_merges: policyMergeLog,
                 }
             })
-            // Ignore error gracefully if table hasn't been migrated by admin yet
             .then(res => { if (res.error) console.error("Audit Log Note: ", res.error.message) });
 
         // 6. Activity Event for Dashboard Feed
         const survivorName = finalConsolidatedFields.named_insured || survivor.named_insured || 'Unknown';
         const dupName = duplicate.named_insured || 'Unknown';
+        const policyMergeNote = policyMergeLog.length > 0
+            ? ` Auto-merged ${policyMergeLog.length} duplicate policy/policies: ${policyMergeLog.join(', ')}.`
+            : '';
         supabaseAdmin.from('activity_events').insert({
             event_type: 'merge.client',
             title: `Client records consolidated: ${survivorName}`,
-            detail: `Merged "${dupName}" into "${survivorName}". ${keep_documents ? 'All policies, documents, notes, and flags migrated.' : 'Documents not migrated.'}`,
+            detail: `Merged "${dupName}" into "${survivorName}". ${keep_documents ? 'All policies, documents, notes, and flags migrated.' : 'Documents not migrated.'}${policyMergeNote}`,
             client_id: survivor_id,
             meta: {
                 survivor_id,
@@ -150,10 +300,11 @@ export async function POST(req: Request) {
                 duplicate_name: dupName,
                 keep_documents,
                 fields_consolidated: Object.keys(finalConsolidatedFields),
+                auto_policy_merges: policyMergeLog,
             },
         }).then(r => { if (r.error) console.error('Activity event error (non-fatal):', r.error.message); });
 
-        return NextResponse.json({ success: true, survivor_id });
+        return NextResponse.json({ success: true, survivor_id, auto_policy_merges: policyMergeLog });
 
     } catch (error: any) {
         console.error('Client Merge Transaction Error:', error);
