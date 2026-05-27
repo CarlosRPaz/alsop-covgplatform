@@ -283,17 +283,9 @@ export function ActivityTab() {
                                                 )}
                                             </span>
                                         )}
-                                        {isDoc && !isDocFailed && (
+                                        {isDoc && isDocProcessed && (
                                             <span className={styles.successHints}>
-                                                {isDocProcessed && (
-                                                    <><CheckCircle size={10} style={{ color: '#10b981' }} /><span>Matched</span></>
-                                                )}
-                                                {isDocNeedsAction && (
-                                                    <><AlertTriangle size={10} style={{ color: '#f59e0b' }} /><span>Review needed</span></>
-                                                )}
-                                                {isDocUpload && (
-                                                    <><Clock size={10} /><span>Processing</span></>
-                                                )}
+                                                <><CheckCircle size={10} style={{ color: '#10b981' }} /><span>Matched</span></>
                                                 {activity.match_confidence != null && activity.match_confidence > 0 && (
                                                     <span style={{ opacity: 0.7 }}>{Math.round(activity.match_confidence * 100)}%</span>
                                                 )}

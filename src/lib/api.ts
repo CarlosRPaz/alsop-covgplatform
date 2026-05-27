@@ -2653,9 +2653,11 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
                 // Batch lookup: get policy_number for linked policies
                 const docPolicyIds = new Set<string>();
                 const docClientIds = new Set<string>();
+                const actorUserIds = new Set<string>();
                 for (const evt of docEvents) {
                     if (evt.policy_id) docPolicyIds.add(evt.policy_id);
                     if (evt.client_id) docClientIds.add(evt.client_id);
+                    if (evt.actor_user_id) actorUserIds.add(evt.actor_user_id);
                 }
 
                 const policyNumberMap = new Map<string, string>();
@@ -2686,6 +2688,22 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
                     }
                 }
 
+                // Batch lookup: resolve agent names from actor_user_id
+                const actorNameMap = new Map<string, string>();
+                if (actorUserIds.size > 0) {
+                    const { data: actorRows } = await supabase
+                        .from('accounts')
+                        .select('id, first_name, last_name, role')
+                        .in('id', Array.from(actorUserIds))
+                        .limit(200);
+                    if (actorRows) {
+                        for (const a of actorRows) {
+                            const fullName = `${a.first_name || ''} ${a.last_name || ''}`.trim();
+                            actorNameMap.set(a.id, fullName || (a.role === 'agent' ? 'Agent' : 'User'));
+                        }
+                    }
+                }
+
                 for (const evt of docEvents) {
                     const meta = evt.meta || {};
                     const isUploadEvent = (evt.event_type || '').startsWith('doc.uploaded.');
@@ -2698,12 +2716,15 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
                     // Resolve policy_number from policies table
                     const resolvedPolicyNumber = (evt.policy_id && policyNumberMap.get(evt.policy_id)) || undefined;
 
+                    // Resolve agent name from actor_user_id
+                    const uploaderName = (evt.actor_user_id && actorNameMap.get(evt.actor_user_id)) || 'System';
+
                     // Determine display status
                     let docStatus = 'done';
                     if (evt.event_type === 'document.failed') docStatus = 'failed';
-                    else if (evt.event_type === 'document.needs_review') docStatus = 'needs_review';
-                    else if (evt.event_type === 'document.no_match') docStatus = 'no_match';
-                    else if (isUploadEvent) docStatus = 'uploaded';
+                    else if (evt.event_type === 'document.needs_review') docStatus = 'done';
+                    else if (evt.event_type === 'document.no_match') docStatus = 'done';
+                    else if (isUploadEvent) docStatus = 'done';
 
                     docItems.push({
                         id: evt.id,
@@ -2719,7 +2740,7 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
                         meta: meta,
                         status: docStatus,
                         file_path: null,
-                        uploaded_by: 'System',
+                        uploaded_by: uploaderName,
                         // Document-specific fields
                         doc_type: docType,
                         document_id: meta.document_id || undefined,

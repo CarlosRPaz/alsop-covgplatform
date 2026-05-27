@@ -31,22 +31,60 @@ export async function POST(req: Request) {
         if (errSur || !survivor) return NextResponse.json({ error: 'Survivor client not found' }, { status: 404 });
         if (errDup || !duplicate) return NextResponse.json({ error: 'Duplicate client not found' }, { status: 404 });
 
-        // 2 & 3. Remap associated Policies and Docs (ONLY if keep_documents is true)
+        // 2. Remap ALL associated records (only if keep_documents is true)
         if (keep_documents) {
+            // 2a. Policies — primary entity
             const { error: polError } = await supabaseAdmin
                 .from('policies')
                 .update({ client_id: survivor_id })
                 .eq('client_id', merged_id);
-            if (polError) throw polError;
+            if (polError) throw new Error(`Failed to remap policies: ${polError.message}`);
 
+            // 2b. Dec pages
             const { error: decError } = await supabaseAdmin
                 .from('dec_pages')
                 .update({ client_id: survivor_id })
                 .eq('client_id', merged_id);
-            if (decError) throw decError;
+            if (decError) throw new Error(`Failed to remap dec_pages: ${decError.message}`);
+
+            // 2c. Platform documents (RCE, DIC, etc.)
+            const { error: pdError } = await supabaseAdmin
+                .from('platform_documents')
+                .update({ client_id: survivor_id })
+                .eq('client_id', merged_id);
+            if (pdError) console.error('Non-fatal: Failed to remap platform_documents:', pdError.message);
+
+            // 2d. Policy flags
+            const { error: flagError } = await supabaseAdmin
+                .from('policy_flags')
+                .update({ client_id: survivor_id })
+                .eq('client_id', merged_id);
+            if (flagError) console.error('Non-fatal: Failed to remap policy_flags:', flagError.message);
+
+            // 2e. Property enrichments (may reference client_id)
+            const { error: enrichError } = await supabaseAdmin
+                .from('property_enrichments')
+                .update({ client_id: survivor_id })
+                .eq('client_id', merged_id);
+            if (enrichError) console.error('Non-fatal: Failed to remap property_enrichments:', enrichError.message);
         }
 
-        // 4. Consolidate contact data via explicit agent selection picking
+        // 2f. Activity events — always remap regardless of keep_documents
+        // These are historical records, not documents
+        const { error: actError } = await supabaseAdmin
+            .from('activity_events')
+            .update({ client_id: survivor_id })
+            .eq('client_id', merged_id);
+        if (actError) console.error('Non-fatal: Failed to remap activity_events:', actError.message);
+
+        // 2g. Notes — always remap
+        const { error: noteError } = await supabaseAdmin
+            .from('notes')
+            .update({ client_id: survivor_id })
+            .eq('client_id', merged_id);
+        if (noteError) console.error('Non-fatal: Failed to remap notes:', noteError.message);
+
+        // 3. Consolidate contact data via explicit agent selection picking
         let finalConsolidatedFields: Record<string, any> = {};
         if (consolidated_fields && Object.keys(consolidated_fields).length > 0) {
             // Validate safety constraints on incoming fields
@@ -63,15 +101,24 @@ export async function POST(req: Request) {
             }
         }
 
-        // 5. Delete Duplicate Record
+        // 4. Delete Duplicate Record
         const { error: delError } = await supabaseAdmin
             .from('clients')
             .delete()
             .eq('id', merged_id);
 
-        if (delError) throw delError;
+        if (delError) {
+            console.error('Client delete failed after remapping:', delError.message);
+            // Return a detailed error so the agent knows what happened
+            return NextResponse.json({
+                error: `Merge partially completed: records were migrated to survivor, but the duplicate profile could not be deleted. Reason: ${delError.message}`,
+                partial: true,
+                survivor_id,
+                merged_id,
+            }, { status: 500 });
+        }
 
-        // 6. Log Audit Trail
+        // 5. Log Audit Trail
         await supabaseAdmin
             .from('merge_logs')
             .insert({
@@ -88,13 +135,13 @@ export async function POST(req: Request) {
             // Ignore error gracefully if table hasn't been migrated by admin yet
             .then(res => { if (res.error) console.error("Audit Log Note: ", res.error.message) });
 
-        // 7. Activity Event for Dashboard Feed
+        // 6. Activity Event for Dashboard Feed
         const survivorName = finalConsolidatedFields.named_insured || survivor.named_insured || 'Unknown';
         const dupName = duplicate.named_insured || 'Unknown';
         supabaseAdmin.from('activity_events').insert({
             event_type: 'merge.client',
             title: `Client records consolidated: ${survivorName}`,
-            detail: `Merged "${dupName}" into "${survivorName}". ${keep_documents ? 'All policies and documents migrated.' : 'Documents not migrated.'}`,
+            detail: `Merged "${dupName}" into "${survivorName}". ${keep_documents ? 'All policies, documents, notes, and flags migrated.' : 'Documents not migrated.'}`,
             client_id: survivor_id,
             meta: {
                 survivor_id,
