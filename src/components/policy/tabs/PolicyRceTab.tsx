@@ -49,6 +49,66 @@ function Field({ label, value, mono }: { label: string; value: unknown; mono?: b
     );
 }
 
+/** Pretty-print label for a JSON key */
+function prettyKey(key: string): string {
+    return key
+        .replace(/_/g, ' ')
+        .replace(/pct$/i, '%')
+        .replace(/sqft$/i, 'Sq Ft')
+        .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/** Pretty-print a value for display */
+function prettyVal(val: unknown): string {
+    if (val == null || val === '' || val === 'null') return '—';
+    if (typeof val === 'number') return new Intl.NumberFormat('en-US').format(val);
+    if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+    return String(val);
+}
+
+/**
+ * Renders an object/JSON field as readable sub-rows instead of raw JSON.
+ * Falls back to a plain Field for primitives.
+ */
+function StructuredField({ label, value }: { label: string; value: unknown }) {
+    if (value == null || value === '') {
+        return <Field label={label} value={null} />;
+    }
+
+    // Parse JSON strings
+    let parsed: unknown = value;
+    if (typeof value === 'string') {
+        try { parsed = JSON.parse(value); } catch { /* keep as string */ }
+    }
+
+    // If it's still a primitive after parsing, render as plain field
+    if (typeof parsed !== 'object' || parsed === null) {
+        return <Field label={label} value={parsed} />;
+    }
+
+    // Render object as sub-field rows under a label header
+    const entries = Object.entries(parsed as Record<string, unknown>)
+        .filter(([, v]) => v != null && v !== '' && v !== 'null');
+
+    if (entries.length === 0) {
+        return <Field label={label} value="—" />;
+    }
+
+    return (
+        <div className={styles.structuredField}>
+            <span className={styles.structuredLabel}>{label}</span>
+            <div className={styles.structuredRows}>
+                {entries.map(([k, v]) => (
+                    <div key={k} className={styles.structuredRow}>
+                        <span className={styles.structuredKey}>{prettyKey(k)}</span>
+                        <span className={styles.structuredVal}>{prettyVal(v)}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 function SectionCard({ icon, title, children, className }: {
     icon: React.ReactNode; title: string; children: React.ReactNode; className?: string;
 }) {
@@ -251,15 +311,15 @@ export function PolicyRceTab({ declaration, enrichments = [], rceDocData = [] }:
                         >
                             <Field label="Heating" value={rce!.heating} />
                             <Field label="Air Conditioning" value={rce!.air_conditioning} />
-                            <Field label="Fireplace" value={rce!.fireplace_info} />
+                            <StructuredField label="Fireplace" value={rce!.fireplace_info} />
                         </SectionCard>
 
                         <SectionCard
                             icon={<Warehouse size={15} style={{ color: '#14b8a6' }} />}
                             title="Additional Structures"
                         >
-                            <Field label="Garage" value={rce!.garage_info} />
-                            <Field label="Porch" value={rce!.porch_info} />
+                            <StructuredField label="Garage" value={rce!.garage_info} />
+                            <StructuredField label="Porch" value={rce!.porch_info} />
                             {!!rce!.home_features && (
                                 <div className={styles.subSection}>
                                     <span className={styles.subSectionLabel}>Home Features</span>

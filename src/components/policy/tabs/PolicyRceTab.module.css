@@ -145,9 +145,17 @@
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    padding: 0.25rem 0;
+    padding: 0.3rem 0.5rem;
     gap: 0.75rem;
     min-width: 0;
+    border-radius: 0.25rem;
+}
+
+/* Zebra striping — odd rows get subtle background */
+.cardBody > .field:nth-child(odd),
+.fieldGrid > .field:nth-child(odd),
+.cardBody > .structuredField:nth-child(odd) {
+    background: rgba(128, 128, 128, 0.04);
 }
 
 .fieldLabel {
@@ -177,6 +185,58 @@
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 0 1.5rem;
+}
+
+/* ═══ Structured Fields (JSON objects rendered as sub-rows) ═══ */
+.structuredField {
+    padding: 0.3rem 0.5rem;
+    border-radius: 0.25rem;
+    min-width: 0;
+}
+
+.structuredLabel {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin-bottom: 0.2rem;
+}
+
+.structuredRows {
+    display: flex;
+    flex-direction: column;
+}
+
+.structuredRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 0.2rem 0.4rem;
+    gap: 0.5rem;
+    border-radius: 0.2rem;
+}
+
+.structuredRow:nth-child(odd) {
+    background: rgba(128, 128, 128, 0.05);
+}
+
+.structuredKey {
+    font-size: 0.74rem;
+    font-weight: 500;
+    color: var(--text-mid);
+    flex-shrink: 0;
+}
+
+.structuredVal {
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: var(--text-high);
+    text-align: right;
+    min-width: 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 /* ═══ Layout Grids ═══ */
@@ -223,16 +283,20 @@
 .breakdownList {
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
 }
 
 .breakdownItem {
     font-size: 0.78rem;
     color: var(--text-mid);
-    padding: 0.15rem 0;
+    padding: 0.3rem 0.5rem;
     line-height: 1.4;
     overflow-wrap: break-word;
     word-break: break-word;
+    border-radius: 0.25rem;
+}
+
+.breakdownItem:nth-child(odd) {
+    background: rgba(128, 128, 128, 0.04);
 }
 
 /* ═══ Document Info Footer ═══ */
