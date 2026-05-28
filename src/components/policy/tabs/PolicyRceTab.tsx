@@ -4,7 +4,7 @@ import React from 'react';
 import { Declaration, PropertyEnrichment, RceDocData } from '@/lib/api';
 import { normalizeInputs, calculateEstimate } from '@/lib/rce/InterimEstimator';
 import { InterimRceWidget } from '../InterimRceWidget';
-import { Shield, FileText, AlertCircle, Home, DollarSign, Hammer, Layers, Thermometer, Warehouse, Calendar, CheckCircle2 } from 'lucide-react';
+import { Shield, FileText, AlertCircle, Home, DollarSign, Hammer, Layers, Thermometer, Warehouse, Calendar } from 'lucide-react';
 import { Card } from '@/components/ui/Card/Card';
 import styles from '../PolicyDashboard.module.css';
 
@@ -119,37 +119,18 @@ export function PolicyRceTab({ declaration, enrichments = [], rceDocData = [] }:
             </h2>
 
             <div style={{ maxWidth: '900px' }}>
-                {/* Interim RCE Widget — the modeled estimate */}
-                <div style={{ marginBottom: '1.5rem' }}>
-                    <InterimRceWidget estimate={rceEstimate} />
-                </div>
+                {/* Interim RCE Widget — only show when NO actual RCE document is uploaded */}
+                {!hasRceDocData && (
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        <InterimRceWidget estimate={rceEstimate} />
+                    </div>
+                )}
 
                 {/* ══════════════════════════════════════════════════════════ */}
                 {/* 360Value RCE Document Data                               */}
                 {/* ══════════════════════════════════════════════════════════ */}
                 {hasRceDocData ? (
                     <>
-                        {/* Source Banner */}
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.6rem',
-                            padding: '0.65rem 1rem',
-                            background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.08), rgba(59, 130, 246, 0.06))',
-                            borderRadius: '8px',
-                            border: '1px solid rgba(34, 197, 94, 0.2)',
-                            marginBottom: '1rem',
-                        }}>
-                            <CheckCircle2 size={16} style={{ color: '#22c55e', flexShrink: 0 }} />
-                            <div style={{ flex: 1 }}>
-                                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-high)' }}>
-                                    360Value RCE Document Loaded
-                                </span>
-                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.75rem' }}>
-                                    {rce!.file_name || 'RCE Report'} · {rce!.date_calculated || rce!.date_entered || new Date(rce!.created_at).toLocaleDateString()}
-                                </span>
-                            </div>
-                        </div>
 
                         {/* ── Replacement Cost Summary ── */}
                         <Card className={styles.card} style={{ marginBottom: '1rem' }}>
