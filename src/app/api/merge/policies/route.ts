@@ -142,6 +142,30 @@ export async function POST(req: Request) {
             .from('property_enrichments')
             .update({ policy_id: survivor_id })
             .eq('policy_id', merged_id);
+
+        // 4c. Remap Platform Documents (RCE, DIC, etc.)
+        const { error: docsError } = await supabaseAdmin
+            .from('platform_documents')
+            .update({ policy_id: survivor_id })
+            .eq('policy_id', merged_id);
+
+        // 4d. Remap Policy Reports
+        const { error: reportsError } = await supabaseAdmin
+            .from('policy_reports')
+            .update({ policy_id: survivor_id })
+            .eq('policy_id', merged_id);
+
+        // 4e. Remap Activity Events
+        const { error: activityError } = await supabaseAdmin
+            .from('activity_events')
+            .update({ policy_id: survivor_id })
+            .eq('policy_id', merged_id);
+
+        // 4f. Remap Manual Overrides
+        const { error: overridesError } = await supabaseAdmin
+            .from('manual_overrides')
+            .update({ policy_id: survivor_id })
+            .eq('policy_id', merged_id);
         // 5. Delete Duplicate Policy Record
         const { error: delError } = await supabaseAdmin
             .from('policies')
