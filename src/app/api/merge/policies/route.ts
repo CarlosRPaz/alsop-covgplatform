@@ -37,12 +37,43 @@ export async function POST(req: Request) {
         }
 
         // 2. Remap Policy Terms lineage to Survivor
-        const { error: termsError } = await supabaseAdmin
+        const { data: survivorTerms, error: errSurvTerms } = await supabaseAdmin
             .from('policy_terms')
-            .update({ policy_id: survivor_id })
+            .select('id, effective_date, expiration_date')
+            .eq('policy_id', survivor_id);
+
+        const { data: duplicateTerms, error: errDupTerms } = await supabaseAdmin
+            .from('policy_terms')
+            .select('id, effective_date, expiration_date')
             .eq('policy_id', merged_id);
 
-        if (termsError) throw termsError;
+        if (errSurvTerms) throw errSurvTerms;
+        if (errDupTerms) throw errDupTerms;
+
+        if (duplicateTerms && duplicateTerms.length > 0) {
+            for (const dupTerm of duplicateTerms) {
+                // Check if survivor already has a term with exact same dates
+                const collision = survivorTerms?.find(st => 
+                    st.effective_date === dupTerm.effective_date && 
+                    st.expiration_date === dupTerm.expiration_date
+                );
+
+                if (collision) {
+                    const targetTermId = collision.id;
+                    const oldTermId = dupTerm.id;
+                    
+                    // Reparent any child records that use policy_term_id to avoid FK issues
+                    await supabaseAdmin.from('dec_pages').update({ policy_term_id: targetTermId }).eq('policy_term_id', oldTermId);
+                    await supabaseAdmin.from('policy_flags').update({ policy_term_id: targetTermId }).eq('policy_term_id', oldTermId);
+
+                    // Delete the colliding duplicate term so we don't violate the constraint when updating policy_id
+                    await supabaseAdmin.from('policy_terms').delete().eq('id', oldTermId);
+                } else {
+                    // No collision: move term to the survivor policy
+                    await supabaseAdmin.from('policy_terms').update({ policy_id: survivor_id }).eq('id', dupTerm.id);
+                }
+            }
+        }
 
         // 2b. Recalculate is_current for the survivor — after merging,
         // multiple terms may have is_current=true. Fix: only the term
@@ -120,13 +151,16 @@ export async function POST(req: Request) {
         if (delError) throw delError;
 
         // 6. Log Audit Trail natively
+        const isValidUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        const safePerformedBy = performed_by && isValidUuid(performed_by) ? performed_by : null;
+
         await supabaseAdmin
             .from('merge_logs')
             .insert({
                 entity_type: 'policy',
                 survivor_id,
                 merged_id,
-                performed_by: performed_by || null,
+                performed_by: safePerformedBy,
                 merge_details: {
                     survivor_state: survivor,
                     duplicate_state: duplicate
