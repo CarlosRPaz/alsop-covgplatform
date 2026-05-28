@@ -36,15 +36,28 @@ export async function POST(req: Request) {
             console.warn(`Merging distinct policy strings: ${survivor.policy_number} vs ${duplicate.policy_number}`);
         }
 
+        // Helper function to pick the carrier policy number with a suffix (e.g. "CFP 0101772837 08") over one without.
+        const chooseCarrierPolicyNumber = (
+            surv: string | null | undefined,
+            dup: string | null | undefined
+        ): string | null => {
+            if (!surv) return dup || null;
+            if (!dup) return surv || null;
+            const survHasSuffix = /\s\d{2}$/.test(surv);
+            const dupHasSuffix = /\s\d{2}$/.test(dup);
+            if (dupHasSuffix && !survHasSuffix) return dup;
+            return surv;
+        };
+
         // 2. Remap Policy Terms lineage to Survivor
         const { data: survivorTerms, error: errSurvTerms } = await supabaseAdmin
             .from('policy_terms')
-            .select('id, effective_date, expiration_date')
+            .select('id, effective_date, expiration_date, carrier_policy_number')
             .eq('policy_id', survivor_id);
 
         const { data: duplicateTerms, error: errDupTerms } = await supabaseAdmin
             .from('policy_terms')
-            .select('id, effective_date, expiration_date')
+            .select('id, effective_date, expiration_date, carrier_policy_number')
             .eq('policy_id', merged_id);
 
         if (errSurvTerms) throw errSurvTerms;
@@ -58,6 +71,8 @@ export async function POST(req: Request) {
                     st.expiration_date === dupTerm.expiration_date
                 );
 
+                const finalCarrierPolicyNumber = dupTerm.carrier_policy_number || duplicate.policy_number;
+
                 if (collision) {
                     const targetTermId = collision.id;
                     const oldTermId = dupTerm.id;
@@ -66,11 +81,24 @@ export async function POST(req: Request) {
                     await supabaseAdmin.from('dec_pages').update({ policy_term_id: targetTermId }).eq('policy_term_id', oldTermId);
                     await supabaseAdmin.from('policy_flags').update({ policy_term_id: targetTermId }).eq('policy_term_id', oldTermId);
 
+                    // Update survivor's collision term with the best carrier policy number
+                    const targetCarrier = chooseCarrierPolicyNumber(collision.carrier_policy_number, finalCarrierPolicyNumber);
+                    if (targetCarrier) {
+                        await supabaseAdmin.from('policy_terms')
+                            .update({ carrier_policy_number: targetCarrier })
+                            .eq('id', targetTermId);
+                    }
+
                     // Delete the colliding duplicate term so we don't violate the constraint when updating policy_id
                     await supabaseAdmin.from('policy_terms').delete().eq('id', oldTermId);
                 } else {
-                    // No collision: move term to the survivor policy
-                    await supabaseAdmin.from('policy_terms').update({ policy_id: survivor_id }).eq('id', dupTerm.id);
+                    // No collision: move term to the survivor policy and set carrier_policy_number
+                    await supabaseAdmin.from('policy_terms')
+                        .update({ 
+                            policy_id: survivor_id,
+                            carrier_policy_number: finalCarrierPolicyNumber
+                        })
+                        .eq('id', dupTerm.id);
                 }
             }
         }

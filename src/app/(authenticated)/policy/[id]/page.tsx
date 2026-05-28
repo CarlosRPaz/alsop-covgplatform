@@ -564,6 +564,23 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                             </span>
                         </div>
 
+                        {policyDetailRaw?.previous_policy_number && (
+                            <div style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '0.2rem 0.6rem',
+                                background: 'rgba(148, 163, 184, 0.08)',
+                                border: '1px solid rgba(148, 163, 184, 0.2)',
+                                borderRadius: '6px',
+                                fontSize: '0.8rem',
+                                fontWeight: 500,
+                                color: 'var(--text-mid)',
+                                whiteSpace: 'nowrap',
+                            }}>
+                                Prev: {policyDetailRaw.previous_policy_number}
+                            </div>
+                        )}
+
                         {/* Property Address */}
                         {policyDetailRaw?.property_address && (
                             <span style={{

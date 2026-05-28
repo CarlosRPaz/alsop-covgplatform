@@ -80,8 +80,9 @@ export function TermHistoryPanel({ terms, activeTermId, policyNumber, onSelectTe
                     const isTheActiveTerm = term.id === computedActiveId;
                     const expired = isExpired(term);
                     const isSelected = activeTermId === term.id;
-                    const hasSuffix = !!term.source_policy_number;
-
+                    const termDisplayPolicyNumber = term.carrier_policy_number || term.source_policy_number;
+                    const hasDifferentPolicyNumber = !!termDisplayPolicyNumber && termDisplayPolicyNumber !== policyNumber;
+ 
                     return (
                         <div
                             key={term.id}
@@ -95,7 +96,7 @@ export function TermHistoryPanel({ terms, activeTermId, policyNumber, onSelectTe
                                 </div>
                                 {idx < terms.length - 1 && <div className={styles.timelineLine} />}
                             </div>
-
+ 
                             {/* Card content */}
                             <div className={styles.termContent}>
                                 {/* Badge row */}
@@ -122,19 +123,19 @@ export function TermHistoryPanel({ terms, activeTermId, policyNumber, onSelectTe
                                             Dec Page
                                         </span>
                                     )}
-                                    {hasSuffix && (
+                                    {hasDifferentPolicyNumber && (
                                         <span className={styles.mergedChip}>
                                             <GitMerge size={9} />
-                                            Merged from {term.source_policy_number}
+                                            {term.carrier_policy_number ? 'Term Policy No: ' : 'Merged from '}{termDisplayPolicyNumber}
                                         </span>
                                     )}
                                 </div>
-
+ 
                                 {/* Policy number row (when it has a different suffix/variant) */}
-                                {hasSuffix && (
+                                {hasDifferentPolicyNumber && (
                                     <div className={styles.policyNumberRow}>
                                         <span className={styles.policyNumberVariant}>
-                                            {term.source_policy_number}
+                                            {termDisplayPolicyNumber}
                                         </span>
                                     </div>
                                 )}

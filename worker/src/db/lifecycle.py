@@ -197,6 +197,7 @@ def upsert_policy_term(
     annual_premium: str | None = None,
     coverage_data: dict | None = None,
     source_dec_page_id: str | None = None,
+    carrier_policy_number: str | None = None,
 ) -> str:
     """
     Upsert a policy_term by policy_id + dates.
@@ -234,6 +235,8 @@ def upsert_policy_term(
         "expiration_date": expiration_date,
         "updated_at": now_iso,
     }
+    if carrier_policy_number:
+        payload["carrier_policy_number"] = carrier_policy_number
     if date_issued:
         payload["date_issued"] = date_issued
     if premium_numeric is not None:
@@ -353,6 +356,7 @@ def process_lifecycle(
             annual_premium=annual_premium,
             coverage_data=coverage_data,
             source_dec_page_id=dec_page_id,
+            carrier_policy_number=policy_number,
         )
         result_ids["policy_term_id"] = term_id
 

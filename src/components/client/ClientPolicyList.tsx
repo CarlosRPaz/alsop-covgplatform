@@ -82,7 +82,14 @@ export function ClientPolicyList({ clientId }: ClientPolicyListProps) {
                                 onClick={() => router.push(`/policy/${policy.id}`)}
                             >
                                 <td className={styles.td}>
-                                    <span className={styles.policyNumber}>{policy.policy_number}</span>
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span className={styles.policyNumber}>{policy.policy_number}</span>
+                                        {policy.previous_policy_number && (
+                                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                                                Prev: {policy.previous_policy_number}
+                                            </span>
+                                        )}
+                                    </div>
                                 </td>
                                 <td className={styles.td}>{policy.property_address}</td>
                                 <td className={styles.td}>

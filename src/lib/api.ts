@@ -105,6 +105,8 @@ export interface Declaration {
     property_location: string;
     // Policy Metadata
     policy_number: string;
+    carrier_policy_number?: string;
+    previous_policy_number?: string;
     date_issued: string;
     policy_period_start: string;
     policy_period_end: string;
@@ -208,6 +210,7 @@ export interface PolicyRow {
 export interface PolicyTermRow {
     id: string;
     policy_id: string;
+    carrier_policy_number?: string;
     effective_date?: string;
     expiration_date?: string;
     date_issued?: string;
@@ -345,6 +348,8 @@ export interface DashboardPolicy {
     // Policy fields
     id: string;               // policies.id
     policy_number: string;
+    carrier_policy_number?: string;
+    previous_policy_number?: string;
     property_address: string;
     status: string;
     carrier_name?: string;
@@ -655,7 +660,8 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
                         is_current,
                         payment_status,
                         payment_plan,
-                        policy_activity
+                        policy_activity,
+                        carrier_policy_number
                     )
                 `)
                 .eq('clients.is_demo', false);
@@ -724,13 +730,31 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
             // clients is an object (inner join, one-to-one via FK)
             const client = row.clients;
             // policy_terms is an array; find the current term
-            const terms: Array<{ id: string; effective_date?: string; expiration_date?: string; annual_premium?: number; is_current?: boolean; payment_status?: string; payment_plan?: string; policy_activity?: string; }> = row.policy_terms || [];
+            const terms: Array<{ id: string; effective_date?: string; expiration_date?: string; annual_premium?: number; is_current?: boolean; payment_status?: string; payment_plan?: string; policy_activity?: string; carrier_policy_number?: string; }> = row.policy_terms || [];
             const currentTerm = terms.find(t => t.is_current === true) || terms[0] || null;
             const flagInfo = flagMap.get(row.id) || { count: 0, severity: undefined, flags: [] };
 
+            // Sort terms by effective_date descending (newest first)
+            const sortedTerms = [...terms].sort((a: any, b: any) => {
+                const da = a.effective_date ? new Date(a.effective_date).getTime() : 0;
+                const db = b.effective_date ? new Date(b.effective_date).getTime() : 0;
+                return db - da;
+            });
+            const currentTermSorted = sortedTerms.find((t: any) => t.id === currentTerm?.id) || sortedTerms[0];
+
+            const displayPolicyNum = currentTermSorted?.carrier_policy_number || row.policy_number || 'N/A';
+
+            // Find previous term
+            const currentTermIndex = sortedTerms.findIndex((t: any) => t.id === currentTermSorted?.id);
+            const previousTerm = currentTermIndex !== -1 && currentTermIndex < sortedTerms.length - 1
+                ? sortedTerms[currentTermIndex + 1]
+                : (sortedTerms.length > 1 ? sortedTerms.find((t: any) => t.id !== currentTermSorted?.id) : null);
+
             return {
                 id: row.id,
-                policy_number: row.policy_number || 'N/A',
+                policy_number: displayPolicyNum,
+                carrier_policy_number: currentTermSorted?.carrier_policy_number,
+                previous_policy_number: previousTerm?.carrier_policy_number,
                 property_address: row.property_address_raw || row.property_address_norm || 'No address',
                 status: row.status || 'unknown',
                 carrier_name: row.carrier_name || undefined,
@@ -739,15 +763,15 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
                 client_email: client?.email || undefined,
                 client_phone: client?.phone || undefined,
                 mailing_address: client?.mailing_address_raw || undefined,
-                policy_term_id: currentTerm?.id || undefined,
-                effective_date: currentTerm?.effective_date || undefined,
-                expiration_date: currentTerm?.expiration_date || undefined,
-                annual_premium: currentTerm?.annual_premium != null
-                    ? `$${Number(currentTerm.annual_premium).toLocaleString()}`
+                policy_term_id: currentTermSorted?.id || undefined,
+                effective_date: currentTermSorted?.effective_date || undefined,
+                expiration_date: currentTermSorted?.expiration_date || undefined,
+                annual_premium: currentTermSorted?.annual_premium != null
+                    ? `$${Number(currentTermSorted.annual_premium).toLocaleString()}`
                     : undefined,
-                payment_status: currentTerm?.payment_status || undefined,
-                payment_plan: currentTerm?.payment_plan || undefined,
-                policy_activity: currentTerm?.policy_activity || undefined,
+                payment_status: currentTermSorted?.payment_status || undefined,
+                payment_plan: currentTermSorted?.payment_plan || undefined,
+                policy_activity: currentTermSorted?.policy_activity || undefined,
                 flag_count: flagInfo.count,
                 highest_severity: flagInfo.severity,
                 flags: flagInfo.flags || [],
@@ -780,6 +804,7 @@ export interface PolicyTermSummary {
     deductible?: string;
     source_dec_page_id?: string;
     source_policy_number?: string;
+    carrier_policy_number?: string;
     created_at?: string;
 }
 
@@ -787,6 +812,8 @@ export interface PolicyDetail {
     // Policy
     id: string;
     policy_number: string;
+    carrier_policy_number?: string;
+    previous_policy_number?: string;
     property_address: string;
     carrier_name?: string;
     status: string;
@@ -914,6 +941,7 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
                     date_issued,
                     annual_premium,
                     is_current,
+                    carrier_policy_number,
                     source_dec_page_id,
                     approved_at,
                     deductible,
@@ -1000,6 +1028,7 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
                 limit_dwelling: t.limit_dwelling,
                 deductible: t.deductible,
                 source_dec_page_id: t.source_dec_page_id,
+                carrier_policy_number: t.carrier_policy_number,
                 created_at: t.created_at,
             }))
             .sort((a: PolicyTermSummary, b: PolicyTermSummary) => {
@@ -1037,12 +1066,22 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
         // dec page with a suffixed policy number (e.g. "CFP 0102162693 02"),
         // show that instead of the base policy number.
         const currentTermSorted = allTermsSorted.find(t => t.id === currentTerm?.id);
-        const displayPolicyNumber = currentTermSorted?.source_policy_number
-            || row.policy_number || 'N/A';
+        const displayPolicyNumber = currentTermSorted?.carrier_policy_number
+            || currentTermSorted?.source_policy_number
+            || row.policy_number
+            || 'N/A';
+
+        // Find the previous term
+        const currentTermIndex = allTermsSorted.findIndex(t => t.id === currentTerm?.id);
+        const previousTerm = currentTermIndex !== -1 && currentTermIndex < allTermsSorted.length - 1
+            ? allTermsSorted[currentTermIndex + 1]
+            : (allTermsSorted.length > 1 ? allTermsSorted.find(t => t.id !== currentTerm?.id) : null);
 
         return {
             id: row.id,
             policy_number: displayPolicyNumber,
+            carrier_policy_number: currentTermSorted?.carrier_policy_number,
+            previous_policy_number: previousTerm?.carrier_policy_number || previousTerm?.source_policy_number,
             property_address: row.property_address_raw || row.property_address_norm || 'No address',
             carrier_name: row.carrier_name || undefined,
             status: row.status || 'unknown',
@@ -1293,7 +1332,8 @@ export async function fetchPoliciesByClientId(clientId: string): Promise<Dashboa
                     expiration_date,
                     annual_premium,
                     is_current,
-                    source_dec_page_id
+                    source_dec_page_id,
+                    carrier_policy_number
                 ),
                 policy_flags (
                     id,
@@ -1351,16 +1391,37 @@ export async function fetchPoliciesByClientId(clientId: string): Promise<Dashboa
             );
             const highestSev = sortedFlags.length > 0 ? sortedFlags[0].severity : undefined;
 
-            // Resolve display policy number from current term's dec page
-            let displayPolicyNum = row.policy_number || 'N/A';
-            if (currentTerm?.source_dec_page_id) {
-                const decPageNum = decPagePolicyMap.get(currentTerm.source_dec_page_id);
+            // Sort terms by effective_date descending (newest first)
+            const sortedTerms = [...terms].sort((a: any, b: any) => {
+                const da = a.effective_date ? new Date(a.effective_date).getTime() : 0;
+                const db = b.effective_date ? new Date(b.effective_date).getTime() : 0;
+                return db - da;
+            });
+            const currentTermSorted = sortedTerms.find((t: any) => t.id === currentTerm?.id) || sortedTerms[0];
+
+            // Resolve display policy number from current term's dec page or carrier_policy_number
+            let displayPolicyNum = currentTermSorted?.carrier_policy_number || row.policy_number || 'N/A';
+            if (!currentTermSorted?.carrier_policy_number && currentTermSorted?.source_dec_page_id) {
+                const decPageNum = decPagePolicyMap.get(currentTermSorted.source_dec_page_id);
                 if (decPageNum) displayPolicyNum = decPageNum;
+            }
+
+            // Find the previous term
+            const currentTermIndex = sortedTerms.findIndex((t: any) => t.id === currentTermSorted?.id);
+            const previousTerm = currentTermIndex !== -1 && currentTermIndex < sortedTerms.length - 1
+                ? sortedTerms[currentTermIndex + 1]
+                : (sortedTerms.length > 1 ? sortedTerms.find((t: any) => t.id !== currentTermSorted?.id) : null);
+
+            let previousPolicyNum: string | undefined = previousTerm?.carrier_policy_number;
+            if (!previousPolicyNum && previousTerm?.source_dec_page_id) {
+                previousPolicyNum = decPagePolicyMap.get(previousTerm.source_dec_page_id);
             }
 
             return {
                 id: row.id,
                 policy_number: displayPolicyNum,
+                carrier_policy_number: currentTermSorted?.carrier_policy_number,
+                previous_policy_number: previousPolicyNum,
                 property_address: row.property_address_raw || 'No address',
                 status: row.status || 'unknown',
                 carrier_name: row.carrier_name || undefined,
@@ -1369,11 +1430,11 @@ export async function fetchPoliciesByClientId(clientId: string): Promise<Dashboa
                 client_email: client?.email || undefined,
                 client_phone: client?.phone || undefined,
                 mailing_address: client?.mailing_address_raw || undefined,
-                policy_term_id: currentTerm?.id || undefined,
-                effective_date: currentTerm?.effective_date || undefined,
-                expiration_date: currentTerm?.expiration_date || undefined,
-                annual_premium: currentTerm?.annual_premium != null
-                    ? `$${Number(currentTerm.annual_premium).toLocaleString()}`
+                policy_term_id: currentTermSorted?.id || undefined,
+                effective_date: currentTermSorted?.effective_date || undefined,
+                expiration_date: currentTermSorted?.expiration_date || undefined,
+                annual_premium: currentTermSorted?.annual_premium != null
+                    ? `$${Number(currentTermSorted.annual_premium).toLocaleString()}`
                     : undefined,
                 created_at: row.created_at,
                 flag_count: sortedFlags.length,

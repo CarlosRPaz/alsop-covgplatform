@@ -189,7 +189,8 @@ export async function upsertPolicyTerm(
     policyId: string,
     effectiveDate: string | null,
     expirationDate: string | null,
-    annualPremium: number | null
+    annualPremium: number | null,
+    carrierPolicyNumber?: string
 ): Promise<string> {
     const admin = getSupabaseAdmin();
 
@@ -214,13 +215,15 @@ export async function upsertPolicyTerm(
 
     if (existing && !findError) {
         logger.info('Ingest', 'Found existing policy term', { termId: existing.id });
-        // Update premium if provided
-        if (annualPremium != null) {
-            await admin
-                .from('policy_terms')
-                .update({ annual_premium: annualPremium, updated_at: new Date().toISOString() })
-                .eq('id', existing.id);
-        }
+        // Update premium/carrier policy number if provided
+        const updatePayload: any = { updated_at: new Date().toISOString() };
+        if (annualPremium != null) updatePayload.annual_premium = annualPremium;
+        if (carrierPolicyNumber) updatePayload.carrier_policy_number = carrierPolicyNumber;
+
+        await admin
+            .from('policy_terms')
+            .update(updatePayload)
+            .eq('id', existing.id);
         return existing.id;
     }
 
@@ -232,6 +235,7 @@ export async function upsertPolicyTerm(
             effective_date: effectiveDate,
             expiration_date: expirationDate,
             annual_premium: annualPremium,
+            carrier_policy_number: carrierPolicyNumber,
             is_current: false, // Will be set after
         })
         .select('id')
@@ -361,7 +365,7 @@ export async function ingestDecPage(
     const effectiveDate = parseDateSafe(fields.policy_period_start);
     const expirationDate = parseDateSafe(fields.policy_period_end);
     const premium = parsePremium(fields.total_annual_premium);
-    const policyTermId = await upsertPolicyTerm(policyId, effectiveDate, expirationDate, premium);
+    const policyTermId = await upsertPolicyTerm(policyId, effectiveDate, expirationDate, premium, policyNumber);
 
     // 5. Link dec_pages row with relational IDs
     const { error: linkError } = await admin
