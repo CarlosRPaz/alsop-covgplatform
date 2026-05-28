@@ -151,11 +151,18 @@
     border-radius: 0.25rem;
 }
 
-/* Zebra striping — odd rows get subtle background */
+/* Zebra striping — 1-column layout defaults */
 .cardBody > .field:nth-child(odd),
-.fieldGrid > .field:nth-child(odd),
 .cardBody > .structuredField:nth-child(odd) {
-    background: rgba(128, 128, 128, 0.04);
+    background: rgba(128, 128, 128, 0.08);
+}
+
+/* Zebra striping for 2-column fieldGrid — stripe by rows (1,2 and 5,6) */
+.fieldGrid > .field:nth-child(4n+1),
+.fieldGrid > .field:nth-child(4n+2),
+.fieldGrid > .structuredField:nth-child(4n+1),
+.fieldGrid > .structuredField:nth-child(4n+2) {
+    background: rgba(128, 128, 128, 0.08);
 }
 
 .fieldLabel {
@@ -219,7 +226,7 @@
 }
 
 .structuredRow:nth-child(odd) {
-    background: rgba(128, 128, 128, 0.05);
+    background: rgba(128, 128, 128, 0.08);
 }
 
 .structuredKey {
@@ -296,7 +303,7 @@
 }
 
 .breakdownItem:nth-child(odd) {
-    background: rgba(128, 128, 128, 0.04);
+    background: rgba(128, 128, 128, 0.08);
 }
 
 /* ═══ Document Info Footer ═══ */
@@ -370,6 +377,16 @@
 
     .fieldGrid {
         grid-template-columns: 1fr;
+    }
+
+    /* Revert 2-column striping to 1-column striping on mobile */
+    .fieldGrid > .field:nth-child(even),
+    .fieldGrid > .structuredField:nth-child(even) {
+        background: transparent;
+    }
+    .fieldGrid > .field:nth-child(odd),
+    .fieldGrid > .structuredField:nth-child(odd) {
+        background: rgba(128, 128, 128, 0.08);
     }
 
     .triGrid {
