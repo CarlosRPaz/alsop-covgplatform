@@ -44,3 +44,11 @@ next-env.d.ts
 worker/.env
 worker/.venv/
 **/__pycache__/
+
+# scratch / throwaway scripts (never commit these)
+scratch/
+tmp_*
+test_*
+scratch_*
+*_check_*
+*.csv
