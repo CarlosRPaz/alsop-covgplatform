@@ -697,7 +697,7 @@ def match_candidates_for_review(
                     # Already found by name — upgrade match_source to 'both'
                     p_norm = p.get("property_address_norm", "")
                     if p_norm:
-                        addr_sim = _similarity(norm_address, p_norm)
+                        addr_sim = _similarity(norm_address, normalize_address(p_norm) or p_norm)
                         if addr_sim >= 0.80:
                             for c in candidates:
                                 if c["policy_id"] == p["id"]:
@@ -709,7 +709,7 @@ def match_candidates_for_review(
                 p_norm = p.get("property_address_norm", "")
                 if not p_norm:
                     continue
-                addr_sim = _similarity(norm_address, p_norm)
+                addr_sim = _similarity(norm_address, normalize_address(p_norm) or p_norm)
                 if addr_sim >= 0.80:
                     addr_hits += 1
                     client_name = None
@@ -757,18 +757,18 @@ def match_candidates_for_review(
     candidates = candidates[:10]
 
     # ── Filter: remove weak candidates ───────────────────────────────
-    # To survive with a bad name match (<0.50), the address must be near-perfect (≥0.95).
-    # To survive with a bad address match (<0.95), the name must be at least recognizable (≥0.50).
+    # To survive with a bad name match (<0.50), the address must be strong (≥0.90).
+    # To survive with a bad address match (<0.90), the name must be at least recognizable (≥0.50).
     pre_filter_count = len(candidates)
     candidates = [
         c for c in candidates
-        if c["name_similarity"] >= 0.50 or c["address_similarity"] >= 0.95
+        if c["name_similarity"] >= 0.50 or c["address_similarity"] >= 0.90
     ]
     filtered_out = pre_filter_count - len(candidates)
     if filtered_out:
         log_step(
             "filter_weak", "filtered",
-            f"Removed {filtered_out} weak candidate(s) (name<0.50 AND address<0.95)",
+            f"Removed {filtered_out} weak candidate(s) (name<0.50 AND address<0.90)",
             {"before": pre_filter_count, "after": len(candidates)},
         )
 
