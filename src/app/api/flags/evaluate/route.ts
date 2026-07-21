@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
 import { normalizeInputs, calculateEstimate } from '@/lib/rce/InterimEstimator';
 import { logger } from '@/lib/logger';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 
 /**
  * POST /api/flags/evaluate
@@ -493,6 +494,9 @@ async function detectSchema(sb: ReturnType<typeof getSupabaseAdmin>): Promise<bo
 // ── Main handler ─────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
+    const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+    if (isAuthError(auth)) return auth;
+
     const errors: string[] = [];
 
     try {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
 import { logger } from '@/lib/logger';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 
 function normalizeAddress(raw: string | null): string | null {
     if (!raw) return null;
@@ -24,11 +25,10 @@ function normalizeAddress(raw: string | null): string | null {
  *   5. Re-queues for processing on the new policy
  */
 export async function POST(request: NextRequest) {
+    const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+    if (isAuthError(auth)) return auth;
+
     try {
-        const authHeader = request.headers.get('Authorization');
-        if (!authHeader?.startsWith('Bearer ')) {
-            return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-        }
 
         let body: {
             documentId: string;

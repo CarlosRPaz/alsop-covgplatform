@@ -11,6 +11,7 @@ import {
     getTemplateReplyTo,
     renderTemplate,
 } from '@/lib/emailTemplates';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 
 /**
  * POST /api/email/send
@@ -40,6 +41,9 @@ import {
  * }
  */
 export async function POST(req: NextRequest) {
+    const auth = await authenticateRequest(req, { requiredRole: ['admin', 'service'] });
+    if (isAuthError(auth)) return auth;
+
     try {
         const body = await req.json();
         const {
@@ -82,7 +86,7 @@ export async function POST(req: NextRequest) {
                     reportId,
                 });
 
-                return NextResponse.json(result);
+                return NextResponse.json(result, { status: result.success ? 200 : 502 });
             }
 
             // ── Inline render fallback (template has no Postmark alias) ──

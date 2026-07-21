@@ -92,4 +92,16 @@ export const env = {
     get ATTOM_API_KEY(): string | undefined {
         return process.env.ATTOM_API_KEY;
     },
+
+    // ── Internal API ──
+
+    /**
+     * Shared secret for worker → API service-to-service calls.
+     * The Python worker sends this via `X-Internal-Key` header.
+     * Set in .env.local (server-side only, never expose to browser).
+     * Returns empty string if not set (internal-key auth path is skipped).
+     */
+    get INTERNAL_API_KEY(): string {
+        return process.env.INTERNAL_API_KEY || '';
+    },
 } as const;

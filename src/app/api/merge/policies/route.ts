@@ -1,11 +1,16 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+    const auth = await authenticateRequest(req, { requiredRole: ['admin', 'service'] });
+    if (isAuthError(auth)) return auth;
+
     const supabaseAdmin = getSupabaseAdmin();
     try {
         const body = await req.json();
-        const { survivor_id, merged_id, performed_by } = body;
+        const { survivor_id, merged_id } = body;
+        const performed_by = auth.user.id;
 
         if (!survivor_id || !merged_id) {
             return NextResponse.json({ error: 'survivor_id and merged_id are required' }, { status: 400 });

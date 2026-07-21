@@ -368,6 +368,10 @@ export interface DashboardPolicy {
     flag_count: number;
     highest_severity?: 'high' | 'medium' | 'low';
     flags: Array<{ code: string; title: string; severity: string }>;
+    // Document presence
+    has_dec_page: boolean;
+    has_rce: boolean;
+    has_dic: boolean;
     // Metadata
     created_at?: string;
     // Enrichment status
@@ -623,19 +627,7 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
         const PAGE_SIZE = 1000;
         const IN_CHUNK = 200;
 
-        // Paginate through ALL policies (Supabase default limit is 1000)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let allData: any[] = [];
-        let page = 0;
-        let hasMore = true;
-
-        while (hasMore) {
-            const from = page * PAGE_SIZE;
-            const to = from + PAGE_SIZE - 1;
-
-            let query = supabase
-                .from('policies')
-                .select(`
+        const buildDashboardTermSelect = (includeCarrierCol: boolean) => `
                     id,
                     policy_number,
                     property_address_raw,
@@ -660,20 +652,53 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
                         is_current,
                         payment_status,
                         payment_plan,
-                        policy_activity,
-                        carrier_policy_number
+                        policy_activity${includeCarrierCol ? ',\n                        carrier_policy_number' : ''}
                     )
-                `)
+                `;
+
+        // Paginate through ALL policies (Supabase default limit is 1000)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let allData: any[] = [];
+        let page = 0;
+        let hasMore = true;
+        let includeCarrierPolicyNumber = true;
+
+        while (hasMore) {
+            const from = page * PAGE_SIZE;
+            const to = from + PAGE_SIZE - 1;
+
+            let query = supabase
+                .from('policies')
+                .select(buildDashboardTermSelect(includeCarrierPolicyNumber))
                 .eq('clients.is_demo', false);
 
             for (const inactiveStatus of INACTIVE_STATUSES) {
                 query = query.neq('status', inactiveStatus);
             }
 
-            const { data: pageData, error } = await query
+            let { data: pageData, error } = await query
                 .order('created_at', { ascending: false })
                 .order('id', { ascending: true })
                 .range(from, to);
+
+            // Fallback: if carrier_policy_number column doesn't exist yet, retry without it
+            if (error && error.message?.includes('does not exist') && includeCarrierPolicyNumber) {
+                logger.warn('API', 'carrier_policy_number column not found, retrying without it. Run scripts/add_carrier_policy_number.sql');
+                includeCarrierPolicyNumber = false;
+                let retryQuery = supabase
+                    .from('policies')
+                    .select(buildDashboardTermSelect(false))
+                    .eq('clients.is_demo', false);
+                for (const inactiveStatus of INACTIVE_STATUSES) {
+                    retryQuery = retryQuery.neq('status', inactiveStatus);
+                }
+                const retryResult = await retryQuery
+                    .order('created_at', { ascending: false })
+                    .order('id', { ascending: true })
+                    .range(from, to);
+                pageData = retryResult.data;
+                error = retryResult.error;
+            }
 
             if (error) {
                 logger.error('API', 'Error fetching dashboard policies', {
@@ -722,6 +747,41 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
             }
         } catch {
             // Non-fatal: if enrichment check fails, all show as unenriched
+        }
+
+        // Batch-fetch document presence (dec_pages + platform_documents)
+        const decPageSet = new Set<string>();
+        const rceSet = new Set<string>();
+        const dicSet = new Set<string>();
+        try {
+            for (let i = 0; i < policyIds.length; i += IN_CHUNK) {
+                const chunk = policyIds.slice(i, i + IN_CHUNK);
+                const { data: decRows } = await supabase
+                    .from('dec_pages')
+                    .select('policy_id')
+                    .in('policy_id', chunk);
+                if (decRows) {
+                    for (const row of decRows) {
+                        decPageSet.add(row.policy_id);
+                    }
+                }
+            }
+            for (let i = 0; i < policyIds.length; i += IN_CHUNK) {
+                const chunk = policyIds.slice(i, i + IN_CHUNK);
+                const { data: docRows } = await supabase
+                    .from('platform_documents')
+                    .select('policy_id, doc_type')
+                    .in('policy_id', chunk)
+                    .in('doc_type', ['rce', 'dic_dec_page']);
+                if (docRows) {
+                    for (const row of docRows) {
+                        if (row.doc_type === 'rce') rceSet.add(row.policy_id);
+                        if (row.doc_type === 'dic_dec_page') dicSet.add(row.policy_id);
+                    }
+                }
+            }
+        } catch {
+            // Non-fatal: if document check fails, all show as missing
         }
 
         // Map the joined result to DashboardPolicy
@@ -777,6 +837,9 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
                 flags: flagInfo.flags || [],
                 created_at: row.created_at,
                 is_enriched: enrichedSet.has(row.id),
+                has_dec_page: decPageSet.has(row.id),
+                has_rce: rceSet.has(row.id),
+                has_dic: dicSet.has(row.id),
             } as DashboardPolicy;
         });
     } catch (err) {
@@ -918,7 +981,7 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
                     dic_deductible,
                     dic_annual_premium_raw,`;
 
-        const buildSelect = (includeDicFields: boolean) => `
+        const buildSelect = (includeDicFields: boolean, includeCarrierCol: boolean) => `
                 id,
                 policy_number,
                 property_address_raw,
@@ -940,8 +1003,7 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
                     expiration_date,
                     date_issued,
                     annual_premium,
-                    is_current,
-                    carrier_policy_number,
+                    is_current,${includeCarrierCol ? '\n                    carrier_policy_number,' : ''}
                     source_dec_page_id,
                     approved_at,
                     deductible,
@@ -983,18 +1045,19 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
                 )
             `;
 
+        // Try with all optional columns, then progressively fall back
         let result = await supabase
             .from('policies')
-            .select(buildSelect(true))
+            .select(buildSelect(true, true))
             .eq('id', policyId)
             .single();
 
-        // Fallback: if DIC columns don't exist yet, retry without them
+        // Fallback: if columns don't exist yet, retry without them
         if (result.error && result.error.message?.includes('does not exist')) {
-            logger.warn('API', 'DIC columns not found, retrying without them. Run scripts/add_dic_fields.sql');
+            logger.warn('API', 'Optional columns not found, retrying without them. Run pending migration scripts.');
             result = await supabase
                 .from('policies')
-                .select(buildSelect(false))
+                .select(buildSelect(false, false))
                 .eq('id', policyId)
                 .single();
         }
@@ -1309,9 +1372,7 @@ export async function getClientById(clientId: string): Promise<ClientRow | undef
  */
 export async function fetchPoliciesByClientId(clientId: string): Promise<DashboardPolicy[]> {
     try {
-        const { data, error } = await supabase
-            .from('policies')
-            .select(`
+        const buildClientPoliciesSelect = (includeCarrierCol: boolean) => `
                 id,
                 policy_number,
                 property_address_raw,
@@ -1332,8 +1393,7 @@ export async function fetchPoliciesByClientId(clientId: string): Promise<Dashboa
                     expiration_date,
                     annual_premium,
                     is_current,
-                    source_dec_page_id,
-                    carrier_policy_number
+                    source_dec_page_id${includeCarrierCol ? ',\n                    carrier_policy_number' : ''}
                 ),
                 policy_flags (
                     id,
@@ -1345,9 +1405,25 @@ export async function fetchPoliciesByClientId(clientId: string): Promise<Dashboa
                 property_enrichments (
                     id
                 )
-            `)
+            `;
+
+        let result = await supabase
+            .from('policies')
+            .select(buildClientPoliciesSelect(true))
             .eq('client_id', clientId)
             .order('created_at', { ascending: false });
+
+        // Fallback: if carrier_policy_number column doesn't exist yet, retry without it
+        if (result.error && result.error.message?.includes('does not exist')) {
+            logger.warn('API', 'carrier_policy_number column not found in fetchPoliciesByClientId, retrying without it');
+            result = await supabase
+                .from('policies')
+                .select(buildClientPoliciesSelect(false))
+                .eq('client_id', clientId)
+                .order('created_at', { ascending: false });
+        }
+
+        const { data, error } = result;
 
         if (error || !data) {
             logger.error('API', 'Error fetching policies by client_id', {
@@ -1441,6 +1517,9 @@ export async function fetchPoliciesByClientId(clientId: string): Promise<Dashboa
                 highest_severity: highestSev,
                 flags: sortedFlags.map((f: any) => ({ code: f.code, title: f.title, severity: f.severity })),
                 is_enriched: (row.property_enrichments || []).length > 0,
+                has_dec_page: false,
+                has_rce: false,
+                has_dic: false,
             } as DashboardPolicy;
         });
     } catch (err) {

@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { User, Mail, Phone, FileText, ArrowLeft, MapPin, GitMerge, Pencil, Save, X, Loader2, CheckCircle, Flag as FlagIcon } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { User, Mail, Phone, FileText, ArrowLeft, MapPin, GitMerge, Pencil, Save, X, Loader2, CheckCircle, Flag as FlagIcon, Search, Shield } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button/Button';
 import { getClientById, updateClient, ClientRow } from '@/lib/api';
@@ -9,6 +9,7 @@ import { insertActivityEvent } from '@/lib/notes';
 import { supabase } from '@/lib/supabaseClient';
 import { useRecentlyVisited } from '@/hooks/useRecentlyVisited';
 import { useToast } from '@/components/ui/Toast/Toast';
+import ClientMergeModal from '@/components/admin/ClientMergeModal';
 import styles from './ClientInfo.module.css';
 
 interface ClientInfoProps {
@@ -34,6 +35,21 @@ export function ClientInfo({ clientId }: ClientInfoProps) {
     });
 
     const [flagCount, setFlagCount] = useState(0);
+
+    // ── Merge state ──
+    const [isMergeSearchOpen, setIsMergeSearchOpen] = useState(false);
+    const [mergeSearchQuery, setMergeSearchQuery] = useState('');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [mergeSearchResults, setMergeSearchResults] = useState<any[]>([]);
+    const [mergeSearchLoading, setMergeSearchLoading] = useState(false);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [mergeTarget, setMergeTarget] = useState<any | null>(null);
+    const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
+    const [isMerging, setIsMerging] = useState(false);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [currentClientFull, setCurrentClientFull] = useState<any | null>(null);
+    const mergeSearchRef = useRef<HTMLInputElement>(null);
+    const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
         const load = async () => {
@@ -137,6 +153,105 @@ export function ClientInfo({ clientId }: ClientInfoProps) {
         }
         setSaving(false);
     };
+
+    // ── Merge: search for clients to merge with ──
+    const handleMergeSearchChange = useCallback((query: string) => {
+        setMergeSearchQuery(query);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+
+        if (query.trim().length < 2) {
+            setMergeSearchResults([]);
+            return;
+        }
+
+        debounceRef.current = setTimeout(async () => {
+            setMergeSearchLoading(true);
+            try {
+                const res = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}`);
+                const data = await res.json();
+                // Filter out the current client from results
+                const filtered = (data.clients || []).filter((c: any) => c.id !== clientId);
+                setMergeSearchResults(filtered);
+            } catch (err) {
+                console.error('Merge search error:', err);
+            } finally {
+                setMergeSearchLoading(false);
+            }
+        }, 300);
+    }, [clientId]);
+
+    // ── Merge: load full client data for merge modal ──
+    const handleSelectMergeTarget = useCallback(async (targetId: string) => {
+        setMergeSearchLoading(true);
+        try {
+            // Fetch full data for both clients (with policies, terms, dec_pages)
+            const selectFields = `id, named_insured, email, phone, mailing_address_raw, mailing_address_norm, created_at,
+                policies(id, policy_number, carrier_name, property_address_raw, status, created_at,
+                    policy_terms(id, effective_date, expiration_date, annual_premium, is_current)),
+                dec_pages(id)`;
+
+            const [currentRes, targetRes] = await Promise.all([
+                supabase.from('clients').select(selectFields).eq('id', clientId).single(),
+                supabase.from('clients').select(selectFields).eq('id', targetId).single(),
+            ]);
+
+            if (currentRes.error || !currentRes.data || targetRes.error || !targetRes.data) {
+                toast.error('Failed to load client data for merge');
+                return;
+            }
+
+            setCurrentClientFull(currentRes.data);
+            setMergeTarget(targetRes.data);
+            setIsMergeModalOpen(true);
+            setIsMergeSearchOpen(false);
+            setMergeSearchQuery('');
+            setMergeSearchResults([]);
+        } catch (err) {
+            console.error('Failed to load merge target:', err);
+            toast.error('Failed to load client data');
+        } finally {
+            setMergeSearchLoading(false);
+        }
+    }, [clientId, toast]);
+
+    // ── Merge: execute the merge ──
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleMergeConfirm = useCallback(async (survivorId: string, mergedIds: string[], consolidatedFields: Record<string, any>, keepDocs: boolean) => {
+        setIsMerging(true);
+        try {
+            for (const mergedId of mergedIds) {
+                const res = await fetch('/api/merge/clients', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        survivor_id: survivorId,
+                        merged_id: mergedId,
+                        consolidated_fields: consolidatedFields,
+                        keep_documents: keepDocs,
+                    }),
+                });
+                if (!res.ok) throw new Error('Merge failed');
+            }
+
+            toast.success('Clients merged successfully!');
+            setIsMergeModalOpen(false);
+            setMergeTarget(null);
+            setCurrentClientFull(null);
+
+            // If we are the survivor, refresh. If we were merged away, redirect.
+            if (survivorId === clientId) {
+                const refreshed = await getClientById(clientId);
+                setClient(refreshed);
+            } else {
+                router.push(`/client/${survivorId}`);
+            }
+        } catch (err) {
+            console.error('Merge failed:', err);
+            toast.error('Failed to merge clients. Please check console.');
+        } finally {
+            setIsMerging(false);
+        }
+    }, [clientId, toast, router]);
 
     const clientName = client?.named_insured || 'Client Name';
     const clientEmail = client?.email || 'Not on file';
@@ -270,16 +385,118 @@ export function ClientInfo({ clientId }: ClientInfoProps) {
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => toast.info('Merge Client Profile — coming soon!')}
+                                onClick={() => {
+                                    setIsMergeSearchOpen(!isMergeSearchOpen);
+                                    setMergeSearchQuery('');
+                                    setMergeSearchResults([]);
+                                    setTimeout(() => mergeSearchRef.current?.focus(), 100);
+                                }}
                                 className={styles.actionButton}
-                                title="Coming soon"
+                                style={isMergeSearchOpen ? { background: 'rgba(129, 140, 248, 0.1)', color: '#818cf8', borderColor: 'rgba(129, 140, 248, 0.3)' } : undefined}
                             >
                                 <GitMerge className="w-4 h-4" />
-                                Merge Client Profile
+                                {isMergeSearchOpen ? 'Cancel Merge' : 'Merge Client Profile'}
                             </Button>
                         </>
                     )}
                 </div>
+
+                {/* ── Merge Search Panel ── */}
+                {isMergeSearchOpen && (
+                    <div style={{
+                        padding: '1rem',
+                        margin: '0 0 1rem',
+                        background: 'var(--bg-surface-raised)',
+                        border: '1px solid rgba(129, 140, 248, 0.2)',
+                        borderRadius: 'var(--radius-md)',
+                    }}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#818cf8', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <GitMerge size={13} />
+                            Find a client to merge with {clientName}
+                        </div>
+                        <div style={{ position: 'relative' }}>
+                            <Search size={14} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                            <input
+                                ref={mergeSearchRef}
+                                type="text"
+                                placeholder="Search by name, email, or phone..."
+                                value={mergeSearchQuery}
+                                onChange={(e) => handleMergeSearchChange(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.55rem 0.75rem 0.55rem 2rem',
+                                    background: 'var(--bg-surface)',
+                                    border: '1px solid var(--border-default)',
+                                    borderRadius: '6px',
+                                    fontSize: '0.85rem',
+                                    color: 'var(--text-high)',
+                                    outline: 'none',
+                                }}
+                            />
+                            {mergeSearchLoading && (
+                                <Loader2 size={14} style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', animation: 'spin 1s linear infinite' }} />
+                            )}
+                        </div>
+
+                        {/* Search Results */}
+                        {mergeSearchResults.length > 0 && (
+                            <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                {mergeSearchResults.map((result: any) => (
+                                    <button
+                                        key={result.id}
+                                        onClick={() => handleSelectMergeTarget(result.id)}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.75rem',
+                                            padding: '0.6rem 0.75rem',
+                                            background: 'var(--bg-surface)',
+                                            border: '1px solid var(--border-default)',
+                                            borderRadius: '8px',
+                                            cursor: 'pointer',
+                                            width: '100%',
+                                            textAlign: 'left',
+                                            transition: 'all 0.15s',
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.borderColor = 'rgba(129, 140, 248, 0.4)';
+                                            e.currentTarget.style.background = 'rgba(129, 140, 248, 0.05)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.borderColor = 'var(--border-default)';
+                                            e.currentTarget.style.background = 'var(--bg-surface)';
+                                        }}
+                                    >
+                                        <div style={{
+                                            width: 32, height: 32, borderRadius: '50%',
+                                            background: 'linear-gradient(135deg, #818cf8, #6366f1)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            flexShrink: 0,
+                                        }}>
+                                            <User size={14} style={{ color: '#fff' }} />
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-high)' }}>
+                                                {result.name}
+                                            </div>
+                                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', gap: '0.75rem' }}>
+                                                {result.email && <span>{result.email}</span>}
+                                                {result.phone && <span>{result.phone}</span>}
+                                            </div>
+                                        </div>
+                                        <GitMerge size={14} style={{ color: '#818cf8', flexShrink: 0 }} />
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {mergeSearchQuery.length >= 2 && !mergeSearchLoading && mergeSearchResults.length === 0 && (
+                            <div style={{ marginTop: '0.5rem', padding: '0.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                                No other clients found matching &quot;{mergeSearchQuery}&quot;
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Toast message */}
                 {saveMessage && (
@@ -436,6 +653,20 @@ export function ClientInfo({ clientId }: ClientInfoProps) {
                     </div>
                 </div>
             </div>
+
+            {/* ── Merge Modal ── */}
+            {isMergeModalOpen && currentClientFull && mergeTarget && (
+                <ClientMergeModal
+                    survivor={currentClientFull}
+                    candidates={[mergeTarget]}
+                    onClose={() => {
+                        setIsMergeModalOpen(false);
+                        setMergeTarget(null);
+                        setCurrentClientFull(null);
+                    }}
+                    onConfirm={handleMergeConfirm}
+                />
+            )}
         </div>
     );
 }

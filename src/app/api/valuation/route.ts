@@ -8,6 +8,7 @@ import {
     ValuationResult,
     SqFtCandidate,
 } from '@/lib/valuationEngine';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 
 /**
  * POST /api/valuation
@@ -21,6 +22,9 @@ import {
  * Body: { policy_id: string, manual_sqft?: number }
  */
 export async function POST(req: NextRequest) {
+    const auth = await authenticateRequest(req, { requiredRole: ['admin', 'service'] });
+    if (isAuthError(auth)) return auth;
+
     try {
         const body = await req.json();
         const { policy_id, manual_sqft } = body;

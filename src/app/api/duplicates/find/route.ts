@@ -1,7 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { DuplicateEngine } from '@/lib/duplicateEngine';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+    const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+    if (isAuthError(auth)) return auth;
+
     try {
         const [clients, policies] = await Promise.all([
             DuplicateEngine.findClientDuplicates(),

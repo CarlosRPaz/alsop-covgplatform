@@ -1005,7 +1005,6 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                 policyNumber={policyDetailRaw?.policy_number || declaration?.policy_number || ''}
                 propertyAddress={policyDetailRaw?.property_address || ''}
                 agentName="Alsop and Associates Insurance Agency"
-                defaultTemplateId={reportRow ? 'report_delivery' : 'agent_outreach'}
             />
         </div>
     );

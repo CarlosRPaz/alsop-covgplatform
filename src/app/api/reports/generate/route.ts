@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
 import { getPolicyDetailById, fetchFlagsByPolicyId, PolicyDetail, PolicyFlagRow } from '@/lib/api';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 
 /**
  * Expected schema from the GPT-4o report synthesizer (v3 — compact client-facing).
@@ -56,6 +57,9 @@ interface AIReportInsights {
 }
 
 export async function POST(req: NextRequest) {
+    const auth = await authenticateRequest(req, { requiredRole: ['admin', 'service'] });
+    if (isAuthError(auth)) return auth;
+
     try {
         const body = await req.json();
         const { policyId } = body;

@@ -17,6 +17,7 @@ const LS_COLUMN_ORDER = 'cfp_datatable_columnOrder_v4';
 const LS_SELECTED_FLAGS = 'cfp_datatable_selectedFlags';
 const LS_SELECTED_STATUSES = 'cfp_datatable_selectedStatuses';
 const LS_ENRICHMENT_FILTER = 'cfp_datatable_enrichmentFilter';
+const LS_DOC_FILTER = 'cfp_datatable_docFilter';
 
 // All known policy statuses for the status filter
 const ALL_STATUSES = [
@@ -292,6 +293,11 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
     const [isEnrichmentMenuOpen, setIsEnrichmentMenuOpen] = useState(false);
     const enrichmentMenuRef = useRef<HTMLDivElement>(null);
 
+    // Document Presence Filter State
+    const [selectedDocFilters, setSelectedDocFilters] = useState<Set<string>>(new Set());
+    const [isDocFilterMenuOpen, setIsDocFilterMenuOpen] = useState(false);
+    const docFilterMenuRef = useRef<HTMLDivElement>(null);
+
     // Dynamic Policy Filter States
     const [selectedPaymentStatuses, setSelectedPaymentStatuses] = useState<Set<string>>(new Set());
     const [isPaymentStatusMenuOpen, setIsPaymentStatusMenuOpen] = useState(false);
@@ -348,6 +354,10 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
             setEnrichmentFilter(savedEnrichment as 'all' | 'enriched' | 'not_enriched');
         }
 
+        // Document filters
+        const savedDocFilters = loadFromStorage<string[] | null>(LS_DOC_FILTER, null);
+        if (savedDocFilters) setSelectedDocFilters(new Set(savedDocFilters));
+
         setPrefsLoaded(true);
     }, []);
 
@@ -376,6 +386,11 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
         if (!prefsLoaded) return;
         saveToStorage(LS_ENRICHMENT_FILTER, enrichmentFilter);
     }, [enrichmentFilter, prefsLoaded]);
+
+    useEffect(() => {
+        if (!prefsLoaded) return;
+        saveToStorage(LS_DOC_FILTER, Array.from(selectedDocFilters));
+    }, [selectedDocFilters, prefsLoaded]);
 
     // Sync SWR data into local state (for flag extraction & error handling)
     useEffect(() => {
@@ -408,7 +423,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery, selectedFlags, selectedStatuses, enrichmentFilter, columnSearchQueries]);
+    }, [searchQuery, selectedFlags, selectedStatuses, enrichmentFilter, selectedDocFilters, columnSearchQueries]);
 
     // Click-outside handler for Status, Columns, and Rows-per-page menus
     useEffect(() => {
@@ -434,13 +449,16 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
             if (isPolicyActivityMenuOpen && policyActivityMenuRef.current && !policyActivityMenuRef.current.contains(e.target as Node)) {
                 setIsPolicyActivityMenuOpen(false);
             }
+            if (isDocFilterMenuOpen && docFilterMenuRef.current && !docFilterMenuRef.current.contains(e.target as Node)) {
+                setIsDocFilterMenuOpen(false);
+            }
             if (isRowsPerPageMenuOpen && rowsPerPageMenuRef.current && !rowsPerPageMenuRef.current.contains(e.target as Node) && rowsPerPageMenuTopRef.current && !rowsPerPageMenuTopRef.current.contains(e.target as Node)) {
                 setIsRowsPerPageMenuOpen(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isFlagMenuOpen, isColumnMenuOpen, isStatusMenuOpen, isEnrichmentMenuOpen, isRowsPerPageMenuOpen, isPaymentStatusMenuOpen, isPaymentPlanMenuOpen, isPolicyActivityMenuOpen]);
+    }, [isFlagMenuOpen, isColumnMenuOpen, isStatusMenuOpen, isEnrichmentMenuOpen, isDocFilterMenuOpen, isRowsPerPageMenuOpen, isPaymentStatusMenuOpen, isPaymentPlanMenuOpen, isPolicyActivityMenuOpen]);
 
     const handleSort = (key: keyof DashboardPolicy, direction: 'asc' | 'desc' | null) => {
         if (direction === null) {
@@ -529,7 +547,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
     };
 
     // Check if any filters are active (for the active filters bar)
-    const hasActiveFilters = selectedFlags.size > 0 || flagSeverityFilter !== 'all' || selectedStatuses.size > 0 || selectedPaymentStatuses.size > 0 || selectedPaymentPlans.size > 0 || selectedPolicyActivities.size > 0 || enrichmentFilter !== 'all' || Object.values(columnSearchQueries).some(v => v);
+    const hasActiveFilters = selectedFlags.size > 0 || flagSeverityFilter !== 'all' || selectedStatuses.size > 0 || selectedPaymentStatuses.size > 0 || selectedPaymentPlans.size > 0 || selectedPolicyActivities.size > 0 || enrichmentFilter !== 'all' || selectedDocFilters.size > 0 || Object.values(columnSearchQueries).some(v => v);
 
     const clearAllFilters = () => {
         setSelectedFlags(new Set());
@@ -539,6 +557,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
         setSelectedPaymentPlans(new Set());
         setSelectedPolicyActivities(new Set());
         setEnrichmentFilter('all');
+        setSelectedDocFilters(new Set());
         setColumnSearchQueries({});
         setSearchQuery('');
     };
@@ -697,8 +716,25 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
             result = result.filter(item => !item.is_enriched);
         }
 
+        // Document presence filter
+        if (selectedDocFilters.size > 0) {
+            result = result.filter(item => {
+                for (const f of selectedDocFilters) {
+                    switch (f) {
+                        case 'has_dec': if (!item.has_dec_page) return false; break;
+                        case 'no_dec': if (item.has_dec_page) return false; break;
+                        case 'has_rce': if (!item.has_rce) return false; break;
+                        case 'no_rce': if (item.has_rce) return false; break;
+                        case 'has_dic': if (!item.has_dic) return false; break;
+                        case 'no_dic': if (item.has_dic) return false; break;
+                    }
+                }
+                return true;
+            });
+        }
+
         return result;
-    }, [data, searchQuery, selectedFlags, selectedStatuses, selectedPaymentStatuses, selectedPaymentPlans, selectedPolicyActivities, enrichmentFilter, flagSeverityFilter, columnSearchQueries, initialExpirationFilter, initialStatusFilter]);
+    }, [data, searchQuery, selectedFlags, selectedStatuses, selectedPaymentStatuses, selectedPaymentPlans, selectedPolicyActivities, enrichmentFilter, selectedDocFilters, flagSeverityFilter, columnSearchQueries, initialExpirationFilter, initialStatusFilter]);
 
     const sortedData = useMemo(() => {
         if (!sortConfig) return filteredData;
@@ -1023,6 +1059,62 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                         )}
                     </div>
 
+                    {/* Documents Filter Pill */}
+                    <div style={{ position: 'relative' }} ref={docFilterMenuRef}>
+                        <button
+                            onClick={() => setIsDocFilterMenuOpen(prev => !prev)}
+                            className={clsx(
+                                styles.pillButton,
+                                selectedDocFilters.size > 0 && styles.pillButtonActive
+                            )}
+                        >
+                            <Filter size={16} />
+                            <span>Documents</span>
+                            {selectedDocFilters.size > 0 && (
+                                <span className={styles.pillBadge}>{selectedDocFilters.size}</span>
+                            )}
+                            <ChevronDown size={14} />
+                        </button>
+
+                        {isDocFilterMenuOpen && (
+                            <div className={styles.dropdownMenu} style={{ minWidth: '210px' }}>
+                                <div className={styles.dropdownHeader}>
+                                    <span>Filter by Documents</span>
+                                    {selectedDocFilters.size > 0 && (
+                                        <button onClick={() => setSelectedDocFilters(new Set())} className={styles.clearLink}>
+                                            clear all
+                                        </button>
+                                    )}
+                                </div>
+                                {[
+                                    { value: 'has_dec', label: '✅ Has Dec Page' },
+                                    { value: 'no_dec', label: '❌ Missing Dec Page' },
+                                    { value: 'has_rce', label: '✅ Has RCE' },
+                                    { value: 'no_rce', label: '❌ Missing RCE' },
+                                    { value: 'has_dic', label: '✅ Has DIC' },
+                                    { value: 'no_dic', label: '❌ Missing DIC' },
+                                ].map(opt => (
+                                    <button
+                                        key={opt.value}
+                                        className={clsx(
+                                            styles.popupOption,
+                                            selectedDocFilters.has(opt.value) && styles.popupOptionActive
+                                        )}
+                                        onClick={() => {
+                                            const next = new Set(selectedDocFilters);
+                                            if (next.has(opt.value)) next.delete(opt.value);
+                                            else next.add(opt.value);
+                                            setSelectedDocFilters(next);
+                                        }}
+                                    >
+                                        <CheckSquare size={14} style={{ opacity: selectedDocFilters.has(opt.value) ? 1 : 0.3 }} />
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
                     {/* Policy Activity Filter Pill */}
                     <div style={{ position: 'relative' }} ref={policyActivityMenuRef}>
                         <button
@@ -1164,7 +1256,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                         </button>
 
                         {isColumnMenuOpen && (
-                            <div className={clsx(styles.dropdownMenu, styles.columnDropdown)}>
+                            <div className={clsx(styles.dropdownMenu, styles.dropdownMenuRight, styles.columnDropdown)}>
                                 <div className={styles.dropdownHeader}>
                                     <span>Manage Columns</span>
                                     <span className={styles.dropdownHint}>Drag to reorder</span>
@@ -1269,6 +1361,24 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                 <button onClick={() => setEnrichmentFilter('all')} className={styles.filterChipX}><X size={11} /></button>
                             </span>
                         )}
+                        {/* Document filter chips */}
+                        {Array.from(selectedDocFilters).map(f => {
+                            const labels: Record<string, string> = {
+                                has_dec: 'Has Dec Page', no_dec: 'Missing Dec Page',
+                                has_rce: 'Has RCE', no_rce: 'Missing RCE',
+                                has_dic: 'Has DIC', no_dic: 'Missing DIC',
+                            };
+                            return (
+                                <span key={`doc-${f}`} className={styles.filterChip}>
+                                    {labels[f] || f}
+                                    <button onClick={() => {
+                                        const next = new Set(selectedDocFilters);
+                                        next.delete(f);
+                                        setSelectedDocFilters(next);
+                                    }} className={styles.filterChipX}><X size={11} /></button>
+                                </span>
+                            );
+                        })}
                         {/* Column search chips */}
                         {Object.entries(columnSearchQueries).filter(([, v]) => v).map(([key, value]) => {
                             const col = columnOrder.find(c => c.key === key);

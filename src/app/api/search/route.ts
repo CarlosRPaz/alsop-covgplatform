@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 
 /**
  * GET /api/search?q=<query>
@@ -8,6 +9,9 @@ import { getSupabaseAdmin } from '@/lib/supabaseClient';
  * Returns up to 5 clients + 5 policies matching the query.
  */
 export async function GET(req: NextRequest) {
+    const auth = await authenticateRequest(req);
+    if (isAuthError(auth)) return auth;
+
     const q = req.nextUrl.searchParams.get('q')?.trim();
     if (!q || q.length < 2) {
         return NextResponse.json({ clients: [], policies: [] });

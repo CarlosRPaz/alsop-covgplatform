@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     X, Mail, Send, AlertTriangle, CheckCircle2, Loader2,
     ChevronDown, ChevronUp, Eye, FileText, Shield, ExternalLink,
@@ -8,10 +8,16 @@ import {
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const LAST_TEMPLATE_KEY = 'cfp_email_last_template';
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Convert camelCase variable names → "Title Case" readable labels */
+/** Convert camelCase / snake_case variable names → "Title Case" readable labels */
 function normalizeVarLabel(key: string): string {
     return key
         .replace(/_/g, ' ')              // snake_case → spaces
@@ -20,10 +26,15 @@ function normalizeVarLabel(key: string): string {
         .trim();
 }
 
+/** Basic email format validation */
+function isValidEmail(email: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
 /**
  * Auto-fill template variables from policy/client context.
  * Maps each Postmark template variable name to the best available value.
- * Returns only the variables the template actually uses.
+ * Returns the variables the template uses PLUS always-included policy context.
  */
 function getAutoFillVars(
     templateId: string,
@@ -78,12 +89,34 @@ function getAutoFillVars(
         reportUrl: reportLink,
     };
 
-    // Return only the keys this specific template uses
+    // Return the keys this specific template uses
     const result: Record<string, string> = {};
     for (const v of vars) {
         result[v] = masterMap[v] ?? '';
     }
+
+    // Always include policy context variables — Postmark ignores extras silently,
+    // but they're available if the template HTML references them
+    const alwaysInclude = ['policyNumber', 'propertyAddress', 'agentName'];
+    for (const key of alwaysInclude) {
+        if (masterMap[key] && !result[key]) {
+            result[key] = masterMap[key];
+        }
+    }
+
     return result;
+}
+
+/**
+ * Render the subject line for preview by substituting {{variable}} placeholders.
+ */
+function renderPreviewSubject(subjectTemplate: string, variables: Record<string, string>): string {
+    let subject = subjectTemplate;
+    for (const [key, value] of Object.entries(variables)) {
+        const pattern = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g');
+        subject = subject.replace(pattern, value || `(${normalizeVarLabel(key)})`);
+    }
+    return subject;
 }
 
 // ---------------------------------------------------------------------------
@@ -95,6 +128,7 @@ interface EmailTemplate {
     name: string;
     description: string;
     variables: string[];
+    subject?: string;
 }
 
 interface EmailSystemStatus {
@@ -157,14 +191,14 @@ function SafeModeBanner({ status }: { status: EmailSystemStatus }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                 <Shield size={13} style={{ color: isDisabled ? '#f87171' : '#fbbf24', flexShrink: 0 }} />
                 <span style={{ fontSize: '0.72rem', fontWeight: 700, color: isDisabled ? '#f87171' : '#fbbf24', textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>
-                    {isDisabled ? 'Email Sending Disabled' : status.forceRedirectEnabled ? 'Safe Mode — Force Redirect Active' : 'Dev Redirect Mode'}
+                    {isDisabled ? 'Email Sending Disabled' : '🔒 Development Mode Active'}
                 </span>
             </div>
             {target && !isDisabled && (
                 <div style={{ paddingLeft: '1.35rem', fontSize: '0.71rem', color: '#94a3b8' }}>
                     All emails are redirected to{' '}
                     <span style={{ color: '#fbbf24', fontWeight: 700, fontFamily: 'monospace' }}>{target}</span>
-                    {' '}regardless of the recipient entered below.
+                    {' '}for testing. <strong style={{ color: '#fbbf24' }}>The client will NOT receive this email.</strong>
                 </div>
             )}
             {isDisabled && (
@@ -202,6 +236,232 @@ function NoEmailWarning() {
 }
 
 // ---------------------------------------------------------------------------
+// Preview Body Renderer — High-fidelity local preview per template
+// ---------------------------------------------------------------------------
+
+function TemplatePreviewBody({
+    templateId,
+    variables,
+    includeReportLink,
+    reportUrl,
+    reportId,
+    customBody,
+    agentName,
+    policyNumber,
+    propertyAddress,
+}: {
+    templateId: string;
+    variables: Record<string, string>;
+    includeReportLink: boolean;
+    reportUrl?: string;
+    reportId?: string;
+    customBody: string;
+    agentName: string;
+    policyNumber: string;
+    propertyAddress: string;
+}) {
+    const firstName = variables.first_name || variables.name || '(Client Name)';
+    const policyNum = variables.policyNumber || policyNumber || '(Policy Number)';
+    const address = variables.propertyAddress || propertyAddress || '(Property Address)';
+    const agent = variables.agentName || agentName;
+    const reportLink = reportUrl || (reportId ? `/report/${reportId}` : '');
+
+    const signatureBlock = (
+        <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
+            <p style={{ margin: 0, fontWeight: 600 }}>{agent}</p>
+            <p style={{ margin: '2px 0 0', color: '#64748b', fontSize: '13px' }}>
+                Alsop and Associates Insurance Agency
+            </p>
+        </div>
+    );
+
+    const reportLinkBlock = includeReportLink && reportLink ? (
+        <div style={{
+            margin: '18px 0',
+            textAlign: 'center' as const,
+        }}>
+            <a
+                href={reportLink}
+                style={{
+                    display: 'inline-block',
+                    padding: '12px 28px',
+                    background: '#4f46e5',
+                    color: '#ffffff',
+                    borderRadius: '8px',
+                    textDecoration: 'none',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                }}
+            >
+                View Full Report →
+            </a>
+        </div>
+    ) : null;
+
+    switch (templateId) {
+        case 'payment_due_insured':
+            return (
+                <div>
+                    <p>Dear {firstName},</p>
+                    <p>
+                        Your <strong>California Fair Plan</strong> policy is approaching its renewal date.
+                        A payment is required to maintain continuous coverage on your property.
+                    </p>
+                    <p>
+                        Please contact our office at your earliest convenience to arrange payment
+                        or discuss your renewal options.
+                    </p>
+                    <div style={{
+                        margin: '16px 0',
+                        padding: '12px 16px',
+                        background: '#f8fafc',
+                        borderRadius: '8px',
+                        border: '1px solid #e2e8f0',
+                    }}>
+                        <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>
+                            Policy Details
+                        </div>
+                        <div style={{ fontSize: '14px' }}>
+                            <strong>Policy #:</strong> {policyNum}<br />
+                            <strong>Property:</strong> {address}
+                        </div>
+                    </div>
+                    <p>
+                        We appreciate your prompt attention to this matter and are here to help
+                        with any questions about your coverage.
+                    </p>
+                    {signatureBlock}
+                </div>
+            );
+
+        case 'payment_due_mortgage':
+            return (
+                <div>
+                    <p>Dear {firstName},</p>
+                    <p>
+                        This is a notice regarding the <strong>California Fair Plan</strong> policy
+                        associated with your mortgaged property. The renewal payment is approaching.
+                    </p>
+                    <p>
+                        Your mortgage company or lender typically handles this payment through your
+                        escrow account. However, we wanted to ensure you&apos;re aware of the upcoming
+                        renewal so there are no gaps in coverage.
+                    </p>
+                    <div style={{
+                        margin: '16px 0',
+                        padding: '12px 16px',
+                        background: '#f8fafc',
+                        borderRadius: '8px',
+                        border: '1px solid #e2e8f0',
+                    }}>
+                        <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>
+                            Policy Details
+                        </div>
+                        <div style={{ fontSize: '14px' }}>
+                            <strong>Policy #:</strong> {policyNum}<br />
+                            <strong>Property:</strong> {address}
+                        </div>
+                    </div>
+                    <p>
+                        Please confirm with your lender that the payment will be processed, or
+                        contact our office if you have any questions.
+                    </p>
+                    {signatureBlock}
+                </div>
+            );
+
+        case 'schedule_appt':
+            return (
+                <div>
+                    <p>Dear {firstName},</p>
+                    <p>
+                        We&apos;d like to schedule a time to review your insurance coverage and discuss
+                        any updates to your <strong>California Fair Plan</strong> policy.
+                    </p>
+                    <p>
+                        A periodic review helps ensure you have the right level of protection
+                        for your property and that your coverage keeps pace with current conditions.
+                    </p>
+                    {reportLinkBlock}
+                    <p>
+                        Please reply to this email or call our office to set up a convenient time
+                        for your coverage review.
+                    </p>
+                    <div style={{
+                        margin: '16px 0',
+                        padding: '12px 16px',
+                        background: '#f8fafc',
+                        borderRadius: '8px',
+                        border: '1px solid #e2e8f0',
+                    }}>
+                        <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>
+                            Policy Details
+                        </div>
+                        <div style={{ fontSize: '14px' }}>
+                            <strong>Policy #:</strong> {policyNum}<br />
+                            <strong>Property:</strong> {address}
+                        </div>
+                    </div>
+                    {signatureBlock}
+                </div>
+            );
+
+        case 'custom_outreach':
+            return (
+                <div>
+                    {customBody ? (
+                        <div style={{ whiteSpace: 'pre-wrap' }}>{customBody}</div>
+                    ) : (
+                        <div style={{ color: '#94a3b8', fontStyle: 'italic', textAlign: 'center', paddingTop: '2rem' }}>
+                            Enter your custom message in the Compose tab to preview it here.
+                        </div>
+                    )}
+                </div>
+            );
+
+        // Non-client-facing templates (welcome, password_reset, user_invitation)
+        default:
+            return (
+                <div>
+                    <div style={{
+                        padding: '12px 16px',
+                        background: '#f0f4ff',
+                        borderRadius: '8px',
+                        border: '1px solid #c7d2fe',
+                        marginBottom: '16px',
+                    }}>
+                        <div style={{ fontSize: '12px', color: '#6366f1', fontWeight: 600, marginBottom: '4px' }}>
+                            System Template
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#475569' }}>
+                            This is a system/internal template. The email content is managed in Postmark
+                            and will be rendered server-side with the variable values shown in the Compose tab.
+                        </div>
+                    </div>
+                    {Object.entries(variables).length > 0 && (
+                        <div style={{
+                            padding: '12px 16px',
+                            background: '#f8fafc',
+                            borderRadius: '8px',
+                            border: '1px solid #e2e8f0',
+                        }}>
+                            <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginBottom: '8px', textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>
+                                Variables Being Sent
+                            </div>
+                            {Object.entries(variables).map(([key, value]) => (
+                                <div key={key} style={{ fontSize: '13px', marginBottom: '4px' }}>
+                                    <span style={{ color: '#6366f1', fontWeight: 600 }}>{normalizeVarLabel(key)}:</span>{' '}
+                                    <span style={{ color: '#1e293b' }}>{value || <em style={{ color: '#94a3b8' }}>(empty)</em>}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
 
@@ -217,15 +477,24 @@ export function PolicyEmailComposer({
     propertyAddress = '',
     agentName = 'Alsop and Associates Insurance Agency',
     reportUrl,
-    defaultTemplateId = 'report_delivery',
+    defaultTemplateId,
 }: PolicyEmailComposerProps) {
 
     const [status, setStatus] = useState<EmailSystemStatus | null>(null);
     const [loadingStatus, setLoadingStatus] = useState(true);
     const [activeTab, setActiveTab] = useState<'compose' | 'preview'>('compose');
 
+    // MRU: read the last-used template from localStorage
+    const getInitialTemplate = useCallback(() => {
+        if (defaultTemplateId) return defaultTemplateId;
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem(LAST_TEMPLATE_KEY) || '';
+        }
+        return '';
+    }, [defaultTemplateId]);
+
     // Form state
-    const [templateId, setTemplateId] = useState(defaultTemplateId);
+    const [templateId, setTemplateId] = useState(getInitialTemplate);
     const [to, setTo] = useState(clientEmail);
     const [variables, setVariables] = useState<Record<string, string>>({});
     const [customSubject, setCustomSubject] = useState('');
@@ -239,7 +508,12 @@ export function PolicyEmailComposer({
     const [error, setError] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
 
+    // Validation
     const hasClientEmail = !!clientEmail.trim();
+    const emailValid = to.trim().length === 0 || isValidEmail(to);
+    const canSend = to.trim().length > 0 && isValidEmail(to) && (
+        !!templateId || (customSubject.trim().length > 0 && customBody.trim().length > 0)
+    );
 
     useEffect(() => {
         if (!isOpen) return;
@@ -253,19 +527,18 @@ export function PolicyEmailComposer({
     useEffect(() => {
         if (!isOpen) return;
         setTo(clientEmail);
-        const tid = defaultTemplateId || '';
+        const tid = getInitialTemplate();
         setTemplateId(tid);
         setResult(null);
         setError(null);
         setActiveTab('compose');
         setIncludeReportLink(tid === 'schedule_appt' && !!(reportId || reportUrl));
-        // Will be filled once status/templates load, but do a best-effort fill now
-        // based on common variable names
+        // Best-effort auto-fill before status loads
         setVariables(getAutoFillVars(tid, [], {
             clientName, clientEmail, policyNumber, propertyAddress, agentName,
             reportUrl: reportUrl || (reportId ? `/report/${reportId}` : ''),
         }));
-    }, [isOpen, clientEmail, clientName, policyNumber, propertyAddress, agentName, reportId, reportUrl, defaultTemplateId]);
+    }, [isOpen, clientEmail, clientName, policyNumber, propertyAddress, agentName, reportId, reportUrl, getInitialTemplate]);
 
     // When status loads (templates available), re-fill vars for the current template
     useEffect(() => {
@@ -279,14 +552,40 @@ export function PolicyEmailComposer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [status, templateId]);
 
+    // MRU: persist template selection to localStorage
+    const handleTemplateChange = useCallback((newId: string) => {
+        setTemplateId(newId);
+        if (newId && typeof window !== 'undefined') {
+            localStorage.setItem(LAST_TEMPLATE_KEY, newId);
+        }
+        // Auto-fill variables for the newly selected template
+        const tpl = status?.templates.find(t => t.id === newId);
+        setVariables(getAutoFillVars(newId, tpl?.variables ?? [], {
+            clientName, clientEmail, policyNumber, propertyAddress, agentName,
+            reportUrl: reportUrl || (reportId ? `/report/${reportId}` : ''),
+        }));
+        // Report link only for schedule_appt
+        setIncludeReportLink(newId === 'schedule_appt' && !!(reportId || reportUrl));
+    }, [status, clientName, clientEmail, policyNumber, propertyAddress, agentName, reportUrl, reportId]);
+
     if (!isOpen) return null;
 
     const selectedTemplate = status?.templates.find(t => t.id === templateId) ?? null;
     const actualTarget = status?.forceRedirectTarget || status?.redirectTarget || to;
     const isSafeMode = !!(status?.forceRedirectEnabled || (status?.mode && status.mode !== 'live'));
 
+    // Build the preview subject line
+    const previewSubject = (() => {
+        if (selectedTemplate) {
+            const subjectTemplate = selectedTemplate.subject || selectedTemplate.name;
+            return renderPreviewSubject(subjectTemplate, variables);
+        }
+        return customSubject || '';
+    })();
+
     const handleSend = async () => {
         if (!to.trim()) { setError('Recipient email address is required.'); return; }
+        if (!isValidEmail(to)) { setError('Please enter a valid email address.'); return; }
         setSending(true);
         setError(null);
         try {
@@ -309,14 +608,33 @@ export function PolicyEmailComposer({
                 payload.subject = customSubject;
                 payload.htmlBody = `<div style="font-family:sans-serif;line-height:1.6;color:#1e293b;">${bodyContent.replace(/\n/g, '<br/>')}</div>`;
             }
+            // Get auth token for the API call
+            const { supabase } = await import('@/lib/supabaseClient');
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.access_token) {
+                setError('Session expired. Please refresh the page and sign in again.');
+                setSending(false);
+                return;
+            }
+
             const res = await fetch('/api/email/send', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                },
                 body: JSON.stringify(payload),
             });
             const data = await res.json();
-            if (!res.ok) setError(data.error || 'Send failed');
-            else setResult(data);
+            if (!res.ok) {
+                setError(data.error || 'Send failed');
+            } else {
+                setResult(data);
+                // Persist MRU on successful send
+                if (templateId && typeof window !== 'undefined') {
+                    localStorage.setItem(LAST_TEMPLATE_KEY, templateId);
+                }
+            }
         } catch (e: any) {
             setError(e.message);
         } finally {
@@ -569,9 +887,18 @@ export function PolicyEmailComposer({
                                 placeholder="Enter client email address…"
                                 style={{
                                     ...inputBase,
-                                    borderColor: !hasClientEmail && !to.trim() ? 'rgba(239,68,68,0.35)' : 'rgba(255,255,255,0.12)',
+                                    borderColor: to.trim() && !emailValid
+                                        ? 'rgba(239,68,68,0.6)'
+                                        : !hasClientEmail && !to.trim()
+                                            ? 'rgba(239,68,68,0.35)'
+                                            : 'rgba(255,255,255,0.12)',
                                 }}
                             />
+                            {to.trim() && !emailValid && (
+                                <div style={{ fontSize: '0.68rem', color: '#f87171', marginTop: '0.25rem', paddingLeft: '0.1rem' }}>
+                                    Please enter a valid email address
+                                </div>
+                            )}
                             {!hasClientEmail && <NoEmailWarning />}
                             {isSafeMode && to.trim() && (
                                 <div style={{
@@ -603,31 +930,20 @@ export function PolicyEmailComposer({
                             <div style={{ position: 'relative' }}>
                                 <select
                                     value={templateId}
-                                onChange={e => {
-                                    const newId = e.target.value;
-                                    setTemplateId(newId);
-                                    // Auto-fill variables for the newly selected template
-                                    const tpl = status?.templates.find(t => t.id === newId);
-                                    setVariables(getAutoFillVars(newId, tpl?.variables ?? [], {
-                                        clientName, clientEmail, policyNumber, propertyAddress, agentName,
-                                        reportUrl: reportUrl || (reportId ? `/report/${reportId}` : ''),
-                                    }));
-                                    // Report link only for schedule_appt
-                                    setIncludeReportLink(newId === 'schedule_appt' && !!(reportId || reportUrl));
-                                }}
+                                    onChange={e => handleTemplateChange(e.target.value)}
                                     style={{
                                         ...inputBase,
                                         paddingRight: '2.2rem',
                                         cursor: 'pointer',
-                                        color: '#f1f5f9',
+                                        color: templateId ? '#f1f5f9' : '#64748b',
                                     }}
                                 >
-                                    <option value="" style={{ background: '#1e293b', color: '#f1f5f9' }}>
-                                        — Custom (freeform) —
+                                    <option value="" style={{ background: '#1e293b', color: '#94a3b8' }}>
+                                        Select a template…
                                     </option>
                                     {status?.templates.map(t => (
                                         <option key={t.id} value={t.id} style={{ background: '#1e293b', color: '#f1f5f9' }}>
-                                            {t.name}
+                                            {t.name}{t.subject ? ` — ${t.subject}` : ''}
                                         </option>
                                     ))}
                                 </select>
@@ -639,6 +955,11 @@ export function PolicyEmailComposer({
                             {selectedTemplate && (
                                 <div style={{ fontSize: '0.68rem', color: '#64748b', marginTop: '0.25rem', paddingLeft: '0.1rem' }}>
                                     {selectedTemplate.description}
+                                </div>
+                            )}
+                            {!templateId && (
+                                <div style={{ fontSize: '0.68rem', color: '#475569', marginTop: '0.25rem', paddingLeft: '0.1rem', fontStyle: 'italic' }}>
+                                    Choose a template above, or leave empty to compose a custom email.
                                 </div>
                             )}
                         </div>
@@ -772,78 +1093,127 @@ export function PolicyEmailComposer({
                 ) : (
                     /* ── Preview Tab ── */
                     <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem' }}>
-                        {/* Subject preview */}
-                        <div style={{ marginBottom: '1rem' }}>
-                            <div style={{ fontSize: '0.64rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>
-                                Subject
-                            </div>
-                            <div style={{
-                                fontSize: '0.88rem', fontWeight: 600, color: '#f1f5f9',
-                                padding: '0.55rem 0.8rem',
-                                background: 'rgba(255,255,255,0.03)',
-                                border: '1px solid rgba(255,255,255,0.08)',
-                                borderRadius: '7px',
-                            }}>
-                                {selectedTemplate
-                                    ? `${selectedTemplate.name} — ${policyNumber || clientName || 'Policy'}`
-                                    : customSubject || <span style={{ color: '#475569', fontStyle: 'italic' }}>No subject entered</span>}
-                            </div>
-                        </div>
 
-                        {/* Body preview */}
-                        <div>
-                            <div style={{ fontSize: '0.64rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>
-                                Email Body Preview
-                            </div>
+                        {/* No template selected — empty state */}
+                        {!templateId && !customSubject && !customBody ? (
                             <div style={{
-                                background: '#ffffff',
-                                borderRadius: '9px',
-                                overflow: 'hidden',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                minHeight: 240,
-                                padding: '1.5rem',
-                                color: '#1e293b',
-                                fontSize: '14px',
-                                lineHeight: 1.65,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                minHeight: '280px',
+                                gap: '0.75rem',
+                                color: '#475569',
                             }}>
-                                {selectedTemplate ? (
-                                    <div>
-                                        <p style={{ color: '#6366f1', fontSize: '11px', marginBottom: '14px', padding: '6px 10px', background: '#f5f3ff', borderRadius: '5px', borderLeft: '3px solid #6366f1' }}>
-                                            Template: <strong>{selectedTemplate.name}</strong> — variables will be substituted on send
-                                        </p>
-                                        <p>Dear {variables.clientName || '(Client Name)'},</p>
-                                        {selectedTemplate.id === 'report_delivery' && (
-                                            <p>Please find the attached policy review report for your property at <strong>{variables.propertyAddress || '(property address)'}</strong>.</p>
-                                        )}
-                                        {selectedTemplate.id === 'renewal_followup' && (
-                                            <p>Your policy <strong>{variables.policyNumber || policyNumber}</strong> is scheduled to renew on <strong>{variables.expirationDate || '(date)'}</strong>.</p>
-                                        )}
-                                        {selectedTemplate.id === 'missing_info' && (
-                                            <p>We are working on your policy and need the following: <strong>{variables.missingItems || '(items needed)'}</strong>.</p>
-                                        )}
-                                        {!['report_delivery', 'renewal_followup', 'missing_info'].includes(selectedTemplate.id) && (
-                                            <p style={{ color: '#64748b', fontStyle: 'italic' }}>{selectedTemplate.description}</p>
-                                        )}
-                                        {includeReportLink && (reportUrl || reportId) && (
-                                            <div style={{ margin: '14px 0', padding: '10px 14px', background: '#f1f5f9', borderRadius: '7px' }}>
-                                                <a href={reportUrl || `/report/${reportId}`} style={{ color: '#4f46e5', fontWeight: 600 }}>View Full Report →</a>
+                                <div style={{
+                                    width: 56, height: 56, borderRadius: '50%',
+                                    background: 'rgba(99,102,241,0.08)',
+                                    border: '1px solid rgba(99,102,241,0.2)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                    <Eye size={24} style={{ color: '#6366f1' }} />
+                                </div>
+                                <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#94a3b8' }}>
+                                    Nothing to preview yet
+                                </div>
+                                <div style={{ fontSize: '0.78rem', color: '#475569', textAlign: 'center', maxWidth: '320px', lineHeight: 1.5 }}>
+                                    Select a template or write a custom email in the Compose tab to see a preview here.
+                                </div>
+                                <button
+                                    onClick={() => setActiveTab('compose')}
+                                    style={{
+                                        marginTop: '0.5rem',
+                                        padding: '0.45rem 1rem', borderRadius: '7px',
+                                        background: 'rgba(99,102,241,0.12)', color: '#a5b4fc',
+                                        border: '1px solid rgba(99,102,241,0.25)', cursor: 'pointer',
+                                        fontSize: '0.8rem', fontWeight: 600,
+                                    }}
+                                >
+                                    Go to Compose
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Email Header Info */}
+                                <div style={{
+                                    marginBottom: '1rem',
+                                    padding: '0.75rem 0.9rem',
+                                    background: 'rgba(255,255,255,0.025)',
+                                    border: '1px solid rgba(255,255,255,0.07)',
+                                    borderRadius: '9px',
+                                }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: '0.4rem', fontSize: '0.78rem' }}>
+                                        <span style={{ color: '#475569', fontWeight: 600 }}>From:</span>
+                                        <span style={{ color: '#e2e8f0' }}>{status?.fromDefault || 'reports@coveragechecknow.com'}</span>
+                                        <span style={{ color: '#475569', fontWeight: 600 }}>To:</span>
+                                        <span style={{ color: '#e2e8f0' }}>
+                                            {to || '(no recipient)'}
+                                            {isSafeMode && (
+                                                <span style={{ marginLeft: '0.5rem', fontSize: '0.65rem', color: '#fbbf24' }}>
+                                                    → redirected to {actualTarget}
+                                                </span>
+                                            )}
+                                        </span>
+                                        <span style={{ color: '#475569', fontWeight: 600 }}>Subject:</span>
+                                        <span style={{ color: '#f1f5f9', fontWeight: 600 }}>
+                                            {previewSubject || <span style={{ color: '#475569', fontStyle: 'italic' }}>No subject</span>}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Body preview */}
+                                <div>
+                                    <div style={{ fontSize: '0.64rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>
+                                        Email Body Preview
+                                    </div>
+                                    <div style={{
+                                        background: '#ffffff',
+                                        borderRadius: '9px',
+                                        overflow: 'hidden',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        minHeight: 240,
+                                        padding: '1.5rem',
+                                        color: '#1e293b',
+                                        fontSize: '14px',
+                                        lineHeight: 1.65,
+                                    }}>
+                                        {selectedTemplate ? (
+                                            <TemplatePreviewBody
+                                                templateId={selectedTemplate.id}
+                                                variables={variables}
+                                                includeReportLink={includeReportLink}
+                                                reportUrl={reportUrl}
+                                                reportId={reportId}
+                                                customBody={customBody}
+                                                agentName={agentName}
+                                                policyNumber={policyNumber}
+                                                propertyAddress={propertyAddress}
+                                            />
+                                        ) : customBody ? (
+                                            <div style={{ whiteSpace: 'pre-wrap' }}>{customBody}</div>
+                                        ) : (
+                                            <div style={{ color: '#94a3b8', fontStyle: 'italic', textAlign: 'center', paddingTop: '2rem' }}>
+                                                Enter your message in the Compose tab to preview it here.
                                             </div>
                                         )}
-                                        <p style={{ marginTop: '18px' }}>
-                                            Best regards,<br />
-                                            <strong>{variables.agentName || agentName}</strong><br />
-                                            Alsop and Associates Insurance Agency
-                                        </p>
                                     </div>
-                                ) : customBody ? (
-                                    <div style={{ whiteSpace: 'pre-wrap' }}>{customBody}</div>
-                                ) : (
-                                    <div style={{ color: '#94a3b8', fontStyle: 'italic', textAlign: 'center', paddingTop: '2rem' }}>
-                                        Select a template or write a custom message to preview it here.
+
+                                    {/* Preview disclaimer */}
+                                    <div style={{
+                                        marginTop: '0.5rem',
+                                        fontSize: '0.65rem',
+                                        color: '#475569',
+                                        fontStyle: 'italic',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.3rem',
+                                    }}>
+                                        <Info size={10} />
+                                        Preview approximation. The actual email uses your Postmark template styling.
                                     </div>
-                                )}
-                            </div>
-                        </div>
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
 
@@ -878,13 +1248,13 @@ export function PolicyEmailComposer({
                             </button>
                             <button
                                 onClick={handleSend}
-                                disabled={sending || !to.trim()}
+                                disabled={sending || !canSend}
                                 style={{
                                     display: 'flex', alignItems: 'center', gap: '0.4rem',
                                     padding: '0.5rem 1.25rem', borderRadius: '7px',
                                     fontSize: '0.84rem', fontWeight: 600,
-                                    cursor: sending || !to.trim() ? 'not-allowed' : 'pointer',
-                                    opacity: sending || !to.trim() ? 0.5 : 1,
+                                    cursor: sending || !canSend ? 'not-allowed' : 'pointer',
+                                    opacity: sending || !canSend ? 0.5 : 1,
                                     background: status?.mode === 'disabled'
                                         ? 'rgba(100,116,139,0.15)'
                                         : isSafeMode

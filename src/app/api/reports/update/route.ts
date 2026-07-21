@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 
 /**
  * PATCH /api/reports/update
@@ -10,6 +11,9 @@ import { getSupabaseAdmin } from '@/lib/supabaseClient';
  * Body: { reportId: string, ai_insights: object }
  */
 export async function PATCH(req: NextRequest) {
+    const auth = await authenticateRequest(req, { requiredRole: ['admin', 'service'] });
+    if (isAuthError(auth)) return auth;
+
     try {
         const body = await req.json();
         const { reportId, ai_insights } = body;

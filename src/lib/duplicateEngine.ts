@@ -133,17 +133,15 @@ export class DuplicateEngine {
             }
         }
 
-        // Very basic string normalization grouping for Phase B MVP
-        // Next iteration can use Jaro-Winkler via a dedicated NLP library
+        // ── Phase 1: Exact normalized name grouping ──
+        // Normalize: remove spacing, punctuation, and lowercase
         const grouped = new Map<string, typeof clients>();
 
         for (const c of clients) {
             if (!c.named_insured) continue;
-            
-            // Normalize: remove spacing, punctuation, and lowercase
             const normName = c.named_insured.toLowerCase().replace(/[^a-z0-9]/g, '');
-            if (normName.length < 4) continue; // Skip too-short generic names
-            
+            if (normName.length < 4) continue;
+
             if (!grouped.has(normName)) {
                 grouped.set(normName, []);
             }
@@ -151,11 +149,12 @@ export class DuplicateEngine {
         }
 
         const candidateDuplicates: DuplicateGroup[] = [];
+        const exactMatchedIds = new Set<string>();
 
-        for (const [normNameGroup, cluster] of grouped.entries()) {
+        for (const [, cluster] of grouped.entries()) {
             if (cluster.length > 1) {
                 cluster.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-                
+
                 const survivor = cluster[0];
                 const merges = cluster.slice(1);
 
@@ -163,8 +162,76 @@ export class DuplicateEngine {
                     type: 'client',
                     survivor_id: survivor.id,
                     merged_ids: merges.map(m => m.id),
-                    confidence: 85, // Simple fuzzy naming confidence
+                    confidence: 85,
                     reason: `Identical Normalized Name`,
+                    details: {
+                        survivor,
+                        duplicates: merges
+                    }
+                });
+                for (const c of cluster) exactMatchedIds.add(c.id);
+            }
+        }
+
+        // ── Phase 2: Token-subset fuzzy matching ──
+        // Catches variations like "Jason Wolsefer" vs "Jason J. Wolsefer"
+        // where one name's tokens are a subset of another's.
+        const ungrouped = clients.filter(c =>
+            c.named_insured &&
+            c.named_insured.toLowerCase().replace(/[^a-z0-9]/g, '').length >= 4 &&
+            !exactMatchedIds.has(c.id)
+        );
+
+        // Tokenize each ungrouped client's name
+        interface TokenEntry { client: any; tokens: Set<string>; }
+        const tokenEntries: TokenEntry[] = ungrouped.map(c => ({
+            client: c,
+            tokens: new Set(
+                c.named_insured
+                    .toLowerCase()
+                    .replace(/[^a-z\s]/g, '')  // keep letters + spaces
+                    .split(/\s+/)
+                    .filter((t: string) => t.length >= 2)  // skip single-char tokens like middle initials
+            ),
+        }));
+
+        const fuzzyMatchedIds = new Set<string>();
+
+        for (let i = 0; i < tokenEntries.length; i++) {
+            if (fuzzyMatchedIds.has(tokenEntries[i].client.id)) continue;
+
+            const a = tokenEntries[i];
+            const fuzzyCluster: any[] = [a.client];
+
+            for (let j = i + 1; j < tokenEntries.length; j++) {
+                if (fuzzyMatchedIds.has(tokenEntries[j].client.id)) continue;
+                const b = tokenEntries[j];
+
+                // Check if one is a subset of the other (both directions)
+                // e.g. {jason, wolsefer} ⊂ {jason, wolsefer} (exact on long tokens)
+                // or {jason, wolsefer} vs {jason, j, wolsefer} — after filtering short tokens
+                const aSubsetOfB = a.tokens.size > 0 && [...a.tokens].every(t => b.tokens.has(t));
+                const bSubsetOfA = b.tokens.size > 0 && [...b.tokens].every(t => a.tokens.has(t));
+
+                if (aSubsetOfB || bSubsetOfA) {
+                    fuzzyCluster.push(b.client);
+                    fuzzyMatchedIds.add(b.client.id);
+                }
+            }
+
+            if (fuzzyCluster.length > 1) {
+                fuzzyMatchedIds.add(a.client.id);
+                fuzzyCluster.sort((x, y) => new Date(x.created_at).getTime() - new Date(y.created_at).getTime());
+
+                const survivor = fuzzyCluster[0];
+                const merges = fuzzyCluster.slice(1);
+
+                candidateDuplicates.push({
+                    type: 'client',
+                    survivor_id: survivor.id,
+                    merged_ids: merges.map(m => m.id),
+                    confidence: 70,
+                    reason: `Similar Name (Token Match)`,
                     details: {
                         survivor,
                         duplicates: merges

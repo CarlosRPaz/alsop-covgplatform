@@ -29,6 +29,7 @@ export async function GET() {
             postmarkTemplateId: t.postmarkTemplateId,
             name: t.name,
             description: t.description,
+            subject: t.subject,
             variables: t.variables,
             isClientFacing: t.isClientFacing,
             source: 'local' as const,

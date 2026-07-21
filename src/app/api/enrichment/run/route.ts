@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
 import { logger } from '@/lib/logger';
 import { fetchAttomPropertyDetail, ATTOM_SOURCE_NAME, ATTOM_SOURCE_TIER } from '@/lib/attom';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 
 /**
  * POST /api/enrichment/run
@@ -326,6 +327,9 @@ async function enrichAssessorData(
 // ---------------------------------------------------------------------------
 
 export async function POST(request: NextRequest) {
+    const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+    if (isAuthError(auth)) return auth;
+
     try {
         const body = await request.json();
         const { policy_id } = body;
