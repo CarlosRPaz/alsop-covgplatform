@@ -48,11 +48,13 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
     const [termsAccepted, setTermsAccepted] = useState(false);
     const [isDragOver, setIsDragOver] = useState(false);
     const [sessionUploadCount, setSessionUploadCount] = useState(0);
+    const [lastUpload, setLastUpload] = useState<{ fileName: string; time: Date } | null>(null);
     const formRef = useRef<HTMLFormElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const abortRef = useRef<AbortController | null>(null);
     const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const autoResetTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const lastUploadFileNameRef = useRef<string | null>(null);
 
     const isAgent = userRole === 'admin' || userRole === 'service';
 
@@ -161,6 +163,11 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                     // Auto-reset form for agents after 3s so they can keep uploading
                     if (isAgent) {
                         autoResetTimerRef.current = setTimeout(() => {
+                            // Persist last upload info before resetting
+                            const fn = lastUploadFileNameRef.current;
+                            if (fn) {
+                                setLastUpload({ fileName: fn, time: new Date() });
+                            }
                             setSubmitState('idle');
                             setUploadResult(null);
                             setProcessingStatus(null);
@@ -183,7 +190,10 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!file) return;
+        if (!file) {
+            setFileError('Please select a PDF file first.');
+            return;
+        }
 
         // Cancel any in-flight upload
         if (abortRef.current) abortRef.current.abort();
@@ -256,9 +266,11 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
             setSubmitState('success');
             setSessionUploadCount(prev => prev + 1);
             setProcessingStatus('queued');
+            const uploadedFileName = (responseData?.fileName as string | undefined) || file.name;
+            lastUploadFileNameRef.current = uploadedFileName;
             setUploadResult({
                 message: result.data.message as string,
-                fileName: responseData?.fileName as string | undefined,
+                fileName: uploadedFileName,
                 submittedAt: responseData?.submittedAt as string | undefined,
                 submissionId,
             });
@@ -365,6 +377,28 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
                         Tip: Press <kbd style={{ background: 'var(--bg-surface-raised)', padding: '0.1rem 0.35rem', borderRadius: '4px', border: '1px solid var(--border-default)', fontSize: '0.7rem', fontWeight: 600 }}>Ctrl+U</kbd> to quickly open the file picker
                     </p>
+                )}
+                {/* Persistent "last upload" indicator for agents */}
+                {isAgent && lastUpload && submitState === 'idle' && (
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        marginTop: '0.6rem',
+                        padding: '0.45rem 0.75rem',
+                        borderRadius: '6px',
+                        background: 'var(--bg-success-subtle, rgba(34, 197, 94, 0.08))',
+                        border: '1px solid rgba(34, 197, 94, 0.15)',
+                        fontSize: '0.78rem',
+                        color: 'var(--status-success, #22c55e)',
+                    }}>
+                        <CheckCircle size={14} style={{ flexShrink: 0 }} />
+                        <span style={{ fontWeight: 500 }}>Last upload:</span>
+                        <span style={{ color: 'var(--text-mid)', fontWeight: 400 }}>{lastUpload.fileName}</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem', marginLeft: 'auto' }}>
+                            {lastUpload.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                    </div>
                 )}
             </div>
 
@@ -482,6 +516,11 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                     {/* Upload another */}
                     <button
                         onClick={() => {
+                            // Persist last upload info before resetting
+                            const fn = lastUploadFileNameRef.current;
+                            if (fn) {
+                                setLastUpload({ fileName: fn, time: new Date() });
+                            }
                             setSubmitState('idle');
                             setUploadResult(null);
                             setProcessingStatus(null);
@@ -521,7 +560,7 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                                 ref={fileInputRef}
                                 accept=".pdf"
                                 onChange={handleFileChange}
-                                required
+                                /* required removed: breaks drag-and-drop since dropped files don't populate the native input */
                             />
                             <Upload className={styles.uploadIcon} size={24} />
                             <span className={styles.uploadText}>
