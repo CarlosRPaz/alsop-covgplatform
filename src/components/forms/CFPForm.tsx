@@ -234,7 +234,9 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                         const json = JSON.parse(xhr.responseText);
                         resolve({ ok: xhr.status >= 200 && xhr.status < 300, data: json });
                     } catch {
-                        reject(new Error('Invalid server response'));
+                        // Include status + response snippet for debugging
+                        const snippet = (xhr.responseText || '').slice(0, 120);
+                        reject(new Error(`Server returned an invalid response (HTTP ${xhr.status}): ${snippet}`));
                     }
                 });
 
