@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, User, FileText, X, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 
 interface ClientResult {
     id: string;
@@ -44,7 +45,14 @@ export function SidebarSearch({ collapsed }: SidebarSearchProps) {
         if (q.length < 2) { setResults(null); setLoading(false); return; }
         setLoading(true);
         try {
-            const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+            const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, {
+                headers: {
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                }
+            });
+            if (!res.ok) { setResults(null); return; }
             const data = await res.json();
             setResults(data);
         } catch { setResults(null); }

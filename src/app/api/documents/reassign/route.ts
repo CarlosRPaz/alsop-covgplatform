@@ -208,13 +208,24 @@ export async function POST(request: NextRequest) {
             .eq('document_id', documentId)
             .in('status', ['queued', 'processing']);
 
-        // 5. Update document to point to new policy
+        // 5. Look up the latest policy_term_id for the target policy (needed for DIC writeback)
+        const { data: latestTerm } = await admin
+            .from('policy_terms')
+            .select('id')
+            .eq('policy_id', targetPolicyId)
+            .order('effective_date', { ascending: false })
+            .limit(1)
+            .single();
+
+        const newPolicyTermId = latestTerm?.id || null;
+
+        // 6. Update document to point to new policy
         const { error: updateError } = await admin
             .from('platform_documents')
             .update({
                 policy_id: targetPolicyId,
                 client_id: targetClientId,
-                policy_term_id: null,
+                policy_term_id: newPolicyTermId,
                 match_status: 'manual',
                 match_confidence: 1.0,
                 parse_status: 'pending',

@@ -542,7 +542,7 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
                 <Card className={styles.card}>
                     <h3>Perils Insured Against</h3>
                     <div className={styles.field}>
-                        <label>Fire, Lightning &amp; Smoke Damage:</label>
+                        <label>Fire or Lightning, Internal Explosion and Smoke Damage:</label>
                         <span>{declaration.cb_fire_lightning_smoke_damage || '—'}</span>
                     </div>
                     <div className={styles.field}>
@@ -550,7 +550,7 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
                         <span>{declaration.cb_extended_coverages || '—'}</span>
                     </div>
                     <div className={styles.field}>
-                        <label>Vandalism &amp; Malicious Mischief:</label>
+                        <label>Vandalism or Malicious Mischief:</label>
                         <span>{declaration.cb_vandalism_malicious_mischief || '—'}</span>
                     </div>
                 </Card>
@@ -573,6 +573,12 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
                                     <label>Code:</label>
                                     <span>{declaration.mortgagee_1_code || '—'}</span>
                                 </div>
+                                {declaration.mortgagee_1_loan_number && (
+                                    <div className={styles.field}>
+                                        <label>Loan #:</label>
+                                        <span>{declaration.mortgagee_1_loan_number}</span>
+                                    </div>
+                                )}
                             </>
                         )}
                         {declaration.mortgagee_2_name && (
@@ -589,6 +595,12 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
                                     <label>Code:</label>
                                     <span>{declaration.mortgagee_2_code || '—'}</span>
                                 </div>
+                                {declaration.mortgagee_2_loan_number && (
+                                    <div className={styles.field}>
+                                        <label>Loan #:</label>
+                                        <span>{declaration.mortgagee_2_loan_number}</span>
+                                    </div>
+                                )}
                             </>
                         )}
                     </Card>

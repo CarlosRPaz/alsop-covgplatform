@@ -12,8 +12,8 @@ import { useRouter } from 'next/navigation';
 import { FullWorkupModal } from './FullWorkupModal';
 
 // localStorage keys (v2 — reset to pick up new column order & visibility defaults)
-const LS_VISIBLE_COLUMNS = 'cfp_datatable_visibleColumns_v4';
-const LS_COLUMN_ORDER = 'cfp_datatable_columnOrder_v4';
+const LS_VISIBLE_COLUMNS = 'cfp_datatable_visibleColumns_v5';
+const LS_COLUMN_ORDER = 'cfp_datatable_columnOrder_v5';
 const LS_SELECTED_FLAGS = 'cfp_datatable_selectedFlags';
 const LS_SELECTED_STATUSES = 'cfp_datatable_selectedStatuses';
 const LS_ENRICHMENT_FILTER = 'cfp_datatable_enrichmentFilter';
@@ -61,6 +61,9 @@ const INITIAL_COLUMNS: ColumnDef[] = [
     { key: 'policy_number', label: 'Policy #' },
     { key: 'flag_count', label: 'Flags' },
     { key: 'is_enriched', label: 'Enriched' },
+    { key: 'has_dec_page', label: 'Dec Page' },
+    { key: 'has_rce', label: 'RCE' },
+    { key: 'has_dic', label: 'DIC' },
     { key: 'named_insured', label: 'Insured Name', width: '200px' },
     { key: 'status', label: 'Status' },
     { key: 'effective_date', label: 'Effective Date' },
@@ -77,7 +80,7 @@ const INITIAL_COLUMNS: ColumnDef[] = [
 
 // All columns visible by default
 const DEFAULT_VISIBLE_KEYS = new Set([
-    'policy_number', 'flag_count', 'is_enriched', 'named_insured', 'status',
+    'policy_number', 'flag_count', 'is_enriched', 'has_dec_page', 'has_rce', 'has_dic', 'named_insured', 'status',
     'effective_date', 'expiration_date', 'annual_premium', 'payment_status', 'payment_plan', 'policy_activity',
     'property_address', 'mailing_address', 'carrier_name', 'created_at',
 ]);
@@ -1582,6 +1585,12 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                                     </span>
                                                 ) : (
                                                     <span style={{ color: '#475569', fontSize: '0.75rem' }}>—</span>
+                                                )
+                                            ) : (col.key === 'has_dec_page' || col.key === 'has_rce' || col.key === 'has_dic') ? (
+                                                row[col.key] ? (
+                                                    <span style={{ display: 'inline-block', padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600, background: 'rgba(34,197,94,0.12)', color: '#16a34a', lineHeight: 1.4 }}>Yes</span>
+                                                ) : (
+                                                    <span style={{ display: 'inline-block', padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600, background: 'rgba(239,68,68,0.10)', color: '#dc2626', lineHeight: 1.4 }}>No</span>
                                                 )
                                             ) : (col.key === 'effective_date' || col.key === 'expiration_date') && row[col.key] ? (
                                                 (() => {

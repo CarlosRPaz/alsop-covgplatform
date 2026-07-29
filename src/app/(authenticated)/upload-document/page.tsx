@@ -30,6 +30,14 @@ import Link from 'next/link';
 
 const DOC_TYPES = [
     {
+        key: 'dec_page',
+        label: 'Dec Page',
+        fullLabel: 'Declaration Page',
+        description: 'FAIR Plan declaration pages — processed through the full Dec Page pipeline',
+        color: '#6366f1',
+        icon: '📋',
+    },
+    {
         key: 'rce',
         label: 'RCE',
         fullLabel: 'Replacement Cost Estimator',
@@ -107,6 +115,13 @@ export default function UploadDocumentPage() {
     const [startTime, setStartTime] = useState<number | null>(null);
     const [processingTime, setProcessingTime] = useState('');
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // Dec Page engine state (separate from platform documents engine)
+    const [decPageStatus, setDecPageStatus] = useState<'uploading' | 'queued' | 'processing' | 'parsed' | 'failed' | null>(null);
+    const [decPageStep, setDecPageStep] = useState<string | null>(null);
+    const [decPageUploadProgress, setDecPageUploadProgress] = useState(0);
+    const [decPageSubmissionId, setDecPageSubmissionId] = useState<string | null>(null);
+    const decPagePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Manual Assign State
     const [isAssigning, setIsAssigning] = useState(false);
@@ -235,7 +250,10 @@ export default function UploadDocumentPage() {
     }, [reassignDocInfo]);
 
     // Clean up on unmount
-    useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+    useEffect(() => () => { 
+        if (pollRef.current) clearInterval(pollRef.current); 
+        if (decPagePollRef.current) clearInterval(decPagePollRef.current); 
+    }, []);
 
     // Live timer
     useEffect(() => {
@@ -290,6 +308,47 @@ export default function UploadDocumentPage() {
         pollRef.current = setInterval(fetchStatus, 2000);
     }, [startTime]);
 
+    /* ── Dec Page Polling (uses /api/upload/status) ─────────────────── */
+
+    const startDecPagePolling = useCallback((submissionId: string) => {
+        setPhase('polling');
+        setStartTime(Date.now());
+        setDecPageStatus('queued');
+
+        const fetchStatus = async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session?.access_token) return;
+
+                const res = await fetch(`/api/upload/status?ids=${submissionId}`, {
+                    headers: { 'Authorization': `Bearer ${session.access_token}` },
+                });
+                if (!res.ok) return;
+
+                const json = await res.json();
+                if (!json.success || !json.data?.[0]) return;
+
+                const status = json.data[0].status as typeof decPageStatus;
+                const step = json.data[0].processing_step as string | null;
+                setDecPageStatus(status);
+                setDecPageStep(step);
+
+                if (status === 'parsed' || status === 'failed') {
+                    setPhase('done');
+                    if (decPagePollRef.current) { clearInterval(decPagePollRef.current); decPagePollRef.current = null; }
+                    const elapsed = Math.floor((Date.now() - (startTime || Date.now())) / 1000);
+                    setProcessingTime(elapsed >= 60 ? `${Math.floor(elapsed / 60)}m ${elapsed % 60}s` : `${elapsed}s`);
+                    if (status === 'parsed') {
+                        window.dispatchEvent(new CustomEvent('decPageParsed'));
+                    }
+                }
+            } catch { /* swallow */ }
+        };
+
+        fetchStatus();
+        decPagePollRef.current = setInterval(fetchStatus, 3000);
+    }, [startTime]);
+
     /* ── Load existing doc for duplicate ─────────────────────────────── */
 
     const loadExistingDoc = useCallback(async (docId: string) => {
@@ -325,46 +384,110 @@ export default function UploadDocumentPage() {
         setIsDuplicate(false);
         setProcessingTime('');
         setUploadedFileName(file.name);
+        // Reset dec page state
+        setDecPageStatus(null);
+        setDecPageStep(null);
+        setDecPageUploadProgress(0);
+        setDecPageSubmissionId(null);
 
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session?.access_token) { setUploadError('Session expired.'); setPhase('idle'); return; }
 
-            const formData = new FormData();
-            formData.set('file', file);
-            formData.set('doc_type', selectedType);
+            if (selectedType === 'dec_page') {
+                // ── Dec Page Engine: XHR to /api/upload ──
+                const formData = new FormData();
+                formData.set('file', file);
 
-            const res = await fetch('/api/documents/upload', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${session.access_token}` },
-                body: formData,
-            });
+                const result = await new Promise<{ ok: boolean; data: Record<string, unknown> }>((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
 
-            const json = await res.json();
+                    xhr.upload.addEventListener('progress', (event) => {
+                        if (event.lengthComputable) {
+                            setDecPageUploadProgress(Math.round((event.loaded / event.total) * 100));
+                        }
+                    });
 
-            if (res.status === 409) {
-                // Duplicate — load existing doc data for the report
-                const existingId = json.data?.existingDocumentId;
-                if (existingId) {
-                    loadExistingDoc(existingId);
-                } else {
-                    // Fallback if API doesn't return ID
-                    setPhase('done');
-                    setIsDuplicate(true);
-                    setDocStatus(null);
+                    xhr.addEventListener('load', () => {
+                        try {
+                            const json = JSON.parse(xhr.responseText);
+                            resolve({ ok: xhr.status >= 200 && xhr.status < 300, data: json });
+                        } catch {
+                            reject(new Error(`Server returned an invalid response (HTTP ${xhr.status})`));
+                        }
+                    });
+
+                    xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+                    xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
+                    xhr.addEventListener('timeout', () => reject(new Error('Upload timed out.')));
+
+                    xhr.timeout = 90000;
+                    xhr.open('POST', '/api/upload');
+                    xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`);
+                    xhr.send(formData);
+                });
+
+                if (!result.ok || !result.data.success) {
+                    setUploadError((result.data.message as string) || 'Upload failed.');
+                    setPhase('idle');
+                    return;
                 }
-            } else if (res.ok && json.success) {
-                const newDocId = json.data?.documentId;
-                if (newDocId) {
-                    setDocumentId(newDocId);
-                    startPolling(newDocId);
+
+                const responseData = result.data.data as Record<string, unknown> | undefined;
+                const submissionId = responseData?.submissionId as string | undefined;
+
+                if (submissionId) {
+                    setDecPageSubmissionId(submissionId);
+                    try {
+                        const key = 'cfp_pending_dec_uploads';
+                        const stored = sessionStorage.getItem(key);
+                        const pending = stored ? JSON.parse(stored) : [];
+                        if (!pending.includes(submissionId)) {
+                            pending.push(submissionId);
+                            sessionStorage.setItem(key, JSON.stringify(pending));
+                        }
+                    } catch { /* storage error */ }
+                    startDecPagePolling(submissionId);
                 } else {
-                    setUploadError('Upload succeeded but no document ID returned.');
+                    setUploadError('Upload succeeded but no submission ID returned.');
                     setPhase('idle');
                 }
             } else {
-                setUploadError(json.message || 'Upload failed.');
-                setPhase('idle');
+                // ── Platform Documents Engine: fetch to /api/documents/upload ──
+                const formData = new FormData();
+                formData.set('file', file);
+                formData.set('doc_type', selectedType);
+
+                const res = await fetch('/api/documents/upload', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${session.access_token}` },
+                    body: formData,
+                });
+
+                const json = await res.json();
+
+                if (res.status === 409) {
+                    const existingId = json.data?.existingDocumentId;
+                    if (existingId) {
+                        loadExistingDoc(existingId);
+                    } else {
+                        setPhase('done');
+                        setIsDuplicate(true);
+                        setDocStatus(null);
+                    }
+                } else if (res.ok && json.success) {
+                    const newDocId = json.data?.documentId;
+                    if (newDocId) {
+                        setDocumentId(newDocId);
+                        startPolling(newDocId);
+                    } else {
+                        setUploadError('Upload succeeded but no document ID returned.');
+                        setPhase('idle');
+                    }
+                } else {
+                    setUploadError(json.message || 'Upload failed.');
+                    setPhase('idle');
+                }
             }
         } catch {
             setUploadError('Network error. Please try again.');
@@ -372,7 +495,7 @@ export default function UploadDocumentPage() {
         } finally {
             if (fileInputRef.current) fileInputRef.current.value = '';
         }
-    }, [selectedType, startPolling, loadExistingDoc]);
+    }, [selectedType, startPolling, loadExistingDoc, startDecPagePolling]);
 
     const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(true); };
     const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); };
@@ -669,6 +792,12 @@ export default function UploadDocumentPage() {
         setSelectedType(null);
         setUploadedFileName('');
         if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+        // Reset dec page engine state
+        setDecPageStatus(null);
+        setDecPageStep(null);
+        setDecPageUploadProgress(0);
+        setDecPageSubmissionId(null);
+        if (decPagePollRef.current) { clearInterval(decPagePollRef.current); decPagePollRef.current = null; }
     };
 
     return (
@@ -685,7 +814,7 @@ export default function UploadDocumentPage() {
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                         {isReassignMode
                             ? 'Move this document to a different policy. Old data will be cleaned up automatically.'
-                            : 'Upload RCE, DIC, or other policy documents for automatic processing'}
+                            : 'Upload declaration pages, RCE, DIC, or other policy documents for automatic processing'}
                     </p>
                 </div>
             </div>
@@ -902,7 +1031,7 @@ export default function UploadDocumentPage() {
                         <h2 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-high)', marginBottom: '1rem' }}>
                             <span style={{ color: 'var(--accent-primary)', marginRight: '0.5rem' }}>1.</span>Select Document Type
                         </h2>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
                             {DOC_TYPES.map(type => (
                                 <button
                                     key={type.key}
@@ -960,9 +1089,146 @@ export default function UploadDocumentPage() {
             )}
 
             {/* ═══════════════════════════════════════════════════════════
-                 LIVE PROCESSING TRACKER
+                 DEC PAGE PROCESSING TRACKER (uses Dec Page engine)
                  ═══════════════════════════════════════════════════════════ */}
-            {showTracker && (
+            {selectedType === 'dec_page' && phase !== 'idle' && (() => {
+                const DEC_PIPELINE = [
+                    { key: 'extracting_text', label: 'Extracting Text', desc: 'Reading PDF content with OCR fallback' },
+                    { key: 'parsing_fields', label: 'Parsing Fields', desc: 'AI-powered field extraction' },
+                    { key: 'creating_records', label: 'Creating Records', desc: 'Creating client and policy records' },
+                    { key: 'enriching_property', label: 'Enriching Property', desc: 'ATTOM, satellite imagery, and AI analysis' },
+                    { key: 'evaluating_flags', label: 'Evaluating Flags', desc: 'Running flag evaluation rules' },
+                    { key: 'generating_report', label: 'Generating Report', desc: 'Creating AI coverage report' },
+                    { key: 'complete', label: 'Complete', desc: 'Processing finished' },
+                ];
+                const isDecSuccess = decPageStatus === 'parsed';
+                const isDecFailed = decPageStatus === 'failed';
+
+                return (
+                    <div style={{
+                        background: 'var(--bg-surface)',
+                        border: `1px solid ${isDecSuccess ? '#10b98140' : isDecFailed ? '#ef444440' : 'var(--border-default)'}`,
+                        borderRadius: 'var(--radius-lg)',
+                        overflow: 'hidden',
+                        marginBottom: '1.25rem',
+                    }}>
+                        {/* Header */}
+                        <div style={{
+                            padding: '1rem 1.5rem',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            borderBottom: '1px solid var(--border-default)',
+                            background: isDecSuccess ? '#10b98108' : isDecFailed ? '#ef444408' : 'transparent',
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                {(phase === 'uploading' || phase === 'polling') && <Loader2 size={18} style={{ animation: 'spin 1s linear infinite', color: '#6366f1' }} />}
+                                {isDecSuccess && <CheckCircle size={18} style={{ color: '#10b981' }} />}
+                                {isDecFailed && <XCircle size={18} style={{ color: '#ef4444' }} />}
+                                <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-high)' }}>
+                                    {phase === 'uploading' ? 'Uploading…' :
+                                     phase === 'polling' ? 'Processing Dec Page…' :
+                                     isDecSuccess ? 'Dec Page Processed Successfully' :
+                                     isDecFailed ? 'Processing Failed' : 'Processing…'}
+                                </span>
+                                <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '0.25rem', backgroundColor: '#6366f120', color: '#6366f1' }}>Dec Page</span>
+                            </div>
+                            {processingTime && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                    <Clock size={13} style={{ color: 'var(--text-muted)' }} />
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{processingTime}</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Pipeline Steps */}
+                        <div style={{ padding: '1.25rem 1.5rem' }}>
+                            {phase === 'uploading' && (
+                                <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.4rem 0', marginBottom: '0.75rem' }}>
+                                        <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <Loader2 size={13} style={{ color: '#fff', animation: 'spin 1s linear infinite' }} />
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-high)' }}>Uploading to server</div>
+                                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{uploadedFileName}</div>
+                                        </div>
+                                    </div>
+                                    {/* XHR Progress Bar */}
+                                    <div style={{ background: 'var(--bg-surface-raised)', borderRadius: '6px', height: '8px', overflow: 'hidden' }}>
+                                        <div style={{ height: '100%', width: `${decPageUploadProgress}%`, background: '#6366f1', borderRadius: '6px', transition: 'width 0.3s ease' }} />
+                                    </div>
+                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem', textAlign: 'right' as const }}>{decPageUploadProgress}%</div>
+                                </div>
+                            )}
+
+                            {phase === 'polling' && DEC_PIPELINE.map((step, i) => {
+                                const currentIdx = DEC_PIPELINE.findIndex(s => s.key === (decPageStep || 'extracting_text'));
+                                const isDone = i < currentIdx;
+                                const isCurrent = i === currentIdx;
+                                const isPending = i > currentIdx;
+
+                                return (
+                                    <div key={step.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.4rem 0' }}>
+                                        <div style={{
+                                            width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            background: isDone ? '#10b981' : isCurrent ? '#6366f1' : 'var(--bg-surface-raised)',
+                                            border: isPending ? '2px solid var(--border-default)' : 'none',
+                                        }}>
+                                            {isDone && <CheckCircle size={13} style={{ color: '#fff' }} />}
+                                            {isCurrent && <Loader2 size={13} style={{ color: '#fff', animation: 'spin 1s linear infinite' }} />}
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: '0.82rem', fontWeight: isDone || isCurrent ? 600 : 400, color: isDone ? '#10b981' : isCurrent ? 'var(--text-high)' : 'var(--text-muted)' }}>
+                                                {step.label}
+                                            </div>
+                                            {isCurrent && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>{step.desc}</div>}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+
+                            {/* Success State */}
+                            {isDecSuccess && (
+                                <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                                        <CheckCircle size={20} style={{ color: '#10b981' }} />
+                                        <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#10b981' }}>Declaration page processed successfully</span>
+                                    </div>
+                                    <p style={{ fontSize: '0.78rem', color: 'var(--text-mid)', lineHeight: 1.5, marginBottom: '1rem' }}>
+                                        The dec page has been parsed, policy and client records created, property enrichment completed, flags evaluated, and an AI report generated.
+                                    </p>
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <Button size="sm" variant="primary" onClick={resetForNewUpload}>
+                                            <FileUp size={14} style={{ marginRight: 6 }} /> Upload Another
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Failed State */}
+                            {isDecFailed && (
+                                <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                        <XCircle size={20} style={{ color: '#ef4444' }} />
+                                        <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#ef4444' }}>Processing failed</span>
+                                    </div>
+                                    <p style={{ fontSize: '0.78rem', color: 'var(--text-mid)', lineHeight: 1.5, marginBottom: '1rem' }}>
+                                        The declaration page could not be processed. This may happen if the PDF is corrupt, unreadable, or not a valid dec page. Please try again with a different file.
+                                    </p>
+                                    <Button size="sm" variant="primary" onClick={resetForNewUpload}>
+                                        <FileUp size={14} style={{ marginRight: 6 }} /> Try Again
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* ═══════════════════════════════════════════════════════════
+                 LIVE PROCESSING TRACKER (Platform Documents only)
+                 ═══════════════════════════════════════════════════════════ */}
+            {showTracker && selectedType !== 'dec_page' && (
                 <div style={{
                     background: 'var(--bg-surface)',
                     border: `1px solid ${isSuccess ? '#10b98140' : needsReview ? '#f59e0b40' : isFailed ? '#ef444440' : isDuplicate ? '#6366f140' : 'var(--border-default)'}`,

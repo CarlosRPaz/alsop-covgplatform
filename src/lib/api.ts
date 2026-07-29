@@ -73,9 +73,11 @@ export interface SupabaseDeclarationRow {
     mortgagee_1_name?: string;
     mortgagee_1_address?: string;
     mortgagee_1_code?: string;
+    mortgagee_1_loan_number?: string;
     mortgagee_2_name?: string;
     mortgagee_2_address?: string;
     mortgagee_2_code?: string;
+    mortgagee_2_loan_number?: string;
     // DIC
     dic_company?: string;
     // Raw text
@@ -154,9 +156,11 @@ export interface Declaration {
     mortgagee_1_name?: string;
     mortgagee_1_address?: string;
     mortgagee_1_code?: string;
+    mortgagee_1_loan_number?: string;
     mortgagee_2_name?: string;
     mortgagee_2_address?: string;
     mortgagee_2_code?: string;
+    mortgagee_2_loan_number?: string;
     // DIC (Difference in Conditions)
     dic_company?: string;
     dic_exists?: boolean;
@@ -501,9 +505,11 @@ function mapRowToDeclaration(row: SupabaseDeclarationRow): Declaration {
         mortgagee_1_name: row.mortgagee_1_name || undefined,
         mortgagee_1_address: row.mortgagee_1_address || undefined,
         mortgagee_1_code: row.mortgagee_1_code || undefined,
+        mortgagee_1_loan_number: row.mortgagee_1_loan_number || undefined,
         mortgagee_2_name: row.mortgagee_2_name || undefined,
         mortgagee_2_address: row.mortgagee_2_address || undefined,
         mortgagee_2_code: row.mortgagee_2_code || undefined,
+        mortgagee_2_loan_number: row.mortgagee_2_loan_number || undefined,
         // DIC
         dic_company: row.dic_company || undefined,
         // System Fields
@@ -947,9 +953,11 @@ export interface PolicyDetail {
     mortgagee_1_name?: string;
     mortgagee_1_address?: string;
     mortgagee_1_code?: string;
+    mortgagee_1_loan_number?: string;
     mortgagee_2_name?: string;
     mortgagee_2_address?: string;
     mortgagee_2_code?: string;
+    mortgagee_2_loan_number?: string;
     // DIC (from dec page)
     dic_company?: string;
     // DIC coverage limits (from dic_processor writeback)
@@ -1023,9 +1031,11 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
                     mortgagee_1_name,
                     mortgagee_1_address,
                     mortgagee_1_code,
+                    mortgagee_1_loan_number,
                     mortgagee_2_name,
                     mortgagee_2_address,
                     mortgagee_2_code,
+                    mortgagee_2_loan_number,
                     property_location,
                     year_built,
                     occupancy,
@@ -1217,9 +1227,11 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
             mortgagee_1_name: currentTerm?.mortgagee_1_name || undefined,
             mortgagee_1_address: currentTerm?.mortgagee_1_address || undefined,
             mortgagee_1_code: currentTerm?.mortgagee_1_code || undefined,
+            mortgagee_1_loan_number: currentTerm?.mortgagee_1_loan_number || undefined,
             mortgagee_2_name: currentTerm?.mortgagee_2_name || undefined,
             mortgagee_2_address: currentTerm?.mortgagee_2_address || undefined,
             mortgagee_2_code: currentTerm?.mortgagee_2_code || undefined,
+            mortgagee_2_loan_number: currentTerm?.mortgagee_2_loan_number || undefined,
             dic_company: undefined,
             all_terms: allTermsSorted,
         };
@@ -1287,9 +1299,11 @@ export function mapPolicyDetailToDeclaration(detail: PolicyDetail): Declaration 
         mortgagee_1_name: detail.mortgagee_1_name,
         mortgagee_1_address: detail.mortgagee_1_address,
         mortgagee_1_code: detail.mortgagee_1_code,
+        mortgagee_1_loan_number: detail.mortgagee_1_loan_number,
         mortgagee_2_name: detail.mortgagee_2_name,
         mortgagee_2_address: detail.mortgagee_2_address,
         mortgagee_2_code: detail.mortgagee_2_code,
+        mortgagee_2_loan_number: detail.mortgagee_2_loan_number,
         dic_company: detail.dic_company,
         dic_exists: detail.dic_exists,
         dic_policy_number: detail.dic_policy_number,
@@ -3098,9 +3112,11 @@ export async function approveDecPage(decPageId: string, policyId: string): Promi
                 mortgagee_1_name: dp.mortgagee_1_name || undefined,
                 mortgagee_1_address: dp.mortgagee_1_address || undefined,
                 mortgagee_1_code: dp.mortgagee_1_code || undefined,
+                mortgagee_1_loan_number: dp.mortgagee_1_loan_number || undefined,
                 mortgagee_2_name: dp.mortgagee_2_name || undefined,
                 mortgagee_2_address: dp.mortgagee_2_address || undefined,
                 mortgagee_2_code: dp.mortgagee_2_code || undefined,
+                mortgagee_2_loan_number: dp.mortgagee_2_loan_number || undefined,
                 property_location: dp.property_location || undefined,
                 year_built: dp.year_built || undefined,
                 occupancy: dp.occupancy || undefined,

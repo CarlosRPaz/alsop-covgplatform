@@ -179,7 +179,20 @@ class DICProcessor(DocumentProcessor):
         log: list[dict] = []
 
         # Update policy_terms with DIC flag + DIC coverages (separate columns)
-        if policy_term_id:
+        # Resolve policy_term_id if missing (e.g., older manual assignments)
+        resolved_term_id = policy_term_id
+        if not resolved_term_id:
+            try:
+                term_row = sb.table("policy_terms").select("id").eq(
+                    "policy_id", policy_id
+                ).order("effective_date", desc=True).limit(1).execute()
+                if term_row.data:
+                    resolved_term_id = term_row.data[0]["id"]
+                    logger.info("DIC writeback: resolved policy_term_id=%s for policy=%s", resolved_term_id, policy_id)
+            except Exception as e:
+                logger.warning("DIC writeback: failed to resolve policy_term_id: %s", e)
+
+        if resolved_term_id:
             # Build the update payload — dic_exists + all DIC coverage fields
             dic_update: dict[str, Any] = {
                 "dic_exists": True,
@@ -203,7 +216,7 @@ class DICProcessor(DocumentProcessor):
                     dic_update[dest_col] = val
 
             try:
-                sb.table("policy_terms").update(dic_update).eq("id", policy_term_id).execute()
+                sb.table("policy_terms").update(dic_update).eq("id", resolved_term_id).execute()
 
                 log.append({
                     "action": "written",

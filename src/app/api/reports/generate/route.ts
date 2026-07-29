@@ -123,41 +123,29 @@ export async function POST(req: NextRequest) {
         }
 
         const systemPrompt = `
-You are creating a COMPACT, CLIENT-FACING coverage analysis report for an insurance brokerage.
-This report will be shared with the client. It must be clear, professional, and concise.
+You are creating a COMPACT, CLIENT-FACING coverage comparison report for an insurance brokerage.
+This report will be shared with the client. It must be clear, professional, concise, and non-judgmental.
 
 AUDIENCE: Homeowners and policyholders. Use plain language. No jargon.
 
-WRITING RULES:
-1. Be CONCISE. Every word must earn its place.
-2. executive_summary: MAX 3 sentences. Lead with the single most important finding. End with overall risk posture.
-3. renewal_snapshot: 1-2 sentences about timing and urgency. Keep it tight.
-4. top_concerns: Each explanation should be 1 sentence max. Evidence should be a brief data point, not a paragraph.
-5. coverage_review observations: Keep to 10-15 words per observation. No filler.
-6. recommendations: Each should be a single clear sentence. Actionable, not advisory essays.
-7. action_items: Short, direct checklist items. "Verify roof age with inspector" not "It would be advisable to verify..."
-8. data_gaps: Only include if genuinely impactful to the client conversation. Skip trivial gaps.
-9. property_observations: Include observations with real value only. Skip generic/obvious items.
-10. internal_notes: Put agent-only observations, raw enrichment conflicts, and technical notes HERE. This field is NOT shown to clients.
+STRICT MANDATORY RULES:
+1. EVERYTHING MUST BE SOURCED: Every top concern, coverage review item, property observation, and recommendation MUST explicitly specify its source (e.g., "2026 Policy Declaration", "Replacement Cost Estimate (RCE)", "County Assessor Data").
+2. DO NOT DETERMINE COVERAGE ADEQUACY: Never state, imply, or judge whether coverage is "adequate", "inadequate", "sufficient", or "deficient". Determining adequacy creates liability. Your job is ONLY to explain where we found coverage on their previous policy and point out differences or optional coverages that may be missing.
+3. NEUTRAL & COMPARATIVE TONE: Frame findings neutrally: "On your previous policy, X limit was $Y. An option to adjust to $Z is available to evaluate." or "This endorsement was not present on your prior dec page."
+4. NO GUARANTEES: Never reassure the client that they are "fully protected" or "properly covered".
+5. CLIENT RESPONSIBILITY: Frame all recommendations as options for the client to review and decide upon.
+6. BE CONCISE: Executive summary max 3 sentences. Observations 10-15 words max.
 
-CRITICAL RULES:
-- DO NOT invent facts. Only cite what is in the JSON context.
-- If enrichments conflict with policy data, flag it as something to verify, not as an error.
-- Cite sources: "policy declaration", "satellite imagery", "property data", etc. (But respect the EXCLUSIONS below).
-- Frame recommendations as discussion points: "Consider", "We recommend discussing", "Worth reviewing".
-- Prioritize by client impact: 1 = urgent, 2 = before renewal, 3 = when convenient.
-- Output strict JSON matching the required schema.
-
-EXCLUSIONS AND GUARDRAILS (STRICT):
-1. NO FIRE RISK: NEVER mention fire risk, fire scores, or wildfire scores in any section. Completely suppress these findings from the output.
-2. NO IMAGERY NOTES: NEVER mention image quality, satellite limitations, or unclear photos.
+EXCLUSIONS AND GUARDRAILS:
+1. NO FIRE RISK: NEVER mention fire risk, fire scores, or wildfire scores in any section. Completely suppress these findings.
+2. NO IMAGERY NOTES: NEVER mention satellite image quality or photo limitations.
 3. NO INSPECTION NOTES: NEVER recommend visual, property, or field inspections.
 4. NO "APPROVED VENDOR": DO NOT use the phrase "with an approved vendor". Simply state "Review replacement cost estimate".
-5. NO REASSURANCE: NEVER use reassuring words like "adequate", "sufficient", "properly covered", "looks good", "coverage is good", or "no issue". Use neutral or improvement-oriented framing (e.g., "Consider reviewing", "Recommended to evaluate").
-6. IMPROVEMENT ORIENTED ONLY: Only include findings, observations, or action items that represent a gap, suggestion, or review opportunity. Do not include "good news" confirmations.
+5. NO REASSURANCE: NEVER use words like "adequate", "inadequate", "sufficient", "properly covered", "looks good", or "coverage is good".
+6. SOURCED COMPARISON ONLY: Every recommendation must cite what data source triggered the observation.
 
 VALUATION DATA GUIDANCE:
-- If replacement cost estimate is available, frame as: "Based on available data, estimated replacement cost is approximately $X. Review replacement cost estimate."
+- If replacement cost estimate is available, frame as: "Based on available RCE document, estimated replacement cost is $X. You may review this estimate."
 - NEVER present estimates as authoritative.
 
 Data Context:
@@ -211,16 +199,17 @@ ${JSON.stringify(dataPayload, null, 2)}
                                 },
                                 coverage_review: {
                                     type: 'array',
-                                    description: 'Assessment per coverage line. Keep observations to 10-15 words.',
+                                    description: 'Comparative notes per coverage line. Keep observations to 10-15 words.',
                                     items: {
                                         type: 'object',
                                         properties: {
                                             coverage: { type: 'string', description: 'Coverage name' },
                                             current_value: { type: 'string', description: 'Current limit from the policy' },
-                                            observation: { type: 'string', description: 'Brief note (10-15 words max)' },
-                                            adequacy: { type: 'string', enum: ['review', 'gap', 'unknown'], description: 'Never use adequate. Use review or unknown for neutral items.' }
+                                            observation: { type: 'string', description: 'Brief comparative note (10-15 words max)' },
+                                            status: { type: 'string', enum: ['review_suggested', 'missing_coverage', 'informational'], description: 'Neutral status indicator. Never pass judgement as adequate.' },
+                                            source: { type: 'string', description: 'Source document or line reference' }
                                         },
-                                        required: ['coverage', 'current_value', 'observation', 'adequacy'],
+                                        required: ['coverage', 'current_value', 'observation', 'status', 'source'],
                                         additionalProperties: false
                                     }
                                 },

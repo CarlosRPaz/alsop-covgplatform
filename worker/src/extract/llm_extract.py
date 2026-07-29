@@ -85,7 +85,9 @@ FIELDS TO EXTRACT
     "mortgagee_1_code": "",
     "mortgagee_2_name": "",
     "mortgagee_2_address": "",
-    "mortgagee_2_code": ""
+    "mortgagee_2_code": "",
+    "mortgagee_1_loan_number": "",
+    "mortgagee_2_loan_number": ""
 }
 
 ============================================
@@ -254,6 +256,10 @@ For EACH mortgagee (if present):
     combined with ", ".
   - mortgagee_N_code: The LAST LINE of that mortgagee's block is a numeric code.
     Example: "3000450181"
+  - mortgagee_N_loan_number: The loan or reference number associated with the
+    mortgagee, often on its own line near the address or code. May be labeled
+    "Loan #", "Loan Number", or appear as a standalone numeric string distinct
+    from the clause code. If no loan number is present, return null.
 
 - If a mortgagee column is empty or has no data, return null for all 3 fields.
 - Example:

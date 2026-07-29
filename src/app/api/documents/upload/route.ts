@@ -207,6 +207,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<DocumentU
         // ---------------------------------------------------------------
         // 4. INSERT platform_documents row (parse_status='pending')
         // ---------------------------------------------------------------
+        // If uploaded from a policy page, resolve policy_term_id for writeback
+        let policyTermId: string | null = null;
+        if (policyId) {
+            const { data: latestTerm } = await supabaseAdmin
+                .from('policy_terms')
+                .select('id')
+                .eq('policy_id', policyId)
+                .order('effective_date', { ascending: false })
+                .limit(1)
+                .single();
+            policyTermId = latestTerm?.id || null;
+        }
+
         const now = new Date().toISOString();
         const { data: docRow, error: insertError } = await supabaseAdmin
             .from('platform_documents')
@@ -221,6 +234,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DocumentU
                 processing_step: 'uploaded',
                 match_status: policyId ? 'manual' : 'pending',
                 policy_id: policyId || null,
+                policy_term_id: policyTermId,
                 created_at: now,
                 updated_at: now,
             })

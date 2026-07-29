@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { X, Save, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { X, Save, Loader2, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button/Button';
 import { updatePolicy, updatePolicyTerm, PolicyDetail } from '@/lib/api';
 import { insertActivityEvent } from '@/lib/notes';
+import { supabase } from '@/lib/supabaseClient';
 import styles from './PolicyEditPanel.module.css';
 
 interface PolicyEditPanelProps {
@@ -21,6 +23,7 @@ function parseCurrency(value: string): number | null {
 }
 
 export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPanelProps) {
+    const router = useRouter();
     const panelRef = useRef<HTMLDivElement>(null);
 
     // Policy header form
@@ -58,6 +61,12 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
     const [dicError, setDicError] = useState(false);
+
+    // ── Delete Policy state ──
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [deleteOrphanedClient, setDeleteOrphanedClient] = useState(true);
+    const [deleting, setDeleting] = useState(false);
+    const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
     // ── Dirty check ──
     const isDirty = useCallback(() => {
@@ -625,6 +634,30 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
                     )}
                 </div>
 
+                {/* ── Danger Zone ── */}
+                <div className={styles.section} style={{ borderTop: '1px solid var(--semantic-error, #ef4444)', marginTop: '1.5rem', paddingTop: '1.5rem' }}>
+                    <div className={styles.sectionTitle} style={{ color: 'var(--semantic-error, #ef4444)' }}>
+                        <Trash2 size={14} /> Danger Zone
+                        <span className={styles.sectionDivider} />
+                    </div>
+                    <p style={{ color: 'var(--text-mid)', fontSize: '0.82rem', lineHeight: 1.5, marginBottom: '0.75rem' }}>
+                        Permanently delete this policy and all associated data (dec pages, flags, enrichments, reports, documents, notes, activity). This action <strong>cannot be undone</strong>.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => setShowDeleteDialog(true)}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '0.4rem',
+                            padding: '0.5rem 1rem', borderRadius: '7px', fontSize: '0.82rem', fontWeight: 600,
+                            background: 'rgba(239, 68, 68, 0.1)', color: 'var(--semantic-error, #ef4444)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)', cursor: 'pointer',
+                        }}
+                    >
+                        <Trash2 size={14} />
+                        Delete This Policy
+                    </button>
+                </div>
+
                 {/* Footer */}
                 <div className={styles.footer}>
                     <Button variant="primary" size="sm" onClick={handleSave} disabled={saving || dicError}>
@@ -669,6 +702,104 @@ export function PolicyEditPanel({ policyDetail, onClose, onSaved }: PolicyEditPa
                             </Button>
                             <Button variant="ghost" size="sm" onClick={() => setShowUnsavedDialog(false)}>
                                 Keep Editing
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Policy Confirmation Dialog */}
+            {showDeleteDialog && (
+                <div className={styles.confirmOverlay} onClick={() => { if (!deleting) setShowDeleteDialog(false); }}>
+                    <div className={styles.confirmDialog} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+                        <Trash2 size={28} style={{ color: '#ef4444' }} />
+                        <h3 className={styles.confirmTitle} style={{ color: '#ef4444' }}>Delete Policy Permanently</h3>
+                        <p className={styles.confirmText}>
+                            You are about to permanently delete policy <strong>{policyDetail.policy_number}</strong> and all associated data including dec pages, flags, enrichments, reports, uploaded documents, notes, and activity logs.
+                        </p>
+                        <p className={styles.confirmText} style={{ fontWeight: 600 }}>
+                            This action cannot be undone.
+                        </p>
+
+                        <div style={{ margin: '0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <input
+                                type="checkbox"
+                                id="delete-orphan-client"
+                                checked={deleteOrphanedClient}
+                                onChange={e => setDeleteOrphanedClient(e.target.checked)}
+                                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                            />
+                            <label htmlFor="delete-orphan-client" style={{ fontSize: '0.82rem', color: 'var(--text-mid)', cursor: 'pointer' }}>
+                                Also delete the client record if it has no other policies
+                            </label>
+                        </div>
+
+                        <div style={{ margin: '0.75rem 0' }}>
+                            <label style={{ fontSize: '0.75rem', color: 'var(--text-mid)', display: 'block', marginBottom: '0.3rem' }}>
+                                Type <strong>DELETE</strong> to confirm:
+                            </label>
+                            <input
+                                type="text"
+                                value={deleteConfirmText}
+                                onChange={e => setDeleteConfirmText(e.target.value)}
+                                placeholder="DELETE"
+                                disabled={deleting}
+                                style={{
+                                    width: '100%', padding: '0.5rem 0.75rem',
+                                    background: 'var(--bg-surface-raised, #fff)',
+                                    border: '1px solid var(--border-default, #ddd)',
+                                    borderRadius: '6px', fontSize: '0.85rem',
+                                    color: 'var(--text-high)',
+                                }}
+                            />
+                        </div>
+
+                        <div className={styles.confirmActions}>
+                            <button
+                                disabled={deleteConfirmText !== 'DELETE' || deleting}
+                                onClick={async () => {
+                                    setDeleting(true);
+                                    try {
+                                        const { data: { session } } = await supabase.auth.getSession();
+                                        const token = session?.access_token;
+                                        const res = await fetch('/api/policies/delete', {
+                                            method: 'POST',
+                                            headers: {
+                                                'Content-Type': 'application/json',
+                                                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                                            },
+                                            body: JSON.stringify({
+                                                policy_id: policyDetail.id,
+                                                delete_orphaned_client: deleteOrphanedClient,
+                                            }),
+                                        });
+                                        const result = await res.json();
+                                        if (result.success) {
+                                            router.push('/dashboard');
+                                        } else {
+                                            setMessage({ type: 'error', text: result.error || 'Failed to delete policy' });
+                                            setShowDeleteDialog(false);
+                                        }
+                                    } catch (err: any) {
+                                        setMessage({ type: 'error', text: err.message || 'Failed to delete policy' });
+                                        setShowDeleteDialog(false);
+                                    } finally {
+                                        setDeleting(false);
+                                    }
+                                }}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                    padding: '0.5rem 1rem', borderRadius: '7px', fontSize: '0.82rem', fontWeight: 600,
+                                    background: deleteConfirmText === 'DELETE' && !deleting ? '#ef4444' : 'rgba(239,68,68,0.2)',
+                                    color: deleteConfirmText === 'DELETE' && !deleting ? '#fff' : 'rgba(239,68,68,0.5)',
+                                    border: 'none', cursor: deleteConfirmText === 'DELETE' && !deleting ? 'pointer' : 'not-allowed',
+                                }}
+                            >
+                                {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                {deleting ? 'Deleting...' : 'Permanently Delete Policy'}
+                            </button>
+                            <Button variant="ghost" size="sm" onClick={() => { setShowDeleteDialog(false); setDeleteConfirmText(''); }} disabled={deleting}>
+                                Cancel
                             </Button>
                         </div>
                     </div>

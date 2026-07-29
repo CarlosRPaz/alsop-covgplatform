@@ -22,6 +22,7 @@ import {
     X,
     Mail,
     FileUp,
+    Calendar,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -41,7 +42,7 @@ export function Sidebar({ userRole }: SidebarProps) {
         { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
         { label: 'Flags', href: '/flags', icon: Flag },
         { label: 'Email Center', href: '/email', icon: Mail },
-        { label: 'Submit Declaration', href: '/submit', icon: FileText },
+        { label: 'Campaigns', href: '/campaigns', icon: Calendar },
         { label: 'Upload Documents', href: '/upload-document', icon: FileUp },
     ];
 

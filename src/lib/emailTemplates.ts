@@ -47,6 +47,30 @@ export interface EmailTemplate {
 
 const TEMPLATES: Record<string, EmailTemplate> = {
 
+    /** Campaign 1: Verify RCE Property Data */
+    rce_verification: {
+        id: 'rce_verification',
+        postmarkAlias: null,
+        postmarkTemplateId: null,
+        name: 'Campaign 1: Verify RCE Property Data',
+        description: 'Ask client to verify property specs (square footage, features) from their Replacement Cost Estimate.',
+        subject: 'Action Requested: Verify Property Specs for Your Replacement Cost Estimate',
+        isClientFacing: true,
+        variables: ['first_name'],
+    },
+
+    /** Campaign 2: Coverage Recommendations & Outlook Meeting Invite */
+    coverage_recommendations_meeting: {
+        id: 'coverage_recommendations_meeting',
+        postmarkAlias: null,
+        postmarkTemplateId: null,
+        name: 'Campaign 2: Coverage Recommendations & Meeting',
+        description: 'Present coverage findings, request permission for coverage adjustments, and invite to Outlook meeting.',
+        subject: 'Coverage Review & Recommended Adjustments — Action Requested',
+        isClientFacing: true,
+        variables: ['first_name'],
+    },
+
     /**
      * Postmark: "Payment Due: Insured Billed"
      * Alias: code-your-own-3 | ID: 44383039

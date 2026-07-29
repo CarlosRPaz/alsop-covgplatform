@@ -34,6 +34,17 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: false, message: 'Selected policy not found.' }, { status: 404 });
         }
 
+        // 1b. Look up the latest policy_term_id for DIC writeback
+        const { data: latestTerm } = await admin
+            .from('policy_terms')
+            .select('id')
+            .eq('policy_id', policyId)
+            .order('effective_date', { ascending: false })
+            .limit(1)
+            .single();
+
+        const policyTermId = latestTerm?.id || null;
+
         // 2. Clear out any existing parsed data attached to this document that might cause unique constraint conflicts
         await admin.from('doc_data_rce').delete().eq('document_id', documentId);
         await admin.from('doc_data_dic').delete().eq('document_id', documentId);
@@ -45,6 +56,7 @@ export async function POST(request: NextRequest) {
                 match_status: 'manual',
                 policy_id: policyId,
                 client_id: policy.client_id,
+                policy_term_id: policyTermId,
                 parse_status: 'pending',
                 processing_step: 'queued',
                 writeback_status: 'none',

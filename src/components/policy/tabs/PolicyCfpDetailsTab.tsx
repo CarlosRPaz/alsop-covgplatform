@@ -10,7 +10,7 @@ import styles from '../PolicyDashboard.module.css';
 function fmtDate(raw: string | null | undefined): string {
     if (!raw) return '—';
     try {
-        const d = new Date(raw);
+        const d = new Date(raw + 'T00:00:00');
         if (isNaN(d.getTime())) return raw;
         return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`;
     } catch {
