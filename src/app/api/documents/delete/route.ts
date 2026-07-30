@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger';
 import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 
 export async function POST(request: NextRequest) {
-    const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+    const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service', 'agent'] });
     if (isAuthError(auth)) return auth;
 
     try {
@@ -84,6 +84,42 @@ export async function POST(request: NextRequest) {
                 }
 
                 logger.info('DocumentDelete', 'RCE cleanup complete', { id, policyId: data.policy_id });
+            }
+
+            // DIC-specific cleanup before deleting the document
+            if (data.doc_type === 'dic_dec_page') {
+                // a. Delete extracted DIC data
+                const { error: dicErr } = await admin.from('doc_data_dic').delete().eq('document_id', id);
+                if (dicErr) {
+                    logger.warn('DocumentDelete', 'Failed to delete doc_data_dic', { id, error: dicErr });
+                }
+
+                // b. Rollback dic_* fields on policy_terms
+                if (data.policy_term_id) {
+                    const dicNullUpdates: Record<string, null | boolean> = {
+                        dic_exists: false,
+                        dic_limit_dwelling: null,
+                        dic_limit_other_structures: null,
+                        dic_limit_personal_property: null,
+                        dic_limit_loss_of_use: null,
+                        dic_deductible: null,
+                        dic_annual_premium_raw: null,
+                        dic_policy_number: null,
+                    };
+                    const { error: rollbackErr } = await admin.from('policy_terms').update(dicNullUpdates).eq('id', data.policy_term_id);
+                    if (rollbackErr) {
+                        logger.warn('DocumentDelete', 'Failed to rollback DIC policy_terms', { termId: data.policy_term_id, error: rollbackErr });
+                    } else {
+                        logger.info('DocumentDelete', 'Rolled back DIC policy_terms fields', { termId: data.policy_term_id });
+                    }
+                }
+
+                // c. Remove DIC-embedded enrichments
+                if (data.policy_id) {
+                    await admin.from('property_enrichments').delete().eq('policy_id', data.policy_id).eq('source_name', 'dic_embedded_360value');
+                }
+
+                logger.info('DocumentDelete', 'DIC cleanup complete', { id, policyId: data.policy_id });
             }
         } else {
             return NextResponse.json({ success: false, message: 'Invalid source' }, { status: 400 });

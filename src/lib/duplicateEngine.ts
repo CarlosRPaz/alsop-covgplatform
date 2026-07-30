@@ -31,6 +31,7 @@ export class DuplicateEngine {
             const { data, error } = await supabaseAdmin
                 .from('policies')
                 .select('id, policy_number, created_at, client_id, property_address_norm')
+                .order('id', { ascending: true })
                 .range(page * pageSize, (page + 1) * pageSize - 1);
 
             if (error) {
@@ -117,6 +118,7 @@ export class DuplicateEngine {
                         policy_terms(id, effective_date, expiration_date, annual_premium, is_current)),
                     dec_pages(id)
                 `)
+                .order('id', { ascending: true })
                 .range(page * pageSize, (page + 1) * pageSize - 1);
 
             if (error) {

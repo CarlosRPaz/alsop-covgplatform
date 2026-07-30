@@ -18,20 +18,31 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
-    const pattern = `%${q}%`;
 
-    // Search clients by name, email, or phone
-    const clientsPromise = supabase
+    // Tokenize query into individual words for better matching
+    // "john kijik" → match clients whose name contains BOTH "john" AND "kijik"
+    const tokens = q.split(/\s+/).filter(t => t.length >= 2);
+    if (tokens.length === 0) {
+        return NextResponse.json({ clients: [], policies: [] });
+    }
+
+    // Build client query — each token must appear in named_insured
+    let clientQuery = supabase
         .from('clients')
-        .select('id, named_insured, email, phone')
-        .or(`named_insured.ilike.${pattern},email.ilike.${pattern},phone.ilike.${pattern}`)
-        .limit(5);
+        .select('id, named_insured, email, phone');
 
-    // Search policies by policy number or address
+    for (const token of tokens) {
+        clientQuery = clientQuery.ilike('named_insured', `%${token}%`);
+    }
+
+    const clientsPromise = clientQuery.limit(10);
+
+    // For policies, use the full query as a single pattern (policy numbers are structured)
+    const pattern = `%${q}%`;
     const policiesPromise = supabase
         .from('policies')
         .select('id, policy_number, property_address_raw, carrier_name, client_id, clients(named_insured)')
-        .or(`policy_number.ilike.${pattern},property_address_raw.ilike.${pattern},carrier_name.ilike.${pattern}`)
+        .or(`policy_number.ilike.${pattern},property_address_raw.ilike.${pattern}`)
         .limit(5);
 
     const [clientsRes, policiesRes] = await Promise.all([clientsPromise, policiesPromise]);
