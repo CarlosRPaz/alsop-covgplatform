@@ -3,6 +3,7 @@
 import React, { useState, useRef, useCallback } from "react";
 import { Copy, AlertCircle, CheckCircle2, X, Merge, RefreshCw, Users, ShieldAlert, Search, UserPlus, Loader2, User } from "lucide-react";
 import ClientMergeModal from "./ClientMergeModal";
+import { supabase } from "@/lib/supabaseClient";
 import styles from "./DuplicateReview.module.css";
 
 export default function DuplicateReview() {
@@ -42,7 +43,10 @@ export default function DuplicateReview() {
     const fetchDuplicates = async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/duplicates/find');
+            const { data: { session } } = await supabase.auth.getSession();
+            const res = await fetch('/api/duplicates/find', {
+                headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+            });
             const data = await res.json();
             if (data.success) {
                 setDuplicateClients(data.clients || []);
@@ -59,9 +63,13 @@ export default function DuplicateReview() {
         setIsMerging(true);
         try {
             for (const mergedId of mergedIds) {
+                const { data: { session } } = await supabase.auth.getSession();
                 const res = await fetch('/api/merge/clients', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+                    },
                     body: JSON.stringify({
                         survivor_id: survivorId,
                         merged_id: mergedId,
@@ -90,9 +98,13 @@ export default function DuplicateReview() {
         setIsMerging(true);
         try {
             for (const mergedId of mergedIds) {
+                const { data: { session } } = await supabase.auth.getSession();
                 const res = await fetch('/api/merge/policies', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+                    },
                     body: JSON.stringify({ survivor_id: survivorId, merged_id: mergedId })
                 });
                 if (!res.ok) throw new Error("Merge failed");

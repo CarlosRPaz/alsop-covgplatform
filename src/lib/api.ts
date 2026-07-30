@@ -1363,7 +1363,7 @@ export async function getClientById(clientId: string): Promise<ClientRow | undef
             .from('clients')
             .select('*')
             .eq('id', clientId)
-            .single();
+            .maybeSingle();
 
         if (error || !data) {
             logger.error('API', `Error fetching client ${clientId}`, {

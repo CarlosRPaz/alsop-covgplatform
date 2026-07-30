@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabaseClient';
 import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 
 export async function POST(req: NextRequest) {
-    const auth = await authenticateRequest(req, { requiredRole: ['admin', 'service'] });
+    const auth = await authenticateRequest(req, { requiredRole: ['admin', 'service', 'agent'] });
     if (isAuthError(auth)) return auth;
 
     const supabaseAdmin = getSupabaseAdmin();
