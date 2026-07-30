@@ -159,9 +159,9 @@ export default function RenewalCampaignsPage() {
                 borderRadius: '4px',
                 fontSize: '0.7rem',
                 fontWeight: 600,
-                background: isMortgage ? 'rgba(139, 92, 246, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                color: isMortgage ? '#c4b5fd' : '#6ee7b7',
-                border: `1px solid ${isMortgage ? 'rgba(139, 92, 246, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
+                background: isMortgage ? 'var(--accent-primary-muted)' : 'var(--bg-success-subtle)',
+                color: isMortgage ? 'var(--text-accent)' : 'var(--status-success)',
+                border: `1px solid ${isMortgage ? 'var(--accent-primary-subtle)' : 'var(--status-success)'}`
             }}>
                 {plan}
             </span>
@@ -169,13 +169,13 @@ export default function RenewalCampaignsPage() {
     };
 
     return (
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem', minHeight: '100vh', background: '#0f172a' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem', minHeight: '100vh', background: 'var(--bg-base)' }}>
             <div style={{ marginBottom: '2rem' }}>
-                <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#fff', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Calendar size={24} style={{ color: '#8b5cf6' }} />
+                <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-high)', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Calendar size={24} style={{ color: 'var(--accent-primary)' }} />
                     Renewal Campaigns
                 </h1>
-                <p style={{ color: '#94a3b8', fontSize: '0.95rem', margin: 0 }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', margin: 0 }}>
                     Manage upcoming policy renewals and generate outreach materials.
                 </p>
             </div>
@@ -184,17 +184,17 @@ export default function RenewalCampaignsPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '1rem', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <div style={{ position: 'relative' }}>
-                        <Filter size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                        <Filter size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                         <select 
                             value={windowDays}
                             onChange={(e) => setWindowDays(Number(e.target.value))}
                             style={{ 
                                 appearance: 'none',
-                                background: 'rgba(255,255,255,0.03)',
-                                border: '1px solid rgba(255,255,255,0.08)',
+                                background: 'var(--bg-surface)',
+                                border: '1px solid var(--border-default)',
                                 borderRadius: '8px',
                                 padding: '0.5rem 2rem 0.5rem 2.25rem',
-                                color: '#e2e8f0',
+                                color: 'var(--text-high)',
                                 fontSize: '0.85rem',
                                 outline: 'none',
                                 cursor: 'pointer'
@@ -207,7 +207,7 @@ export default function RenewalCampaignsPage() {
                     </div>
                     
                     <div style={{ position: 'relative', width: '300px' }}>
-                        <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                        <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                         <input
                             type="text"
                             placeholder="Search client or policy..."
@@ -215,11 +215,11 @@ export default function RenewalCampaignsPage() {
                             onChange={(e) => setSearchQuery(e.target.value)}
                             style={{
                                 width: '100%',
-                                background: 'rgba(255,255,255,0.03)',
-                                border: '1px solid rgba(255,255,255,0.08)',
+                                background: 'var(--bg-surface)',
+                                border: '1px solid var(--border-default)',
                                 borderRadius: '8px',
                                 padding: '0.5rem 1rem 0.5rem 2.25rem',
-                                color: '#e2e8f0',
+                                color: 'var(--text-high)',
                                 fontSize: '0.85rem',
                                 outline: 'none'
                             }}
@@ -230,8 +230,8 @@ export default function RenewalCampaignsPage() {
 
             {/* Bulk Action Bar */}
             <div style={{ 
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-default)',
                 borderRadius: '8px',
                 padding: '0.75rem 1rem',
                 marginBottom: '1rem',
@@ -244,9 +244,9 @@ export default function RenewalCampaignsPage() {
                         type="checkbox"
                         checked={selectedIds.size > 0 && selectedIds.size === filteredPolicies.length}
                         onChange={toggleSelectAll}
-                        style={{ width: '16px', height: '16px', accentColor: '#8b5cf6', cursor: 'pointer' }}
+                        style={{ width: '16px', height: '16px', accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
                     />
-                    <span style={{ color: '#e2e8f0', fontSize: '0.85rem', fontWeight: 600 }}>
+                    <span style={{ color: 'var(--text-high)', fontSize: '0.85rem', fontWeight: 600 }}>
                         {selectedIds.size} selected
                     </span>
                 </div>
@@ -257,8 +257,8 @@ export default function RenewalCampaignsPage() {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.5rem',
-                        background: selectedIds.size > 0 ? '#8b5cf6' : 'rgba(255,255,255,0.05)',
-                        color: selectedIds.size > 0 ? '#fff' : '#64748b',
+                        background: selectedIds.size > 0 ? 'var(--accent-primary)' : 'var(--bg-surface-raised)',
+                        color: selectedIds.size > 0 ? 'var(--text-high)' : 'var(--text-muted)',
                         border: 'none',
                         borderRadius: '6px',
                         padding: '0.5rem 1rem',
@@ -275,59 +275,59 @@ export default function RenewalCampaignsPage() {
 
             {/* Data Table */}
             <div style={{ 
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-default)',
                 borderRadius: '8px',
                 overflow: 'hidden'
             }}>
                 {loading ? (
-                    <div style={{ padding: '4rem', textAlign: 'center', color: '#64748b' }}>
-                        <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 1rem', display: 'block', color: '#8b5cf6' }} />
+                    <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                        <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 1rem', display: 'block', color: 'var(--accent-primary)' }} />
                         Loading renewals...
                     </div>
                 ) : filteredPolicies.length === 0 ? (
-                    <div style={{ padding: '4rem', textAlign: 'center', color: '#64748b' }}>
+                    <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                         <Users size={32} style={{ margin: '0 auto 1rem', display: 'block', opacity: 0.5 }} />
                         No renewals found for the selected timeframe.
                     </div>
                 ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                         <thead>
-                            <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                                <th style={{ padding: '1rem', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', width: '40px' }}></th>
-                                <th style={{ padding: '1rem', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>Policy #</th>
-                                <th style={{ padding: '1rem', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>Client Name</th>
-                                <th style={{ padding: '1rem', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>Expires</th>
-                                <th style={{ padding: '1rem', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>Payment Type</th>
-                                <th style={{ padding: '1rem', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>RCE Document</th>
-                                <th style={{ padding: '1rem', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', textAlign: 'right' }}>Premium</th>
-                                <th style={{ padding: '1rem', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', textAlign: 'right' }}>Actions</th>
+                            <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-default)' }}>
+                                <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', width: '40px' }}></th>
+                                <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>Policy #</th>
+                                <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>Client Name</th>
+                                <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>Expires</th>
+                                <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>Payment Type</th>
+                                <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>RCE Document</th>
+                                <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', textAlign: 'right' }}>Premium</th>
+                                <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', textAlign: 'right' }}>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredPolicies.map((p) => (
-                                <tr key={p.policy_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <tr key={p.policy_id} style={{ borderBottom: '1px solid var(--bg-surface-raised)' }}>
                                     <td style={{ padding: '1rem' }}>
                                         <input 
                                             type="checkbox"
                                             checked={selectedIds.has(p.policy_id)}
                                             onChange={() => toggleSelect(p.policy_id)}
-                                            style={{ width: '16px', height: '16px', accentColor: '#8b5cf6', cursor: 'pointer' }}
+                                            style={{ width: '16px', height: '16px', accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
                                         />
                                     </td>
                                     <td style={{ padding: '1rem' }}>
                                         <Link 
                                             href={`/policy/${p.policies.id}`}
-                                            style={{ color: '#60a5fa', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem', fontWeight: 500 }}
+                                            style={{ color: 'var(--text-accent)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem', fontWeight: 500 }}
                                         >
                                             {p.carrier_policy_number || p.policies.policy_number}
                                             <ExternalLink size={12} />
                                         </Link>
                                     </td>
-                                    <td style={{ padding: '1rem', color: '#e2e8f0', fontSize: '0.85rem', fontWeight: 500 }}>
+                                    <td style={{ padding: '1rem', color: 'var(--text-high)', fontSize: '0.85rem', fontWeight: 500 }}>
                                         {p.policies.clients.named_insured}
                                     </td>
-                                    <td style={{ padding: '1rem', color: '#cbd5e1', fontSize: '0.85rem' }}>
+                                    <td style={{ padding: '1rem', color: 'var(--text-mid)', fontSize: '0.85rem' }}>
                                         {formatDate(p.expiration_date)}
                                     </td>
                                     <td style={{ padding: '1rem' }}>
@@ -335,16 +335,16 @@ export default function RenewalCampaignsPage() {
                                     </td>
                                     <td style={{ padding: '1rem' }}>
                                         {p.has_rce ? (
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.55rem', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600, background: 'rgba(34, 197, 94, 0.12)', color: '#4ade80', border: '1px solid rgba(34, 197, 94, 0.25)' }}>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.55rem', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600, background: 'var(--bg-success-subtle)', color: 'var(--status-success)', border: '1px solid var(--status-success)' }}>
                                                 <Check size={11} /> RCE Ready
                                             </span>
                                         ) : (
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.55rem', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 500, background: 'rgba(239, 68, 68, 0.08)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.55rem', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 500, background: 'var(--bg-error-subtle)', color: 'var(--status-error)', border: '1px solid var(--status-error)' }}>
                                                 RCE Missing
                                             </span>
                                         )}
                                     </td>
-                                    <td style={{ padding: '1rem', color: '#e2e8f0', fontSize: '0.85rem', fontWeight: 600, textAlign: 'right' }}>
+                                    <td style={{ padding: '1rem', color: 'var(--text-high)', fontSize: '0.85rem', fontWeight: 600, textAlign: 'right' }}>
                                         {formatCurrency(p.annual_premium)}
                                     </td>
                                     <td style={{ padding: '1rem', textAlign: 'right' }}>
@@ -356,9 +356,9 @@ export default function RenewalCampaignsPage() {
                                                     rel="noopener noreferrer"
                                                     title="Download RCE PDF Attachment"
                                                     style={{
-                                                        background: 'rgba(168, 85, 247, 0.1)',
-                                                        border: '1px solid rgba(168, 85, 247, 0.25)',
-                                                        color: '#c084fc',
+                                                        background: 'var(--accent-primary-muted)',
+                                                        border: '1px solid var(--accent-primary-subtle)',
+                                                        color: 'var(--text-accent)',
                                                         borderRadius: '6px',
                                                         padding: '0.4rem',
                                                         cursor: 'pointer',
@@ -375,9 +375,9 @@ export default function RenewalCampaignsPage() {
                                                 onClick={() => handleCopySingle(p)}
                                                 title="Copy CoPilot Prompt"
                                                 style={{
-                                                    background: 'rgba(139, 92, 246, 0.1)',
-                                                    border: '1px solid rgba(139, 92, 246, 0.2)',
-                                                    color: '#a78bfa',
+                                                    background: 'var(--accent-primary-muted)',
+                                                    border: '1px solid var(--accent-primary-subtle)',
+                                                    color: 'var(--text-accent)',
                                                     borderRadius: '6px',
                                                     padding: '0.4rem',
                                                     cursor: 'pointer',
@@ -392,9 +392,9 @@ export default function RenewalCampaignsPage() {
                                                 onClick={() => setEmailModalPolicy(p)}
                                                 title="Open Email Composer"
                                                 style={{
-                                                    background: 'rgba(99, 102, 241, 0.1)',
-                                                    border: '1px solid rgba(99, 102, 241, 0.2)',
-                                                    color: '#818cf8',
+                                                    background: 'var(--accent-primary-muted)',
+                                                    border: '1px solid var(--accent-primary-subtle)',
+                                                    color: 'var(--text-accent)',
                                                     borderRadius: '6px',
                                                     padding: '0.4rem',
                                                     cursor: 'pointer',
