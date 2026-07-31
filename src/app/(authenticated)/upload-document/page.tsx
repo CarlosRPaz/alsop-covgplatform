@@ -1040,26 +1040,47 @@ export default function UploadDocumentPage() {
                             <span style={{ color: 'var(--accent-primary)', marginRight: '0.5rem' }}>1.</span>Select Document Type
                         </h2>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
-                            {DOC_TYPES.map(type => (
-                                <button
-                                    key={type.key}
-                                    onClick={() => { setSelectedType(type.key); setUploadError(null); }}
-                                    style={{
-                                        display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-                                        padding: '1rem 1.25rem', borderRadius: '0.75rem',
-                                        border: selectedType === type.key ? `2px solid ${type.color}` : '2px solid var(--border-default)',
-                                        background: selectedType === type.key ? `${type.color}08` : 'var(--bg-surface-raised)',
-                                        cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s ease',
-                                    }}
-                                >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                                        <span style={{ fontSize: '1.4rem' }}>{type.icon}</span>
-                                        <span style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em', padding: '0.15rem 0.5rem', borderRadius: '0.25rem', backgroundColor: `${type.color}20`, color: type.color }}>{type.label}</span>
-                                    </div>
-                                    <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-high)', marginBottom: '0.2rem' }}>{type.fullLabel}</div>
-                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>{type.description}</div>
-                                </button>
-                            ))}
+                            {DOC_TYPES.map(type => {
+                                const isOther = type.key === 'other';
+                                return (
+                                    <button
+                                        key={type.key}
+                                        onClick={() => { setSelectedType(type.key); setUploadError(null); }}
+                                        style={{
+                                            display: 'flex',
+                                            flexDirection: isOther ? 'row' : 'column',
+                                            alignItems: isOther ? 'center' : 'flex-start',
+                                            gridColumn: isOther ? '1 / -1' : 'span 1',
+                                            padding: '1rem 1.25rem', borderRadius: '0.75rem',
+                                            border: selectedType === type.key ? `2px solid ${type.color}` : '2px solid var(--border-default)',
+                                            background: selectedType === type.key ? `${type.color}08` : 'var(--bg-surface-raised)',
+                                            cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s ease',
+                                        }}
+                                    >
+                                        {isOther ? (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', width: '100%' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: '110px' }}>
+                                                    <span style={{ fontSize: '1.4rem' }}>{type.icon}</span>
+                                                    <span style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em', padding: '0.15rem 0.5rem', borderRadius: '0.25rem', backgroundColor: `${type.color}20`, color: type.color }}>{type.label}</span>
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-high)', marginBottom: '0.1rem' }}>{type.fullLabel}</div>
+                                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>{type.description}</div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                                                    <span style={{ fontSize: '1.4rem' }}>{type.icon}</span>
+                                                    <span style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em', padding: '0.15rem 0.5rem', borderRadius: '0.25rem', backgroundColor: `${type.color}20`, color: type.color }}>{type.label}</span>
+                                                </div>
+                                                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-high)', marginBottom: '0.2rem' }}>{type.fullLabel}</div>
+                                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>{type.description}</div>
+                                            </>
+                                        )}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 
