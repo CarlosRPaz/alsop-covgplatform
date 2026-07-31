@@ -1,7 +1,7 @@
 "use client";
 
-import SubmissionsDebug from "@/components/admin/SubmissionsDebug";
+import OperationsHub from "@/components/admin/OperationsHub";
 
-export default function SubmissionsDebugPage() {
-    return <SubmissionsDebug />;
+export default function SubmissionsPage() {
+    return <OperationsHub />;
 }

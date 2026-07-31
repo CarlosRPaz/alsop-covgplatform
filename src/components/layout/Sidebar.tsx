@@ -48,7 +48,7 @@ export function Sidebar({ userRole }: SidebarProps) {
 
     // Admin/Service shared nav items
     const adminNavItems = (userRole === 'admin' || userRole === 'service') ? [
-        { label: 'Submissions', href: '/admin/submissions', icon: FileText },
+        { label: 'Operations', href: '/admin/submissions', icon: FileText },
     ] : [];
 
     // Client nav items

@@ -659,6 +659,7 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
                         is_current,
                         payment_status,
                         payment_plan,
+                        es_exists,
                         policy_activity${includeCarrierCol ? ',\n                        carrier_policy_number' : ''}
                     )
                 `;
@@ -799,7 +800,7 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
             // clients is an object (inner join, one-to-one via FK)
             const client = row.clients;
             // policy_terms is an array; find the current term
-            const terms: Array<{ id: string; effective_date?: string; expiration_date?: string; annual_premium?: number; is_current?: boolean; payment_status?: string; payment_plan?: string; policy_activity?: string; carrier_policy_number?: string; }> = row.policy_terms || [];
+            const terms: Array<{ id: string; effective_date?: string; expiration_date?: string; annual_premium?: number; is_current?: boolean; payment_status?: string; payment_plan?: string; policy_activity?: string; carrier_policy_number?: string; es_exists?: boolean; }> = row.policy_terms || [];
             const currentTerm = terms.find(t => t.is_current === true) || terms[0] || null;
             const flagInfo = flagMap.get(row.id) || { count: 0, severity: undefined, flags: [] };
 
