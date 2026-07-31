@@ -55,6 +55,9 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
     const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const autoResetTimerRef = useRef<NodeJS.Timeout | null>(null);
     const lastUploadFileNameRef = useRef<string | null>(null);
+    const dragCounterRef = useRef(0);
+    const pollAttemptRef = useRef(0);
+    const MAX_POLL_ATTEMPTS = 60; // ~3 min at 3s intervals
 
     const isAgent = userRole === 'admin' || userRole === 'service';
 
@@ -113,22 +116,33 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
         }
     };
 
-    // Drag and drop handlers
+    // Drag and drop handlers (use counter ref to prevent child-element flickering)
+    const handleDragEnter = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current++;
+        if (dragCounterRef.current === 1) setIsDragOver(true);
+    }, []);
+
     const handleDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        setIsDragOver(true);
     }, []);
 
     const handleDragLeave = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        setIsDragOver(false);
+        dragCounterRef.current--;
+        if (dragCounterRef.current <= 0) {
+            dragCounterRef.current = 0;
+            setIsDragOver(false);
+        }
     }, []);
 
     const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
+        dragCounterRef.current = 0;
         setIsDragOver(false);
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
             handleFileSelect(e.dataTransfer.files[0]);
@@ -138,8 +152,25 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
     // Poll for processing status after successful upload
     const startPolling = useCallback((submissionId: string) => {
         if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+        pollAttemptRef.current = 0;
+
+        const stopPoll = () => {
+            if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current);
+                pollIntervalRef.current = null;
+            }
+        };
 
         const checkStatus = async () => {
+            pollAttemptRef.current++;
+
+            // Safety: stop after MAX_POLL_ATTEMPTS to prevent infinite loops
+            if (pollAttemptRef.current > MAX_POLL_ATTEMPTS) {
+                stopPoll();
+                setProcessingStatus('failed');
+                return;
+            }
+
             try {
                 const { data: { session } } = await supabase.auth.getSession();
                 if (!session?.access_token) return;
@@ -147,7 +178,14 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                 const res = await fetch(`/api/upload/status?ids=${submissionId}`, {
                     headers: { 'Authorization': `Bearer ${session.access_token}` },
                 });
-                if (!res.ok) return;
+                if (!res.ok) {
+                    // On repeated server errors, give up after a few
+                    if (pollAttemptRef.current > 5 && res.status >= 500) {
+                        stopPoll();
+                        setProcessingStatus('failed');
+                    }
+                    return;
+                }
 
                 const json = await res.json();
                 if (!json.success || !json.data?.[0]) return;
@@ -157,8 +195,12 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                 setProcessingStatus(status);
                 setProcessingStep(step);
 
+                // Terminal states: stop polling
+                if (status === 'parsed' || status === 'failed' || status === ('duplicate' as ProcessingStatus)) {
+                    stopPoll();
+                }
+
                 if (status === 'parsed') {
-                    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
                     window.dispatchEvent(new CustomEvent('decPageParsed'));
                     // Auto-reset form for agents after 3s so they can keep uploading
                     if (isAgent) {
@@ -173,10 +215,10 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                             setProcessingStatus(null);
                             setProcessingStep(null);
                             setUploadProgress(0);
+                            // Clear file input so same file can be re-selected
+                            if (fileInputRef.current) fileInputRef.current.value = '';
                         }, 3000);
                     }
-                } else if (status === 'failed') {
-                    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
                 }
             } catch {
                 // Polling error — non-fatal, keep trying
@@ -198,6 +240,17 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
         // Cancel any in-flight upload
         if (abortRef.current) abortRef.current.abort();
         abortRef.current = new AbortController();
+
+        // Cancel any pending auto-reset timer from a previous upload
+        if (autoResetTimerRef.current) {
+            clearTimeout(autoResetTimerRef.current);
+            autoResetTimerRef.current = null;
+        }
+        // Cancel any active polling from a previous upload
+        if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+        }
 
         setSubmitState('loading');
         setUploadResult(null);
@@ -291,12 +344,16 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                     console.error('Failed to update session storage for dec page tracking', e);
                 }
 
+                // Notify DecPageObserver about the new upload
+                window.dispatchEvent(new CustomEvent('decPageUploaded'));
+
                 // Start inline status polling
                 startPolling(submissionId);
             }
 
             // Reset file after successful upload
             setFile(null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
             if (formRef.current) formRef.current.reset();
         } catch (err) {
             if (err instanceof Error && err.message === 'Upload cancelled') {
@@ -528,7 +585,9 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                             setProcessingStatus(null);
                             setProcessingStep(null);
                             setUploadProgress(0);
-                            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                            if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
+                            if (autoResetTimerRef.current) { clearTimeout(autoResetTimerRef.current); autoResetTimerRef.current = null; }
+                            if (fileInputRef.current) fileInputRef.current.value = '';
                         }}
                         style={{
                             marginTop: '1.5rem',
@@ -552,6 +611,7 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                         <label className={styles.label}>Upload Declarations Page (PDF only)</label>
                         <div
                             className={`${styles.fileInputContainer} ${isDragOver ? styles.dragover : ''}`}
+                            onDragEnter={handleDragEnter}
                             onDragOver={handleDragOver}
                             onDragLeave={handleDragLeave}
                             onDrop={handleDrop}
