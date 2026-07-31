@@ -61,6 +61,8 @@ const DOC_TYPE_LABELS: Record<string, { label: string; color: string; groupLabel
     dec_page: { label: 'DEC PAGE', color: '#3b82f6', groupLabel: 'Declaration Pages' },
     rce: { label: 'RCE', color: '#10b981', groupLabel: 'RCE Documents' },
     dic_dec_page: { label: 'DIC', color: '#f97316', groupLabel: 'DIC Documents' },
+    es_doc: { label: 'E&S', color: '#8b5cf6', groupLabel: 'E&S Documents' },
+    other: { label: 'OTHER', color: '#a855f7', groupLabel: 'Other Documents' },
     invoice: { label: 'INVOICE', color: '#8b5cf6', groupLabel: 'Invoices' },
     inspection: { label: 'INSPECTION', color: '#ec4899', groupLabel: 'Inspections' },
     endorsement: { label: 'ENDORSEMENT', color: '#06b6d4', groupLabel: 'Endorsements' },

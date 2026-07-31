@@ -376,6 +376,7 @@ export interface DashboardPolicy {
     has_dec_page: boolean;
     has_rce: boolean;
     has_dic: boolean;
+    has_es: boolean;
     // Metadata
     created_at?: string;
     // Enrichment status
@@ -759,6 +760,7 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
         const decPageSet = new Set<string>();
         const rceSet = new Set<string>();
         const dicSet = new Set<string>();
+        const esSet = new Set<string>();
         try {
             for (let i = 0; i < policyIds.length; i += IN_CHUNK) {
                 const chunk = policyIds.slice(i, i + IN_CHUNK);
@@ -778,11 +780,12 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
                     .from('platform_documents')
                     .select('policy_id, doc_type')
                     .in('policy_id', chunk)
-                    .in('doc_type', ['rce', 'dic_dec_page']);
+                    .in('doc_type', ['rce', 'dic_dec_page', 'es_doc']);
                 if (docRows) {
                     for (const row of docRows) {
                         if (row.doc_type === 'rce') rceSet.add(row.policy_id);
                         if (row.doc_type === 'dic_dec_page') dicSet.add(row.policy_id);
+                        if (row.doc_type === 'es_doc') esSet.add(row.policy_id);
                     }
                 }
             }
@@ -846,6 +849,7 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
                 has_dec_page: decPageSet.has(row.id),
                 has_rce: rceSet.has(row.id),
                 has_dic: dicSet.has(row.id),
+                has_es: esSet.has(row.id) || (currentTermSorted?.es_exists ?? false),
             } as DashboardPolicy;
         });
     } catch (err) {

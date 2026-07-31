@@ -18,6 +18,8 @@ const ALLOWED_TYPES = new Set(['application/pdf']);
 const VALID_DOC_TYPES = new Set([
     'rce',
     'dic_dec_page',
+    'es_doc',
+    'other',
     'invoice',
     'inspection',
     'endorsement',

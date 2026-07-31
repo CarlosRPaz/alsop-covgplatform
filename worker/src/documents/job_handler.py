@@ -19,6 +19,7 @@ from ..supabase_client import get_supabase
 from ..jobs import complete_job, fail_job, MAX_ATTEMPTS
 from .rce_processor import RCEProcessor
 from .dic_processor import DICProcessor
+from .es_processor import ESProcessor
 
 logger = logging.getLogger("worker.documents.job_handler")
 
@@ -26,7 +27,46 @@ logger = logging.getLogger("worker.documents.job_handler")
 PROCESSOR_REGISTRY = {
     "rce": RCEProcessor,
     "dic_dec_page": DICProcessor,
+    "es_doc": ESProcessor,
+    "other": ESProcessor,  # Default fallback processor for 'other' before classification
 }
+
+
+def classify_document_text(text: str) -> str:
+    """
+    Classify document text to determine document type when uploaded as 'other'.
+    Returns one of: 'es_doc', 'dic_dec_page', 'rce'.
+    """
+    upper_text = text.upper()
+
+    # Check E&S indicators
+    es_markers = [
+        "SURPLUS LINES", "STAMPING FEE", "E&S", "EXCESS AND SURPLUS",
+        "EXCESS & SURPLUS", "LLOYD'S", "AEGIS", "INSPECTION FEE",
+        "CA SURPLUS LINES TAX", "CA STAMPING FEE"
+    ]
+    for marker in es_markers:
+        if marker in upper_text:
+            logger.info("Auto-classified document as 'es_doc' via marker: %s", marker)
+            return "es_doc"
+
+    # Check DIC indicators
+    dic_markers = ["DIFFERENCE IN CONDITIONS", "DIC", "BAMBOO", "PACIFIC SPECIALTY", "PSIC"]
+    for marker in dic_markers:
+        if marker in upper_text:
+            logger.info("Auto-classified document as 'dic_dec_page' via marker: %s", marker)
+            return "dic_dec_page"
+
+    # Check RCE indicators
+    rce_markers = ["360VALUE", "REPLACEMENT COST ESTIMATION", "REPLACEMENT COST ESTIMATOR", "VALUATION DATE"]
+    for marker in rce_markers:
+        if marker in upper_text:
+            logger.info("Auto-classified document as 'rce' via marker: %s", marker)
+            return "rce"
+
+    # Default to E&S document
+    logger.info("No specific classification markers matched — defaulting 'other' upload to 'es_doc'")
+    return "es_doc"
 
 
 def process_document_job(job: dict) -> None:
@@ -98,6 +138,22 @@ def process_document_job(job: dict) -> None:
             raise RuntimeError(f"Empty response downloading {storage_path} from {bucket}")
 
         logger.info("job=%s downloaded %d bytes", job_id, len(pdf_bytes))
+
+        # Handle auto-classification for 'other' uploads
+        if doc_type == "other":
+            from ..extract.pdf_text import extract_text_from_bytes
+            raw_text, _ = extract_text_from_bytes(pdf_bytes)
+            classified_type = classify_document_text(raw_text)
+
+            logger.info("job=%s auto-classified 'other' document -> '%s'", job_id, classified_type)
+
+            # Update document record in database with classified doc_type
+            try:
+                sb.table("platform_documents").update({"doc_type": classified_type}).eq("id", document_id).execute()
+                doc_type = classified_type
+                processor_cls = PROCESSOR_REGISTRY.get(doc_type, ESProcessor)
+            except Exception as e:
+                logger.warning("job=%s failed to update doc_type to '%s': %s", job_id, classified_type, e)
 
         # 4. Instantiate processor and run
         processor = processor_cls(document_id=document_id, account_id=account_id)

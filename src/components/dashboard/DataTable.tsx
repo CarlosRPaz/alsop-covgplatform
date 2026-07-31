@@ -64,6 +64,7 @@ const INITIAL_COLUMNS: ColumnDef[] = [
     { key: 'has_dec_page', label: 'Dec Page' },
     { key: 'has_rce', label: 'RCE' },
     { key: 'has_dic', label: 'DIC' },
+    { key: 'has_es', label: 'E&S' },
     { key: 'named_insured', label: 'Insured Name', width: '200px' },
     { key: 'status', label: 'Status' },
     { key: 'effective_date', label: 'Effective Date' },
@@ -80,7 +81,7 @@ const INITIAL_COLUMNS: ColumnDef[] = [
 
 // All columns visible by default
 const DEFAULT_VISIBLE_KEYS = new Set([
-    'policy_number', 'flag_count', 'is_enriched', 'has_dec_page', 'has_rce', 'has_dic', 'named_insured', 'status',
+    'policy_number', 'flag_count', 'is_enriched', 'has_dec_page', 'has_rce', 'has_dic', 'has_es', 'named_insured', 'status',
     'effective_date', 'expiration_date', 'annual_premium', 'payment_status', 'payment_plan', 'policy_activity',
     'property_address', 'mailing_address', 'carrier_name', 'created_at',
 ]);
@@ -730,6 +731,8 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                         case 'no_rce': if (item.has_rce) return false; break;
                         case 'has_dic': if (!item.has_dic) return false; break;
                         case 'no_dic': if (item.has_dic) return false; break;
+                        case 'has_es': if (!item.has_es) return false; break;
+                        case 'no_es': if (item.has_es) return false; break;
                     }
                 }
                 return true;
@@ -1096,6 +1099,8 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                     { value: 'no_rce', label: '❌ Missing RCE' },
                                     { value: 'has_dic', label: '✅ Has DIC' },
                                     { value: 'no_dic', label: '❌ Missing DIC' },
+                                    { value: 'has_es', label: '✅ Has E&S' },
+                                    { value: 'no_es', label: '❌ Missing E&S' },
                                 ].map(opt => (
                                     <button
                                         key={opt.value}
@@ -1370,6 +1375,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                 has_dec: 'Has Dec Page', no_dec: 'Missing Dec Page',
                                 has_rce: 'Has RCE', no_rce: 'Missing RCE',
                                 has_dic: 'Has DIC', no_dic: 'Missing DIC',
+                                has_es: 'Has E&S', no_es: 'Missing E&S',
                             };
                             return (
                                 <span key={`doc-${f}`} className={styles.filterChip}>
@@ -1586,7 +1592,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                                 ) : (
                                                     <span style={{ color: '#475569', fontSize: '0.75rem' }}>—</span>
                                                 )
-                                            ) : (col.key === 'has_dec_page' || col.key === 'has_rce' || col.key === 'has_dic') ? (
+                                            ) : (col.key === 'has_dec_page' || col.key === 'has_rce' || col.key === 'has_dic' || col.key === 'has_es') ? (
                                                 row[col.key] ? (
                                                     <span style={{ display: 'inline-block', padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600, background: 'rgba(34,197,94,0.12)', color: '#16a34a', lineHeight: 1.4 }}>Yes</span>
                                                 ) : (

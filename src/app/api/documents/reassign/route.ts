@@ -142,6 +142,7 @@ export async function POST(request: NextRequest) {
         // 3a. Delete extracted data tables
         await admin.from('doc_data_rce').delete().eq('document_id', documentId);
         await admin.from('doc_data_dic').delete().eq('document_id', documentId);
+        await admin.from('doc_data_es').delete().eq('document_id', documentId);
 
         // 3b. Delete RCE-sourced property enrichments from old policy
         if (doc.doc_type === 'rce' && oldPolicyId) {

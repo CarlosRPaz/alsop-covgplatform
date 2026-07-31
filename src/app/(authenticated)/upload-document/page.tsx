@@ -53,6 +53,14 @@ const DOC_TYPES = [
         color: '#f97316',
         icon: '📄',
     },
+    {
+        key: 'other',
+        label: 'Other',
+        fullLabel: 'All Other File Types (E&S, Quotes, Endorsements)',
+        description: 'Auto-classifies E&S quotes/policies, endorsements, or other file types',
+        color: '#8b5cf6',
+        icon: '📁',
+    },
 ] as const;
 
 type DocTypeKey = typeof DOC_TYPES[number]['key'];
@@ -1339,7 +1347,13 @@ export default function UploadDocumentPage() {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem 1.5rem', marginBottom: '1rem' }}>
                                 <ReportField icon={<FileText size={14} />} label="File" value={docStatus?.file_name || uploadedFileName || '—'} />
                                 {processingTime && !isDuplicate && <ReportField icon={<Clock size={14} />} label="Processing Time" value={processingTime} />}
-                                {docStatus?.doc_type && <ReportField icon={<FileUp size={14} />} label="Document Type" value={docStatus.doc_type === 'rce' ? 'Replacement Cost Estimate (RCE)' : docStatus.doc_type === 'dic_dec_page' ? 'DIC Carrier Dec Page' : docStatus.doc_type} />}
+                                {docStatus?.doc_type && <ReportField icon={<FileUp size={14} />} label="Document Type" value={
+                                    docStatus.doc_type === 'rce' ? 'Replacement Cost Estimate (RCE)' :
+                                    docStatus.doc_type === 'dic_dec_page' ? 'DIC Carrier Dec Page' :
+                                    docStatus.doc_type === 'es_doc' ? 'E&S Document' :
+                                    docStatus.doc_type === 'other' ? 'Other File Type' :
+                                    docStatus.doc_type
+                                } />}
                                 {docStatus?.extracted_owner_name && <ReportField icon={<User size={14} />} label="Insured / Owner" value={docStatus.extracted_owner_name} />}
                                 {docStatus?.extracted_address && <ReportField icon={<MapPin size={14} />} label="Property Address" value={docStatus.extracted_address} />}
                                 {docStatus?.policies?.carrier_name && <ReportField icon={<Shield size={14} />} label="Carrier" value={docStatus.policies.carrier_name} />}

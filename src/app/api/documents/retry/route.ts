@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
         // 2. Clear prior parsed data to avoid unique constraint errors
         await admin.from('doc_data_rce').delete().eq('document_id', documentId);
         await admin.from('doc_data_dic').delete().eq('document_id', documentId);
+        await admin.from('doc_data_es').delete().eq('document_id', documentId);
 
         // 3. Kill any stuck jobs for this document
         await admin

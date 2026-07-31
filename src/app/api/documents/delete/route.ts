@@ -121,6 +121,27 @@ export async function POST(request: NextRequest) {
 
                 logger.info('DocumentDelete', 'DIC cleanup complete', { id, policyId: data.policy_id });
             }
+
+            // E&S-specific cleanup before deleting the document
+            if (data.doc_type === 'es_doc' || data.doc_type === 'other') {
+                const { error: esErr } = await admin.from('doc_data_es').delete().eq('document_id', id);
+                if (esErr && esErr.code !== '42P01') {
+                    logger.warn('DocumentDelete', 'Failed to delete doc_data_es', { id, error: esErr });
+                }
+
+                if (data.policy_term_id) {
+                    const esNullUpdates = {
+                        es_exists: false,
+                        es_policy_number: null,
+                        es_annual_premium_raw: null,
+                    };
+                    const { error: rollbackErr } = await admin.from('policy_terms').update(esNullUpdates).eq('id', data.policy_term_id);
+                    if (rollbackErr && rollbackErr.code !== '42703') {
+                        logger.warn('DocumentDelete', 'Failed to rollback E&S policy_terms', { termId: data.policy_term_id, error: rollbackErr });
+                    }
+                }
+                logger.info('DocumentDelete', 'E&S cleanup complete', { id, policyId: data.policy_id });
+            }
         } else {
             return NextResponse.json({ success: false, message: 'Invalid source' }, { status: 400 });
         }
