@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { Upload, FileText, Loader2, Download, Eye, AlertCircle, CheckCircle, XCircle, ChevronDown, CheckCircle2, Clock, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react';
 import {
     fetchDecPageFilesByPolicyId,
@@ -204,6 +204,57 @@ export function PolicyFiles({ policyId, onDecPageApproved }: PolicyFilesProps) {
             bucket: 'cfp-platform-documents',
         })),
     ].sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime());
+
+    // ── Smart Auto-Polling for Processing Files (DIC, RCE, Dec Pages, etc.) ──
+    const hasProcessingFiles = useMemo(() => {
+        return allFiles.some(f => {
+            if (!f.parse_status) return false;
+            const status = f.parse_status.toLowerCase();
+            return ['pending', 'processing', 'queued', 'uploading'].includes(status);
+        });
+    }, [allFiles]);
+
+    // Track previous file statuses to trigger toasts & parent updates on completion
+    const prevStatusesRef = useRef<Map<string, string>>(new Map());
+
+    useEffect(() => {
+        allFiles.forEach(f => {
+            const prev = prevStatusesRef.current.get(f.id);
+            const curr = f.parse_status;
+
+            if (prev && ['pending', 'processing', 'queued', 'uploading'].includes(prev.toLowerCase())) {
+                if (curr === 'parsed') {
+                    const docLabel = f.doc_type === 'rce'
+                        ? 'RCE Report'
+                        : f.doc_type === 'dic_dec_page'
+                        ? 'DIC Declaration'
+                        : f.doc_type === 'es_doc'
+                        ? 'E&S Document'
+                        : 'Document';
+                    toast.success(`Processing complete: ${docLabel} (${f.file_name || 'file'})`);
+                    window.dispatchEvent(new CustomEvent('decPageParsed'));
+                    onDecPageApproved?.();
+                } else if (curr === 'failed') {
+                    toast.error(`Failed to process ${f.file_name || 'file'}${f.error_message ? `: ${f.error_message}` : ''}`);
+                }
+            }
+
+            if (curr) {
+                prevStatusesRef.current.set(f.id, curr);
+            }
+        });
+    }, [allFiles, toast, onDecPageApproved]);
+
+    useEffect(() => {
+        if (!hasProcessingFiles) return;
+
+        // Poll every 2.5 seconds while any file is being processed by the worker
+        const timer = setInterval(() => {
+            loadFiles();
+        }, 2500);
+
+        return () => clearInterval(timer);
+    }, [hasProcessingFiles, loadFiles]);
 
     // Group files by doc_type
     const groupOrder = ['dec_page', 'dic_dec_page', 'rce', 'invoice', 'inspection', 'endorsement', 'questionnaire'];
