@@ -142,7 +142,8 @@ def process_document_job(job: dict) -> None:
         # Handle auto-classification for 'other' uploads
         if doc_type == "other":
             from ..extract.pdf_text import extract_text_from_bytes
-            raw_text, _ = extract_text_from_bytes(pdf_bytes)
+            text_result = extract_text_from_bytes(pdf_bytes)
+            raw_text = text_result["raw_text"]
             classified_type = classify_document_text(raw_text)
 
             logger.info("job=%s auto-classified 'other' document -> '%s'", job_id, classified_type)

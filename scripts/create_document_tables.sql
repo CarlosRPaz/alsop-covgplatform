@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS platform_documents (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     account_id      UUID NOT NULL REFERENCES accounts(id),
     doc_type        TEXT NOT NULL CHECK (doc_type IN (
-        'rce','dic_dec_page','invoice','inspection','endorsement','questionnaire'
+        'rce','dic_dec_page','invoice','inspection','endorsement','questionnaire','es_doc','other'
     )),
     
     -- File metadata

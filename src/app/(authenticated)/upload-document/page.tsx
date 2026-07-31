@@ -111,6 +111,7 @@ export default function UploadDocumentPage() {
     const searchParams = useSearchParams();
     const [selectedType, setSelectedType] = useState<DocTypeKey | null>(null);
     const [isDragOver, setIsDragOver] = useState(false);
+    const dragCounterRef = useRef(0);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -505,9 +506,10 @@ export default function UploadDocumentPage() {
         }
     }, [selectedType, startPolling, loadExistingDoc, startDecPagePolling]);
 
-    const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(true); };
-    const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); };
-    const handleDrop = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); if (e.dataTransfer.files?.[0]) handleUpload(e.dataTransfer.files[0]); };
+    const handleDragEnter = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); dragCounterRef.current++; setIsDragOver(true); };
+    const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
+    const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); dragCounterRef.current--; if (dragCounterRef.current <= 0) { dragCounterRef.current = 0; setIsDragOver(false); } };
+    const handleDrop = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); dragCounterRef.current = 0; setIsDragOver(false); if (e.dataTransfer.files?.[0]) handleUpload(e.dataTransfer.files[0]); };
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files?.[0]) handleUpload(e.target.files[0]); };
 
     /* ── Auto-Recommend from backend candidates ─────────────────────────── */
@@ -1091,7 +1093,7 @@ export default function UploadDocumentPage() {
                             {selectedTypeInfo && <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '0.25rem', backgroundColor: `${selectedTypeInfo.color}20`, color: selectedTypeInfo.color }}>{selectedTypeInfo.label}</span>}
                         </h2>
                         <div
-                            onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
+                            onDragEnter={handleDragEnter} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
                             onClick={() => fileInputRef.current?.click()}
                             style={{
                                 border: isDragOver ? `2px dashed ${selectedTypeInfo?.color || 'var(--accent-primary)'}` : '2px dashed var(--border-default)',
@@ -1101,11 +1103,13 @@ export default function UploadDocumentPage() {
                             }}
                         >
                             <input type="file" ref={fileInputRef} accept=".pdf" style={{ display: 'none' }} onChange={handleFileChange} />
-                            <FileUp size={36} style={{ color: selectedTypeInfo?.color || 'var(--text-muted)', marginBottom: '0.75rem' }} />
-                            <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-high)' }}>
-                                {isDragOver ? <span style={{ color: selectedTypeInfo?.color }}>Drop PDF here</span> : <>Drop a {selectedTypeInfo?.label || 'document'} PDF here or <span style={{ color: 'var(--accent-primary)' }}>click to browse</span></>}
-                            </p>
-                            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>PDF only · Max 10MB</p>
+                            <div style={{ pointerEvents: 'none' }}>
+                                <FileUp size={36} style={{ color: selectedTypeInfo?.color || 'var(--text-muted)', marginBottom: '0.75rem' }} />
+                                <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-high)' }}>
+                                    {isDragOver ? <span style={{ color: selectedTypeInfo?.color }}>Drop PDF here</span> : <>Drop a {selectedTypeInfo?.label || 'document'} PDF here or <span style={{ color: 'var(--accent-primary)' }}>click to browse</span></>}
+                                </p>
+                                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>PDF only · Max 10MB</p>
+                            </div>
                         </div>
                         {uploadError && (
                             <div style={{ marginTop: '0.75rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', background: '#ef444410', border: '1px solid #ef444430', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
