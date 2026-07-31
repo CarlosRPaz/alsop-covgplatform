@@ -14,6 +14,9 @@ import {
     approveDecPage,
     deleteDocument,
     DecPageSummary,
+    fetchDicCarrierEligibility,
+    updateDicCarrierEligibility,
+    DicCarrierEligibility,
 } from '@/lib/api';
 import { supabase } from '@/lib/supabaseClient';
 import { insertActivityEvent } from '@/lib/notes';
@@ -90,6 +93,12 @@ export function PolicyFiles({ policyId, onDecPageApproved }: PolicyFilesProps) {
     const [decFiles, setDecFiles] = useState<DecPageFileInfo[]>([]);
     const [platformDocs, setPlatformDocs] = useState<PlatformDocumentInfo[]>([]);
     const [decPages, setDecPages] = useState<DecPageSummary[]>([]);
+    const [eligibility, setEligibility] = useState<DicCarrierEligibility>({
+        dic_bamboo_eligible: true,
+        dic_aegis_eligible: true,
+        dic_psic_eligible: true,
+    });
+    const [updatingCarrier, setUpdatingCarrier] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [actionId, setActionId] = useState<string | null>(null);
     const [isDragOver, setIsDragOver] = useState(false);
@@ -102,20 +111,54 @@ export function PolicyFiles({ policyId, onDecPageApproved }: PolicyFilesProps) {
 
     const loadFiles = useCallback(async () => {
         try {
-            const [decData, platformData, decPageData] = await Promise.all([
+            const [decData, platformData, decPageData, eligibilityData] = await Promise.all([
                 fetchDecPageFilesByPolicyId(policyId),
                 fetchPlatformDocumentsByPolicyId(policyId),
                 fetchDecPagesForPolicy(policyId),
+                fetchDicCarrierEligibility(policyId),
             ]);
             setDecFiles(decData);
             setPlatformDocs(platformData);
             setDecPages(decPageData);
+            setEligibility(eligibilityData);
         } catch (err) {
             console.error('Failed to fetch policy files:', err);
         } finally {
             setLoading(false);
         }
     }, [policyId]);
+
+    const handleToggleEligibility = async (
+        key: keyof DicCarrierEligibility,
+        newValue: boolean,
+        carrierName: string
+    ) => {
+        // Optimistic UI update
+        const prev = eligibility;
+        setEligibility(old => ({ ...old, [key]: newValue }));
+        setUpdatingCarrier(key);
+
+        try {
+            const success = await updateDicCarrierEligibility(policyId, { [key]: newValue });
+            if (success) {
+                toast.success(`${carrierName} DIC quoting set to ${newValue ? 'Eligible (ON)' : 'Ineligible (OFF)'}`);
+                await insertActivityEvent({
+                    event_type: 'policy.updated',
+                    title: `DIC Quoting updated: ${carrierName}`,
+                    detail: `${carrierName} set to ${newValue ? 'Eligible (ON)' : 'Ineligible (OFF)'}`,
+                    policy_id: policyId,
+                });
+            } else {
+                setEligibility(prev);
+                toast.error(`Failed to update ${carrierName} eligibility.`);
+            }
+        } catch {
+            setEligibility(prev);
+            toast.error(`Failed to update ${carrierName} eligibility.`);
+        } finally {
+            setUpdatingCarrier(null);
+        }
+    };
 
     useEffect(() => {
         loadFiles();
@@ -462,6 +505,146 @@ export function PolicyFiles({ policyId, onDecPageApproved }: PolicyFilesProps) {
 
     return (
         <div className={styles.container}>
+            {/* ── DIC Quoting Availability Toggles ── */}
+            <div style={{
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-lg, 12px)',
+                padding: '1.25rem 1.5rem',
+                marginBottom: '1.5rem',
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                        <div style={{
+                            width: '32px', height: '32px', borderRadius: '8px',
+                            background: 'rgba(99, 102, 241, 0.12)', color: 'var(--accent-primary)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0,
+                        }}>
+                            <ShieldCheck size={18} />
+                        </div>
+                        <div>
+                            <h4 style={{ fontSize: '0.925rem', fontWeight: 700, color: 'var(--text-high)', margin: 0 }}>
+                                DIC Quoting Availability
+                            </h4>
+                            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0, marginTop: '0.15rem' }}>
+                                Specify which DIC carriers can issue quotes for this policy. Default is <strong>ON</strong> (Eligible). Toggle OFF if unable to run a quote.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                    gap: '0.875rem',
+                    marginTop: '1rem',
+                    paddingTop: '1rem',
+                    borderTop: '1px solid var(--border-subtle)',
+                }}>
+                    {[
+                        {
+                            key: 'dic_bamboo_eligible' as const,
+                            name: 'Bamboo Insurance',
+                            icon: '⚡',
+                            color: '#f59e0b',
+                            checked: eligibility.dic_bamboo_eligible,
+                        },
+                        {
+                            key: 'dic_aegis_eligible' as const,
+                            name: 'Aegis General',
+                            icon: '🛡️',
+                            color: '#3b82f6',
+                            checked: eligibility.dic_aegis_eligible,
+                        },
+                        {
+                            key: 'dic_psic_eligible' as const,
+                            name: 'PSIC (Pacific Specialty)',
+                            icon: '🏛️',
+                            color: '#10b981',
+                            checked: eligibility.dic_psic_eligible,
+                        },
+                    ].map(carrier => (
+                        <div
+                            key={carrier.key}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0.875rem 1rem',
+                                borderRadius: '10px',
+                                background: carrier.checked ? 'var(--bg-surface-raised, rgba(255,255,255,0.03))' : 'rgba(239, 68, 68, 0.03)',
+                                border: `1px solid ${carrier.checked ? 'var(--border-default)' : 'rgba(239, 68, 68, 0.25)'}`,
+                                transition: 'all 0.2s ease',
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                                <span style={{ fontSize: '1.25rem' }}>{carrier.icon}</span>
+                                <div>
+                                    <div style={{ fontSize: '0.85rem', fontWeight: 650, color: 'var(--text-high)' }}>
+                                        {carrier.name}
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginTop: '0.15rem' }}>
+                                        <span style={{
+                                            padding: '0.1rem 0.45rem',
+                                            borderRadius: '999px',
+                                            fontSize: '0.65rem',
+                                            fontWeight: 700,
+                                            background: carrier.checked ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                                            color: carrier.checked ? '#16a34a' : '#dc2626',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.04em',
+                                        }}>
+                                            {carrier.checked ? 'Eligible' : 'Off (Cannot Quote)'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Switch Toggle */}
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={carrier.checked}
+                                onClick={() => handleToggleEligibility(carrier.key, !carrier.checked, carrier.name)}
+                                disabled={updatingCarrier === carrier.key}
+                                style={{
+                                    position: 'relative',
+                                    width: '44px',
+                                    height: '24px',
+                                    borderRadius: '12px',
+                                    background: carrier.checked ? '#10b981' : 'var(--border-default, #475569)',
+                                    border: 'none',
+                                    cursor: updatingCarrier === carrier.key ? 'wait' : 'pointer',
+                                    transition: 'background 0.2s ease',
+                                    flexShrink: 0,
+                                    padding: '2px',
+                                    boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.2)',
+                                }}
+                                title={`Click to turn ${carrier.checked ? 'OFF' : 'ON'} ${carrier.name} DIC quoting`}
+                            >
+                                <div style={{
+                                    width: '20px',
+                                    height: '20px',
+                                    borderRadius: '50%',
+                                    background: '#ffffff',
+                                    transform: carrier.checked ? 'translateX(20px)' : 'translateX(0px)',
+                                    transition: 'transform 0.2s ease',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}>
+                                    {updatingCarrier === carrier.key && (
+                                        <Loader2 size={12} style={{ animation: 'spin 1s linear infinite', color: '#475569' }} />
+                                    )}
+                                </div>
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
             {/* ── Upload Zone with Doc Type Selector ── */}
             <div className={styles.uploadSection}>
                 <div className={styles.uploadHeader}>

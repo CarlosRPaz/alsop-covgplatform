@@ -171,6 +171,9 @@ export interface Declaration {
     dic_limit_loss_of_use?: string;
     dic_deductible?: string;
     dic_annual_premium_raw?: number;
+    dic_bamboo_eligible?: boolean;
+    dic_aegis_eligible?: boolean;
+    dic_psic_eligible?: boolean;
 
     // System Fields
     status: 'Pending Review' | 'Approved' | 'Rejected' | 'Incomplete';
@@ -206,6 +209,9 @@ export interface PolicyRow {
     property_address_raw?: string;
     property_address_norm?: string;
     status?: string;
+    dic_bamboo_eligible?: boolean;
+    dic_aegis_eligible?: boolean;
+    dic_psic_eligible?: boolean;
     created_at?: string;
     updated_at?: string;
 }
@@ -3793,3 +3799,66 @@ export async function fetchRceDocDataByPolicyId(policyId: string): Promise<RceDo
         return [];
     }
 }
+
+// ---------------------------------------------------------------------------
+// DIC Carrier Quoting Eligibility
+// ---------------------------------------------------------------------------
+
+export interface DicCarrierEligibility {
+    dic_bamboo_eligible: boolean;
+    dic_aegis_eligible: boolean;
+    dic_psic_eligible: boolean;
+}
+
+/**
+ * Fetch DIC Carrier Quoting Eligibility toggles for a policy.
+ * Defaults to true for all carriers if not specified or column missing.
+ */
+export async function fetchDicCarrierEligibility(policyId: string): Promise<DicCarrierEligibility> {
+    try {
+        const { data, error } = await supabase
+            .from('policies')
+            .select('dic_bamboo_eligible, dic_aegis_eligible, dic_psic_eligible')
+            .eq('id', policyId)
+            .maybeSingle();
+
+        if (error || !data) {
+            return { dic_bamboo_eligible: true, dic_aegis_eligible: true, dic_psic_eligible: true };
+        }
+
+        return {
+            dic_bamboo_eligible: data.dic_bamboo_eligible ?? true,
+            dic_aegis_eligible: data.dic_aegis_eligible ?? true,
+            dic_psic_eligible: data.dic_psic_eligible ?? true,
+        };
+    } catch {
+        return { dic_bamboo_eligible: true, dic_aegis_eligible: true, dic_psic_eligible: true };
+    }
+}
+
+/**
+ * Update DIC Carrier Quoting Eligibility toggles for a policy.
+ */
+export async function updateDicCarrierEligibility(
+    policyId: string,
+    eligibility: Partial<DicCarrierEligibility>
+): Promise<boolean> {
+    try {
+        const { error } = await supabase
+            .from('policies')
+            .update(eligibility)
+            .eq('id', policyId);
+
+        if (error) {
+            logger.error('API', 'Failed to update DIC carrier eligibility', { policyId, error: error.message });
+            return false;
+        }
+        return true;
+    } catch (err) {
+        logger.error('API', 'Unexpected error updating DIC carrier eligibility', {
+            policyId,
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return false;
+    }
+}
