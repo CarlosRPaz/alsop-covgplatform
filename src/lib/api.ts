@@ -3801,6 +3801,112 @@ export async function fetchRceDocDataByPolicyId(policyId: string): Promise<RceDo
 }
 
 // ---------------------------------------------------------------------------
+// DIC Document Data (from doc_data_dic)
+// ---------------------------------------------------------------------------
+
+export interface DicDocData {
+    id: string;
+    document_id: string;
+    carrier_name: string | null;
+    policy_number: string | null;
+    policy_form: string | null;
+    effective_date: string | null;
+    expiration_date: string | null;
+    notice_date: string | null;
+    document_type: string | null;
+    insured_name: string | null;
+    secondary_insured: string | null;
+    mailing_address: string | null;
+    property_address: string | null;
+    broker_name: string | null;
+    broker_address: string | null;
+    broker_phone: string | null;
+    has_mortgagee: boolean;
+    deductible: string | null;
+    cov_a_dwelling: string | null;
+    cov_b_other_struct: string | null;
+    cov_c_personal_prop: string | null;
+    cov_e_add_living: string | null;
+    cov_l_liability: string | null;
+    cov_m_medical: string | null;
+    ordinance_or_law: string | null;
+    extended_repl_cost: string | null;
+    sewer_backup: string | null;
+    has_dic_endorsement: boolean;
+    dic_form_number: string | null;
+    dic_eliminates_fire: boolean;
+    requires_fair_plan: boolean;
+    basic_premium: number | null;
+    optional_premium: number | null;
+    credits: number | null;
+    surcharges: number | null;
+    total_charge: number | null;
+    rce_estimate_number: string | null;
+    rce_replacement_cost: number | null;
+    rce_insured_value: number | null;
+    rce_year_built: number | null;
+    rce_living_area: number | null;
+    rce_quality_grade: string | null;
+    forms_endorsements: unknown;
+    extracted_json: unknown;
+    created_at: string;
+    // Joined from platform_documents
+    file_name?: string;
+    extracted_owner_name?: string;
+    extracted_address?: string;
+}
+
+/**
+ * Fetch full DIC extracted data for a policy via its linked platform_documents.
+ * Returns the doc_data_dic rows joined with document metadata.
+ */
+export async function fetchDicDocDataByPolicyId(policyId: string): Promise<DicDocData[]> {
+    try {
+        // Step 1: Find DIC documents linked to this policy
+        const { data: docs, error: docError } = await supabase
+            .from('platform_documents')
+            .select('id, file_name, extracted_owner_name, extracted_address')
+            .eq('policy_id', policyId)
+            .eq('doc_type', 'dic_dec_page')
+            .not('parse_status', 'eq', 'failed');
+
+        if (docError || !docs || docs.length === 0) {
+            return [];
+        }
+
+        // Step 2: Fetch doc_data_dic for those document IDs
+        const docIds = docs.map(d => d.id);
+        const { data: dicRows, error: dicError } = await supabase
+            .from('doc_data_dic')
+            .select('*')
+            .in('document_id', docIds)
+            .order('created_at', { ascending: false });
+
+        if (dicError || !dicRows || dicRows.length === 0) {
+            return [];
+        }
+
+        // Step 3: Merge document metadata into DIC rows
+        const docMap = new Map(docs.map(d => [d.id, d]));
+        return dicRows.map(row => {
+            const doc = docMap.get(row.document_id);
+            return {
+                ...row,
+                file_name: doc?.file_name,
+                extracted_owner_name: doc?.extracted_owner_name,
+                extracted_address: doc?.extracted_address,
+            } as DicDocData;
+        });
+    } catch (err) {
+        logger.error('API', 'Failed to fetch DIC doc data', {
+            policyId,
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return [];
+    }
+}
+
+// ---------------------------------------------------------------------------
 // DIC Carrier Quoting Eligibility
 // ---------------------------------------------------------------------------
 

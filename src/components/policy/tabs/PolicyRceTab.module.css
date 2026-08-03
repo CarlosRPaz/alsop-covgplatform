@@ -409,3 +409,108 @@
         grid-template-columns: repeat(2, 1fr);
     }
 }
+
+/* ═══ Document Selector Bar ═══ */
+.selectorBar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-default);
+    flex-wrap: wrap;
+}
+
+.pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.pill {
+    background: var(--bg-surface-raised);
+    border: 1px solid var(--border-default);
+    color: var(--text-mid);
+    padding: 0.4rem 0.8rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.pill:hover {
+    background: var(--bg-surface-hover);
+    color: var(--text-high);
+}
+
+.pillActive {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: #3b82f6;
+    color: #3b82f6;
+}
+
+.compareToggle {
+    margin-left: auto;
+}
+
+/* ═══ Compare View ═══ */
+.compareView {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: 0.625rem;
+    overflow: hidden;
+}
+
+.compareTableWrapper {
+    overflow-x: auto;
+}
+
+.compareTable {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.78rem;
+}
+
+.compareTable th,
+.compareTable td {
+    padding: 0.65rem 0.85rem;
+    border-bottom: 1px solid var(--border-default);
+}
+
+.compareTable th {
+    background: var(--bg-surface-raised);
+    font-weight: 700;
+    color: var(--text-high);
+    white-space: nowrap;
+}
+
+.compareTable td {
+    color: var(--text-high);
+    white-space: nowrap;
+}
+
+.compareTable tr:last-child td {
+    border-bottom: none;
+}
+
+.compareTable tbody tr:nth-child(odd) {
+    background: rgba(128, 128, 128, 0.04);
+}
+
+.compareTable th:first-child,
+.compareTable td:first-child {
+    position: sticky;
+    left: 0;
+    background: var(--bg-surface-raised);
+    font-weight: 600;
+    color: var(--text-muted);
+    border-right: 1px solid var(--border-default);
+    z-index: 1;
+}
+
+.compareTable tbody tr:nth-child(odd) td:first-child {
+    background: var(--bg-surface);
+}

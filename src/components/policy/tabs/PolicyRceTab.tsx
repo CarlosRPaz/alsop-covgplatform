@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Declaration, PropertyEnrichment, RceDocData } from '@/lib/api';
 import { normalizeInputs, calculateEstimate } from '@/lib/rce/InterimEstimator';
 import { InterimRceWidget } from '../InterimRceWidget';
@@ -174,6 +174,9 @@ function BreakdownList({ data }: { data: unknown }) {
 /* ── Main Component ──────────────────────────────────────────── */
 
 export function PolicyRceTab({ declaration, enrichments = [], rceDocData = [] }: PolicyRceTabProps) {
+    const [selectedIndex, setSelectedIndex] = useState(0);
+    const [isCompareMode, setIsCompareMode] = useState(false);
+
     const policyId = declaration.policy_id || declaration.id;
     const rceInput = normalizeInputs({ id: policyId, property_address_raw: declaration.property_location }, enrichments);
     const rceEstimate = calculateEstimate(rceInput);
@@ -182,7 +185,7 @@ export function PolicyRceTab({ declaration, enrichments = [], rceDocData = [] }:
         e.source_name === 'rce_360value' || e.source_name === 'dic_embedded_360value'
     );
 
-    const rce = rceDocData.length > 0 ? rceDocData[0] : null;
+    const rce = rceDocData.length > 0 ? rceDocData[selectedIndex] : null;
     const hasRceDocData = rce !== null;
 
     return (
@@ -205,7 +208,117 @@ export function PolicyRceTab({ declaration, enrichments = [], rceDocData = [] }:
             {/* ══════════════════════════════════════════════════════════ */}
             {hasRceDocData ? (
                 <>
-                    {/* ── Hero: Replacement Cost ── */}
+                    {rceDocData.length > 1 && (
+                        <div className={styles.selectorBar}>
+                            <div className={styles.pills}>
+                                {rceDocData.map((doc, idx) => {
+                                    const label = doc.valuation_id || (doc.file_name ? `${doc.file_name} ${doc.date_calculated || ''}`.trim() : `Document ${idx + 1}`);
+                                    return (
+                                        <button 
+                                            key={idx} 
+                                            className={`${styles.pill} ${!isCompareMode && selectedIndex === idx ? styles.pillActive : ''}`}
+                                            onClick={() => {
+                                                setSelectedIndex(idx);
+                                                setIsCompareMode(false);
+                                            }}
+                                        >
+                                            {label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <button 
+                                className={`${styles.pill} ${styles.compareToggle} ${isCompareMode ? styles.pillActive : ''}`}
+                                onClick={() => setIsCompareMode(!isCompareMode)}
+                            >
+                                Compare All
+                            </button>
+                        </div>
+                    )}
+                    
+                    {isCompareMode ? (
+                        <div className={styles.compareView}>
+                            <div className={styles.compareTableWrapper}>
+                                <table className={styles.compareTable}>
+                                    <thead>
+                                        <tr>
+                                            <th>Field</th>
+                                            {rceDocData.map((doc, idx) => {
+                                                const label = doc.valuation_id || (doc.file_name ? `${doc.file_name} ${doc.date_calculated || ''}`.trim() : `Doc ${idx + 1}`);
+                                                return <th key={idx}>{label}</th>;
+                                            })}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Replacement Cost</td>
+                                            {rceDocData.map((doc, idx) => <td key={idx}>{fmtCurrency(doc.replacement_cost)}</td>)}
+                                        </tr>
+                                        <tr>
+                                            <td>Range (Low-High)</td>
+                                            {rceDocData.map((doc, idx) => (
+                                                <td key={idx}>
+                                                    {(doc.replacement_range_low || doc.replacement_range_high) 
+                                                        ? `${fmtCurrency(doc.replacement_range_low)} – ${fmtCurrency(doc.replacement_range_high)}` 
+                                                        : '—'}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                        <tr>
+                                            <td>ACV</td>
+                                            {rceDocData.map((doc, idx) => <td key={idx}>{fmtCurrency(doc.actual_cash_value)}</td>)}
+                                        </tr>
+                                        <tr>
+                                            <td>Sq Feet</td>
+                                            {rceDocData.map((doc, idx) => <td key={idx}>{doc.sq_feet ? fmtNumber(doc.sq_feet) : '—'}</td>)}
+                                        </tr>
+                                        <tr>
+                                            <td>Year Built</td>
+                                            {rceDocData.map((doc, idx) => <td key={idx}>{doc.year_built || '—'}</td>)}
+                                        </tr>
+                                        <tr>
+                                            <td>Quality Grade</td>
+                                            {rceDocData.map((doc, idx) => <td key={idx}>{doc.quality_grade || '—'}</td>)}
+                                        </tr>
+                                        <tr>
+                                            <td>Cost / Sq Ft</td>
+                                            {rceDocData.map((doc, idx) => <td key={idx}>{doc.cost_per_sqft ? fmtCurrency(doc.cost_per_sqft) : '—'}</td>)}
+                                        </tr>
+                                        <tr>
+                                            <td>Roof Year</td>
+                                            {rceDocData.map((doc, idx) => <td key={idx}>{doc.roof_year || '—'}</td>)}
+                                        </tr>
+                                        <tr>
+                                            <td>Roof Cover</td>
+                                            {rceDocData.map((doc, idx) => <td key={idx}>{doc.roof_cover || '—'}</td>)}
+                                        </tr>
+                                        <tr>
+                                            <td>Foundation Type</td>
+                                            {rceDocData.map((doc, idx) => <td key={idx}>{doc.foundation_type || '—'}</td>)}
+                                        </tr>
+                                        <tr>
+                                            <td>Wall Construction</td>
+                                            {rceDocData.map((doc, idx) => <td key={idx}>{doc.wall_construction || '—'}</td>)}
+                                        </tr>
+                                        <tr>
+                                            <td>Stories</td>
+                                            {rceDocData.map((doc, idx) => <td key={idx}>{doc.stories || '—'}</td>)}
+                                        </tr>
+                                        <tr>
+                                            <td>Valuation ID</td>
+                                            {rceDocData.map((doc, idx) => <td key={idx}>{doc.valuation_id || '—'}</td>)}
+                                        </tr>
+                                        <tr>
+                                            <td>Date Calculated</td>
+                                            {rceDocData.map((doc, idx) => <td key={idx}>{doc.date_calculated || '—'}</td>)}
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            {/* ── Hero: Replacement Cost ── */}
                     <div className={styles.hero}>
                         <div className={styles.heroMain}>
                             <span className={styles.heroLabel}>Estimated Replacement Cost</span>
@@ -352,6 +465,8 @@ export function PolicyRceTab({ declaration, enrichments = [], rceDocData = [] }:
                             ].filter(Boolean).join(' · ')}
                         </span>
                     </div>
+                        </>
+                    )}
                 </>
             ) : (
                 /* ── No RCE Doc Data — Enrichment fallback ── */

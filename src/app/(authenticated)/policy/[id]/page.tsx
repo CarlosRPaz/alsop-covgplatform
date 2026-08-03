@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
 import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload, ShieldCheck, MapPin, Phone } from 'lucide-react';
 import { PropertyBanner } from '@/components/policy/PropertyBanner';
-import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, fetchPlatformDocumentsByPolicyId, getPlatformDocDownloadUrl, fetchRceDocDataByPolicyId, RceDocData } from '@/lib/api';
+import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, fetchPlatformDocumentsByPolicyId, getPlatformDocDownloadUrl, fetchRceDocDataByPolicyId, RceDocData, fetchDicDocDataByPolicyId, DicDocData } from '@/lib/api';
 import { PolicyStatusBar } from '@/components/policy/PolicyStatusBar';
 import { PolicyOverviewTab } from '@/components/policy/tabs/PolicyOverviewTab';
 import { PolicyCfpDetailsTab } from '@/components/policy/tabs/PolicyCfpDetailsTab';
@@ -80,6 +80,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     const [bgProcessing, setBgProcessing] = useState(false);
     const [bgProcessingStep, setBgProcessingStep] = useState<string | null>(null);
     const [rceDocData, setRceDocData] = useState<RceDocData[]>([]);
+    const [dicDocData, setDicDocData] = useState<DicDocData[]>([]);
 
     // Detect user role for client vs agent view
     useEffect(() => {
@@ -169,6 +170,9 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
         // Fetch full RCE document data (doc_data_rce)
         fetchRceDocDataByPolicyId(id).then(setRceDocData);
 
+        // Fetch full DIC document data (doc_data_dic)
+        fetchDicDocDataByPolicyId(id).then(setDicDocData);
+
         // Fetch report existence
         getLatestReportForPolicy(id).then(r => {
             if (r) setReportRow(r);
@@ -194,12 +198,16 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     const refreshAllData = useCallback(async () => {
         if (!id) return;
         try {
-            const [newEnrichments, newFlags, newReport] = await Promise.all([
+            const [newEnrichments, newFlags, newReport, newRceData, newDicData] = await Promise.all([
                 getPropertyEnrichments(id),
                 fetchFlagsByPolicyId(id),
                 getLatestReportForPolicy(id),
+                fetchRceDocDataByPolicyId(id),
+                fetchDicDocDataByPolicyId(id),
             ]);
             setEnrichments(newEnrichments);
+            setRceDocData(newRceData);
+            setDicDocData(newDicData);
             setAllFlags(newFlags);
             const open = newFlags.filter((f: PolicyFlagRow) => !f.status || f.status === 'open');
             setOpenFlags(open);
@@ -397,7 +405,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             case 'dic':
                 return (
                     <div className={styles.content}>
-                        <PolicyDicDetailsTab declaration={declaration!} policyDetail={policyDetailRaw || undefined} />
+                        <PolicyDicDetailsTab declaration={declaration!} policyDetail={policyDetailRaw || undefined} dicDocData={dicDocData} />
                     </div>
                 );
             case 'rce':
