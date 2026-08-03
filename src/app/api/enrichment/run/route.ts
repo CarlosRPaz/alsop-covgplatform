@@ -342,6 +342,13 @@ export async function POST(request: NextRequest) {
         const timings: Record<string, number> = {};
         const sb = getSupabaseAdmin();
 
+        // Forward auth headers for internal sub-calls
+        const fwdHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+        const incomingAuth = request.headers.get('Authorization');
+        const incomingKey = request.headers.get('X-Internal-Key');
+        if (incomingAuth) fwdHeaders['Authorization'] = incomingAuth;
+        if (incomingKey) fwdHeaders['X-Internal-Key'] = incomingKey;
+
         // 1. Fetch the policy's property address
         const { data: policy, error: policyErr } = await sb
             .from('policies')
@@ -427,7 +434,7 @@ export async function POST(request: NextRequest) {
                 const origin = request.nextUrl.origin;
                 const visionRes = await fetch(`${origin}/api/enrichment/vision-analyze`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: fwdHeaders,
                     body: JSON.stringify({ policy_id }),
                 });
                 if (visionRes.ok) {
@@ -449,7 +456,7 @@ export async function POST(request: NextRequest) {
                 const origin = request.nextUrl.origin;
                 const streetVisionRes = await fetch(`${origin}/api/enrichment/street-vision-analyze`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: fwdHeaders,
                     body: JSON.stringify({ policy_id }),
                 });
                 if (streetVisionRes.ok) {
@@ -471,7 +478,7 @@ export async function POST(request: NextRequest) {
             const origin = request.nextUrl.origin;
             const reportRes = await fetch(`${origin}/api/reports/generate`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: fwdHeaders,
                 body: JSON.stringify({ policyId: policy_id }),
             });
             if (reportRes.ok) {

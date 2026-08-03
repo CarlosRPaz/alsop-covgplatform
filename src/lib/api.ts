@@ -2259,9 +2259,15 @@ export async function runFlagCheck(policyId: string): Promise<{
     summary?: { created: number; refreshed: number; resolved: number; checked: number };
 }> {
     try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (session?.access_token) {
+            headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+
         const res = await fetch('/api/flags/evaluate', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ policy_id: policyId }),
         });
         return await res.json();
@@ -3456,15 +3462,23 @@ export interface EnrichmentRunResult {
  * geocoding, and fire risk enrichment directly.
  */
 export async function runPropertyEnrichment(policyId: string): Promise<EnrichmentRunResult> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+        throw new Error('No active session — please sign in to run enrichment.');
+    }
+
     const res = await fetch('/api/enrichment/run', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({ policy_id: policyId }),
     });
 
     const data = await res.json();
     if (!res.ok) {
-        throw new Error(data.error || 'Enrichment failed');
+        throw new Error(data.error || data.message || 'Enrichment failed');
     }
     return data as EnrichmentRunResult;
 }
