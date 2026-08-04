@@ -6,7 +6,7 @@ import Link from 'next/link';
 import styles from './page.module.css';
 import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
-import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload, ShieldCheck, MapPin, Phone } from 'lucide-react';
+import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload, ShieldCheck, MapPin, Phone, RotateCcw } from 'lucide-react';
 import { PropertyBanner } from '@/components/policy/PropertyBanner';
 import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, fetchPlatformDocumentsByPolicyId, getPlatformDocDownloadUrl, fetchRceDocDataByPolicyId, RceDocData, fetchDicDocDataByPolicyId, DicDocData, generatePolicyReport } from '@/lib/api';
 import { PolicyStatusBar } from '@/components/policy/PolicyStatusBar';
@@ -661,53 +661,58 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                             Edit Policy
                         </Button>
 
-                        {reportRow ? (
+                        {reportRow && (
                             <Button
                                 variant="primary"
                                 size="sm"
                                 onClick={() => router.push(`/report/${reportRow.id}`)}
-                                title="View coverage review report"
+                                title={`View coverage review report${reportRow.created_at ? ` — Generated ${new Date(reportRow.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}`}
                             >
                                 <ExternalLink size={14} />
                                 View Report
                             </Button>
-                        ) : (
-                            <Button
-                                variant="primary"
-                                size="sm"
-                                disabled={isGeneratingReport}
-                                title="Generate coverage review report"
-                                onClick={async () => {
-                                    setIsGeneratingReport(true);
-                                    try {
-                                        const result = await generatePolicyReport(id);
-                                        if (result.report) {
-                                            setReportRow(result.report as PolicyReportRow);
-                                            router.push(`/report/${result.report.id}`);
-                                        } else {
-                                            alert(result.error || 'Failed to generate report — please try again.');
-                                        }
-                                    } catch (e) {
-                                        console.error('Report generation failed:', e);
-                                        alert('Error generating report. Check the console for details.');
-                                    } finally {
-                                        setIsGeneratingReport(false);
-                                    }
-                                }}
-                            >
-                                {isGeneratingReport ? (
-                                    <>
-                                        <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                                        Generating…
-                                    </>
-                                ) : (
-                                    <>
-                                        <FileText size={14} />
-                                        Generate Report
-                                    </>
-                                )}
-                            </Button>
                         )}
+
+                        <Button
+                            variant={reportRow ? 'outline' : 'primary'}
+                            size="sm"
+                            disabled={isGeneratingReport}
+                            title={reportRow ? 'Regenerate report with latest data & rules' : 'Generate coverage review report'}
+                            onClick={async () => {
+                                setIsGeneratingReport(true);
+                                try {
+                                    const result = await generatePolicyReport(id);
+                                    if (result.report) {
+                                        setReportRow(result.report as PolicyReportRow);
+                                        router.push(`/report/${result.report.id}`);
+                                    } else {
+                                        alert(result.error || 'Failed to generate report — please try again.');
+                                    }
+                                } catch (e) {
+                                    console.error('Report generation failed:', e);
+                                    alert('Error generating report. Check the console for details.');
+                                } finally {
+                                    setIsGeneratingReport(false);
+                                }
+                            }}
+                        >
+                            {isGeneratingReport ? (
+                                <>
+                                    <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                                    Generating…
+                                </>
+                            ) : reportRow ? (
+                                <>
+                                    <RotateCcw size={14} />
+                                    Regenerate
+                                </>
+                            ) : (
+                                <>
+                                    <FileText size={14} />
+                                    Generate Report
+                                </>
+                            )}
+                        </Button>
                     </div>
                 </div>
 

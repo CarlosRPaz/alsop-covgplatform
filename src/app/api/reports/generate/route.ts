@@ -294,5 +294,25 @@ async function saveAndReturnReport(policyId: string, clientId: string | undefine
         console.warn('Activity event insert failed (non-fatal):', e);
     }
 
+    // Save a reference in platform_documents so report appears in Files tab
+    try {
+        const reportDate = new Date().toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric',
+        });
+        await supabase.from('platform_documents').insert({
+            policy_id: policyId,
+            client_id: clientId || null,
+            doc_type: 'other',
+            file_name: `Coverage Analysis Report — ${reportDate}.pdf`,
+            parse_status: 'parsed',
+            match_status: 'matched',
+            writeback_status: 'complete',
+            processing_step: null,
+            error_message: null,
+        });
+    } catch (e) {
+        console.warn('platform_documents insert for report failed (non-fatal):', e);
+    }
+
     return NextResponse.json({ success: true, report: data });
 }
