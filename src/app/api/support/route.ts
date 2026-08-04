@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabaseClient';
 /**
  * POST /api/support
  * Handles support requests submitted by clients or guests.
- * Emails support@coveragechecknow.com and logs an activity event.
+ * Direct-delivers support emails to support@coveragechecknow.com via Postmark and logs an activity event.
  */
 export async function POST(req: NextRequest) {
     try {
@@ -41,20 +41,45 @@ export async function POST(req: NextRequest) {
                         <p style="margin: 0; white-space: pre-wrap; font-size: 14px; line-height: 1.6; color: #334155;">${message}</p>
                     </div>
                     <p style="margin: 0; font-size: 12px; color: #94a3b8; text-align: center;">
-                        You can reply directly to this email to respond to the client at ${email}.
+                        Replying directly to this email will respond to the client at ${email}.
                     </p>
                 </div>
             </div>
         `;
 
-        // Send support email to support@coveragechecknow.com using verified Postmark Sender Signature
-        const sendResult = await sendEmail({
-            to: 'support@coveragechecknow.com',
-            from: 'admin@coveragechecknow.com',
-            replyTo: email,
-            subject: emailSubject,
-            htmlBody,
-        });
+        // Direct Postmark dispatch to support@coveragechecknow.com (guarantees delivery on both dev and production)
+        const postmarkToken = process.env.POSTMARK_SERVER_TOKEN;
+        let sendResult: any;
+
+        if (postmarkToken) {
+            const pmRes = await fetch('https://api.postmarkapp.com/email', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Postmark-Server-Token': postmarkToken,
+                },
+                body: JSON.stringify({
+                    From: 'admin@coveragechecknow.com',
+                    To: 'support@coveragechecknow.com',
+                    ReplyTo: email,
+                    Subject: emailSubject,
+                    HtmlBody: htmlBody,
+                    TextBody: `Client ${clientName} (${email}) submitted support request: ${message}`,
+                    MessageStream: 'outbound',
+                }),
+            });
+            const pmData = await pmRes.json();
+            sendResult = { success: pmRes.ok && !pmData.ErrorCode, data: pmData };
+        } else {
+            sendResult = await sendEmail({
+                to: 'support@coveragechecknow.com',
+                from: 'admin@coveragechecknow.com',
+                replyTo: email,
+                subject: emailSubject,
+                htmlBody,
+            });
+        }
 
         // Log activity event
         try {
