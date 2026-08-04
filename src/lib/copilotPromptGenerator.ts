@@ -119,7 +119,16 @@ ${TONE_AND_RULES}`,
 Client Details:
 ${formatContextBlock(ctx)}
 
-Email Purpose: Notify the client that their California Fair Plan renewal payment is due soon and ask for their permission to review potential coverage updates before payment is finalized. The client pays their own bill directly.
+Email Purpose: Notify the client that their California Fair Plan renewal payment is due soon. The client pays their own bill directly.
+
+Style Guide:
+- Open with a compelling hook about the value of annual policy reviews (saving money, avoiding lapses, closing coverage gaps)
+- Introduce the agent by name (${ctx.agentName}) from Alsop and Associates Insurance Agency
+- Explain that now is a great time to review coverage limits, deductibles, and other factors before payment is finalized
+- Include a "what to have handy" checklist: current mortgage info, dec pages for other policies, questions/feedback
+- Be time-respectful — "I won't take too much of your time"
+- Request permission to review potential coverage updates
+- Close warmly with appreciation for their time
 
 ${TONE_AND_RULES}`,
     },
@@ -133,7 +142,16 @@ ${TONE_AND_RULES}`,
 Client Details:
 ${formatContextBlock(ctx)}
 
-Email Purpose: Inform the client that their California Fair Plan policy renewal is approaching. Their mortgage company handles payment through escrow, but ask for permission to review recommended coverage adjustments prior to renewal.
+Email Purpose: Inform the client that their California Fair Plan policy renewal is approaching. Their mortgage company handles payment through escrow, but we'd like permission to review recommended coverage adjustments prior to renewal.
+
+Style Guide:
+- Open with a compelling hook about the value of annual policy reviews (saving money, avoiding lapses, closing coverage gaps)
+- Introduce the agent by name (${ctx.agentName}) from Alsop and Associates Insurance Agency
+- Clarify that their lender handles payment through escrow, but that reviewing coverage limits, deductibles, and contact information is still important
+- Include a "what to have handy" checklist: current mortgage info, dec pages for other policies, questions/feedback
+- Be time-respectful — "I won't take too much of your time"
+- Request permission to review potential coverage updates
+- Close warmly with appreciation for their time
 
 ${TONE_AND_RULES}`,
     },

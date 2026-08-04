@@ -105,22 +105,51 @@ export const DEFAULT_TEMPLATES: SystemEmailTemplate[] = [
         name: 'Renewal Review Notice',
         category: 'renewal',
         description: 'Notice of upcoming renewal with attached AI report and RCE, asking client to schedule an appointment.',
-        subjectTemplate: 'Renewal Review for Policy {{policy_number}} at {{property_address}}',
+        subjectTemplate: 'Your California Fair Plan Renewal Is Approaching — Policy {{policy_number}}',
         draftBodyTemplate: `Hi {{first_name}},
 
-Your California Fair Plan policy, {{policy_number}}, for {{property_address}} is approaching renewal on {{expiration_date}}.
+Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and possibly save money? Since your California Fair Plan policy ({{policy_number}}) for {{property_address}} is coming up for renewal on {{expiration_date}}, now is a great time to take a closer look.
 
-As part of our renewal review process, we reviewed the coverage information currently shown on your prior policy and prepared updated coverage materials for your consideration. You can view your AI coverage report here: {{report_url}}. You can also download your updated Replacement Cost Estimate here: {{rce_download_url}}.
+My name is {{agent_name}} with Alsop and Associates Insurance Agency. Our goal is to ensure we're not only providing exceptional service but also making sure you have the best protection available for you and your family.
 
-The review may show differences between the coverage reflected on your current policy and updated replacement cost information or available coverage options. Any coverage changes would be recommendations only, and we would need your permission before making any updates.
+As part of our renewal review process, we've reviewed the coverage on your current policy and prepared updated materials for your consideration:
 
-We strongly encourage you to schedule a review with one of our licensed agents before renewal so we can walk through the findings together: {{meeting_url}}.
+• AI Coverage Report: {{report_url}}
+• Updated Replacement Cost Estimate: {{rce_download_url}}
+
+The review may highlight differences between your current coverage and updated replacement cost information or available options. Any changes would be recommendations only — we always request your permission before making updates.
+
+To make the most of our conversation, here are a few things you may want to have handy:
+
+• Current mortgage information (lender name, loan number) — usually found on your mortgage statement
+• Declaration pages for any other policies outside of Allstate you'd like to review
+• Questions, concerns, or feedback you'd like to share
+
+I won't take too much of your time. In just a few minutes we can make sure your renewal is on track and your coverage continues to provide the protection that's right for you.
+
+Schedule a time that works best for you: {{meeting_url}}
 
 Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
 
-Thank you,
+Your time is certainly appreciated and I look forward to speaking with you soon!
+
+{{agent_name}}
 Alsop and Associates Insurance Agency`,
-        copilotPromptTemplate: `Create a customized renewal review email for {{client_name}} regarding California Fair Plan policy {{policy_number}} at {{property_address}}, expiring on {{expiration_date}}. Keep the tone professional, concise, and permission-based. Mention that an AI coverage report and updated Replacement Cost Estimate are available using {{report_url}} and {{rce_download_url}}. Explain coverage findings in a neutral, non-judgmental way without using words like adequate, inadequate, or deficient. Strongly encourage scheduling with a licensed agent using {{meeting_url}}. Include a clear statement that final coverage decisions remain the policyholder’s responsibility.`,
+        copilotPromptTemplate: `Create a customized renewal review email for {{client_name}} regarding California Fair Plan policy {{policy_number}} at {{property_address}}, expiring on {{expiration_date}}.
+
+Style & Tone:
+- Open with a compelling hook about the value of an annual policy review (saving money, avoiding lapses, closing coverage gaps)
+- Include a personal introduction of the agent ({{agent_name}}) from Alsop and Associates Insurance Agency
+- Keep the tone warm, professional, conversational, and permission-based
+- Be time-respectful — reassure the client this won't take long
+
+Content to include:
+- Mention that an AI coverage report and updated Replacement Cost Estimate are available using {{report_url}} and {{rce_download_url}}
+- Explain coverage findings in a neutral, non-judgmental way without using words like adequate, inadequate, or deficient
+- Include a "what to have handy" checklist: current mortgage info (lender name, loan number), declaration pages for other policies, questions/concerns/feedback
+- Strongly encourage scheduling a review with a licensed agent using {{meeting_url}}
+- Include a clear statement that final coverage decisions remain the policyholder's responsibility
+- Close warmly with appreciation for their time`,
         rules: [
             ...STANDARD_RULES,
             {
@@ -129,8 +158,14 @@ Alsop and Associates Insurance Agency`,
                 instruction: 'Provide a direct link to schedule an Outlook review appointment.',
                 enabled: true,
             },
+            {
+                id: 'include_preparation_checklist',
+                label: 'Include Preparation Checklist',
+                instruction: 'Include a short list of items the client should have ready for the review: current mortgage info, other policy dec pages, and any questions or feedback.',
+                enabled: true,
+            },
         ],
-        variables: ['{{first_name}}', '{{client_name}}', '{{policy_number}}', '{{property_address}}', '{{expiration_date}}', '{{report_url}}', '{{rce_download_url}}', '{{meeting_url}}'],
+        variables: ['{{first_name}}', '{{client_name}}', '{{policy_number}}', '{{property_address}}', '{{expiration_date}}', '{{report_url}}', '{{rce_download_url}}', '{{meeting_url}}', '{{agent_name}}'],
         isSystemDefault: true,
     },
     {
