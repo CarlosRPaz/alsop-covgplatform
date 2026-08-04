@@ -6,6 +6,7 @@ import { Declaration, PolicyDetail, PropertyEnrichment, getLatestReportForPolicy
 import { EditableValue } from '@/components/ui/EditableValue';
 import { RefreshCw, ShieldCheck, Home } from 'lucide-react';
 import { Card } from '@/components/ui/Card/Card';
+import { Button } from '@/components/ui/Button/Button';
 import styles from '../PolicyDashboard.module.css';
 
 interface PolicyOverviewTabProps {
@@ -71,35 +72,15 @@ export function PolicyOverviewTab({ declaration, policyDetail, enrichments = [] 
 
     return (
         <div className={styles.container}>
-            {/* Header row with report actions */}
+            {/* Header row */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <h2 className={styles.sectionTitle} style={{ margin: 0 }}>Policy Overview</h2>
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                    {hasPendingEdits && (
-                        <button onClick={handleGenerateReport} disabled={isGenerating}
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.8rem', background: 'var(--status-warning)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                            {isGenerating ? <RefreshCw size={14} className="spin" /> : <RefreshCw size={14} />}
-                            {isGenerating ? 'Regenerating...' : 'Regenerate Analysis'}
-                        </button>
-                    )}
-                    {report ? (
-                        <>
-                            <button onClick={() => router.push(`/report/${report.id}`)}
-                                style={{ background: 'var(--accent-primary)', color: 'var(--text-inverse)', border: 'none', padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 600 }}>
-                                View Latest Report
-                            </button>
-                            <button onClick={handleGenerateReport} disabled={isGenerating}
-                                style={{ background: 'transparent', color: 'var(--text-mid)', border: '1px solid var(--border-default)', padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)', cursor: isGenerating ? 'wait' : 'pointer', fontWeight: 500, fontSize: '0.85rem' }}>
-                                {isGenerating ? 'Generating...' : 'Regenerate'}
-                            </button>
-                        </>
-                    ) : (
-                        <button onClick={handleGenerateReport} disabled={isGenerating}
-                            style={{ background: 'var(--accent-primary)', color: 'var(--text-inverse)', border: 'none', padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)', cursor: isGenerating ? 'wait' : 'pointer', fontWeight: 600 }}>
-                            {isGenerating ? 'Generating...' : 'Generate Review Report'}
-                        </button>
-                    )}
-                </div>
+                {hasPendingEdits && (
+                    <Button variant="outline" size="sm" onClick={handleGenerateReport} disabled={isGenerating} style={{ color: 'var(--status-warning)', borderColor: 'var(--status-warning)' }}>
+                        {isGenerating ? <RefreshCw size={14} className="spin" /> : <RefreshCw size={14} />}
+                        {isGenerating ? 'Regenerating...' : 'Regenerate Analysis'}
+                    </Button>
+                )}
             </div>
 
             {/* ═══════════════════════════════════════════════════════════════ */}

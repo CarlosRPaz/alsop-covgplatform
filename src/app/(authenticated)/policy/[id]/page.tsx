@@ -517,434 +517,439 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             {/* ═══════════════════════════════════════════════════════════════ */}
             {/* Policy Identity Header                                        */}
             {/* ═══════════════════════════════════════════════════════════════ */}
-            <div className={styles.header}>
-                {/* ── Left: Policy Identity ── */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                    <Link href="/dashboard">
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* Unified Policy Hero Card                                      */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <div className={styles.heroCard}>
+                {/* ── Top Nav & Status ── */}
+                <div className={styles.heroTop}>
+                    <Link href="/dashboard" style={{ textDecoration: 'none' }}>
                         <button className={styles.backButton}>
                             <ArrowLeft size={14} />
                             Dashboard
                         </button>
                     </Link>
+                    <div style={{ transform: 'scale(0.9)', transformOrigin: 'right center' }}>
+                        <PolicyStatusBar
+                            isEnriched={isEnriched}
+                            enrichmentCount={enrichments.length}
+                            lastEnrichedDate={lastEnrichedDate}
+                            flagsChecked={flagsChecked}
+                            lastCheckedDate={lastCheckedDate}
+                            openFlagCount={flagSummary.total}
+                            highestSeverity={flagSummary.high > 0 ? 'high' : flagSummary.medium > 0 ? 'medium' : flagSummary.low > 0 ? 'low' : null}
+                            enrichStep={enrichStep}
+                            onEnrich={handleEnrich}
+                            onRunFlagCheck={handleFlagCheck}
+                            flagCheckRunning={flagCheckRunning}
+                            enrichments={enrichments}
+                        />
+                    </div>
+                </div>
 
-                    {/* Insured Name — Primary Heading */}
-                    <h1
-                        className={styles.title}
-                        onClick={() => declaration.client_id && router.push(`/client/${declaration.client_id}`)}
-                        style={{ cursor: declaration.client_id ? 'pointer' : 'default' }}
-                        title={declaration.client_id ? 'View client profile' : undefined}
-                    >
-                        {declaration.insured_name}
-                    </h1>
+                {/* ── Main Identity & Primary Actions ── */}
+                <div className={styles.heroMain}>
+                    <div className={styles.heroIdentity}>
+                        <h1
+                            className={styles.heroTitle}
+                            onClick={() => declaration.client_id && router.push(`/client/${declaration.client_id}`)}
+                            style={{ cursor: declaration.client_id ? 'pointer' : 'default' }}
+                            title={declaration.client_id ? 'View client profile' : undefined}
+                        >
+                            {declaration.insured_name}
+                        </h1>
 
-                    {/* Policy # + Address row */}
+                        <div className={styles.heroMeta}>
+                            {/* Policy Number — Copyable chip */}
+                            <div
+                                onClick={copyPolicyNumber}
+                                title="Click to copy policy number"
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem',
+                                    padding: '0.2rem 0.6rem',
+                                    background: 'rgba(99, 102, 241, 0.08)',
+                                    border: '1px solid rgba(99, 102, 241, 0.2)',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 600,
+                                    color: 'var(--accent-primary)',
+                                    letterSpacing: '0.01em',
+                                    transition: 'all 0.15s ease',
+                                    whiteSpace: 'nowrap',
+                                }}
+                            >
+                                {declaration.policy_number}
+                                <span style={{ color: copied ? '#34d399' : 'var(--text-muted)', display: 'inline-flex' }}>
+                                    {copied ? <Check size={12} /> : <Copy size={12} />}
+                                </span>
+                            </div>
+
+                            {policyDetailRaw?.previous_policy_number && (
+                                <div style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    padding: '0.2rem 0.6rem',
+                                    background: 'rgba(148, 163, 184, 0.08)',
+                                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                                    borderRadius: '6px',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 500,
+                                    color: 'var(--text-mid)',
+                                    whiteSpace: 'nowrap',
+                                }}>
+                                    Prev: {policyDetailRaw.previous_policy_number}
+                                </div>
+                            )}
+
+                            {policyDetailRaw?.property_address && (
+                                <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem',
+                                    fontSize: '0.8rem',
+                                    color: 'var(--text-mid)',
+                                    fontWeight: 500,
+                                }}>
+                                    <MapPin size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                                    {policyDetailRaw.property_address}
+                                </span>
+                            )}
+                            
+                            <span style={{ color: 'var(--border-default)' }}>|</span>
+
+                            {declaration.client_email && (
+                                <span
+                                    onClick={() => setShowEmailComposer(true)}
+                                    title="Compose email to client"
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.3rem',
+                                        fontSize: '0.75rem',
+                                        color: 'var(--text-muted)',
+                                        cursor: 'pointer',
+                                        transition: 'color 0.15s ease',
+                                    }}
+                                    onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-primary)')}
+                                    onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+                                >
+                                    <Mail size={12} style={{ flexShrink: 0 }} />
+                                    {declaration.client_email}
+                                </span>
+                            )}
+                            {declaration.client_phone && (
+                                <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem',
+                                    fontSize: '0.75rem',
+                                    color: 'var(--text-muted)',
+                                }}>
+                                    <Phone size={12} style={{ flexShrink: 0 }} />
+                                    {declaration.client_phone}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className={styles.heroActions}>
+                        <Button variant="outline" size="sm" onClick={() => setIsEditOpen(true)} title="Edit Policy">
+                            <Pencil size={14} />
+                            Edit Policy
+                        </Button>
+
+                        {reportRow ? (
+                            <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => router.push(`/report/${reportRow.id}`)}
+                                title="View coverage review report"
+                            >
+                                <ExternalLink size={14} />
+                                View Report
+                            </Button>
+                        ) : (
+                            <Button
+                                variant="primary"
+                                size="sm"
+                                disabled={isGeneratingReport}
+                                title="Generate coverage review report"
+                                onClick={async () => {
+                                    setIsGeneratingReport(true);
+                                    try {
+                                        const result = await generatePolicyReport(id);
+                                        if (result.report) {
+                                            setReportRow(result.report as PolicyReportRow);
+                                            router.push(`/report/${result.report.id}`);
+                                        } else {
+                                            alert(result.error || 'Failed to generate report — please try again.');
+                                        }
+                                    } catch (e) {
+                                        console.error('Report generation failed:', e);
+                                        alert('Error generating report. Check the console for details.');
+                                    } finally {
+                                        setIsGeneratingReport(false);
+                                    }
+                                }}
+                            >
+                                {isGeneratingReport ? (
+                                    <>
+                                        <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                                        Generating…
+                                    </>
+                                ) : (
+                                    <>
+                                        <FileText size={14} />
+                                        Generate Report
+                                    </>
+                                )}
+                            </Button>
+                        )}
+                    </div>
+                </div>
+
+                {/* ── Contextual Tools & Documents ── */}
+                <div className={styles.heroFooter}>
+                    <div className={styles.contextGroupWrapper}>
+                        <span className={styles.contextLabel}>Documents</span>
+                        <div className={styles.contextGroup}>
+                            {!decPageStoragePath ? (
+                                <>
+                                    <input
+                                        type="file"
+                                        accept="application/pdf"
+                                        ref={fileInputRef}
+                                        style={{ display: 'none' }}
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (!file) return;
+                                            setDecPageLoading(true);
+                                            try {
+                                                const { supabase } = await import('@/lib/supabaseClient');
+                                                const { data: { session } } = await supabase.auth.getSession();
+                                                if (!session?.access_token) {
+                                                    toast.error('Session expired. Please refresh and sign in again.');
+                                                    return;
+                                                }
+
+                                                const formData = new FormData();
+                                                formData.set('file', file);
+
+                                                const res = await fetch('/api/upload', {
+                                                    method: 'POST',
+                                                    headers: { 'Authorization': `Bearer ${session.access_token}` },
+                                                    body: formData,
+                                                });
+
+                                                const json = await res.json();
+
+                                                if (res.ok && json.success) {
+                                                    const submissionId = json.data?.submissionId;
+                                                    toast.success(`Declaration uploaded: ${json.data?.fileName || file.name}`);
+
+                                                    if (submissionId) {
+                                                        try {
+                                                            const key = 'cfp_pending_dec_uploads';
+                                                            const stored = sessionStorage.getItem(key);
+                                                            const pending = stored ? JSON.parse(stored) : [];
+                                                            if (!pending.includes(submissionId)) {
+                                                                pending.push(submissionId);
+                                                                sessionStorage.setItem(key, JSON.stringify(pending));
+                                                            }
+                                                        } catch { /* non-critical */ }
+
+                                                        window.dispatchEvent(new CustomEvent('decPageUploaded'));
+                                                        setBgProcessing(true);
+                                                        setBgProcessingStep('Queued for processing…');
+                                                    }
+                                                } else {
+                                                    toast.error(json.message || 'Upload failed. Please try again.');
+                                                }
+                                            } catch (err) {
+                                                console.error(err);
+                                                toast.error('Network error during upload. Please try again.');
+                                            } finally {
+                                                setDecPageLoading(false);
+                                                if (fileInputRef.current) fileInputRef.current.value = '';
+                                            }
+                                        }}
+                                    />
+                                    <span
+                                        className={styles.contextLink}
+                                        onClick={() => fileInputRef.current?.click()}
+                                        title="Upload Dec Page PDF"
+                                    >
+                                        <Upload size={14} />
+                                        {decPageLoading ? 'Uploading…' : 'Upload Dec Page'}
+                                    </span>
+                                </>
+                            ) : (
+                                <span
+                                    className={styles.contextLink}
+                                    onClick={async () => {
+                                        setDecPageLoading(true);
+                                        try {
+                                            const url = await getDecPageFileDownloadUrl(decPageStoragePath);
+                                            if (url) {
+                                                window.open(url, '_blank');
+                                            } else {
+                                                toast.error('Could not generate download link.');
+                                            }
+                                        } catch {
+                                            toast.error('Failed to open dec page file.');
+                                        } finally {
+                                            setDecPageLoading(false);
+                                        }
+                                    }}
+                                    title="Open Dec Page PDF"
+                                >
+                                    <FileDown size={14} />
+                                    {decPageLoading ? 'Opening…' : 'View Dec Page'}
+                                </span>
+                            )}
+
+                            {!dicDocStoragePath ? (
+                                <>
+                                    <input
+                                        type="file"
+                                        accept="application/pdf"
+                                        ref={dicFileInputRef}
+                                        style={{ display: 'none' }}
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (!file) return;
+                                            setDicDocLoading(true);
+                                            try {
+                                                const { supabase } = await import('@/lib/supabaseClient');
+                                                const { data: { session } } = await supabase.auth.getSession();
+                                                if (!session?.access_token) {
+                                                    toast.error('Session expired. Please refresh and sign in again.');
+                                                    return;
+                                                }
+
+                                                const formData = new FormData();
+                                                formData.set('file', file);
+                                                formData.set('doc_type', 'dic_dec_page');
+                                                formData.set('policy_id', id);
+
+                                                const res = await fetch('/api/documents/upload', {
+                                                    method: 'POST',
+                                                    headers: { 'Authorization': `Bearer ${session.access_token}` },
+                                                    body: formData,
+                                                });
+
+                                                const json = await res.json();
+
+                                                if (res.ok && json.success) {
+                                                    toast.success(`DIC uploaded: ${file.name}`);
+                                                    const docs = await fetchPlatformDocumentsByPolicyId(id);
+                                                    const dicDoc = docs.find(d => d.doc_type === 'dic_dec_page' && d.storage_path);
+                                                    if (dicDoc?.storage_path) setDicDocStoragePath(dicDoc.storage_path);
+                                                } else {
+                                                    toast.error(json.message || 'DIC upload failed.');
+                                                }
+                                            } catch (err) {
+                                                console.error(err);
+                                                toast.error('Network error during DIC upload.');
+                                            } finally {
+                                                setDicDocLoading(false);
+                                                if (dicFileInputRef.current) dicFileInputRef.current.value = '';
+                                            }
+                                        }}
+                                    />
+                                    <span
+                                        className={styles.contextLink}
+                                        onClick={() => dicFileInputRef.current?.click()}
+                                        title="Upload DIC PDF"
+                                    >
+                                        <Upload size={14} />
+                                        {dicDocLoading ? 'Uploading…' : 'Upload DIC'}
+                                    </span>
+                                </>
+                            ) : (
+                                <span
+                                    className={styles.contextLink}
+                                    onClick={async () => {
+                                        setDicDocLoading(true);
+                                        try {
+                                            const url = await getPlatformDocDownloadUrl(dicDocStoragePath!);
+                                            if (url) {
+                                                window.open(url, '_blank');
+                                            } else {
+                                                toast.error('Could not generate DIC download link.');
+                                            }
+                                        } catch {
+                                            toast.error('Failed to open DIC document.');
+                                        } finally {
+                                            setDicDocLoading(false);
+                                        }
+                                    }}
+                                    title="Open DIC Document"
+                                >
+                                    <ShieldCheck size={14} />
+                                    {dicDocLoading ? 'Opening…' : 'View DIC'}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className={styles.contextGroupWrapper}>
+                        <span className={styles.contextLabel}>Tools</span>
+                        <div className={styles.contextGroup}>
+                            <span
+                                className={styles.contextLink}
+                                onClick={() => setIsWorkupOpen(true)}
+                                title="Run full analysis"
+                            >
+                                <Zap size={14} />
+                                Full Analysis
+                            </span>
+                            <span
+                                className={styles.contextLink}
+                                onClick={() => setShowEmailComposer(true)}
+                                title="Compose email to client"
+                            >
+                                <Mail size={14} />
+                                Compose Email
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── Background Processing ── */}
+                {bgProcessing && (
                     <div style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.75rem',
-                        marginTop: '0.35rem',
-                        flexWrap: 'wrap',
+                        padding: '0.75rem 1.5rem',
+                        background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(59, 130, 246, 0.08))',
+                        borderTop: '1px solid rgba(99, 102, 241, 0.2)',
+                        fontSize: '0.85rem',
+                        animation: 'fadeIn 0.3s ease',
                     }}>
-                        {/* Policy Number — Copyable chip */}
-                        <div
-                            onClick={copyPolicyNumber}
-                            title="Click to copy policy number"
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.35rem',
-                                padding: '0.2rem 0.6rem',
-                                background: 'rgba(99, 102, 241, 0.08)',
-                                border: '1px solid rgba(99, 102, 241, 0.2)',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                fontSize: '0.8rem',
-                                fontWeight: 600,
-                                color: 'var(--accent-primary)',
-                                letterSpacing: '0.01em',
-                                transition: 'all 0.15s ease',
-                                whiteSpace: 'nowrap',
-                            }}
-                        >
-                            {declaration.policy_number}
-                            <span style={{ color: copied ? '#34d399' : 'var(--text-muted)', display: 'inline-flex' }}>
-                                {copied ? <Check size={12} /> : <Copy size={12} />}
+                        <Loader2 size={16} style={{ color: '#6366f1', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+                        <div style={{ flex: 1 }}>
+                            <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+                                Processing in background
+                            </span>
+                            <span style={{ color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                                {bgProcessingStep || 'Working…'}
                             </span>
                         </div>
-
-                        {policyDetailRaw?.previous_policy_number && (
-                            <div style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                padding: '0.2rem 0.6rem',
-                                background: 'rgba(148, 163, 184, 0.08)',
-                                border: '1px solid rgba(148, 163, 184, 0.2)',
-                                borderRadius: '6px',
-                                fontSize: '0.8rem',
-                                fontWeight: 500,
-                                color: 'var(--text-mid)',
-                                whiteSpace: 'nowrap',
-                            }}>
-                                Prev: {policyDetailRaw.previous_policy_number}
-                            </div>
-                        )}
-
-                        {/* Property Address */}
-                        {policyDetailRaw?.property_address && (
-                            <span style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.3rem',
-                                fontSize: '0.8rem',
-                                color: 'var(--text-mid)',
-                                fontWeight: 500,
-                            }}>
-                                <MapPin size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                                {policyDetailRaw.property_address}
-                            </span>
-                        )}
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                            Data will auto-refresh when complete
+                        </span>
+                        <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+                        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
                     </div>
-
-                    {/* Contact row */}
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '1rem',
-                        marginTop: '0.35rem',
-                        flexWrap: 'wrap',
-                    }}>
-                        {declaration.client_email && (
-                            <span style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.3rem',
-                                fontSize: '0.72rem',
-                                color: 'var(--text-muted)',
-                            }}>
-                                <Mail size={11} style={{ flexShrink: 0 }} />
-                                {declaration.client_email}
-                            </span>
-                        )}
-                        {declaration.client_phone && (
-                            <span style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.3rem',
-                                fontSize: '0.72rem',
-                                color: 'var(--text-muted)',
-                            }}>
-                                <Phone size={11} style={{ flexShrink: 0 }} />
-                                {declaration.client_phone}
-                            </span>
-                        )}
-                    </div>
-                </div>
-
-                {/* ── Right: Action Ribbon ── */}
-                <div className={styles.actionCluster}>
-                    {/* Group 1: Primary Actions */}
-                    <button className={styles.editPolicyBtn} onClick={() => setIsEditOpen(true)} title="Edit Policy">
-                        <Pencil size={14} />
-                        Edit Policy
-                    </button>
-
-                    <button
-                        className={styles.iconBtn}
-                        onClick={() => setShowEmailComposer(true)}
-                        title="Compose Email"
-                    >
-                        <Mail size={16} />
-                    </button>
-
-                    <div className={styles.actionDivider} />
-
-                    {/* Group 2: Analysis & Reports */}
-                    <button className={styles.secondaryBtn} onClick={() => setIsWorkupOpen(true)} title="Run full analysis">
-                        <Zap size={14} />
-                        Full Analysis
-                    </button>
-
-                    {reportRow ? (
-                        <button
-                            className={styles.primaryBtn}
-                            onClick={() => router.push(`/report/${reportRow.id}`)}
-                            title="View coverage review report"
-                        >
-                            <ExternalLink size={14} />
-                            View Report
-                        </button>
-                    ) : (
-                        <button
-                            className={styles.secondaryBtn}
-                            disabled={isGeneratingReport}
-                            title="Generate coverage review report"
-                            onClick={async () => {
-                                setIsGeneratingReport(true);
-                                try {
-                                    const result = await generatePolicyReport(id);
-                                    if (result.report) {
-                                        setReportRow(result.report as PolicyReportRow);
-                                        router.push(`/report/${result.report.id}`);
-                                    } else {
-                                        alert(result.error || 'Failed to generate report — please try again.');
-                                    }
-                                } catch (e) {
-                                    console.error('Report generation failed:', e);
-                                    alert('Error generating report. Check the console for details.');
-                                } finally {
-                                    setIsGeneratingReport(false);
-                                }
-                            }}
-                        >
-                            {isGeneratingReport ? (
-                                <>
-                                    <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                                    Generating…
-                                </>
-                            ) : (
-                                <>
-                                    <FileText size={14} />
-                                    Generate Report
-                                </>
-                            )}
-                        </button>
-                    )}
-
-                    <div className={styles.actionDivider} />
-
-                    {/* Group 3: Document Actions */}
-                    {!decPageStoragePath ? (
-                        <>
-                            <input
-                                type="file"
-                                accept="application/pdf"
-                                ref={fileInputRef}
-                                style={{ display: 'none' }}
-                                onChange={async (e) => {
-                                    const file = e.target.files?.[0];
-                                    if (!file) return;
-                                    setDecPageLoading(true);
-                                    try {
-                                        const { supabase } = await import('@/lib/supabaseClient');
-                                        const { data: { session } } = await supabase.auth.getSession();
-                                        if (!session?.access_token) {
-                                            toast.error('Session expired. Please refresh and sign in again.');
-                                            return;
-                                        }
-
-                                        const formData = new FormData();
-                                        formData.set('file', file);
-
-                                        const res = await fetch('/api/upload', {
-                                            method: 'POST',
-                                            headers: { 'Authorization': `Bearer ${session.access_token}` },
-                                            body: formData,
-                                        });
-
-                                        const json = await res.json();
-
-                                        if (res.ok && json.success) {
-                                            const submissionId = json.data?.submissionId;
-                                            toast.success(`Declaration uploaded: ${json.data?.fileName || file.name}`);
-
-                                            if (submissionId) {
-                                                try {
-                                                    const key = 'cfp_pending_dec_uploads';
-                                                    const stored = sessionStorage.getItem(key);
-                                                    const pending = stored ? JSON.parse(stored) : [];
-                                                    if (!pending.includes(submissionId)) {
-                                                        pending.push(submissionId);
-                                                        sessionStorage.setItem(key, JSON.stringify(pending));
-                                                    }
-                                                } catch { /* non-critical */ }
-
-                                                window.dispatchEvent(new CustomEvent('decPageUploaded'));
-                                                setBgProcessing(true);
-                                                setBgProcessingStep('Queued for processing…');
-                                            }
-                                        } else {
-                                            toast.error(json.message || 'Upload failed. Please try again.');
-                                        }
-                                    } catch (err) {
-                                        console.error(err);
-                                        toast.error('Network error during upload. Please try again.');
-                                    } finally {
-                                        setDecPageLoading(false);
-                                        if (fileInputRef.current) fileInputRef.current.value = '';
-                                    }
-                                }}
-                            />
-                            <button
-                                className={styles.secondaryBtn}
-                                disabled={decPageLoading}
-                                title={decPageLoading ? 'Uploading...' : 'Upload Dec Page PDF'}
-                                onClick={() => fileInputRef.current?.click()}
-                            >
-                                <Upload size={14} />
-                                {decPageLoading ? 'Uploading…' : 'Dec Page'}
-                            </button>
-                        </>
-                    ) : (
-                        <button
-                            className={styles.secondaryBtn}
-                            disabled={decPageLoading}
-                            title="Open Dec Page PDF"
-                            onClick={async () => {
-                                setDecPageLoading(true);
-                                try {
-                                    const url = await getDecPageFileDownloadUrl(decPageStoragePath);
-                                    if (url) {
-                                        window.open(url, '_blank');
-                                    } else {
-                                        toast.error('Could not generate download link.');
-                                    }
-                                } catch {
-                                    toast.error('Failed to open dec page file.');
-                                } finally {
-                                    setDecPageLoading(false);
-                                }
-                            }}
-                        >
-                            <FileDown size={14} />
-                            {decPageLoading ? 'Opening…' : 'Dec Page'}
-                        </button>
-                    )}
-
-                    {/* DIC Button */}
-                    {!dicDocStoragePath ? (
-                        <>
-                            <input
-                                type="file"
-                                accept="application/pdf"
-                                ref={dicFileInputRef}
-                                style={{ display: 'none' }}
-                                onChange={async (e) => {
-                                    const file = e.target.files?.[0];
-                                    if (!file) return;
-                                    setDicDocLoading(true);
-                                    try {
-                                        const { supabase } = await import('@/lib/supabaseClient');
-                                        const { data: { session } } = await supabase.auth.getSession();
-                                        if (!session?.access_token) {
-                                            toast.error('Session expired. Please refresh and sign in again.');
-                                            return;
-                                        }
-
-                                        const formData = new FormData();
-                                        formData.set('file', file);
-                                        formData.set('doc_type', 'dic_dec_page');
-                                        formData.set('policy_id', id);
-
-                                        const res = await fetch('/api/documents/upload', {
-                                            method: 'POST',
-                                            headers: { 'Authorization': `Bearer ${session.access_token}` },
-                                            body: formData,
-                                        });
-
-                                        const json = await res.json();
-
-                                        if (res.ok && json.success) {
-                                            toast.success(`DIC uploaded: ${file.name}`);
-                                            const docs = await fetchPlatformDocumentsByPolicyId(id);
-                                            const dicDoc = docs.find(d => d.doc_type === 'dic_dec_page' && d.storage_path);
-                                            if (dicDoc?.storage_path) setDicDocStoragePath(dicDoc.storage_path);
-                                        } else {
-                                            toast.error(json.message || 'DIC upload failed.');
-                                        }
-                                    } catch (err) {
-                                        console.error(err);
-                                        toast.error('Network error during DIC upload.');
-                                    } finally {
-                                        setDicDocLoading(false);
-                                        if (dicFileInputRef.current) dicFileInputRef.current.value = '';
-                                    }
-                                }}
-                            />
-                            <button
-                                className={styles.secondaryBtn}
-                                disabled={dicDocLoading}
-                                title={dicDocLoading ? 'Uploading...' : 'Upload DIC PDF'}
-                                onClick={() => dicFileInputRef.current?.click()}
-                            >
-                                <Upload size={14} />
-                                {dicDocLoading ? 'Uploading…' : 'DIC'}
-                            </button>
-                        </>
-                    ) : (
-                        <button
-                            className={styles.secondaryBtn}
-                            disabled={dicDocLoading}
-                            title="Open DIC Document"
-                            onClick={async () => {
-                                setDicDocLoading(true);
-                                try {
-                                    const url = await getPlatformDocDownloadUrl(dicDocStoragePath!);
-                                    if (url) {
-                                        window.open(url, '_blank');
-                                    } else {
-                                        toast.error('Could not generate DIC download link.');
-                                    }
-                                } catch {
-                                    toast.error('Failed to open DIC document.');
-                                } finally {
-                                    setDicDocLoading(false);
-                                }
-                            }}
-                        >
-                            <ShieldCheck size={14} />
-                            {dicDocLoading ? 'Opening…' : 'DIC'}
-                        </button>
-                    )}
-                </div>
+                )}
             </div>
 
-            {/* ── Background Processing Banner ── */}
-            {bgProcessing && (
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.625rem',
-                    padding: '0.75rem 1.25rem',
-                    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(59, 130, 246, 0.08))',
-                    border: '1px solid rgba(99, 102, 241, 0.2)',
-                    borderRadius: '0.75rem',
-                    marginBottom: '0.75rem',
-                    fontSize: '0.85rem',
-                    animation: 'fadeIn 0.3s ease',
-                }}>
-                    <Loader2 size={16} style={{ color: '#6366f1', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
-                    <div style={{ flex: 1 }}>
-                        <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
-                            Processing in background
-                        </span>
-                        <span style={{ color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
-                            {bgProcessingStep || 'Working…'}
-                        </span>
-                    </div>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
-                        Data will auto-refresh when complete
-                    </span>
-                    <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }`}</style>
-                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-                </div>
-            )}
 
-            <div className={styles.commandSection}>
-                <PolicyStatusBar
-                    isEnriched={isEnriched}
-                    enrichmentCount={enrichments.length}
-                    lastEnrichedDate={lastEnrichedDate}
-                    flagsChecked={flagsChecked}
-                    lastCheckedDate={lastCheckedDate}
-                    openFlagCount={flagSummary.total}
-                    highestSeverity={flagSummary.high > 0 ? 'high' : flagSummary.medium > 0 ? 'medium' : flagSummary.low > 0 ? 'low' : null}
-                    enrichStep={enrichStep}
-                    onEnrich={handleEnrich}
-                    onRunFlagCheck={handleFlagCheck}
-                    flagCheckRunning={flagCheckRunning}
-                    enrichments={enrichments}
-                />
-            </div>
 
             {/* ── Flag Alert ── */}
             {openFlags.length > 0 && (

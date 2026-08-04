@@ -21,6 +21,14 @@
     font-size: 0.8125rem;
 }
 
+.icon {
+    padding: 0.4rem;
+    aspect-ratio: 1/1;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+}
+
 .md {
     padding: 0.625rem 1.25rem;
     font-size: 0.875rem;
