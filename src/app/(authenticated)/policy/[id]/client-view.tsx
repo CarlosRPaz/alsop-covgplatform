@@ -137,7 +137,9 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
 
     // Derive enrichment data
     const getEnrichment = (key: string) => enrichments.find(e => e.field_key === key)?.field_value;
-    const fireRiskLabel = getEnrichment('fire_risk_label');
+    const fireRiskEnrichment = enrichments.find(e => e.field_key === 'fire_risk_label');
+    const fireRiskLabel = fireRiskEnrichment?.field_value;
+    const fireRiskSource = fireRiskEnrichment?.source_name || 'CAL FIRE / USDA Wildfire Hazard Mapping';
     const fireRiskColor = fireRiskLabel === 'Very High' ? '#ef4444'
         : fireRiskLabel === 'High' ? '#f97316'
             : fireRiskLabel === 'Moderate' ? '#eab308'
@@ -198,8 +200,8 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
                         <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-high)' }}>
                             Your property is in a {fireRiskLabel} fire risk zone
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-mid)', marginTop: '0.15rem' }}>
-                            Review your coverage limits and consider additional wildfire protection. See recommendations below.
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-mid)', marginTop: '0.15rem', lineHeight: 1.4 }}>
+                            Sourced from <strong>{fireRiskSource}</strong>. Review your coverage limits and consider additional wildfire protection. See recommendations below.
                         </div>
                     </div>
                 </div>
@@ -467,6 +469,7 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
                             <div>
                                 <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Fire Risk Zone</div>
                                 <div style={{ fontSize: '0.95rem', fontWeight: 700, color: fireRiskColor }}>{fireRiskLabel}</div>
+                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>Source: {fireRiskSource}</div>
                             </div>
                         </div>
                     )}
@@ -617,32 +620,41 @@ function FileRow({ label, available, loading, onClick, actionLabel, requesting }
 }
 
 function RecommendationCard({ rec }: { rec: { priority: string; title: string; description: string } }) {
-    const priColor = rec.priority === 'high' ? '#ef4444'
-        : rec.priority === 'medium' ? '#f59e0b'
-            : '#3b82f6';
-    const PriIcon = rec.priority === 'high' ? AlertTriangle
-        : rec.priority === 'medium' ? Info
-            : CheckCircle;
+    const isHigh = rec.priority === 'high' || rec.priority === 'urgent';
+    const isMed = rec.priority === 'medium' || rec.priority === 'moderate';
+
+    const priColor = isHigh ? '#e11d48' : isMed ? '#d97706' : '#0284c7';
+    const PriIcon = isHigh ? AlertTriangle : isMed ? Info : CheckCircle;
+    const badgeText = isHigh ? 'Review Now' : isMed ? 'Discuss at Renewal' : 'Confirm & Update';
 
     return (
         <div style={{
-            display: 'flex', gap: '0.75rem', padding: '0.875rem',
+            display: 'flex', gap: '0.85rem', padding: '1rem 1.125rem',
             background: 'var(--bg-surface-raised)', border: '1px solid var(--border-default)',
-            borderRadius: '8px', borderLeft: `3px solid ${priColor}`,
+            borderRadius: '10px', borderLeft: `4px solid ${priColor}`,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
         }}>
-            <PriIcon size={16} style={{ color: priColor, flexShrink: 0, marginTop: '2px' }} />
-            <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-high)' }}>{rec.title}</span>
+            <div style={{
+                width: '32px', height: '32px', borderRadius: '8px', flexShrink: 0,
+                background: `${priColor}12`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                marginTop: '1px',
+            }}>
+                <PriIcon size={16} style={{ color: priColor }} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                    <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-high)' }}>{rec.title}</span>
                     <span style={{
-                        fontSize: '0.6rem', fontWeight: 700, padding: '0.1rem 0.4rem',
+                        fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.55rem',
                         borderRadius: '999px', background: `${priColor}15`, color: priColor,
-                        textTransform: 'uppercase',
+                        letterSpacing: '0.02em',
                     }}>
-                        {rec.priority}
+                        {badgeText}
                     </span>
                 </div>
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-mid)', lineHeight: 1.55, margin: 0 }}>{rec.description}</p>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-mid)', lineHeight: 1.55, margin: 0 }}>
+                    {rec.description}
+                </p>
             </div>
         </div>
     );

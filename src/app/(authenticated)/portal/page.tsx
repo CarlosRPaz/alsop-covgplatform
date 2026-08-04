@@ -53,7 +53,7 @@ export default function ClientPortalPage() {
     const [userName, setUserName] = useState('');
     const [profileEmail, setProfileEmail] = useState('');
     const [profilePhone, setProfilePhone] = useState('');
-    const [recentDocs, setRecentDocs] = useState<{ label: string; policyNumber: string; type: 'dec' | 'report'; path?: string; reportData?: any }[]>([]);
+    const [recentDocs, setRecentDocs] = useState<{ label: string; policyNumber: string; type: 'dec' | 'report'; path?: string; reportData?: any; reportId?: string }[]>([]);
     const [downloadingDoc, setDownloadingDoc] = useState<string | null>(null);
     const [supportOpen, setSupportOpen] = useState(false);
 
@@ -122,21 +122,38 @@ export default function ClientPortalPage() {
                     if (policyData) {
                         setPolicies(policyData as PolicyRecord[]);
 
-                        // Fetch documents for the Recent Documents section
-                        const docs: { label: string; policyNumber: string; type: 'dec' | 'report'; path?: string; reportData?: any }[] = [];
+                        // Fetch documents for the Recent Documents section across all client policies
+                        const docs: { label: string; policyNumber: string; type: 'dec' | 'report'; path?: string; reportId?: string; createdAt?: string }[] = [];
                         await Promise.all(policyData.map(async (p: PolicyRecord) => {
                             // Dec pages
                             const decFiles = await fetchDecPageFilesByPolicyId(p.id);
-                            if (decFiles.length > 0 && decFiles[0].storage_path) {
-                                docs.push({ label: 'Declarations Page', policyNumber: p.policy_number, type: 'dec', path: decFiles[0].storage_path });
-                            }
+                            decFiles.forEach(df => {
+                                const path = df.storage_path || (df as any).file_path;
+                                if (path) {
+                                    docs.push({
+                                        label: df.file_name || 'Declarations Page',
+                                        policyNumber: p.policy_number || 'Pending',
+                                        type: 'dec',
+                                        path,
+                                        createdAt: (df as any).created_at || (p as any).created_at,
+                                    });
+                                }
+                            });
                             // Reports
                             const report = await getLatestReportForPolicy(p.id);
-                            if (report?.ai_insights) {
-                                docs.push({ label: 'Gap Analysis Report', policyNumber: p.policy_number, type: 'report', reportData: report.ai_insights });
+                            if (report) {
+                                docs.push({
+                                    label: 'Gap Analysis Report',
+                                    policyNumber: p.policy_number || 'Pending',
+                                    type: 'report',
+                                    reportId: report.id,
+                                    createdAt: report.created_at,
+                                });
                             }
                         }));
-                        setRecentDocs(docs);
+                        // Sort most recent first
+                        docs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+                        setRecentDocs(docs.slice(0, 5));
                     }
                 }
             } catch (err) {
@@ -343,14 +360,8 @@ export default function ClientPortalPage() {
                                                     if (doc.type === 'dec' && doc.path) {
                                                         const url = await getDecPageFileDownloadUrl(doc.path);
                                                         if (url) window.open(url, '_blank');
-                                                    } else if (doc.type === 'report' && doc.reportData) {
-                                                        const blob = new Blob([JSON.stringify(doc.reportData, null, 2)], { type: 'application/json' });
-                                                        const url = URL.createObjectURL(blob);
-                                                        const a = document.createElement('a');
-                                                        a.href = url;
-                                                        a.download = `gap-report-${doc.policyNumber}.json`;
-                                                        a.click();
-                                                        URL.revokeObjectURL(url);
+                                                    } else if (doc.type === 'report' && doc.reportId) {
+                                                        window.open(`/report/${doc.reportId}`, '_blank');
                                                     }
                                                 } finally {
                                                     setDownloadingDoc(null);
@@ -365,8 +376,8 @@ export default function ClientPortalPage() {
                                         >
                                             {downloadingDoc === `${doc.type}-${i}`
                                                 ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
-                                                : <Download size={12} />}
-                                            Download
+                                                : doc.type === 'report' ? <FileText size={12} /> : <Download size={12} />}
+                                            {doc.type === 'report' ? 'View Report' : 'Download'}
                                         </button>
                                     </div>
                                 ))}
