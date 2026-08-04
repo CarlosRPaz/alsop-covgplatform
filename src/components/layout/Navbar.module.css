@@ -144,6 +144,29 @@
     font-weight: 600;
 }
 
+.destinationTag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    margin-left: 0.35rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    background: var(--accent-primary);
+    color: #ffffff;
+    font-size: 0.72rem;
+    font-weight: 600;
+    transition: all var(--transition-fast);
+}
+
+.welcomeLink:hover .destinationTag {
+    background: var(--accent-primary-hover, #2243B6);
+}
+
+.welcomeLink:hover .destinationArrow {
+    transform: translateX(2px);
+    transition: transform var(--transition-fast);
+}
+
 .signOutButton {
     display: flex;
     align-items: center;

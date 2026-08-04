@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import styles from './Navbar.module.css';
 import { Button } from '@/components/ui/Button/Button';
-import { Shield, LogIn, LogOut, User } from 'lucide-react';
+import { Shield, LogIn, LogOut, User, ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { getUserProfile, UserRole } from '@/lib/auth';
 
@@ -72,6 +72,10 @@ export function Navbar() {
         router.push('/');
     };
 
+    const isClient = userRole === 'customer';
+    const destinationPath = isClient ? '/portal' : '/dashboard';
+    const destinationLabel = isClient ? 'My Portal' : 'Dashboard';
+
     return (
         <nav className={styles.navbar}>
             <div className={styles.container}>
@@ -98,11 +102,15 @@ export function Navbar() {
                 <div className={styles.navActions}>
                     {authLoading ? null : isLoggedIn ? (
                         <>
-                            <Link href={userRole === 'customer' ? '/portal' : '/dashboard'} className={styles.welcomeLink}>
+                            <Link href={destinationPath} className={styles.welcomeLink} title={`Go to ${destinationLabel}`}>
                                 <div className={styles.welcomeSection}>
-                                    <User size={16} className={styles.welcomeIcon} />
+                                    <User size={15} className={styles.welcomeIcon} />
                                     <span className={styles.welcomeText}>
                                         Welcome, <strong>{firstName}</strong>
+                                    </span>
+                                    <span className={styles.destinationTag}>
+                                        {destinationLabel}
+                                        <ArrowRight size={13} className={styles.destinationArrow} />
                                     </span>
                                 </div>
                             </Link>
