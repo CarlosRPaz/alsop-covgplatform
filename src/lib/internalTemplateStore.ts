@@ -110,8 +110,6 @@ export const DEFAULT_TEMPLATES: SystemEmailTemplate[] = [
 
 Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and possibly save money? Since your California Fair Plan policy ({{policy_number}}) for {{property_address}} is coming up for renewal on {{expiration_date}}, now is a great time to take a closer look.
 
-My name is {{agent_name}} with Alsop and Associates Insurance Agency. Our goal is to ensure we're not only providing exceptional service but also making sure you have the best protection available for you and your family.
-
 As part of our renewal review process, we've reviewed the coverage on your current policy and prepared updated materials for your consideration:
 
 • AI Coverage Report: {{report_url}}
@@ -127,19 +125,18 @@ To make the most of our conversation, here are a few things you may want to have
 
 I won't take too much of your time. In just a few minutes we can make sure your renewal is on track and your coverage continues to provide the protection that's right for you.
 
-Schedule a time that works best for you: {{meeting_url}}
+To speak with a licensed agent, please call our main office at (909) 626-5000. We're happy to help!
 
 Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
 
 Your time is certainly appreciated and I look forward to speaking with you soon!
 
-{{agent_name}}
 Alsop and Associates Insurance Agency`,
         copilotPromptTemplate: `Create a customized renewal review email for {{client_name}} regarding California Fair Plan policy {{policy_number}} at {{property_address}}, expiring on {{expiration_date}}.
 
 Style & Tone:
 - Open with a compelling hook about the value of an annual policy review (saving money, avoiding lapses, closing coverage gaps)
-- Include a personal introduction of the agent ({{agent_name}}) from Alsop and Associates Insurance Agency
+- Do NOT include a personal agent introduction — sign off as "Alsop and Associates Insurance Agency" only
 - Keep the tone warm, professional, conversational, and permission-based
 - Be time-respectful — reassure the client this won't take long
 
@@ -147,15 +144,15 @@ Content to include:
 - Mention that an AI coverage report and updated Replacement Cost Estimate are available using {{report_url}} and {{rce_download_url}}
 - Explain coverage findings in a neutral, non-judgmental way without using words like adequate, inadequate, or deficient
 - Include a "what to have handy" checklist: current mortgage info (lender name, loan number), declaration pages for other policies, questions/concerns/feedback
-- Strongly encourage scheduling a review with a licensed agent using {{meeting_url}}
+- Encourage calling the main office at (909) 626-5000 to speak with a licensed agent
 - Include a clear statement that final coverage decisions remain the policyholder's responsibility
 - Close warmly with appreciation for their time`,
         rules: [
             ...STANDARD_RULES,
             {
-                id: 'include_meeting_link',
-                label: 'Include Outlook Meeting Link',
-                instruction: 'Provide a direct link to schedule an Outlook review appointment.',
+                id: 'include_office_phone',
+                label: 'Include Office Phone Number',
+                instruction: 'Direct clients to call the main office at (909) 626-5000 to speak with a licensed agent.',
                 enabled: true,
             },
             {

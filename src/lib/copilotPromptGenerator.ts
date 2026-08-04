@@ -123,10 +123,11 @@ Email Purpose: Notify the client that their California Fair Plan renewal payment
 
 Style Guide:
 - Open with a compelling hook about the value of annual policy reviews (saving money, avoiding lapses, closing coverage gaps)
-- Introduce the agent by name (${ctx.agentName}) from Alsop and Associates Insurance Agency
+- Do NOT include a personal agent introduction — sign off as "Alsop and Associates Insurance Agency"
 - Explain that now is a great time to review coverage limits, deductibles, and other factors before payment is finalized
 - Include a "what to have handy" checklist: current mortgage info, dec pages for other policies, questions/feedback
 - Be time-respectful — "I won't take too much of your time"
+- Encourage calling the main office at (909) 626-5000 to speak with a licensed agent
 - Request permission to review potential coverage updates
 - Close warmly with appreciation for their time
 
@@ -146,10 +147,11 @@ Email Purpose: Inform the client that their California Fair Plan policy renewal 
 
 Style Guide:
 - Open with a compelling hook about the value of annual policy reviews (saving money, avoiding lapses, closing coverage gaps)
-- Introduce the agent by name (${ctx.agentName}) from Alsop and Associates Insurance Agency
+- Do NOT include a personal agent introduction — sign off as "Alsop and Associates Insurance Agency"
 - Clarify that their lender handles payment through escrow, but that reviewing coverage limits, deductibles, and contact information is still important
 - Include a "what to have handy" checklist: current mortgage info, dec pages for other policies, questions/feedback
 - Be time-respectful — "I won't take too much of your time"
+- Encourage calling the main office at (909) 626-5000 to speak with a licensed agent
 - Request permission to review potential coverage updates
 - Close warmly with appreciation for their time
 
