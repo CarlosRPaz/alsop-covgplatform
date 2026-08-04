@@ -53,6 +53,7 @@ interface AIReportInsights {
         type: 'confirm' | 'discuss' | 'update' | 'verify';
         urgency: 'before_renewal' | 'at_renewal' | 'when_convenient';
     }>;
+    next_steps?: Array<{ text: string; group: string }>;
     internal_notes: string;
 }
 
@@ -110,9 +111,14 @@ export async function POST(req: NextRequest) {
         if (!openAiKey) {
             console.warn('OPENAI_API_KEY missing - saving draft report without AI insights');
             return saveAndReturnReport(policyId, policy.client_id, dataPayload, {
+                executive_summary: "Coverage review in progress.",
+                renewal_snapshot: "",
                 top_concerns: [],
                 coverage_review: [],
                 property_observations: [],
+                data_gaps: [],
+                recommendations: [],
+                action_items: [],
                 next_steps: [],
                 internal_notes: ""
             });

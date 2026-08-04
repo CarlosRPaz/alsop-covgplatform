@@ -294,7 +294,7 @@ export default function ReportPage() {
                                             <span className={styles.stepGroupCount}>{items.length}</span>
                                         </div>
                                         <div className={styles.stepList}>
-                                            {items.map((step, idx) => (
+                                            {items.map((step: any, idx: number) => (
                                                 <div key={idx} className={styles.stepItem}>
                                                     <div className={styles.stepCheck} />
                                                     <span className={styles.stepText}>{step.text}</span>

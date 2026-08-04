@@ -150,11 +150,3 @@ export async function DELETE(req: NextRequest) {
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }
-
-        return NextResponse.json({ success: true });
-
-    } catch (err: any) {
-        console.error('Error in DELETE /api/email/mark-sent:', err);
-        return NextResponse.json({ error: err.message }, { status: 500 });
-    }
-}

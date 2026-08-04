@@ -119,21 +119,7 @@ export default function ClientPortalPage() {
                     console.log('[Portal] Policies found:', policyData?.length ?? 0);
 
                     if (policyData) {
-                        // Batch fetch flag counts
-                        const pIds = policyData.map((p: { id: string }) => p.id);
-                        const { data: flagData } = await supabase
-                            .from('flags')
-                            .select('policy_id')
-                            .in('policy_id', pIds);
-                        const flagMap = new Map<string, number>();
-                        flagData?.forEach((f: { policy_id: string }) => {
-                            flagMap.set(f.policy_id, (flagMap.get(f.policy_id) || 0) + 1);
-                        });
-
-                        setPolicies(policyData.map((p: PolicyRecord) => ({
-                            ...p,
-                            flag_count: flagMap.get(p.id) || 0,
-                        })));
+                        setPolicies(policyData as PolicyRecord[]);
 
                         // Fetch documents for the Recent Documents section
                         const docs: { label: string; policyNumber: string; type: 'dec' | 'report'; path?: string; reportData?: any }[] = [];
@@ -178,8 +164,6 @@ export default function ClientPortalPage() {
         return acc + (term?.annual_premium || 0);
     }, 0);
 
-    const totalFlags = policies.reduce((acc, p) => acc + (p.flag_count || 0), 0);
-
     return (
         <div style={{ maxWidth: '960px', margin: '0 auto' }}>
             {/* Portal Header */}
@@ -197,7 +181,7 @@ export default function ClientPortalPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
                 <StatCard icon={FileText} label="Active Policies" value={policies.length.toString()} color="#14b8a6" />
                 <StatCard icon={DollarSign} label="Total Premium" value={`$${totalPremium.toLocaleString()}`} color="#6366f1" />
-                <StatCard icon={AlertCircle} label="Open Flags" value={totalFlags.toString()} color={totalFlags > 0 ? '#ef4444' : '#22c55e'} />
+                <StatCard icon={Shield} label="Coverage Status" value="Active Review" color="#22c55e" />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '1.25rem' }}>
@@ -262,18 +246,6 @@ export default function ClientPortalPage() {
                                                 }}>
                                                     {p.status?.replace('_', ' ') || 'Unknown'}
                                                 </span>
-                                                {(p.flag_count || 0) > 0 && (
-                                                    <span style={{
-                                                        fontSize: '0.65rem',
-                                                        fontWeight: 600,
-                                                        padding: '0.15rem 0.5rem',
-                                                        borderRadius: '999px',
-                                                        background: 'rgba(239,68,68,0.1)',
-                                                        color: '#ef4444',
-                                                    }}>
-                                                        {p.flag_count} flag{p.flag_count! > 1 ? 's' : ''}
-                                                    </span>
-                                                )}
                                             </div>
                                             <ChevronRight size={14} style={{ color: '#475569' }} />
                                         </div>
@@ -426,7 +398,7 @@ export default function ClientPortalPage() {
                         </Button>
                     </div>
 
-                    <SupportModal isOpen={supportOpen} onClose={() => setSupportOpen(false)} clientName={userName} />
+                    <SupportModal isOpen={supportOpen} onClose={() => setSupportOpen(false)} clientName={userName} clientEmail={profileEmail} />
                 </div>
             </div>
         </div>

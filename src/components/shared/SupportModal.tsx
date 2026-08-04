@@ -29,25 +29,37 @@ export function SupportModal({ isOpen, onClose, clientName, clientEmail, policyN
     const resolvedEmail = clientEmail || email;
     const canSubmit = message.trim() && (isGuest ? email.trim() : true);
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!canSubmit) return;
         setSending(true);
-        console.log('[Support Request]', {
-            name: resolvedName,
-            email: resolvedEmail,
-            subject,
-            message,
-            policyNumber,
-            isGuest,
-        });
-        setTimeout(() => {
-            toast.success('Your message has been sent. Our team will get back to you within 1 business day.');
-            setMessage('');
-            setName('');
-            setEmail('');
+        try {
+            const res = await fetch('/api/support', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: resolvedName,
+                    email: resolvedEmail,
+                    subject,
+                    message,
+                    policyNumber,
+                }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                toast.success('Your message has been sent to support@coveragechecknow.com. Our team will respond within 1 business day.');
+                setMessage('');
+                setName('');
+                setEmail('');
+                onClose();
+            } else {
+                toast.error(data.error || 'Failed to send support request. Please try again.');
+            }
+        } catch (err) {
+            console.error('Support request submission error:', err);
+            toast.error('Network error sending message. Please email support@coveragechecknow.com directly.');
+        } finally {
             setSending(false);
-            onClose();
-        }, 600);
+        }
     };
 
     const inputStyle = {
