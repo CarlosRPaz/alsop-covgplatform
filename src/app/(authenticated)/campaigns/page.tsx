@@ -16,6 +16,8 @@ import {
     ExternalLink,
     Filter,
     FileText,
+    ChevronLeft,
+    ChevronRight,
 } from 'lucide-react';
 
 interface RenewalPolicy {
@@ -50,6 +52,8 @@ export default function RenewalCampaignsPage() {
     const [emailModalPolicy, setEmailModalPolicy] = useState<RenewalPolicy | null>(null);
     const [copiedStates, setCopiedStates] = useState<Record<string, boolean>>({});
     const [bulkCopied, setBulkCopied] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const PAGE_SIZE = 25;
 
     const fetchRenewals = async (days: number) => {
         setLoading(true);
@@ -86,6 +90,18 @@ export default function RenewalCampaignsPage() {
             p.carrier_policy_number?.toLowerCase().includes(lowerQ)
         );
     }, [policies, searchQuery]);
+
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, windowDays]);
+
+    // Pagination
+    const totalPages = Math.max(1, Math.ceil(filteredPolicies.length / PAGE_SIZE));
+    const paginatedPolicies = useMemo(() => {
+        const start = (currentPage - 1) * PAGE_SIZE;
+        return filteredPolicies.slice(start, start + PAGE_SIZE);
+    }, [filteredPolicies, currentPage]);
 
     const toggleSelectAll = () => {
         if (selectedIds.size === filteredPolicies.length) {
@@ -305,7 +321,7 @@ export default function RenewalCampaignsPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredPolicies.map((p) => (
+                            {paginatedPolicies.map((p) => (
                                 <tr key={p.policy_id} style={{ borderBottom: '1px solid var(--bg-surface-raised)' }}>
                                     <td style={{ padding: '1rem' }}>
                                         <input 
@@ -413,6 +429,78 @@ export default function RenewalCampaignsPage() {
                     </table>
                 )}
             </div>
+
+            {/* Pagination Controls */}
+            {!loading && filteredPolicies.length > 0 && (
+                <div style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    marginTop: '1rem', padding: '0.75rem 1rem',
+                    background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: '8px',
+                }}>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                        Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, filteredPolicies.length)} of {filteredPolicies.length} policies
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <button
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={currentPage <= 1}
+                            style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                width: '32px', height: '32px', borderRadius: '6px',
+                                background: currentPage <= 1 ? 'var(--bg-surface-raised)' : 'var(--bg-surface)',
+                                border: '1px solid var(--border-default)',
+                                color: currentPage <= 1 ? 'var(--text-muted)' : 'var(--text-high)',
+                                cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
+                            }}
+                        >
+                            <ChevronLeft size={16} />
+                        </button>
+                        {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                            let page: number;
+                            if (totalPages <= 7) {
+                                page = i + 1;
+                            } else if (currentPage <= 4) {
+                                page = i + 1;
+                            } else if (currentPage >= totalPages - 3) {
+                                page = totalPages - 6 + i;
+                            } else {
+                                page = currentPage - 3 + i;
+                            }
+                            return (
+                                <button
+                                    key={page}
+                                    onClick={() => setCurrentPage(page)}
+                                    style={{
+                                        width: '32px', height: '32px', borderRadius: '6px',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        fontSize: '0.82rem', fontWeight: currentPage === page ? 700 : 500,
+                                        background: currentPage === page ? 'var(--accent-primary)' : 'transparent',
+                                        color: currentPage === page ? '#fff' : 'var(--text-mid)',
+                                        border: currentPage === page ? 'none' : '1px solid var(--border-default)',
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    {page}
+                                </button>
+                            );
+                        })}
+                        <button
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            disabled={currentPage >= totalPages}
+                            style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                width: '32px', height: '32px', borderRadius: '6px',
+                                background: currentPage >= totalPages ? 'var(--bg-surface-raised)' : 'var(--bg-surface)',
+                                border: '1px solid var(--border-default)',
+                                color: currentPage >= totalPages ? 'var(--text-muted)' : 'var(--text-high)',
+                                cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+                            }}
+                        >
+                            <ChevronRight size={16} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Email Composer Modal */}
             <PolicyEmailComposer

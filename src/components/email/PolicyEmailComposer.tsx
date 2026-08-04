@@ -18,6 +18,9 @@ import { RenewalEmailLogEntry } from '@/lib/api';
 // Re-export for consumers
 export type { RenewalEmailLogEntry };
 
+// Stable empty array to avoid re-render loops when no emailLog is passed
+const EMPTY_LOG: RenewalEmailLogEntry[] = [];
+
 export interface PolicyEmailComposerProps {
     isOpen: boolean;
     onClose: () => void;
@@ -52,7 +55,7 @@ export function PolicyEmailComposer({
     reportUrl,
     defaultTemplateId,
     rceDownloadUrl,
-    emailLog = [],
+    emailLog,
     onMarkSent,
 }: PolicyEmailComposerProps) {
 
@@ -62,19 +65,22 @@ export function PolicyEmailComposer({
     const safePropertyAddress = propertyAddress || '';
     const safeAgentName = agentName || 'Alsop and Associates Insurance Agency';
 
+    // Stable default for emailLog
+    const stableEmailLog = emailLog ?? EMPTY_LOG;
+
     // State
     const [templates, setTemplates] = useState<SystemEmailTemplate[]>([]);
     const [selectedTemplateId, setSelectedTemplateId] = useState<string>('rce_verification');
-    const [outputMode, setOutputMode] = useState<'draft' | 'copilot'>('draft');
+    const [outputMode, setOutputMode] = useState<'draft' | 'copilot'>('copilot');
     const [copied, setCopied] = useState(false);
     const [markingSent, setMarkingSent] = useState(false);
     const [justMarkedSent, setJustMarkedSent] = useState(false);
-    const [localLog, setLocalLog] = useState<RenewalEmailLogEntry[]>(emailLog);
+    const [localLog, setLocalLog] = useState<RenewalEmailLogEntry[]>(stableEmailLog);
 
-    // Sync external log when it changes
+    // Sync external log when it actually changes (by length, not reference)
     useEffect(() => {
-        setLocalLog(emailLog);
-    }, [emailLog]);
+        setLocalLog(stableEmailLog);
+    }, [stableEmailLog.length]);
 
     // Context object
     const templateContext: TemplateContext = useMemo(() => ({
