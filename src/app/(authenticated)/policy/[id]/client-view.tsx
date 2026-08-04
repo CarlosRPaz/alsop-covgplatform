@@ -16,6 +16,7 @@ import {
 } from '@/lib/api';
 import { useToast } from '@/components/ui/Toast/Toast';
 import { SupportModal } from '@/components/shared/SupportModal';
+import { useSidebar } from '@/components/layout/SidebarContext';
 
 interface ClientPolicyViewProps {
     policyId: string;
@@ -23,6 +24,7 @@ interface ClientPolicyViewProps {
 
 export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
     const router = useRouter();
+    const { isMobile } = useSidebar();
     const toast = useToast();
     const [loading, setLoading] = useState(true);
     const [detail, setDetail] = useState<PolicyDetail | null>(null);
@@ -261,7 +263,7 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
             {!decPageStoragePath ? (
                 /* State 1: No declaration uploaded yet — primary CTA */
                 <div style={{
-                    display: 'flex', alignItems: 'center', gap: '1rem',
+                    display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap',
                     padding: '1.25rem 1.5rem', marginBottom: '1.25rem',
                     background: 'linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(139,92,246,0.08) 100%)',
                     border: '1px solid rgba(99,102,241,0.25)',
@@ -274,7 +276,7 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
                     }}>
                         <Upload size={22} style={{ color: 'var(--accent-primary)' }} />
                     </div>
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, minWidth: '220px' }}>
                         <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-high)', marginBottom: '0.2rem' }}>
                             Submit Your Declarations Page
                         </div>
@@ -284,7 +286,7 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
                     </div>
                     <Button size="sm" onClick={() => router.push('/submit')} style={{
                         background: 'var(--accent-primary)', color: '#fff', fontWeight: 600,
-                        whiteSpace: 'nowrap', flexShrink: 0,
+                        whiteSpace: 'nowrap', flexShrink: 0, width: isMobile ? '100%' : 'auto',
                     }}>
                         <Upload size={14} style={{ marginRight: '0.35rem' }} />
                         Upload Now
@@ -293,7 +295,7 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
             ) : !reportRow ? (
                 /* State 2: Dec page uploaded, report pending */
                 <div style={{
-                    display: 'flex', alignItems: 'center', gap: '1rem',
+                    display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap',
                     padding: '1rem 1.25rem', marginBottom: '1.25rem',
                     background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.2)',
                     borderRadius: 'var(--radius-lg)', borderLeft: '4px solid #eab308',
@@ -305,7 +307,7 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
                     }}>
                         <Clock size={18} style={{ color: '#eab308' }} />
                     </div>
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, minWidth: '200px' }}>
                         <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-high)' }}>
                             Report In Progress
                         </div>
@@ -314,7 +316,7 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
                         </div>
                     </div>
                     <Button size="sm" variant="outline" onClick={handleRequestReport} disabled={requestingReport} style={{
-                        fontSize: '0.75rem', whiteSpace: 'nowrap', flexShrink: 0,
+                        fontSize: '0.75rem', whiteSpace: 'nowrap', flexShrink: 0, width: isMobile ? '100%' : 'auto',
                     }}>
                         {requestingReport ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite', marginRight: '0.3rem' }} /> : <Zap size={13} style={{ marginRight: '0.3rem' }} />}
                         Generate Report
@@ -323,7 +325,7 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
             ) : (
                 /* State 3: Both uploaded — success with re-upload option */
                 <div style={{
-                    display: 'flex', alignItems: 'center', gap: '1rem',
+                    display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap',
                     padding: '1rem 1.25rem', marginBottom: '1.25rem',
                     background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.18)',
                     borderRadius: 'var(--radius-lg)', borderLeft: '4px solid #22c55e',
@@ -335,7 +337,7 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
                     }}>
                         <CheckCircle size={18} style={{ color: '#22c55e' }} />
                     </div>
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, minWidth: '200px' }}>
                         <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-high)' }}>
                             Coverage Report Available
                         </div>
@@ -344,7 +346,7 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
                         </div>
                     </div>
                     <Button size="sm" variant="outline" onClick={() => router.push('/submit')} style={{
-                        fontSize: '0.75rem', whiteSpace: 'nowrap', flexShrink: 0,
+                        fontSize: '0.75rem', whiteSpace: 'nowrap', flexShrink: 0, width: isMobile ? '100%' : 'auto',
                     }}>
                         <Upload size={13} style={{ marginRight: '0.3rem' }} />
                         Re-Upload
@@ -352,12 +354,12 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
                 </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '1.25rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 300px', gap: '1.25rem' }}>
                 {/* Left Column — Main Content */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                     {/* Coverage Summary */}
                     <Card title="Coverage Summary" icon={Shield}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
                             <CoverageItem label="Dwelling" value={fmtCurrency(detail.limit_dwelling)} tooltip="Covers repair or rebuild of your home's structure" />
                             <CoverageItem label="Other Structures" value={fmtCurrency(detail.limit_other_structures)} tooltip="Detached garage, fences, sheds" />
                             <CoverageItem label="Personal Property" value={fmtCurrency(detail.limit_personal_property)} tooltip="Furniture, electronics, clothing, etc." />

@@ -17,6 +17,7 @@ import {
     getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId,
     getDecPageFileDownloadUrl
 } from '@/lib/api';
+import styles from './portal.module.css';
 
 interface ClientRecord {
     id: string;
@@ -165,26 +166,25 @@ export default function ClientPortalPage() {
     }, 0);
 
     return (
-        <div style={{ maxWidth: '960px', margin: '0 auto' }}>
+        <div className={styles.portalContainer}>
             {/* Portal Header */}
-            <div style={{ marginBottom: '2rem' }}>
-                <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-high)', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div className={styles.portalHeader}>
+                <h1 className={styles.portalTitle}>
                     <Briefcase size={22} style={{ color: '#6366f1' }} />
                     Welcome back{userName ? `, ${userName}` : ''}
                 </h1>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                <p className={styles.portalSubtitle}>
                     Your coverage overview and policy information
                 </p>
             </div>
 
             {/* Quick Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div className={styles.statsGrid}>
                 <StatCard icon={FileText} label="Active Policies" value={policies.length.toString()} color="#14b8a6" />
                 <StatCard icon={DollarSign} label="Total Premium" value={`$${totalPremium.toLocaleString()}`} color="#6366f1" />
-                <StatCard icon={Shield} label="Coverage Status" value="Active Review" color="#22c55e" />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '1.25rem' }}>
+            <div className={styles.mainGrid}>
                 {/* My Policies */}
                 <div style={{
                     background: 'var(--bg-surface)',
@@ -221,16 +221,11 @@ export default function ClientPortalPage() {
                                     <div
                                         key={p.id}
                                         onClick={() => router.push(`/policy/${p.id}`)}
-                                        style={{
-                                            padding: '1rem 1.25rem',
-                                            borderBottom: '1px solid var(--border-subtle)',
-                                            cursor: 'pointer',
-                                            transition: 'background 0.15s',
-                                        }}
+                                        className={styles.policyRow}
                                         onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(99,102,241,0.04)')}
                                         onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                                     >
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.375rem' }}>
+                                        <div className={styles.policyRowHeader}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
                                                 <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-high)' }}>
                                                     {p.policy_number || 'Pending'}
@@ -249,7 +244,7 @@ export default function ClientPortalPage() {
                                             </div>
                                             <ChevronRight size={14} style={{ color: '#475569' }} />
                                         </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                        <div className={styles.policyMetaRow}>
                                             {p.carrier_name && <span>{p.carrier_name}</span>}
                                             {p.property_address_raw && (
                                                 <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
@@ -275,7 +270,7 @@ export default function ClientPortalPage() {
                 </div>
 
                 {/* Right Column — Client Info */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div className={styles.sidebarColumn}>
                     {/* My Information */}
                     <div style={{
                         background: 'var(--bg-surface)',
@@ -432,13 +427,10 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
 
 function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
     return (
-        <div style={{
-            display: 'flex', alignItems: 'center', gap: '0.625rem',
-            padding: '0.5rem 0', borderBottom: '1px solid var(--border-subtle)',
-        }}>
-            <Icon size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', width: '70px', flexShrink: 0, fontWeight: 500 }}>{label}</span>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-high)', fontWeight: 500 }}>{value}</span>
+        <div className={styles.infoRow}>
+            <Icon size={14} style={{ color: 'var(--text-muted)', flexShrink: 0, marginTop: '2px' }} />
+            <span className={styles.infoLabel}>{label}</span>
+            <span className={styles.infoValue}>{value}</span>
         </div>
     );
 }
