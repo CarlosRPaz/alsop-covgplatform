@@ -110,14 +110,10 @@ export async function POST(req: NextRequest) {
         if (!openAiKey) {
             console.warn('OPENAI_API_KEY missing - saving draft report without AI insights');
             return saveAndReturnReport(policyId, policy.client_id, dataPayload, {
-                executive_summary: "AI analysis unavailable (Missing API Key). Review the raw data below.",
-                renewal_snapshot: "AI overview unavailable.",
                 top_concerns: [],
                 coverage_review: [],
                 property_observations: [],
-                data_gaps: [],
-                recommendations: [],
-                action_items: [],
+                next_steps: [],
                 internal_notes: ""
             });
         }
@@ -134,7 +130,10 @@ STRICT MANDATORY RULES:
 3. NEUTRAL & COMPARATIVE TONE: Frame findings neutrally: "On your previous policy, X limit was $Y. An option to adjust to $Z is available to evaluate." or "This endorsement was not present on your prior dec page."
 4. NO GUARANTEES: Never reassure the client that they are "fully protected" or "properly covered".
 5. CLIENT RESPONSIBILITY: Frame all recommendations as options for the client to review and decide upon.
-6. BE CONCISE: Executive summary max 3 sentences. Observations 10-15 words max.
+6. BE CONCISE: Observations 10-15 words max.
+7. STRUCTURE FINDINGS: For structural findings (e.g., pools, ADUs, solar, trampolines), do not state they exist definitively. Use language like: "We may have detected a [structure] based on Google imagery from [Date]. Please confirm with your agent so we can ensure it is properly covered." You MUST explicitly cite 'Google' as the source in your observation text. If the date is not available, just say "based on Google imagery".
+8. FAIR RENTAL VALUE: "Loss of Use" and "Fair Rental Value" are the exact same coverage. Always refer to it as "Fair Rental Value" and never say it is missing if "Fair Rental Value" is present.
+9. EVIDENCE FORMATTING: Do NOT use literal system flag names (like "NO_DIC" or "MISSING_PERILS_INSURED") in the evidence or explanations. Use natural, human-readable language (e.g., "No DIC coverage on file").
 
 EXCLUSIONS AND GUARDRAILS:
 1. NO FIRE RISK: NEVER mention fire risk, fire scores, or wildfire scores in any section. Completely suppress these findings.
@@ -168,32 +167,22 @@ ${JSON.stringify(dataPayload, null, 2)}
                 response_format: {
                     type: 'json_schema',
                     json_schema: {
-                        name: 'report_insights_v3',
+                        name: 'report_insights_v4',
                         strict: true,
                         schema: {
                             type: 'object',
                             properties: {
-                                executive_summary: {
-                                    type: 'string',
-                                    description: '2-3 sentence overview. Lead with the biggest finding. State overall risk. Max 50 words.'
-                                },
-                                renewal_snapshot: {
-                                    type: 'string',
-                                    description: '1-2 sentences on timing and urgency. Max 30 words.'
-                                },
                                 top_concerns: {
                                     type: 'array',
-                                    description: 'Top 3-5 findings, sorted by severity. Keep explanations to 1 sentence.',
+                                    description: 'Top 3-5 findings. Keep explanations to 1-2 sentences.',
                                     items: {
                                         type: 'object',
                                         properties: {
-                                            topic: { type: 'string', description: 'Short headline (5-8 words)' },
-                                            explanation: { type: 'string', description: 'One concise sentence explaining why this matters' },
-                                            severity: { type: 'string', enum: ['high', 'medium', 'low'] },
+                                            explanation: { type: 'string', description: 'Clear, client-facing explanation of the concern.' },
                                             source: { type: 'string', description: 'Data source: policy, satellite, property data, etc.' },
                                             evidence: { type: 'string', description: 'Brief data point supporting this concern' }
                                         },
-                                        required: ['topic', 'explanation', 'severity', 'source', 'evidence'],
+                                        required: ['explanation', 'source', 'evidence'],
                                         additionalProperties: false
                                     }
                                 },
@@ -206,10 +195,9 @@ ${JSON.stringify(dataPayload, null, 2)}
                                             coverage: { type: 'string', description: 'Coverage name' },
                                             current_value: { type: 'string', description: 'Current limit from the policy' },
                                             observation: { type: 'string', description: 'Brief comparative note (10-15 words max)' },
-                                            status: { type: 'string', enum: ['review_suggested', 'missing_coverage', 'informational'], description: 'Neutral status indicator. Never pass judgement as adequate.' },
                                             source: { type: 'string', description: 'Source document or line reference' }
                                         },
-                                        required: ['coverage', 'current_value', 'observation', 'status', 'source'],
+                                        required: ['coverage', 'current_value', 'observation', 'source'],
                                         additionalProperties: false
                                     }
                                 },
@@ -228,46 +216,16 @@ ${JSON.stringify(dataPayload, null, 2)}
                                         additionalProperties: false
                                     }
                                 },
-                                data_gaps: {
+                                next_steps: {
                                     type: 'array',
-                                    description: 'Missing data that impacts the coverage conversation. Only include material gaps.',
+                                    description: 'Actionable next steps, combining recommendations, action items, and data gaps into a single logical list. No duplicates.',
                                     items: {
                                         type: 'object',
                                         properties: {
-                                            field: { type: 'string' },
-                                            impact: { type: 'string', description: 'Brief impact (1 sentence)' },
-                                            suggestion: { type: 'string', description: 'What to do about it' }
+                                            text: { type: 'string', description: 'Clear, concise recommendation or action item (1 sentence)' },
+                                            timeframe: { type: 'string', enum: ['review_now', 'discuss_at_renewal', 'confirm_and_update'] }
                                         },
-                                        required: ['field', 'impact', 'suggestion'],
-                                        additionalProperties: false
-                                    }
-                                },
-                                recommendations: {
-                                    type: 'array',
-                                    description: 'Actionable next steps. Each is 1 clear sentence.',
-                                    items: {
-                                        type: 'object',
-                                        properties: {
-                                            text: { type: 'string', description: 'Clear, concise recommendation (1 sentence)' },
-                                            category: { type: 'string', enum: ['discuss', 'verify', 'review', 'consider_coverage'] },
-                                            priority: { type: 'number', description: '1 = immediate, 2 = before renewal, 3 = future' },
-                                            source: { type: 'string', description: 'What drives this recommendation' }
-                                        },
-                                        required: ['text', 'category', 'priority', 'source'],
-                                        additionalProperties: false
-                                    }
-                                },
-                                action_items: {
-                                    type: 'array',
-                                    description: 'Concrete checklist items for the renewal conversation.',
-                                    items: {
-                                        type: 'object',
-                                        properties: {
-                                            item: { type: 'string', description: 'Short, direct action item' },
-                                            type: { type: 'string', enum: ['confirm', 'discuss', 'update', 'verify'] },
-                                            urgency: { type: 'string', enum: ['before_renewal', 'at_renewal', 'when_convenient'] }
-                                        },
-                                        required: ['item', 'type', 'urgency'],
+                                        required: ['text', 'timeframe'],
                                         additionalProperties: false
                                     }
                                 },
@@ -276,7 +234,7 @@ ${JSON.stringify(dataPayload, null, 2)}
                                     description: 'Agent-only notes: technical observations, enrichment conflicts, raw data insights. NOT shown to clients.'
                                 }
                             },
-                            required: ['executive_summary', 'renewal_snapshot', 'top_concerns', 'coverage_review', 'property_observations', 'data_gaps', 'recommendations', 'action_items', 'internal_notes'],
+                            required: ['top_concerns', 'coverage_review', 'property_observations', 'next_steps', 'internal_notes'],
                             additionalProperties: false
                         }
                     }

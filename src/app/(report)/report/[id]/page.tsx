@@ -65,50 +65,16 @@ export default function ReportPage() {
     const flags = data?.flags || [];
     const enrichments = data?.enrichments || [];
 
-    // Sort concerns by severity
-    const sortedConcerns = useMemo(() =>
-        [...(ai?.top_concerns || [])].sort((a: any, b: any) => {
-            const ord: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-            return (ord[a.severity] ?? 9) - (ord[b.severity] ?? 9);
-        }), [ai?.top_concerns]);
-
     // Merge recommendations + action_items + data_gaps into unified Next Steps
     const nextSteps = useMemo(() => {
-        const steps: Array<{ text: string; group: string; type?: string; priority?: number }> = [];
-
-        // From recommendations
-        (ai?.recommendations || []).forEach((r: any) => {
-            const urgency = r.priority === 1 ? 'review_now' : r.priority === 2 ? 'at_renewal' : 'confirm';
-            steps.push({ text: r.text, group: urgency, type: r.category, priority: r.priority });
-        });
-
-        // From action_items
-        (ai?.action_items || []).forEach((item: any) => {
-            const urgency = item.urgency === 'before_renewal' ? 'review_now'
-                : item.urgency === 'at_renewal' ? 'at_renewal' : 'confirm';
-            // Deduplicate with recommendations by checking text similarity
-            const isDuplicate = steps.some(s =>
-                s.text.toLowerCase().includes(item.item.toLowerCase().slice(0, 30)) ||
-                item.item.toLowerCase().includes(s.text.toLowerCase().slice(0, 30))
-            );
-            if (!isDuplicate) {
-                steps.push({ text: item.item, group: urgency, type: item.type });
-            }
-        });
-
-        // From data_gaps
-        (ai?.data_gaps || []).forEach((gap: any) => {
-            steps.push({ text: `${gap.field}: ${gap.suggestion}`, group: 'confirm', type: 'verify' });
-        });
-
-        return steps;
+        return ai?.next_steps || [];
     }, [ai]);
 
     const groupedSteps = useMemo(() => {
         const groups: Record<string, typeof nextSteps> = {};
-        nextSteps.forEach(s => {
-            if (!groups[s.group]) groups[s.group] = [];
-            groups[s.group].push(s);
+        nextSteps.forEach((s: any) => {
+            if (!groups[s.timeframe]) groups[s.timeframe] = [];
+            groups[s.timeframe].push(s);
         });
         return groups;
     }, [nextSteps]);
@@ -170,8 +136,8 @@ export default function ReportPage() {
 
     const GROUP_LABELS: Record<string, { title: string; color: string }> = {
         review_now: { title: 'Review Now', color: '#ef4444' },
-        at_renewal: { title: 'Discuss at Renewal', color: '#f59e0b' },
-        confirm: { title: 'Confirm & Update', color: '#3b82f6' },
+        discuss_at_renewal: { title: 'Discuss at Renewal', color: '#f59e0b' },
+        confirm_and_update: { title: 'Confirm & Update', color: '#3b82f6' },
     };
 
     return (
@@ -222,37 +188,23 @@ export default function ReportPage() {
                             <span className={styles.metaValue}>{fmtDate(policy.effective_date)} → {fmtDate(policy.expiration_date)}</span>
                         </div>
                         <div className={styles.metaChip}>
-                            <span className={styles.metaLabel}>Premium</span>
+                            <span className={styles.metaLabel}>Renewal Date</span>
+                            <span className={styles.metaValue}>{fmtDate(policy.expiration_date)}</span>
+                        </div>
+                        <div className={styles.metaChip}>
+                            <span className={styles.metaLabel}>Total Annual Premium</span>
                             <span className={styles.metaValue}>{fmtCurrency(policy.annual_premium)}</span>
                         </div>
                     </div>
                 </header>
 
-                {/* ── 1. EXECUTIVE SUMMARY ── */}
-                <section className={styles.section}>
-                    <div className={styles.sectionLabel}>Summary</div>
-                    <div className={styles.summaryCard}>
-                        {ai?.executive_summary || 'No executive summary available.'}
-                    </div>
-                    {ai?.renewal_snapshot && (
-                        <p className={styles.snapshotNote}>{ai.renewal_snapshot}</p>
-                    )}
-                </section>
-
-                {/* ── 2. KEY FINDINGS ── */}
-                {sortedConcerns.length > 0 && (
+                {/* ── 1. KEY FINDINGS ── */}
+                {(ai?.top_concerns && ai.top_concerns.length > 0) && (
                     <section className={styles.section}>
                         <div className={styles.sectionLabel}>Key Findings</div>
                         <div className={styles.findingsGrid}>
-                            {sortedConcerns.map((c: any, i: number) => (
-                                <div key={i} className={`${styles.finding} ${styles[`sev_${c.severity}`] || ''}`}>
-                                    <div className={styles.findingTop}>
-                                        <span className={`${styles.sevDot} ${styles[`dot_${c.severity}`]}`} />
-                                        <span className={styles.findingHeadline}>{c.topic}</span>
-                                        <span className={`${styles.sevTag} ${styles[`tag_${c.severity}`]}`}>
-                                            {SEVERITY_LABEL[c.severity] || c.severity}
-                                        </span>
-                                    </div>
+                            {ai.top_concerns.map((c: any, i: number) => (
+                                <div key={i} className={styles.finding}>
                                     <p className={styles.findingBody}>{c.explanation}</p>
                                     {c.evidence && (
                                         <p className={styles.findingEvidence}>{c.evidence}</p>
@@ -263,7 +215,7 @@ export default function ReportPage() {
                     </section>
                 )}
 
-                {/* ── 3. COVERAGE REVIEW ── */}
+                {/* ── 2. COVERAGE REVIEW ── */}
                 <section className={`${styles.section} ${styles.avoidBreak}`}>
                     <div className={styles.sectionLabel}>Coverage Review</div>
                     <table className={styles.covTable}>
@@ -271,7 +223,6 @@ export default function ReportPage() {
                             <tr>
                                 <th>Coverage</th>
                                 <th>Limit</th>
-                                <th>Status</th>
                                 <th>Note</th>
                             </tr>
                         </thead>
@@ -280,8 +231,7 @@ export default function ReportPage() {
                                 { label: 'Dwelling (A)', value: policy.limit_dwelling },
                                 { label: 'Other Structures (B)', value: policy.limit_other_structures },
                                 { label: 'Personal Property (C)', value: policy.limit_personal_property },
-                                { label: 'Loss of Use', value: policy.dic_limit_loss_of_use },
-                                { label: 'Fair Rental Value', value: policy.limit_fair_rental_value },
+                                { label: 'Fair Rental Value', value: policy.limit_fair_rental_value || policy.dic_limit_loss_of_use },
                                 { label: 'Ordinance or Law', value: policy.limit_ordinance_or_law },
                                 { label: 'Extended Replacement', value: policy.limit_extended_replacement_cost_coverage },
                                 { label: 'Deductible', value: policy.deductible },
@@ -304,11 +254,6 @@ export default function ReportPage() {
                                         <td className={styles.covValue}>
                                             {cov.value ? fmtCurrency(cov.value) : <span className={styles.noData}>Not on file</span>}
                                         </td>
-                                        <td>
-                                            <span className={`${styles.statusDot} ${styles[adeq.cls]}`}>
-                                                {adeq.label}
-                                            </span>
-                                        </td>
                                         <td className={styles.covNote}>{aiRow?.observation || '—'}</td>
                                     </tr>
                                 );
@@ -317,12 +262,27 @@ export default function ReportPage() {
                     </table>
                 </section>
 
+                {/* ── 3. PROPERTY OBSERVATIONS ── */}
+                {(ai?.property_observations && ai.property_observations.length > 0) && (
+                    <section className={styles.section}>
+                        <div className={styles.sectionLabel}>Property Observations</div>
+                        <div className={styles.findingsGrid}>
+                            {ai.property_observations.map((o: any, i: number) => (
+                                <div key={i} className={styles.finding}>
+                                    <p className={styles.findingBody}>{o.observation}</p>
+                                    <p className={styles.findingEvidence}>Source: {o.source}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                )}
+
                 {/* ── 4. NEXT STEPS ── */}
                 {nextSteps.length > 0 && (
                     <section className={`${styles.section} ${styles.avoidBreak}`}>
                         <div className={styles.sectionLabel}>Next Steps</div>
                         <div className={styles.stepsContainer}>
-                            {(['review_now', 'at_renewal', 'confirm'] as const).map(groupKey => {
+                            {(['review_now', 'discuss_at_renewal', 'confirm_and_update'] as const).map(groupKey => {
                                 const items = groupedSteps[groupKey];
                                 if (!items || items.length === 0) return null;
                                 const cfg = GROUP_LABELS[groupKey];
@@ -350,8 +310,8 @@ export default function ReportPage() {
 
                 {/* ── 5. FOOTER ── */}
                 <footer className={styles.footer}>
-                    <div className={styles.disclaimer} style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '1rem', fontSize: '0.78rem', color: '#94a3b8', lineHeight: '1.5' }}>
-                        <strong style={{ color: '#e2e8f0' }}>Notice & Client Responsibility:</strong> This report is provided for informational and comparative purposes only, based on documents provided to our office (such as current policy declarations and replacement cost estimates). CoverageCheckNow and Alsop and Associates Insurance Agency do not determine policy adequacy or guarantee complete protection. Final decisions regarding coverage selection, limits, and policy adjustments remain solely the responsibility of the policyholder. We strongly recommend reviewing your policy terms with a licensed insurance advisor.
+                    <div className={styles.disclaimer} style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '1rem', fontSize: '0.78rem', color: '#475569', lineHeight: '1.5' }}>
+                        <strong style={{ color: '#0f172a' }}>Notice & Client Responsibility:</strong> This report is provided for informational and comparative purposes only, based on documents provided to our office (such as current policy declarations and replacement cost estimates). CoverageCheckNow and Alsop and Associates Insurance Agency do not determine policy adequacy or guarantee complete protection. Final decisions regarding coverage selection, limits, and policy adjustments remain solely the responsibility of the policyholder. We strongly recommend reviewing your policy terms with a licensed insurance advisor.
                     </div>
                     <div className={styles.footerBottom}>
                         <span className={styles.footerBrand}>CoverageCheckNow</span>
