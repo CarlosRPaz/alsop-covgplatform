@@ -70,13 +70,42 @@ export async function POST(req: NextRequest) {
 
         const supabase = getSupabaseAdmin();
 
-        // 1. Gather all required data
-        const policy: PolicyDetail | undefined = await getPolicyDetailById(policyId);
-        if (!policy) {
+        // 1. Gather all required data (using admin client to bypass RLS)
+        const { data: policyRow, error: policyErr } = await supabase
+            .from('policies')
+            .select(`
+                id, policy_number, property_address_raw, property_address_norm,
+                carrier_name, status, created_at, client_id,
+                clients ( id, named_insured, email, phone, mailing_address_raw ),
+                policy_terms (
+                    id, effective_date, expiration_date, date_issued, annual_premium,
+                    is_current, source_dec_page_id, deductible,
+                    limit_dwelling, limit_other_structures, limit_personal_property,
+                    limit_fair_rental_value, limit_ordinance_or_law, limit_debris_removal,
+                    limit_extended_dwelling_coverage, limit_dwelling_replacement_cost,
+                    limit_inflation_guard, limit_personal_property_replacement_cost,
+                    broker_name, broker_address, broker_phone,
+                    mortgagee_1_name, mortgagee_1_address, mortgagee_1_code,
+                    mortgagee_2_name, mortgagee_2_address, mortgagee_2_code,
+                    property_location, year_built, occupancy, number_of_units,
+                    construction_type, dic_exists, dic_policy_number,
+                    dic_limit_dwelling, dic_limit_loss_of_use
+                )
+            `)
+            .eq('id', policyId)
+            .single();
+
+        if (policyErr || !policyRow) {
             return NextResponse.json({ error: 'Policy not found' }, { status: 404 });
         }
+        // Cast to PolicyDetail shape (the report prompt doesn't need the full type)
+        const policy = policyRow as unknown as PolicyDetail;
 
-        const flags: PolicyFlagRow[] = await fetchFlagsByPolicyId(policyId) || [];
+        const { data: flagRows } = await supabase
+            .from('policy_flags')
+            .select('*')
+            .eq('policy_id', policyId);
+        const flags: PolicyFlagRow[] = flagRows || [];
 
         // Fetch enrichments for this policy directly using Admin
         const { data: enrichmentsData } = await supabase
