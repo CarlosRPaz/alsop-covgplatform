@@ -160,6 +160,29 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
         return isNaN(n) ? String(v) : `$${n.toLocaleString()}`;
     };
 
+    const formatAddress2Lines = (address?: string | null) => {
+        if (!address) return null;
+        const parts = address.split(',').map(s => s.trim()).filter(Boolean);
+        if (parts.length >= 3) {
+            const street = parts.slice(0, parts.length - 2).join(', ');
+            const cityStateZip = parts.slice(parts.length - 2).join(', ');
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.35 }}>
+                    <span>{street}</span>
+                    <span style={{ color: 'var(--text-mid)', fontSize: '0.78rem', fontWeight: 400 }}>{cityStateZip}</span>
+                </div>
+            );
+        } else if (parts.length === 2) {
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.35 }}>
+                    <span>{parts[0]}</span>
+                    <span style={{ color: 'var(--text-mid)', fontSize: '0.78rem', fontWeight: 400 }}>{parts[1]}</span>
+                </div>
+            );
+        }
+        return address;
+    };
+
     // Renewal countdown
     const daysUntilExpiry = detail.expiration_date
         ? Math.ceil((new Date(detail.expiration_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
@@ -442,7 +465,7 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
                     {/* Property Details */}
                     <Card title="Property Details" icon={Home}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <PropRow label="Address" value={detail.property_address} />
+                            <PropRow label="Address" value={formatAddress2Lines(detail.property_address)} />
                             <PropRow label="Year Built" value={getEnrichment('year_built') || (detail.year_built ? String(detail.year_built) : null)} />
                             <PropRow label="Square Footage" value={getEnrichment('square_footage')} />
                             <PropRow label="Lot Size" value={getEnrichment('lot_size_sqft') ? `${getEnrichment('lot_size_sqft')} sq ft` : null} />
@@ -559,14 +582,15 @@ function InfoItem({ icon: Icon, label, value }: { icon: React.ElementType; label
     );
 }
 
-function PropRow({ label, value }: { label: string; value?: string | null }) {
+function PropRow({ label, value }: { label: string; value?: string | React.ReactNode | null }) {
     if (!value) return null;
     return (
         <div style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
             padding: '0.375rem 0', borderBottom: '1px solid var(--border-subtle)',
+            gap: '1rem',
         }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>{label}</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500, flexShrink: 0, marginTop: '1px' }}>{label}</span>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-high)', fontWeight: 500, textAlign: 'right' }}>{value}</span>
         </div>
     );
