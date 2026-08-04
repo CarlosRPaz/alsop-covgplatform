@@ -114,9 +114,9 @@ export function Navbar() {
                                     </span>
                                 </div>
                             </Link>
-                            <button onClick={handleSignOut} className={styles.signOutButton}>
+                            <button onClick={handleSignOut} className={styles.signOutButton} title="Sign Out">
                                 <LogOut size={16} />
-                                Sign Out
+                                <span className={styles.signOutText}>Sign Out</span>
                             </button>
                         </>
                     ) : (

@@ -185,7 +185,8 @@
 .signOutButton:hover {
     border-color: rgba(239, 68, 68, 0.3);
     color: var(--status-error);
-    background: rgba(239, 68, 68, 0.06);
+.signOutText {
+    white-space: nowrap;
 }
 
 @media (max-width: 768px) {
@@ -194,7 +195,11 @@
     }
 
     .container {
-        padding: 0 1rem;
+        padding: 0 0.75rem;
+    }
+
+    .logoText {
+        font-size: 1.05rem;
     }
 
     .signInButton {
@@ -206,6 +211,38 @@
     }
 
     .welcomeIcon {
+        display: none;
+    }
+
+    .welcomeSection {
+        padding: 0;
+        background: transparent;
+        border: none;
+    }
+
+    .destinationTag {
+        margin-left: 0;
+        padding: 0.25rem 0.6rem;
+        font-size: 0.75rem;
+    }
+
+    .signOutButton {
+        padding: 0.35rem 0.5rem;
+    }
+}
+
+@media (max-width: 540px) {
+    .signOutText {
+        display: none;
+    }
+
+    .logoText {
+        font-size: 0.95rem;
+    }
+}
+
+@media (max-width: 380px) {
+    .logoText {
         display: none;
     }
 }
