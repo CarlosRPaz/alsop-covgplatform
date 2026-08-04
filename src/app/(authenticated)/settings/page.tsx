@@ -565,26 +565,6 @@ function AdminSection() {
                 ⚠️ Changes in this section affect all users. Proceed with care.
             </div>
 
-            <SettingGroup title="Client Experience Preview" icon={Eye}>
-                <div style={{ padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-                    <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-high)' }}>Client Portal Sandbox & Preview</div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Experience the full website from a client&apos;s perspective with interactive demo data.</div>
-                    </div>
-                    <a
-                        href="/portal/preview"
-                        style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                            padding: '0.5rem 1rem', borderRadius: '6px',
-                            background: 'var(--accent-primary)', color: '#fff',
-                            fontSize: '0.82rem', fontWeight: 600, textDecoration: 'none',
-                        }}
-                    >
-                        <Eye size={15} /> Launch Client View
-                    </a>
-                </div>
-            </SettingGroup>
-
             <SettingGroup title="Branding" icon={Palette}>
                 <SettingRow label="Company Name" value="Alsop and Associates Insurance Agency" actionLabel="Edit" placeholder />
                 <SettingRow label="Logo" value="CoverageCheckNow shield" actionLabel="Upload" placeholder />
