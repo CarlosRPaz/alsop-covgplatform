@@ -685,9 +685,12 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                                     if (result.report) {
                                         setReportRow(result.report as PolicyReportRow);
                                         router.push(`/report/${result.report.id}`);
+                                    } else {
+                                        alert(result.error || 'Failed to generate report — please try again.');
                                     }
                                 } catch (e) {
                                     console.error('Report generation failed:', e);
+                                    alert('Error generating report. Check the console for details.');
                                 } finally {
                                     setIsGeneratingReport(false);
                                 }
