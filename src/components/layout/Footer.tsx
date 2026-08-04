@@ -13,6 +13,7 @@ export function Footer() {
     const [supportOpen, setSupportOpen] = useState(false);
     const [userName, setUserName] = useState<string | undefined>(undefined);
     const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
+    const [userRole, setUserRole] = useState<string | null>(null);
 
     useEffect(() => {
         async function checkAuth() {
@@ -20,12 +21,26 @@ export function Footer() {
             if (session?.user) {
                 setUserEmail(session.user.email || undefined);
                 const profile = await getUserProfile();
-                if (profile?.first_name) setUserName(`${profile.first_name}${profile.last_name ? ' ' + profile.last_name : ''}`);
-                else if (session.user.email) setUserName(undefined);
+                if (profile) {
+                    setUserRole(profile.role);
+                    if (profile.first_name) setUserName(`${profile.first_name}${profile.last_name ? ' ' + profile.last_name : ''}`);
+                } else if (session.user.email) {
+                    setUserName(undefined);
+                }
             }
         }
         checkAuth();
     }, []);
+
+    const isClient = userRole === 'customer';
+    const productLinks = isClient ? [
+        { href: '/portal', label: 'My Portal' },
+        { href: '/submit', label: 'Submit Declaration' },
+    ] : [
+        { href: '/dashboard', label: 'Dashboard' },
+        { href: '/submit', label: 'Submit Declaration' },
+        { href: '/flags', label: 'Flags' },
+    ];
 
     return (<>
         <footer className={styles.footer}>
@@ -46,21 +61,13 @@ export function Footer() {
                     <div>
                         <h3 className={styles.sectionTitle}>Product</h3>
                         <ul className={styles.linkList}>
-                            <li>
-                                <Link href="/dashboard" className={styles.link}>
-                                    Dashboard
-                                </Link>
-                            </li>
-                            <li>
-                                <Link href="/submit" className={styles.link}>
-                                    Submit Declaration
-                                </Link>
-                            </li>
-                            <li>
-                                <Link href="/flags" className={styles.link}>
-                                    Flags
-                                </Link>
-                            </li>
+                            {productLinks.map(link => (
+                                <li key={link.href}>
+                                    <Link href={link.href} className={styles.link}>
+                                        {link.label}
+                                    </Link>
+                                </li>
+                            ))}
                         </ul>
                     </div>
 

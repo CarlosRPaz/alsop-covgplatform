@@ -18,8 +18,8 @@ type Section = 'account' | 'notifications' | 'display' | 'admin' | 'data_sources
 
 const SECTIONS = [
     { id: 'account' as Section, label: 'Account', icon: User, description: 'Name, email, password' },
-    { id: 'notifications' as Section, label: 'Notifications', icon: Bell, description: 'Email & alert preferences' },
-    { id: 'display' as Section, label: 'Display', icon: Palette, description: 'Theme & layout preferences' },
+    { id: 'notifications' as Section, label: 'Notifications', icon: Bell, description: 'Email & alert preferences', agentOnly: true },
+    { id: 'display' as Section, label: 'Display', icon: Palette, description: 'Theme & layout preferences', agentOnly: true },
     { id: 'data_sources' as Section, label: 'Data Sources', icon: Satellite, description: 'Enrichment pipeline catalog', agentOnly: true },
     { id: 'report_editor' as Section, label: 'Report Editor', icon: FileText, description: 'Report template & section controls', adminOnly: true },
     { id: 'email_system' as Section, label: 'Email System', icon: Mail, description: 'Safe mode, status & templates', adminOnly: true },
