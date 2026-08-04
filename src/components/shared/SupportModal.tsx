@@ -115,7 +115,7 @@ export function SupportModal({ isOpen, onClose, clientName, clientEmail, policyN
                 {/* Body */}
                 <div style={{ padding: '1.5rem' }}>
                     <p style={{ fontSize: '0.82rem', color: 'var(--text-mid)', marginBottom: '1.25rem', lineHeight: 1.55 }}>
-                        Have a question about your policy or coverage? Send us a message and our team will respond within 1 business day.
+                        Have a question about your policy, coverage review, or technical app support? Send us a message and our team will respond within 1 business day.
                     </p>
 
                     {/* Guest-only: name & email fields */}
@@ -169,9 +169,10 @@ export function SupportModal({ isOpen, onClose, clientName, clientEmail, policyN
                         <label style={labelStyle}>Subject</label>
                         <select value={subject} onChange={e => setSubject(e.target.value)} style={inputStyle}>
                             <option>General Question</option>
-                            <option>Coverage Concern</option>
+                            <option>Technical Support / App Issue</option>
+                            <option>Coverage & Policy Question</option>
                             <option>Report Request</option>
-                            <option>Billing Question</option>
+                            <option>Billing & Payment Question</option>
                             <option>Other</option>
                         </select>
                     </div>

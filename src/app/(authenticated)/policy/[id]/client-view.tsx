@@ -6,13 +6,13 @@ import {
     ArrowLeft, Shield, FileText, Download, MapPin, Calendar,
     AlertTriangle, CheckCircle, Loader2, Home, Building2,
     Info, Clock, Zap, MessageSquare, Send,
-    File, User, Upload
+    File, User, Upload, Folder, Eye
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button/Button';
 import {
     getPolicyDetailById, PolicyDetail, getPropertyEnrichments, PropertyEnrichment,
     getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId,
-    getDecPageFileDownloadUrl, generatePolicyReport
+    getDecPageFileDownloadUrl, generatePolicyReport, DecPageFileInfo
 } from '@/lib/api';
 import { useToast } from '@/components/ui/Toast/Toast';
 import { SupportModal } from '@/components/shared/SupportModal';
@@ -30,6 +30,7 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
     const [detail, setDetail] = useState<PolicyDetail | null>(null);
     const [enrichments, setEnrichments] = useState<PropertyEnrichment[]>([]);
     const [reportRow, setReportRow] = useState<PolicyReportRow | null>(null);
+    const [decFiles, setDecFiles] = useState<DecPageFileInfo[]>([]);
     const [decPageStoragePath, setDecPageStoragePath] = useState<string | null>(null);
     const [downloading, setDownloading] = useState<string | null>(null);
     const [requestingReport, setRequestingReport] = useState(false);
@@ -53,6 +54,7 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
         getPropertyEnrichments(policyId).then(setEnrichments);
         getLatestReportForPolicy(policyId).then(r => { if (r) setReportRow(r); });
         fetchDecPageFilesByPolicyId(policyId).then(files => {
+            setDecFiles(files);
             if (files.length > 0 && files[0].storage_path) {
                 setDecPageStoragePath(files[0].storage_path);
             }
@@ -71,20 +73,8 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
     };
 
     const handleDownloadReport = () => {
-        if (!reportRow?.ai_insights) return;
-        setDownloading('report');
-        try {
-            const content = JSON.stringify(reportRow.ai_insights, null, 2);
-            const blob = new Blob([content], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `coverage-report-${detail?.policy_number || policyId}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-        } finally {
-            setDownloading(null);
-        }
+        if (!reportRow?.id) return;
+        window.open(`/report/${reportRow.id}`, '_blank');
     };
 
     const handleRequestReport = async () => {
@@ -169,14 +159,14 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
             return (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.35 }}>
                     <span>{street}</span>
-                    <span style={{ color: 'var(--text-mid)', fontSize: '0.78rem', fontWeight: 400 }}>{cityStateZip}</span>
+                    <span>{cityStateZip}</span>
                 </div>
             );
         } else if (parts.length === 2) {
             return (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.35 }}>
                     <span>{parts[0]}</span>
-                    <span style={{ color: 'var(--text-mid)', fontSize: '0.78rem', fontWeight: 400 }}>{parts[1]}</span>
+                    <span>{parts[1]}</span>
                 </div>
             );
         }
@@ -442,23 +432,123 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
 
                 {/* Right Column — Sidebar */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    {/* My Documents — high priority */}
-                    <Card title="My Documents" icon={File}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <FileRow
-                                label="Declarations Page"
-                                available={!!decPageStoragePath}
-                                loading={downloading === 'dec'}
-                                onClick={handleDownloadDecPage}
-                            />
-                            <FileRow
-                                label="Coverage Analysis Report"
-                                available={!!reportRow}
-                                loading={downloading === 'report'}
-                                onClick={reportRow ? handleDownloadReport : handleRequestReport}
-                                actionLabel={reportRow ? 'Download' : 'Request Report'}
-                                requesting={requestingReport}
-                            />
+                    {/* Policy Files & Documents */}
+                    <Card title="Policy Files & Documents" icon={Folder}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                            {/* Coverage Analysis Report */}
+                            {reportRow ? (
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                    padding: '0.625rem 0.75rem', borderRadius: '8px',
+                                    background: 'var(--bg-surface-raised)', border: '1px solid var(--border-subtle)',
+                                    gap: '0.5rem',
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+                                        <FileText size={15} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                                        <div style={{ minWidth: 0 }}>
+                                            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-high)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                Coverage Analysis Report
+                                            </div>
+                                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                                Generated {reportRow.created_at ? new Date(reportRow.created_at).toLocaleDateString() : 'Recently'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
+                                        <button
+                                            onClick={handleDownloadReport}
+                                            style={{
+                                                display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+                                                fontSize: '0.68rem', fontWeight: 600, color: 'var(--accent-primary)',
+                                                background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem 0.4rem',
+                                            }}
+                                        >
+                                            <Eye size={12} /> View
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                    padding: '0.625rem 0.75rem', borderRadius: '8px',
+                                    background: 'var(--bg-surface-raised)', border: '1px solid var(--border-subtle)',
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <FileText size={15} style={{ color: 'var(--text-muted)' }} />
+                                        <span style={{ fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-muted)' }}>Coverage Analysis Report</span>
+                                    </div>
+                                    <button
+                                        onClick={handleRequestReport}
+                                        disabled={requestingReport}
+                                        style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+                                            fontSize: '0.68rem', fontWeight: 600, color: '#f59e0b',
+                                            background: 'none', border: 'none', cursor: 'pointer',
+                                        }}
+                                    >
+                                        {requestingReport ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Zap size={12} />}
+                                        Request
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Declarations Pages & Policy Files */}
+                            {decFiles.map((file, idx) => {
+                                const path = file.storage_path || (file as any).file_path;
+                                const fileName = file.file_name || `Declarations Page ${decFiles.length > 1 ? `#${idx + 1}` : ''}`;
+                                const dateStr = file.uploaded_at ? new Date(file.uploaded_at).toLocaleDateString() : null;
+
+                                return (
+                                    <div key={file.id || idx} style={{
+                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                        padding: '0.625rem 0.75rem', borderRadius: '8px',
+                                        background: 'var(--bg-surface-raised)', border: '1px solid var(--border-subtle)',
+                                        gap: '0.5rem',
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+                                            <Shield size={15} style={{ color: '#10b981', flexShrink: 0 }} />
+                                            <div style={{ minWidth: 0 }}>
+                                                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-high)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {fileName}
+                                                </div>
+                                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                                    Dec Page {dateStr ? `• ${dateStr}` : ''}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {path && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
+                                                <button
+                                                    onClick={async () => {
+                                                        const url = await getDecPageFileDownloadUrl(path);
+                                                        if (url) window.open(url, '_blank');
+                                                    }}
+                                                    style={{
+                                                        display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+                                                        fontSize: '0.68rem', fontWeight: 600, color: 'var(--accent-primary)',
+                                                        background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem 0.4rem',
+                                                    }}
+                                                >
+                                                    <Eye size={12} /> View
+                                                </button>
+                                                <button
+                                                    onClick={async () => {
+                                                        const url = await getDecPageFileDownloadUrl(path);
+                                                        if (url) window.open(url, '_blank');
+                                                    }}
+                                                    style={{
+                                                        display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+                                                        fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-mid)',
+                                                        background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem 0.4rem',
+                                                    }}
+                                                >
+                                                    <Download size={12} /> Download
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     </Card>
 
