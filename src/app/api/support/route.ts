@@ -47,10 +47,10 @@ export async function POST(req: NextRequest) {
             </div>
         `;
 
-        // Send support email to support@coveragechecknow.com
+        // Send support email to support@coveragechecknow.com using verified Postmark Sender Signature
         const sendResult = await sendEmail({
             to: 'support@coveragechecknow.com',
-            from: 'support@coveragechecknow.com',
+            from: 'admin@coveragechecknow.com',
             replyTo: email,
             subject: emailSubject,
             htmlBody,
