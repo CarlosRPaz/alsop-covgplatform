@@ -20,6 +20,10 @@ function AuthenticatedContent({ children, userRole }: { children: React.ReactNod
     const pathname = usePathname();
     const router = useRouter();
 
+    // When on preview route, simulate customer role
+    const isClientPreview = pathname.startsWith('/portal/preview');
+    const effectiveRole: UserRole | null = isClientPreview ? 'customer' : userRole;
+
     // Route guard: redirect customers away from agent-only pages
     useEffect(() => {
         if (userRole === 'customer') {
@@ -34,7 +38,7 @@ function AuthenticatedContent({ children, userRole }: { children: React.ReactNod
 
     return (
         <div style={{ display: 'flex', flex: 1 }}>
-            <Sidebar userRole={userRole} />
+            <Sidebar userRole={effectiveRole} />
             <div style={{
                 flex: 1,
                 marginLeft: `${sidebarOffset}px`,
@@ -81,16 +85,16 @@ function AuthenticatedContent({ children, userRole }: { children: React.ReactNod
                     )}
 
                     {/* Global Search Bar — agents only, takes remaining space */}
-                    {userRole !== 'customer' && (
+                    {effectiveRole !== 'customer' && (
                         <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
                             <GlobalSearch />
                         </div>
                     )}
 
-                    {/* On mobile, if customer, still show brand */}
-                    {userRole === 'customer' && isMobile && (
+                    {/* On mobile or preview, if customer, show brand if search hidden */}
+                    {effectiveRole === 'customer' && (
                         <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                            CoverageCheckNow
+                            {isClientPreview ? 'Client Portal Sandbox Mode' : 'CoverageCheckNow'}
                         </span>
                     )}
                 </div>

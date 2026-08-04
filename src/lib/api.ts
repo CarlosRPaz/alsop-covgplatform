@@ -4041,11 +4041,31 @@ export async function fetchRenewalEmailLog(policyId: string): Promise<RenewalEma
             .eq('policy_id', policyId)
             .order('sent_at', { ascending: false });
 
-        if (error) {
-            logger.warn('API', 'Failed to fetch renewal email log', { policyId, error: error.message });
-            return [];
+        if (!error && data) {
+            return data as RenewalEmailLogEntry[];
         }
-        return (data || []) as RenewalEmailLogEntry[];
+
+        // Fallback: query activity_events table
+        const { data: actData } = await supabase
+            .from('activity_events')
+            .select('*')
+            .eq('policy_id', policyId)
+            .eq('event_type', 'email.marked_sent')
+            .order('created_at', { ascending: false });
+
+        if (actData && actData.length > 0) {
+            return actData.map((a: any) => ({
+                id: a.id,
+                policy_id: a.policy_id,
+                client_id: a.client_id,
+                template_id: a.meta?.template_id || 'rce_verification',
+                template_name: a.meta?.template_name || 'Renewal Review',
+                sent_at: a.created_at,
+                created_at: a.created_at,
+            }));
+        }
+
+        return [];
     } catch (err) {
         logger.error('API', 'Unexpected error fetching renewal email log', {
             policyId,
