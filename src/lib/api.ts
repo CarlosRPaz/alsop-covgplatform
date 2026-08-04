@@ -1,3 +1,4 @@
+import { type SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 import { logger } from './logger';
 import { INACTIVE_STATUSES, ACTIVE_STATUS_FILTER } from './policyFilters';
@@ -920,6 +921,7 @@ export interface PolicyDetail {
     cancellation_reason?: string;
     dic_exists?: boolean;
     dic_policy_number?: string;
+    perils_insured_against?: string;
     sold_by?: string;
     office?: string;
     is_current?: boolean;
@@ -987,7 +989,8 @@ export interface PolicyDetail {
  * Used by the policy review page.
  * Coverage is read from policy_terms (curated/approved) — NOT from raw dec_pages.
  */
-export async function getPolicyDetailById(policyId: string): Promise<PolicyDetail | undefined> {
+export async function getPolicyDetailById(policyId: string, customClient?: SupabaseClient): Promise<PolicyDetail | undefined> {
+    const sb = customClient || supabase;
     try {
         // DIC coverage columns (added by scripts/add_dic_fields.sql)
         // These are kept in a variable so we can fallback without them if migration hasn't run yet
@@ -1060,14 +1063,15 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
                     payment_status,
                     payment_plan,
                     cancellation_reason,
-                    dic_exists,${includeDicFields ? dicTermFields : ''}
+                    dic_exists,
+                    perils_insured_against,${includeDicFields ? dicTermFields : ''}
                     sold_by,
                     office
                 )
             `;
 
         // Try with all optional columns, then progressively fall back
-        let result = await supabase
+        let result = await sb
             .from('policies')
             .select(buildSelect(true, true))
             .eq('id', policyId)
@@ -1076,7 +1080,7 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
         // Fallback: if columns don't exist yet, retry without them
         if (result.error && result.error.message?.includes('does not exist')) {
             logger.warn('API', 'Optional columns not found, retrying without them. Run pending migration scripts.');
-            result = await supabase
+            result = await sb
                 .from('policies')
                 .select(buildSelect(false, false))
                 .eq('id', policyId)
@@ -1127,7 +1131,7 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
             .filter((id): id is string => !!id);
 
         if (decPageIds.length > 0) {
-            const { data: decPages } = await supabase
+            const { data: decPages } = await sb
                 .from('dec_pages')
                 .select('id, policy_number')
                 .in('id', decPageIds);
@@ -1198,6 +1202,7 @@ export async function getPolicyDetailById(policyId: string): Promise<PolicyDetai
             dic_limit_loss_of_use: currentTerm?.dic_limit_loss_of_use || undefined,
             dic_deductible: currentTerm?.dic_deductible || undefined,
             dic_annual_premium_raw: currentTerm?.dic_annual_premium_raw ?? undefined,
+            perils_insured_against: currentTerm?.perils_insured_against || undefined,
             sold_by: currentTerm?.sold_by || undefined,
             office: currentTerm?.office || undefined,
             is_current: currentTerm?.is_current ?? undefined,
@@ -1706,9 +1711,10 @@ async function fetchFlagSummaryForPolicies(
 /**
  * Fetch all flags for a given policy, ordered by status then severity.
  */
-export async function fetchFlagsByPolicyId(policyId: string): Promise<PolicyFlagRow[]> {
+export async function fetchFlagsByPolicyId(policyId: string, customClient?: SupabaseClient): Promise<PolicyFlagRow[]> {
+    const sb = customClient || supabase;
     try {
-        const { data, error } = await supabase
+        const { data, error } = await sb
             .from('policy_flags')
             .select('*')
             .eq('policy_id', policyId)
