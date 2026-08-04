@@ -133,14 +133,19 @@ function checkFairRentalValue(ctx: EvalCtx): string | null {
 }
 
 function checkLossOfUse(ctx: EvalCtx): string | null {
-    // Only check if DIC is explicitly true or expected
-    const dic = ctx.term.dic_exists;
-    if (dic === false) return null; // Suppress if client definitively has no DIC policy
+    // Check base policy loss-of-use first (Fair Rental Value is the FAIR Plan equivalent)
+    const baseVal = get(ctx, 'limit_fair_rental_value');
+    if (baseVal && !isZeroOrMissing(baseVal)) return null; // Base policy has Loss of Use — OK
 
-    const val = get(ctx, 'dic_limit_loss_of_use');
-    if (!val) return 'Loss of Use coverage is missing.';
-    if (isZeroOrMissing(val)) return 'Loss of Use coverage is $0.';
-    return null;
+    // If DIC exists, check DIC-specific loss of use
+    const dic = ctx.term.dic_exists;
+    if (dic === true) {
+        const dicVal = get(ctx, 'dic_limit_loss_of_use');
+        if (dicVal && !isZeroOrMissing(dicVal)) return null; // DIC covers Loss of Use — OK
+    }
+
+    // Neither base policy nor DIC has Loss of Use
+    return 'Loss of Use / Additional Living Expense coverage is missing or $0. This coverage pays for temporary housing if the home becomes uninhabitable.';
 }
 
 // ── Rule registry ────────────────────────────────────────────

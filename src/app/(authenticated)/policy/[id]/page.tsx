@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
 import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload, ShieldCheck, MapPin, Phone } from 'lucide-react';
 import { PropertyBanner } from '@/components/policy/PropertyBanner';
-import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, fetchPlatformDocumentsByPolicyId, getPlatformDocDownloadUrl, fetchRceDocDataByPolicyId, RceDocData, fetchDicDocDataByPolicyId, DicDocData } from '@/lib/api';
+import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, fetchPlatformDocumentsByPolicyId, getPlatformDocDownloadUrl, fetchRceDocDataByPolicyId, RceDocData, fetchDicDocDataByPolicyId, DicDocData, generatePolicyReport } from '@/lib/api';
 import { PolicyStatusBar } from '@/components/policy/PolicyStatusBar';
 import { PolicyOverviewTab } from '@/components/policy/tabs/PolicyOverviewTab';
 import { PolicyCfpDetailsTab } from '@/components/policy/tabs/PolicyCfpDetailsTab';
@@ -681,17 +681,10 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                             onClick={async () => {
                                 setIsGeneratingReport(true);
                                 try {
-                                    const res = await fetch('/api/reports/generate', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ policyId: id }),
-                                    });
-                                    if (res.ok) {
-                                        const data = await res.json();
-                                        if (data.report) {
-                                            setReportRow(data.report);
-                                            router.push(`/report/${data.report.id}`);
-                                        }
+                                    const result = await generatePolicyReport(id);
+                                    if (result.report) {
+                                        setReportRow(result.report as PolicyReportRow);
+                                        router.push(`/report/${result.report.id}`);
                                     }
                                 } catch (e) {
                                     console.error('Report generation failed:', e);

@@ -92,6 +92,7 @@ def upsert_dec_page(
         # Checkboxes (boolean)
         "cb_fire_lightning_smoke_damage", "cb_extended_coverages",
         "cb_vandalism_malicious_mischief",
+        "perils_insured_against",
         # Mortgagees
         "mortgagee_1_name", "mortgagee_1_address", "mortgagee_1_code", "mortgagee_1_loan_number",
         "mortgagee_2_name", "mortgagee_2_address", "mortgagee_2_code", "mortgagee_2_loan_number",

@@ -3482,6 +3482,30 @@ export async function runPropertyEnrichment(policyId: string): Promise<Enrichmen
     }
     return data as EnrichmentRunResult;
 }
+
+/**
+ * Generate an AI coverage report for a policy.
+ * Calls /api/reports/generate with proper authentication.
+ */
+export async function generatePolicyReport(policyId: string): Promise<{ report?: { id: string }; error?: string }> {
+    const { data: { session } } = await supabase.auth.getSession();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+    }
+
+    const res = await fetch('/api/reports/generate', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ policyId }),
+    });
+
+    if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        return { error: errData.message || errData.error || `Report generation failed (${res.status})` };
+    }
+    return await res.json();
+}
 // ---------------------------------------------------------------------------
 // Policy Reports (v1)
 // ---------------------------------------------------------------------------

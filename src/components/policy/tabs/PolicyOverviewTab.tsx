@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Declaration, PolicyDetail, PropertyEnrichment, getLatestReportForPolicy, PolicyReportRow, getManualOverridesForPolicy, upsertManualOverride } from '@/lib/api';
+import { Declaration, PolicyDetail, PropertyEnrichment, getLatestReportForPolicy, PolicyReportRow, getManualOverridesForPolicy, upsertManualOverride, generatePolicyReport } from '@/lib/api';
 import { EditableValue } from '@/components/ui/EditableValue';
 import { RefreshCw, ShieldCheck, Home } from 'lucide-react';
 import { Card } from '@/components/ui/Card/Card';
@@ -61,15 +61,8 @@ export function PolicyOverviewTab({ declaration, policyDetail, enrichments = [] 
         setIsGenerating(true);
         try {
             const policyId = declaration.policy_id || declaration.id;
-            const res = await fetch('/api/reports/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ policyId }),
-            });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.report) router.push(`/report/${data.report.id}`);
-            }
+            const result = await generatePolicyReport(policyId);
+            if (result.report) router.push(`/report/${result.report.id}`);
         } catch (e) { console.error(e); }
         finally { setIsGenerating(false); }
     };

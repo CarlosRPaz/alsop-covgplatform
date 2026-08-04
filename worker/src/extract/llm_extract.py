@@ -76,6 +76,7 @@ FIELDS TO EXTRACT
     "cb_fire_lightning_smoke_damage": "",
     "cb_extended_coverages": "",
     "cb_vandalism_malicious_mischief": "",
+    "perils_insured_against": "",
     "total_annual_premium": "",
     "broker_name": "",
     "broker_address": "",
@@ -225,6 +226,15 @@ RIGHT SIDE — PERILS INSURED AGAINST (premium amounts):
       → cb_vandalism_malicious_mischief (the premium amount, e.g. "$ 34")
 - Format: Keep dollar amounts with $ exactly as printed (e.g. "$ 876").
 - If the peril has no premium or is not present, return empty string "".
+
+PERILS INSURED AGAINST — TYPE:
+- In the "PERILS INSURED AGAINST" column header or nearby text, look for the type designation.
+- Common values: "CFP POLICY", "ISO HO-3", "Basic", "Broad", "Special", "Comprehensive"
+- The raw text often shows something like: "PERILS INSURED AGAINST (not all-inclusive) CFP POLICY ISO HO-3"
+- Extract the full perils type string. Example: "CFP POLICY ISO HO-3"
+- If the section exists but has no specific type, return "Listed" or "Basic" based on context.
+- If the section is completely absent, return null.
+  → perils_insured_against
 
 RIGHT SIDE — TOTAL ANNUAL PREMIUM:
 - Look for the label "Total Annual Premium" in the right-side box.

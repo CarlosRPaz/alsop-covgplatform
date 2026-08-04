@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/Button/Button';
 import {
     getPolicyDetailById, PolicyDetail, getPropertyEnrichments, PropertyEnrichment,
     getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId,
-    getDecPageFileDownloadUrl
+    getDecPageFileDownloadUrl, generatePolicyReport
 } from '@/lib/api';
 import { useToast } from '@/components/ui/Toast/Toast';
 import { SupportModal } from '@/components/shared/SupportModal';
@@ -99,19 +99,12 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
 
         setRequestingReport(true);
         try {
-            const res = await fetch('/api/reports/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ policyId }),
-            });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.report) {
-                    setReportRow(data.report);
-                    toast.success('Report generated! You can now download it.');
-                }
+            const result = await generatePolicyReport(policyId);
+            if (result.report) {
+                setReportRow(result.report as PolicyReportRow);
+                toast.success('Report generated! You can now download it.');
             } else {
-                toast.error('Unable to generate report. Please try again later.');
+                toast.error(result.error || 'Unable to generate report. Please try again later.');
             }
         } catch {
             toast.error('Unable to generate report. Please try again later.');

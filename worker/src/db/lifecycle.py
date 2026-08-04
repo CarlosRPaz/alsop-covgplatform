@@ -256,7 +256,7 @@ def upsert_policy_term(
             "property_location", "year_built", "occupancy",
             "number_of_units", "construction_type",
             "cb_fire_lightning_smoke_damage", "cb_extended_coverages",
-            "cb_vandalism_malicious_mischief",
+            "cb_vandalism_malicious_mischief", "perils_insured_against",
         ]
         for field in coverage_fields:
             val = coverage_data.get(field)
@@ -316,7 +316,7 @@ def process_lifecycle(
         "property_location", "year_built", "occupancy",
         "number_of_units", "construction_type",
         "cb_fire_lightning_smoke_damage", "cb_extended_coverages",
-        "cb_vandalism_malicious_mischief",
+        "cb_vandalism_malicious_mischief", "perils_insured_against",
     ]
     for key in coverage_keys:
         val = extracted_data.get(key)

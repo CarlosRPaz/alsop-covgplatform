@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Declaration, PropertyEnrichment, getLatestReportForPolicy, PolicyReportRow, PolicyDetail, getManualOverridesForPolicy, upsertManualOverride } from '@/lib/api';
+import { Declaration, PropertyEnrichment, getLatestReportForPolicy, PolicyReportRow, PolicyDetail, getManualOverridesForPolicy, upsertManualOverride, generatePolicyReport } from '@/lib/api';
 import { normalizeInputs, calculateEstimate } from '@/lib/rce/InterimEstimator';
 import { InterimRceWidget } from './InterimRceWidget';
 import { EditableValue } from '../ui/EditableValue';
@@ -70,18 +70,11 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
         setIsGenerating(true);
         try {
             const policyId = declaration.policy_id || declaration.id;
-            const res = await fetch('/api/reports/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ policyId })
-            });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.report) {
-                    router.push(`/report/${data.report.id}`);
-                }
+            const result = await generatePolicyReport(policyId);
+            if (result.report) {
+                router.push(`/report/${result.report.id}`);
             } else {
-                alert('Failed to generate report');
+                alert(result.error || 'Failed to generate report');
             }
         } catch (e) {
             console.error(e);
