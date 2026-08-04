@@ -4011,4 +4011,47 @@ export async function updateDicCarrierEligibility(
         });
         return false;
     }
-}
+}
+
+// ---------------------------------------------------------------------------
+// Renewal Email Tracking
+// ---------------------------------------------------------------------------
+
+export interface RenewalEmailLogEntry {
+    id: string;
+    policy_id: string;
+    client_id?: string | null;
+    template_id: string;
+    template_name: string;
+    marked_sent_by?: string | null;
+    sent_at: string;
+    notes?: string | null;
+    created_at: string;
+}
+
+/**
+ * Fetch the renewal email log for a given policy.
+ * Returns entries sorted by sent_at DESC (most recent first).
+ */
+export async function fetchRenewalEmailLog(policyId: string): Promise<RenewalEmailLogEntry[]> {
+    try {
+        const { data, error } = await supabase
+            .from('renewal_email_log')
+            .select('*')
+            .eq('policy_id', policyId)
+            .order('sent_at', { ascending: false });
+
+        if (error) {
+            logger.warn('API', 'Failed to fetch renewal email log', { policyId, error: error.message });
+            return [];
+        }
+        return (data || []) as RenewalEmailLogEntry[];
+    } catch (err) {
+        logger.error('API', 'Unexpected error fetching renewal email log', {
+            policyId,
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return [];
+    }
+}
+

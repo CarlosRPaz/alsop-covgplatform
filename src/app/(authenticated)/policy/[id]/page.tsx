@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
 import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload, ShieldCheck, MapPin, Phone, RotateCcw } from 'lucide-react';
 import { PropertyBanner } from '@/components/policy/PropertyBanner';
-import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, fetchPlatformDocumentsByPolicyId, getPlatformDocDownloadUrl, fetchRceDocDataByPolicyId, RceDocData, fetchDicDocDataByPolicyId, DicDocData, generatePolicyReport } from '@/lib/api';
+import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, fetchPlatformDocumentsByPolicyId, getPlatformDocDownloadUrl, fetchRceDocDataByPolicyId, RceDocData, fetchDicDocDataByPolicyId, DicDocData, generatePolicyReport, fetchRenewalEmailLog, RenewalEmailLogEntry } from '@/lib/api';
 import { PolicyStatusBar } from '@/components/policy/PolicyStatusBar';
 import { PolicyOverviewTab } from '@/components/policy/tabs/PolicyOverviewTab';
 import { PolicyCfpDetailsTab } from '@/components/policy/tabs/PolicyCfpDetailsTab';
@@ -75,6 +75,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     const [dicDocStoragePath, setDicDocStoragePath] = useState<string | null>(null);
     const [dicDocLoading, setDicDocLoading] = useState(false);
     const [showEmailComposer, setShowEmailComposer] = useState(false);
+    const [emailLog, setEmailLog] = useState<RenewalEmailLogEntry[]>([]);
     const [userRole, setUserRole] = useState<UserRole | null>(null);
     const [roleLoading, setRoleLoading] = useState(true);
     const [bgProcessing, setBgProcessing] = useState(false);
@@ -192,6 +193,9 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                 setDicDocStoragePath(dicDoc.storage_path);
             }
         });
+
+        // Fetch renewal email log
+        fetchRenewalEmailLog(id).then(setEmailLog);
     }, [id]);
 
     // Helper: refresh all policy data (enrichments, flags, report, etc.)
@@ -1019,6 +1023,8 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                 policyNumber={policyDetailRaw?.policy_number || declaration?.policy_number || ''}
                 propertyAddress={policyDetailRaw?.property_address || ''}
                 agentName="Alsop and Associates Insurance Agency"
+                emailLog={emailLog}
+                onMarkSent={(entry) => setEmailLog(prev => [entry, ...prev])}
             />
         </div>
     );

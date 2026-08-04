@@ -132,21 +132,52 @@ Please remember that final coverage selections and decisions remain the responsi
 Your time is certainly appreciated and I look forward to speaking with you soon!
 
 Alsop and Associates Insurance Agency`,
-        copilotPromptTemplate: `Create a customized renewal review email for {{client_name}} regarding California Fair Plan policy {{policy_number}} at {{property_address}}, expiring on {{expiration_date}}.
+        copilotPromptTemplate: `You are writing a renewal review email on behalf of Alsop and Associates Insurance Agency for their client {{client_name}} regarding California Fair Plan policy {{policy_number}} at {{property_address}}, expiring on {{expiration_date}}.
 
-Style & Tone:
-- Open with a compelling hook about the value of an annual policy review (saving money, avoiding lapses, closing coverage gaps)
-- Do NOT include a personal agent introduction — sign off as "Alsop and Associates Insurance Agency" only
-- Keep the tone warm, professional, conversational, and permission-based
-- Be time-respectful — reassure the client this won't take long
+Use the following email as a reference template — match its structure, tone, and flow closely:
 
-Content to include:
-- Mention that an AI coverage report and updated Replacement Cost Estimate are available using {{report_url}} and {{rce_download_url}}
-- Explain coverage findings in a neutral, non-judgmental way without using words like adequate, inadequate, or deficient
-- Include a "what to have handy" checklist: current mortgage info (lender name, loan number), declaration pages for other policies, questions/concerns/feedback
-- Encourage calling the main office at (909) 626-5000 to speak with a licensed agent
-- Include a clear statement that final coverage decisions remain the policyholder's responsibility
-- Close warmly with appreciation for their time`,
+---
+Hi [First Name],
+
+Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and possibly save money? Since your California Fair Plan policy ([Policy Number]) for [Property Address] is coming up for renewal on [Expiration Date], now is a great time to take a closer look.
+
+As part of our renewal review process, we've reviewed the coverage on your current policy and prepared updated materials for your consideration:
+
+• AI Coverage Report: [Report URL]
+• Updated Replacement Cost Estimate: [RCE URL]
+
+The review may highlight differences between your current coverage and updated replacement cost information or available options. Any changes would be recommendations only — we always request your permission before making updates.
+
+To make the most of our conversation, here are a few things you may want to have handy:
+
+• Current mortgage information (lender name, loan number) — usually found on your mortgage statement
+• Declaration pages for any other policies outside of Allstate you'd like to review
+• Questions, concerns, or feedback you'd like to share
+
+I won't take too much of your time. In just a few minutes we can make sure your renewal is on track and your coverage continues to provide the protection that's right for you.
+
+To speak with a licensed agent, please call our main office at (909) 626-5000. We're happy to help!
+
+Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
+
+Your time is certainly appreciated and I look forward to speaking with you soon!
+
+Alsop and Associates Insurance Agency
+---
+
+STRICT RULES — you must follow all of these:
+1. Do NOT include a personal agent name or introduction. Sign off ONLY as "Alsop and Associates Insurance Agency".
+2. Frame all coverage recommendations using permission-based language. Always request client permission before suggesting changes.
+3. NEVER use the words "adequate", "inadequate", or "deficient". Describe coverage neutrally by comparing current limits to available options.
+4. State that final coverage selections and decisions remain the responsibility of the policyholder.
+5. Keep the email concise — under 200 words.
+6. Include the office phone number: (909) 626-5000.
+7. Include the "what to have handy" preparation checklist: current mortgage info, declaration pages for other policies, and questions/concerns/feedback.
+8. Reference the AI Coverage Report using {{report_url}} and the Replacement Cost Estimate using {{rce_download_url}}.
+9. Keep the tone warm, professional, and conversational — similar to how a trusted insurance advisor would speak to a long-time client.
+10. Be time-respectful — reassure the client this process won't take long.
+
+Generate the email now, filling in the client's actual details.`,
         rules: [
             ...STANDARD_RULES,
             {
