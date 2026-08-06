@@ -115,7 +115,8 @@ export class DuplicateEngine {
                 .select(`
                     id, named_insured, email, phone, mailing_address_raw, mailing_address_norm, created_at,
                     policies(id, policy_number, carrier_name, property_address_raw, status, created_at,
-                        policy_terms(id, effective_date, expiration_date, annual_premium, is_current)),
+                        policy_terms(id, effective_date, expiration_date, annual_premium, is_current),
+                        platform_documents(id, doc_type, file_name, created_at)),
                     dec_pages(id, policy_number, created_at, submission_id, dec_page_submissions(file_name))
                 `)
                 .order('id', { ascending: true })

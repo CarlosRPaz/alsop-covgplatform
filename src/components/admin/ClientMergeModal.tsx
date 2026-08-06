@@ -17,6 +17,13 @@ interface PolicyTermBrief {
     is_current?: boolean;
 }
 
+interface PlatformDocBrief {
+    id: string;
+    doc_type: string;
+    file_name?: string;
+    created_at?: string;
+}
+
 interface PolicyBrief {
     id: string;
     policy_number: string;
@@ -25,6 +32,7 @@ interface PolicyBrief {
     status?: string;
     created_at?: string;
     policy_terms?: PolicyTermBrief[];
+    platform_documents?: PlatformDocBrief[];
 }
 
 interface DecPageBrief {
@@ -46,6 +54,18 @@ interface ClientData {
     dec_pages?: DecPageBrief[];
     created_at?: string;
 }
+
+const MERGE_DOC_LABELS: Record<string, { label: string; color: string }> = {
+    dec_page: { label: 'DEC PAGE', color: '#3b82f6' },
+    rce: { label: 'RCE', color: '#10b981' },
+    dic_dec_page: { label: 'DIC', color: '#f97316' },
+    es_doc: { label: 'E&S', color: '#8b5cf6' },
+    other: { label: 'OTHER', color: '#a855f7' },
+    invoice: { label: 'INVOICE', color: '#8b5cf6' },
+    inspection: { label: 'INSPECTION', color: '#ec4899' },
+    endorsement: { label: 'ENDORSEMENT', color: '#06b6d4' },
+    questionnaire: { label: 'QUESTIONNAIRE', color: '#84cc16' },
+};
 
 interface ClientMergeModalProps {
     survivor: ClientData;
@@ -240,6 +260,20 @@ export default function ClientMergeModal({ survivor: initialSurvivor, candidates
         const policies = record.policies || [];
         const decPages = record.dec_pages || [];
 
+        // Build unified doc list from dec_pages + platform_documents (nested in policies)
+        type UnifiedDoc = { id: string; docType: string; fileName?: string; policyNumber?: string; createdAt?: string };
+        const allDocs: UnifiedDoc[] = [];
+        for (const dp of decPages) {
+            const sub = dp.dec_page_submissions;
+            const fileName = Array.isArray(sub) ? sub[0]?.file_name : sub?.file_name;
+            allDocs.push({ id: dp.id, docType: 'dec_page', fileName, policyNumber: dp.policy_number, createdAt: dp.created_at });
+        }
+        for (const p of policies) {
+            for (const pd of (p.platform_documents || [])) {
+                allDocs.push({ id: pd.id, docType: pd.doc_type, fileName: pd.file_name, policyNumber: p.policy_number, createdAt: pd.created_at });
+            }
+        }
+
         return (
             <div key={record.id} className={`${styles.profileCard} ${isSurvivor ? styles.profileCardSurvivor : styles.profileCardCandidate}`}>
 
@@ -265,7 +299,7 @@ export default function ClientMergeModal({ survivor: initialSurvivor, candidates
                             </span>
                             <span className={styles.statChip}>
                                 <FileStack size={11} />
-                                {decPages.length} docs
+                                {allDocs.length} docs
                             </span>
                         </div>
                         {!isSurvivor && (
@@ -396,10 +430,10 @@ export default function ClientMergeModal({ survivor: initialSurvivor, candidates
                             <div className={styles.policyInventoryHeader}>
                                 <FileStack size={14} />
                                 <span>Document Inventory</span>
-                                <span className={styles.policyChipCount}>{decPages.length}</span>
+                                <span className={styles.policyChipCount}>{allDocs.length}</span>
                             </div>
 
-                            {decPages.length === 0 ? (
+                            {allDocs.length === 0 ? (
                                 <div className={styles.noPolicies}>
                                     No documents linked to this client record
                                 </div>
@@ -417,33 +451,40 @@ export default function ClientMergeModal({ survivor: initialSurvivor, candidates
                                         </div>
                                     )}
                                     <div className={styles.policyRows}>
-                                        {decPages.map(dp => {
-                                            const sub = dp.dec_page_submissions;
-                                            const fileName = Array.isArray(sub) ? sub[0]?.file_name : sub?.file_name;
+                                        {allDocs.map(doc => {
+                                            const typeInfo = MERGE_DOC_LABELS[doc.docType] || { label: doc.docType.toUpperCase(), color: '#6b7280' };
                                             return (
-                                                <div key={dp.id} className={styles.policyRow}>
-                                                    <div className={styles.survivorPolicyIcon} style={{ color: 'var(--text-muted)' }}>
-                                                        <FileStack size={14} />
+                                                <div key={doc.id} className={styles.policyRow}>
+                                                    <div style={{
+                                                        display: 'inline-flex', alignItems: 'center',
+                                                        padding: '0.15rem 0.45rem', borderRadius: '4px',
+                                                        fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.03em',
+                                                        backgroundColor: `${typeInfo.color}15`,
+                                                        color: typeInfo.color,
+                                                        border: `1px solid ${typeInfo.color}30`,
+                                                        whiteSpace: 'nowrap', flexShrink: 0,
+                                                    }}>
+                                                        {typeInfo.label}
                                                     </div>
                                                     <div className={styles.policyRowContent}>
                                                         <div className={styles.policyRowTop}>
-                                                            <span className={styles.policyNum}>
-                                                                {fileName || 'Uploaded document'}
+                                                            <span className={styles.policyNum} style={{ fontSize: '0.72rem' }}>
+                                                                {doc.fileName || 'Uploaded document'}
                                                             </span>
-                                                            {dp.policy_number && (
-                                                                <span className={styles.policyCarrier}>
-                                                                    Policy #{dp.policy_number}
+                                                        </div>
+                                                        <div className={styles.policyTermInfo}>
+                                                            {doc.policyNumber && (
+                                                                <span>
+                                                                    <Shield size={10} /> Policy #{doc.policyNumber}
+                                                                </span>
+                                                            )}
+                                                            {doc.createdAt && (
+                                                                <span>
+                                                                    <Calendar size={10} />{' '}
+                                                                    {new Date(doc.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        {dp.created_at && (
-                                                            <div className={styles.policyTermInfo}>
-                                                                <span>
-                                                                    <Calendar size={11} />{' '}
-                                                                    Uploaded {new Date(dp.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                                                </span>
-                                                            </div>
-                                                        )}
                                                     </div>
                                                 </div>
                                             );
@@ -533,23 +574,34 @@ export default function ClientMergeModal({ survivor: initialSurvivor, candidates
                             </div>
 
                             {/* Document consolidation summary */}
-                            <div className={styles.summaryBlock}>
-                                <div className={styles.summaryBlockLabel}>Document Consolidation</div>
-                                <div className={styles.summaryStatRow}>
-                                    <span>Survivor documents</span>
-                                    <strong>{(survivor.dec_pages || []).length}</strong>
-                                </div>
-                                <div className={styles.summaryStatRow}>
-                                    <span>Candidate documents to transfer</span>
-                                    <strong className={candidates.reduce((sum, c) => sum + (c.dec_pages || []).length, 0) > 0 ? styles.accentGreen : ''}>
-                                        {candidates.reduce((sum, c) => sum + (c.dec_pages || []).length, 0)}
-                                    </strong>
-                                </div>
-                                <div className={styles.summaryStatTotal}>
-                                    <span>Total after merge</span>
-                                    <strong>{(survivor.dec_pages || []).length + candidates.reduce((sum, c) => sum + (c.dec_pages || []).length, 0)}</strong>
-                                </div>
-                            </div>
+                            {(() => {
+                                const countDocs = (r: ClientData) => {
+                                    const dp = (r.dec_pages || []).length;
+                                    const pd = (r.policies || []).reduce((sum, p) => sum + (p.platform_documents || []).length, 0);
+                                    return dp + pd;
+                                };
+                                const survivorDocCount = countDocs(survivor);
+                                const candidateDocCount = candidates.reduce((sum, c) => sum + countDocs(c), 0);
+                                return (
+                                    <div className={styles.summaryBlock}>
+                                        <div className={styles.summaryBlockLabel}>Document Consolidation</div>
+                                        <div className={styles.summaryStatRow}>
+                                            <span>Survivor documents</span>
+                                            <strong>{survivorDocCount}</strong>
+                                        </div>
+                                        <div className={styles.summaryStatRow}>
+                                            <span>Candidate documents to transfer</span>
+                                            <strong className={candidateDocCount > 0 ? styles.accentGreen : ''}>
+                                                {candidateDocCount}
+                                            </strong>
+                                        </div>
+                                        <div className={styles.summaryStatTotal}>
+                                            <span>Total after merge</span>
+                                            <strong>{survivorDocCount + candidateDocCount}</strong>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </div>
                 </div>
