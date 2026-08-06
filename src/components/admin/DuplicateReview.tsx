@@ -40,8 +40,8 @@ export default function DuplicateReview() {
         fetchDuplicates();
     }, []);
 
-    const fetchDuplicates = async () => {
-        setLoading(true);
+    const fetchDuplicates = async (showLoadingSpinner = true) => {
+        if (showLoadingSpinner) setLoading(true);
         try {
             const { data: { session } } = await supabase.auth.getSession();
             const res = await fetch('/api/duplicates/find', {
@@ -55,7 +55,7 @@ export default function DuplicateReview() {
         } catch (err) {
             console.error("Failed to load duplicates:", err);
         } finally {
-            setLoading(false);
+            if (showLoadingSpinner) setLoading(false);
         }
     };
 
@@ -80,12 +80,27 @@ export default function DuplicateReview() {
                 if (!res.ok) throw new Error("Merge failed");
             }
 
-            setDuplicateClients(prev => prev.filter(c => c.survivor_id !== survivorId));
+            // Immediately purge any cluster involving survivorId or any mergedId
+            const allInvolvedIds = new Set([survivorId, ...mergedIds]);
+            setDuplicateClients(prev => prev.filter(g => {
+                const groupIds = [
+                    g.survivor_id,
+                    ...(g.merged_ids || []),
+                    g.details?.survivor?.id,
+                    ...(g.details?.duplicates?.map((d: any) => d.id) || [])
+                ].filter(Boolean);
+                return !groupIds.some((id: string) => allInvolvedIds.has(id));
+            }));
+
             setSelectedClient(null);
+            setActiveMergeGroup(null);
             // Also clear manual merge state if applicable
             setManualSelectedClients([]);
             setManualMergeGroup(null);
             setManualMergeOpen(false);
+
+            // Re-fetch fresh duplicate list from backend to keep UI 100% in sync
+            await fetchDuplicates(false);
         } catch (err) {
             console.error(err);
             alert("Failed to merge client. Please see console.");
@@ -110,8 +125,21 @@ export default function DuplicateReview() {
                 if (!res.ok) throw new Error("Merge failed");
             }
 
-            setDuplicatePolicies(prev => prev.filter(p => p.survivor_id !== survivorId));
+            const allInvolvedPolicyIds = new Set([survivorId, ...mergedIds]);
+            setDuplicatePolicies(prev => prev.filter(p => {
+                const policyIds = [
+                    p.survivor_id,
+                    ...(p.merged_ids || []),
+                    p.details?.survivor?.id,
+                    ...(p.details?.duplicates?.map((d: any) => d.id) || [])
+                ].filter(Boolean);
+                return !policyIds.some((id: string) => allInvolvedPolicyIds.has(id));
+            }));
+
             setSelectedPolicy(null);
+
+            // Re-fetch fresh duplicate list from backend
+            await fetchDuplicates(false);
         } catch (err) {
             console.error(err);
             alert("Failed to merge policy. Please check console.");
