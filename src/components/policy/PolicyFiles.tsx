@@ -597,7 +597,13 @@ export function PolicyFiles({ policyId, onDecPageApproved }: PolicyFilesProps) {
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
                     onClick={() => !isUploading && fileInputRef.current?.click()}
-                    style={{ cursor: isUploading ? 'wait' : 'pointer' }}
+                    style={{
+                        cursor: isUploading ? 'wait' : 'pointer',
+                        borderColor: isDragOver
+                            ? (DOC_TYPE_LABELS[uploadDocType]?.color || 'var(--accent-primary)')
+                            : `color-mix(in srgb, ${DOC_TYPE_LABELS[uploadDocType]?.color || 'var(--accent-primary)'} 35%, var(--border-default))`,
+                        backgroundColor: `color-mix(in srgb, ${DOC_TYPE_LABELS[uploadDocType]?.color || 'var(--accent-primary)'} 4%, var(--bg-surface))`,
+                    }}
                 >
                     <input
                         type="file"
@@ -608,18 +614,28 @@ export function PolicyFiles({ policyId, onDecPageApproved }: PolicyFilesProps) {
                     />
                     {isUploading ? (
                         <>
-                            <Loader2 className={styles.uploadIcon} style={{ animation: 'spin 1s linear infinite' }} />
+                            <Loader2 className={styles.uploadIcon} style={{ animation: 'spin 1s linear infinite', color: DOC_TYPE_LABELS[uploadDocType]?.color || 'var(--accent-primary)' }} />
                             <p className={styles.dropzoneText}>Uploading {selectedTypeLabel}…</p>
                             <p className={styles.dropzoneHint}>File is being sent to the processing pipeline</p>
                         </>
                     ) : (
                         <>
-                            <Upload className={styles.uploadIcon} />
+                            <div style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+                                padding: '0.35rem 0.85rem', borderRadius: '999px', marginBottom: '0.75rem',
+                                fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                                backgroundColor: `${DOC_TYPE_LABELS[uploadDocType]?.color || '#3b82f6'}18`,
+                                color: DOC_TYPE_LABELS[uploadDocType]?.color || '#3b82f6',
+                                border: `1px solid ${DOC_TYPE_LABELS[uploadDocType]?.color || '#3b82f6'}30`,
+                            }}>
+                                <Upload size={13} />
+                                {DOC_TYPE_LABELS[uploadDocType]?.groupLabel || selectedTypeLabel}
+                            </div>
                             <p className={styles.dropzoneText}>
                                 {isDragOver ? (
                                     <strong style={{ color: DOC_TYPE_LABELS[uploadDocType]?.color || 'var(--accent-primary)' }}>Drop PDF here</strong>
                                 ) : (
-                                    <>Drop a {selectedTypeLabel} PDF here or <strong style={{ color: 'var(--accent-primary)' }}>click to browse</strong></>
+                                    <>Drop PDF here or <strong style={{ color: 'var(--accent-primary)' }}>click to browse</strong></>
                                 )}
                             </p>
                             <p className={styles.dropzoneHint}>
