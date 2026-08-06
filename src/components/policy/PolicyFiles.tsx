@@ -257,7 +257,7 @@ export function PolicyFiles({ policyId, onDecPageApproved }: PolicyFilesProps) {
     }, [hasProcessingFiles, loadFiles]);
 
     // Group files by doc_type
-    const groupOrder = ['dec_page', 'dic_dec_page', 'rce', 'invoice', 'inspection', 'endorsement', 'questionnaire'];
+    const groupOrder = ['dec_page', 'dic_dec_page', 'es_doc', 'rce', 'invoice', 'inspection', 'endorsement', 'questionnaire'];
     const grouped = new Map<string, UnifiedFile[]>();
     allFiles.forEach(f => {
         const key = f.doc_type;
@@ -574,7 +574,7 @@ export function PolicyFiles({ policyId, onDecPageApproved }: PolicyFilesProps) {
                         {showTypeSelector && (
                             <div className={styles.typeDropdown}>
                                 {Object.entries(DOC_TYPE_LABELS).filter(([key]) =>
-                                    ['dec_page', 'rce', 'dic_dec_page'].includes(key)
+                                    ['dec_page', 'rce', 'dic_dec_page', 'es_doc'].includes(key)
                                 ).map(([key, { label, color }]) => (
                                     <button
                                         key={key}
