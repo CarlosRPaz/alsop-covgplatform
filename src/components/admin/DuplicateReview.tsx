@@ -169,7 +169,7 @@ export default function DuplicateReview() {
             const selectFields = `id, named_insured, email, phone, mailing_address_raw, mailing_address_norm, created_at,
                 policies(id, policy_number, carrier_name, property_address_raw, status, created_at,
                     policy_terms(id, effective_date, expiration_date, annual_premium, is_current)),
-                dec_pages(id)`;
+                dec_pages(id, policy_number, created_at, submission_id, dec_page_submissions(file_name))`;
 
             const results = await Promise.all(
                 manualSelectedClients.map((c: any) =>

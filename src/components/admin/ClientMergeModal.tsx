@@ -27,6 +27,14 @@ interface PolicyBrief {
     policy_terms?: PolicyTermBrief[];
 }
 
+interface DecPageBrief {
+    id: string;
+    policy_number?: string;
+    created_at?: string;
+    submission_id?: string;
+    dec_page_submissions?: { file_name?: string } | { file_name?: string }[];
+}
+
 interface ClientData {
     id: string;
     named_insured: string;
@@ -35,7 +43,7 @@ interface ClientData {
     mailing_address_raw?: string;
     mailing_address_norm?: string;
     policies?: PolicyBrief[];
-    dec_pages?: any[];
+    dec_pages?: DecPageBrief[];
     created_at?: string;
 }
 
@@ -382,6 +390,68 @@ export default function ClientMergeModal({ survivor: initialSurvivor, candidates
                                 </>
                             )}
                         </div>
+
+                        {/* Document Inventory */}
+                        <div className={styles.policyInventory} style={{ marginTop: '0.75rem' }}>
+                            <div className={styles.policyInventoryHeader}>
+                                <FileStack size={14} />
+                                <span>Document Inventory</span>
+                                <span className={styles.policyChipCount}>{decPages.length}</span>
+                            </div>
+
+                            {decPages.length === 0 ? (
+                                <div className={styles.noPolicies}>
+                                    No documents linked to this client record
+                                </div>
+                            ) : (
+                                <>
+                                    {isSurvivor ? (
+                                        <div className={styles.policyKeptLabel}>
+                                            <ShieldCheck size={11} />
+                                            These documents belong to the survivor — they will always be kept
+                                        </div>
+                                    ) : (
+                                        <div className={styles.policyKeptLabel} style={{ background: 'rgba(16, 185, 129, 0.03)' }}>
+                                            <Merge size={11} />
+                                            These documents will automatically transfer to the survivor after merge
+                                        </div>
+                                    )}
+                                    <div className={styles.policyRows}>
+                                        {decPages.map(dp => {
+                                            const sub = dp.dec_page_submissions;
+                                            const fileName = Array.isArray(sub) ? sub[0]?.file_name : sub?.file_name;
+                                            return (
+                                                <div key={dp.id} className={styles.policyRow}>
+                                                    <div className={styles.survivorPolicyIcon} style={{ color: 'var(--text-muted)' }}>
+                                                        <FileStack size={14} />
+                                                    </div>
+                                                    <div className={styles.policyRowContent}>
+                                                        <div className={styles.policyRowTop}>
+                                                            <span className={styles.policyNum}>
+                                                                {fileName || 'Uploaded document'}
+                                                            </span>
+                                                            {dp.policy_number && (
+                                                                <span className={styles.policyCarrier}>
+                                                                    Policy #{dp.policy_number}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {dp.created_at && (
+                                                            <div className={styles.policyTermInfo}>
+                                                                <span>
+                                                                    <Calendar size={11} />{' '}
+                                                                    Uploaded {new Date(dp.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
@@ -459,6 +529,25 @@ export default function ClientMergeModal({ survivor: initialSurvivor, candidates
                                 <div className={styles.summaryStatTotal}>
                                     <span>Total after merge</span>
                                     <strong>{totalPoliciesAfterMerge}</strong>
+                                </div>
+                            </div>
+
+                            {/* Document consolidation summary */}
+                            <div className={styles.summaryBlock}>
+                                <div className={styles.summaryBlockLabel}>Document Consolidation</div>
+                                <div className={styles.summaryStatRow}>
+                                    <span>Survivor documents</span>
+                                    <strong>{(survivor.dec_pages || []).length}</strong>
+                                </div>
+                                <div className={styles.summaryStatRow}>
+                                    <span>Candidate documents to transfer</span>
+                                    <strong className={candidates.reduce((sum, c) => sum + (c.dec_pages || []).length, 0) > 0 ? styles.accentGreen : ''}>
+                                        {candidates.reduce((sum, c) => sum + (c.dec_pages || []).length, 0)}
+                                    </strong>
+                                </div>
+                                <div className={styles.summaryStatTotal}>
+                                    <span>Total after merge</span>
+                                    <strong>{(survivor.dec_pages || []).length + candidates.reduce((sum, c) => sum + (c.dec_pages || []).length, 0)}</strong>
                                 </div>
                             </div>
                         </div>
