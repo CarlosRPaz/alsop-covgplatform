@@ -108,7 +108,7 @@ export const DEFAULT_TEMPLATES: SystemEmailTemplate[] = [
         subjectTemplate: 'Your California Fair Plan Renewal Is Approaching — Policy {{policy_number}}',
         draftBodyTemplate: `Hi {{client_name}},
 
-Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your California Fair Plan policy ({{policy_number}}) for {{property_address}} is coming up for renewal on {{expiration_date}}, now is a great time to take a closer look.
+Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your California Fair Plan policy ({{policy_number}}) is coming up for renewal on {{expiration_date}}, now is a great time to take a closer look.
 
 As part of our renewal review process, we've reviewed the coverage on your current policy and prepared updated materials for your consideration:
 
@@ -130,7 +130,7 @@ Your time is certainly appreciated and I look forward to speaking with you soon!
 Alsop and Associates Insurance Agency`,
         copilotPromptTemplate: `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
 
-TASK: Draft a professional, warm, permission-based renewal review email for California Fair Plan policyholder {{client_name}} regarding policy {{policy_number}} at {{property_address}}, expiring on {{expiration_date}}.
+TASK: Draft a professional, warm, permission-based renewal review email for California Fair Plan policyholder {{client_name}} regarding policy {{policy_number}}, expiring on {{expiration_date}}.
 
 CLIENT & POLICY DETAILS:
 - Client Name: {{client_name}}
@@ -150,7 +150,7 @@ Subject: Your California Fair Plan Renewal Is Approaching — Policy {{policy_nu
 
 Hi {{client_name}},
 
-Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your California Fair Plan policy ({{policy_number}}) for {{property_address}} is coming up for renewal on {{expiration_date}}, now is a great time to review your coverage.
+Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your California Fair Plan policy ({{policy_number}}) is coming up for renewal on {{expiration_date}}, now is a great time to review your coverage.
 
 As part of our annual review process, we have evaluated your current policy limits and prepared updated materials for your consideration:
 
@@ -178,7 +178,8 @@ STRICT AGENCY RULES & GUARDRAILS (YOU MUST FOLLOW ALL OF THESE):
 4. CLIENT RESPONSIBILITY DISCLAIMER: Include the statement: "Please remember that final coverage selections and decisions remain the responsibility of the policyholder."
 5. CONCISENESS & RESPECT FOR TIME: Keep the email concise — under 200 words — and reassure the client the review takes only a few minutes.
 6. PREPARATION CHECKLIST: Encourage the client to have handy any questions, concerns, or feedback they would like to discuss. Do NOT ask for mortgage statements or other policy dec pages.
-7. OUTPUT FORMAT: Output ONLY the Subject line and the complete email body ready to send. Do NOT include conversational preamble or surrounding code block backticks.`,
+7. NO PHYSICAL ADDRESS IN EMAIL TEXT: Do NOT include the physical property address anywhere in the email subject line or body text. Identify the policy strictly by policy number.
+8. OUTPUT FORMAT: Output ONLY the Subject line and the complete email body ready to send. Do NOT include conversational preamble or surrounding code block backticks.`,
         rules: [
             ...STANDARD_RULES,
             {

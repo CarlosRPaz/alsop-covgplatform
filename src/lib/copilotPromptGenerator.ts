@@ -87,7 +87,9 @@ STRICT AGENCY RULES & GUARDRAILS (YOU MUST FOLLOW ALL OF THESE):
 
 7. PREPARATION CHECKLIST: Encourage the client to have handy any questions, concerns, or feedback they would like to discuss during the review. Do NOT ask for mortgage statements or other policy dec pages.
 
-8. OUTPUT FORMAT: Output ONLY the Subject line and the complete email body ready to send. Do NOT include conversational preambles, introductory filler ("Here is the email draft:"), or surrounding code block backticks.`.trim();
+8. NO PHYSICAL ADDRESS IN EMAIL TEXT: Do NOT include the physical property address anywhere in the email subject line or body text. Identify the policy strictly by policy number.
+
+9. OUTPUT FORMAT: Output ONLY the Subject line and the complete email body ready to send. Do NOT include conversational preambles, introductory filler ("Here is the email draft:"), or surrounding code block backticks.`.trim();
 
 // ---------------------------------------------------------------------------
 // Templates
@@ -149,7 +151,7 @@ Subject: Your California Fair Plan Renewal Is Approaching — Policy ${ctx.polic
 
 Hi ${ctx.clientName || 'Valued Client'},
 
-Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your California Fair Plan policy (${ctx.policyNumber}) for ${ctx.propertyAddress} is coming up for renewal on ${ctx.expirationDate || 'your renewal date'}, now is a great time to review your coverage.
+Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your California Fair Plan policy (${ctx.policyNumber}) is coming up for renewal on ${ctx.expirationDate || 'your renewal date'}, now is a great time to review your coverage.
 
 As part of our annual review process, we have prepared updated materials for your consideration:
 
@@ -191,7 +193,7 @@ Subject: Important Renewal Review Notice — Policy ${ctx.policyNumber}
 
 Hi ${ctx.clientName || 'Valued Client'},
 
-Your California Fair Plan policy (${ctx.policyNumber}) for ${ctx.propertyAddress} is approaching its upcoming renewal on ${ctx.expirationDate || 'your renewal date'}. While your mortgage lender (${ctx.mortgageeName || 'your mortgage escrow account'}) handles premium payments, conducting an annual review ensures your coverage limits align with current rebuilding costs.
+Your California Fair Plan policy (${ctx.policyNumber}) is approaching its upcoming renewal on ${ctx.expirationDate || 'your renewal date'}. While your mortgage lender (${ctx.mortgageeName || 'your mortgage escrow account'}) handles premium payments, conducting an annual review ensures your coverage limits align with current rebuilding costs.
 
 As part of our annual review process, we have prepared updated materials for your consideration:
 
