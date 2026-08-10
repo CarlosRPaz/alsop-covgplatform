@@ -104,28 +104,24 @@ export const DEFAULT_TEMPLATES: SystemEmailTemplate[] = [
         id: 'renewal_review',
         name: 'Renewal Review Notice',
         category: 'renewal',
-        description: 'Notice of upcoming renewal with attached AI report and RCE, asking client to schedule an appointment.',
+        description: 'Notice of upcoming renewal with attached Coverage Report and RCE, asking client to schedule an appointment.',
         subjectTemplate: 'Your California Fair Plan Renewal Is Approaching — Policy {{policy_number}}',
-        draftBodyTemplate: `Hi {{first_name}},
+        draftBodyTemplate: `Hi {{client_name}},
 
 Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your California Fair Plan policy ({{policy_number}}) for {{property_address}} is coming up for renewal on {{expiration_date}}, now is a great time to take a closer look.
 
 As part of our renewal review process, we've reviewed the coverage on your current policy and prepared updated materials for your consideration:
 
-{{report_url}}
-{{rce_download_url}}
+• Coverage Report: {{report_url}}
+• Updated Replacement Cost Estimate: {{rce_download_url}}
 
 The review may highlight differences between your current coverage and updated replacement cost information or available options. Any changes would be recommendations only — we always request your permission before making updates.
 
-To make the most of our conversation, here are a few things you may want to have handy:
-
-• Current mortgage information (lender name, loan number) — usually found on your mortgage statement
-• Declaration pages for any non-Allstate policies you'd like to review
-• Questions, concerns, or feedback you'd like to share
+To make the most of our conversation, please have handy any questions, concerns, or feedback you'd like to share.
 
 I won't take too much of your time. In just a few minutes we can make sure your renewal is on track and your coverage continues to provide the protection that's right for you.
 
-To speak with a licensed agent, please call our main office at (800) 555-0100. We're happy to help!
+To speak with a licensed agent, please call our main office at (909) 626-5000. We're happy to help!
 
 Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
 
@@ -144,7 +140,7 @@ CLIENT & POLICY DETAILS:
 - Effective Date: {{effective_date}}
 - Annual Premium: {{annual_premium}}
 - Payment Method: {{payment_method}}
-- AI Coverage Report: {{report_url}}
+- Coverage Report: {{report_url}}
 - Replacement Cost Estimate (RCE): {{rce_download_url}}
 - Meeting Link: {{meeting_url}}
 
@@ -152,52 +148,49 @@ REFERENCE EMAIL BLUEPRINT (Match structure, tone, and flow closely):
 ---
 Subject: Your California Fair Plan Renewal Is Approaching — Policy {{policy_number}}
 
-Hi {{first_name}},
+Hi {{client_name}},
 
 Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your California Fair Plan policy ({{policy_number}}) for {{property_address}} is coming up for renewal on {{expiration_date}}, now is a great time to review your coverage.
 
 As part of our annual review process, we have evaluated your current policy limits and prepared updated materials for your consideration:
 
-• AI Coverage Report: {{report_url}}
+• Coverage Report: {{report_url}}
 • Updated Replacement Cost Estimate: {{rce_download_url}}
 
 The review may highlight differences between your current coverage and updated replacement cost information. Any changes are recommendations only — we always request your permission before making updates to your policy.
 
-To make the most of our review, here are a few items you may want to have handy:
-• Current mortgage statement (lender name and loan number)
-• Declaration pages for any non-Allstate policies you'd like us to review
-• Any questions, concerns, or feedback you have
+To make the most of our review, please have handy any questions, concerns, or feedback you'd like to share.
 
-We won't take too much of your time. To speak with a licensed agent, please call our main office at (800) 555-0100 or schedule a review online at {{meeting_url}}.
+We won't take too much of your time. To speak with a licensed agent, please call our main office at (909) 626-5000 or schedule a review online at {{meeting_url}}.
 
 Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
 
 Thank you for your time and trust,
 
 Alsop and Associates Insurance Agency
-(800) 555-0100 | support@coveragechecknow.com
+(909) 626-5000 | support@coveragechecknow.com
 ---
 
 STRICT AGENCY RULES & GUARDRAILS (YOU MUST FOLLOW ALL OF THESE):
-1. AGENCY IDENTITY & SIGN-OFF: Do NOT include a personal agent name or introduction. Sign off ONLY as "Alsop and Associates Insurance Agency" with phone (800) 555-0100 and support@coveragechecknow.com.
+1. AGENCY IDENTITY & SIGN-OFF: Do NOT include a personal agent name or introduction. Sign off ONLY as "Alsop and Associates Insurance Agency" with phone (909) 626-5000 and support@coveragechecknow.com.
 2. PERMISSION-BASED FRAMING: Frame all coverage recommendations using permission-requesting language. Always request client permission before suggesting changes.
 3. NON-JUDGMENTAL COMPARATIVE TONE (STRICT BAN): NEVER use words like "adequate", "inadequate", "deficient", "underinsured", "poor", or "lacking". Describe coverage neutrally by comparing current limits to updated replacement cost estimates.
 4. CLIENT RESPONSIBILITY DISCLAIMER: Include the statement: "Please remember that final coverage selections and decisions remain the responsibility of the policyholder."
 5. CONCISENESS & RESPECT FOR TIME: Keep the email concise — under 200 words — and reassure the client the review takes only a few minutes.
-6. PREPARATION CHECKLIST: Include the "what to have handy" checklist (mortgage statement, non-Allstate dec pages, questions).
+6. PREPARATION CHECKLIST: Encourage the client to have handy any questions, concerns, or feedback they would like to discuss. Do NOT ask for mortgage statements or other policy dec pages.
 7. OUTPUT FORMAT: Output ONLY the Subject line and the complete email body ready to send. Do NOT include conversational preamble or surrounding code block backticks.`,
         rules: [
             ...STANDARD_RULES,
             {
                 id: 'include_office_phone',
                 label: 'Include Office Phone Number',
-                instruction: 'Direct clients to call the main office at (800) 555-0100 to speak with a licensed agent.',
+                instruction: 'Direct clients to call the main office at (909) 626-5000 to speak with a licensed agent.',
                 enabled: true,
             },
             {
                 id: 'include_preparation_checklist',
                 label: 'Include Preparation Checklist',
-                instruction: 'Include a short list of items the client should have ready for the review: current mortgage info, other policy dec pages, and any questions or feedback.',
+                instruction: 'Encourage the client to have ready any questions, concerns, or feedback for the review.',
                 enabled: true,
             },
         ],

@@ -60,7 +60,7 @@ function formatContextBlock(ctx: CoPilotPromptContext): string {
     if (ctx.paymentMethod) lines.push(`- Payment Method: ${ctx.paymentMethod}`);
     if (ctx.mortgageeName) lines.push(`- Mortgagee / Lender: ${ctx.mortgageeName}`);
     if (ctx.carrierStatus) lines.push(`- Policy Status: ${ctx.carrierStatus}`);
-    if (ctx.reportUrl) lines.push(`- AI Coverage Report URL: ${ctx.reportUrl}`);
+    if (ctx.reportUrl) lines.push(`- Coverage Report URL: ${ctx.reportUrl}`);
     if (ctx.rceDownloadUrl) lines.push(`- RCE Estimate PDF URL: ${ctx.rceDownloadUrl}`);
     if (ctx.meetingUrl) lines.push(`- Meeting Scheduling Link: ${ctx.meetingUrl}`);
     return lines.join('\n');
@@ -70,7 +70,7 @@ const MASTER_GUARDRAIL_RULES = `
 STRICT AGENCY RULES & GUARDRAILS (YOU MUST FOLLOW ALL OF THESE):
 1. AGENCY IDENTITY & SIGN-OFF: Do NOT introduce a named individual agent or share personal stories. Sign off ONLY as:
    Alsop and Associates Insurance Agency
-   (800) 555-0100 | support@coveragechecknow.com
+   (909) 626-5000 | support@coveragechecknow.com
 
 2. PERMISSION-BASED FRAMING: Frame all coverage increases or adjustments as recommendations only. Explicitly state that we request client permission before making any changes to their policy.
 
@@ -83,12 +83,9 @@ STRICT AGENCY RULES & GUARDRAILS (YOU MUST FOLLOW ALL OF THESE):
 
 5. CONCISENESS & RESPECT FOR TIME: Keep the entire email concise (under 200 words). Reassure the client that an annual review takes only a few minutes.
 
-6. OFFICE PHONE & CONTACT: Direct the client to call our main office at (800) 555-0100 to speak with a licensed agent or use the meeting link if provided.
+6. OFFICE PHONE & CONTACT: Direct the client to call our main office at (909) 626-5000 to speak with a licensed agent or use the meeting link if provided.
 
-7. PREPARATION CHECKLIST: Include a short "what to have handy" bulleted list:
-   - Current mortgage statement / lender information
-   - Declaration pages for any non-Allstate policies they would like reviewed
-   - Any questions, concerns, or feedback
+7. PREPARATION CHECKLIST: Encourage the client to have handy any questions, concerns, or feedback they would like to discuss during the review. Do NOT ask for mortgage statements or other policy dec pages.
 
 8. OUTPUT FORMAT: Output ONLY the Subject line and the complete email body ready to send. Do NOT include conversational preambles, introductory filler ("Here is the email draft:"), or surrounding code block backticks.`.trim();
 
@@ -154,24 +151,21 @@ Hi ${ctx.clientName || 'Valued Client'},
 
 Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your California Fair Plan policy (${ctx.policyNumber}) for ${ctx.propertyAddress} is coming up for renewal on ${ctx.expirationDate || 'your renewal date'}, now is a great time to review your coverage.
 
-As part of our annual review process, we have evaluated your current policy limits and prepared updated materials for your consideration:
+As part of our annual review process, we have prepared updated materials for your consideration:
 
-${ctx.reportUrl ? `• AI Coverage Report: ${ctx.reportUrl}\n` : ''}${ctx.rceDownloadUrl ? `• Updated Replacement Cost Estimate: ${ctx.rceDownloadUrl}\n` : ''}
+${ctx.reportUrl ? `• Coverage Report: ${ctx.reportUrl}\n` : ''}${ctx.rceDownloadUrl ? `• Updated Replacement Cost Estimate: ${ctx.rceDownloadUrl}\n` : ''}
 The review may highlight differences between your current coverage and updated replacement cost information. Any changes are recommendations only — we always request your permission before making updates to your policy.
 
-To make the most of our review, here are a few items you may want to have handy:
-• Current mortgage statement (lender name and loan number)
-• Declaration pages for any non-Allstate policies you'd like us to review
-• Any questions, concerns, or feedback you have
+To make the most of our review, please have handy any questions, concerns, or feedback you would like to discuss.
 
-We won't take too much of your time. To speak with a licensed agent, please call our main office at (800) 555-0100${ctx.meetingUrl ? ` or schedule a review online at ${ctx.meetingUrl}` : ''}.
+We won't take too much of your time. To speak with a licensed agent, please call our main office at (909) 626-5000${ctx.meetingUrl ? ` or schedule a review online at ${ctx.meetingUrl}` : ''}.
 
 Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
 
 Thank you for your time and trust,
 
 Alsop and Associates Insurance Agency
-(800) 555-0100 | support@coveragechecknow.com
+(909) 626-5000 | support@coveragechecknow.com
 ---
 
 ${MASTER_GUARDRAIL_RULES}`,
@@ -199,24 +193,21 @@ Hi ${ctx.clientName || 'Valued Client'},
 
 Your California Fair Plan policy (${ctx.policyNumber}) for ${ctx.propertyAddress} is approaching its upcoming renewal on ${ctx.expirationDate || 'your renewal date'}. While your mortgage lender (${ctx.mortgageeName || 'your mortgage escrow account'}) handles premium payments, conducting an annual review ensures your coverage limits align with current rebuilding costs.
 
-As part of our annual review process, we have prepared updated materials for your property:
+As part of our annual review process, we have prepared updated materials for your consideration:
 
-${ctx.reportUrl ? `• AI Coverage Report: ${ctx.reportUrl}\n` : ''}${ctx.rceDownloadUrl ? `• Updated Replacement Cost Estimate: ${ctx.rceDownloadUrl}\n` : ''}
+${ctx.reportUrl ? `• Coverage Report: ${ctx.reportUrl}\n` : ''}${ctx.rceDownloadUrl ? `• Updated Replacement Cost Estimate: ${ctx.rceDownloadUrl}\n` : ''}
 Any suggested adjustments are recommendations only — we always request your permission before making any changes to your policy.
 
-To assist with our review, please have handy:
-• Current mortgage statement / lender details
-• Declaration pages for any non-Allstate policies
-• Any questions or feedback you'd like to share
+To assist with our review, please have handy any questions, concerns, or feedback you would like to share.
 
-We respect your time and this quick review will ensure your renewal stays on track. Call our office at (800) 555-0100${ctx.meetingUrl ? ` or schedule a review at ${ctx.meetingUrl}` : ''}.
+We respect your time and this quick review will ensure your renewal stays on track. Call our office at (909) 626-5000${ctx.meetingUrl ? ` or schedule a review at ${ctx.meetingUrl}` : ''}.
 
 Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
 
 Thank you for your time and continued trust,
 
 Alsop and Associates Insurance Agency
-(800) 555-0100 | support@coveragechecknow.com
+(909) 626-5000 | support@coveragechecknow.com
 ---
 
 ${MASTER_GUARDRAIL_RULES}`,
