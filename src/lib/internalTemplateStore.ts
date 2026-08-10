@@ -108,82 +108,90 @@ export const DEFAULT_TEMPLATES: SystemEmailTemplate[] = [
         subjectTemplate: 'Your California Fair Plan Renewal Is Approaching — Policy {{policy_number}}',
         draftBodyTemplate: `Hi {{first_name}},
 
-Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and possibly save money? Since your California Fair Plan policy ({{policy_number}}) for {{property_address}} is coming up for renewal on {{expiration_date}}, now is a great time to take a closer look.
+Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your California Fair Plan policy ({{policy_number}}) for {{property_address}} is coming up for renewal on {{expiration_date}}, now is a great time to take a closer look.
 
 As part of our renewal review process, we've reviewed the coverage on your current policy and prepared updated materials for your consideration:
 
-• AI Coverage Report: {{report_url}}
-• Updated Replacement Cost Estimate: {{rce_download_url}}
+{{report_url}}
+{{rce_download_url}}
 
 The review may highlight differences between your current coverage and updated replacement cost information or available options. Any changes would be recommendations only — we always request your permission before making updates.
 
 To make the most of our conversation, here are a few things you may want to have handy:
 
 • Current mortgage information (lender name, loan number) — usually found on your mortgage statement
-• Declaration pages for any other policies outside of Allstate you'd like to review
+• Declaration pages for any non-Allstate policies you'd like to review
 • Questions, concerns, or feedback you'd like to share
 
 I won't take too much of your time. In just a few minutes we can make sure your renewal is on track and your coverage continues to provide the protection that's right for you.
 
-To speak with a licensed agent, please call our main office at (909) 626-5000. We're happy to help!
+To speak with a licensed agent, please call our main office at (800) 555-0100. We're happy to help!
 
 Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
 
 Your time is certainly appreciated and I look forward to speaking with you soon!
 
 Alsop and Associates Insurance Agency`,
-        copilotPromptTemplate: `You are writing a renewal review email on behalf of Alsop and Associates Insurance Agency for their client {{client_name}} regarding California Fair Plan policy {{policy_number}} at {{property_address}}, expiring on {{expiration_date}}.
+        copilotPromptTemplate: `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
 
-Use the following email as a reference template — match its structure, tone, and flow closely:
+TASK: Draft a professional, warm, permission-based renewal review email for California Fair Plan policyholder {{client_name}} regarding policy {{policy_number}} at {{property_address}}, expiring on {{expiration_date}}.
 
+CLIENT & POLICY DETAILS:
+- Client Name: {{client_name}}
+- Policy Number: {{policy_number}}
+- Insured Property Address: {{property_address}}
+- Expiration Date: {{expiration_date}}
+- Effective Date: {{effective_date}}
+- Annual Premium: {{annual_premium}}
+- Payment Method: {{payment_method}}
+- AI Coverage Report: {{report_url}}
+- Replacement Cost Estimate (RCE): {{rce_download_url}}
+- Meeting Link: {{meeting_url}}
+
+REFERENCE EMAIL BLUEPRINT (Match structure, tone, and flow closely):
 ---
-Hi [First Name],
+Subject: Your California Fair Plan Renewal Is Approaching — Policy {{policy_number}}
 
-Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and possibly save money? Since your California Fair Plan policy ([Policy Number]) for [Property Address] is coming up for renewal on [Expiration Date], now is a great time to take a closer look.
+Hi {{first_name}},
 
-As part of our renewal review process, we've reviewed the coverage on your current policy and prepared updated materials for your consideration:
+Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your California Fair Plan policy ({{policy_number}}) for {{property_address}} is coming up for renewal on {{expiration_date}}, now is a great time to review your coverage.
 
-• AI Coverage Report: [Report URL]
-• Updated Replacement Cost Estimate: [RCE URL]
+As part of our annual review process, we have evaluated your current policy limits and prepared updated materials for your consideration:
 
-The review may highlight differences between your current coverage and updated replacement cost information or available options. Any changes would be recommendations only — we always request your permission before making updates.
+• AI Coverage Report: {{report_url}}
+• Updated Replacement Cost Estimate: {{rce_download_url}}
 
-To make the most of our conversation, here are a few things you may want to have handy:
+The review may highlight differences between your current coverage and updated replacement cost information. Any changes are recommendations only — we always request your permission before making updates to your policy.
 
-• Current mortgage information (lender name, loan number) — usually found on your mortgage statement
-• Declaration pages for any other policies outside of Allstate you'd like to review
-• Questions, concerns, or feedback you'd like to share
+To make the most of our review, here are a few items you may want to have handy:
+• Current mortgage statement (lender name and loan number)
+• Declaration pages for any non-Allstate policies you'd like us to review
+• Any questions, concerns, or feedback you have
 
-I won't take too much of your time. In just a few minutes we can make sure your renewal is on track and your coverage continues to provide the protection that's right for you.
-
-To speak with a licensed agent, please call our main office at (909) 626-5000. We're happy to help!
+We won't take too much of your time. To speak with a licensed agent, please call our main office at (800) 555-0100 or schedule a review online at {{meeting_url}}.
 
 Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
 
-Your time is certainly appreciated and I look forward to speaking with you soon!
+Thank you for your time and trust,
 
 Alsop and Associates Insurance Agency
+(800) 555-0100 | support@coveragechecknow.com
 ---
 
-STRICT RULES — you must follow all of these:
-1. Do NOT include a personal agent name or introduction. Sign off ONLY as "Alsop and Associates Insurance Agency".
-2. Frame all coverage recommendations using permission-based language. Always request client permission before suggesting changes.
-3. NEVER use the words "adequate", "inadequate", or "deficient". Describe coverage neutrally by comparing current limits to available options.
-4. State that final coverage selections and decisions remain the responsibility of the policyholder.
-5. Keep the email concise — under 200 words.
-6. Include the office phone number: (909) 626-5000.
-7. Include the "what to have handy" preparation checklist: current mortgage info, declaration pages for other policies, and questions/concerns/feedback.
-8. Reference the AI Coverage Report using {{report_url}} and the Replacement Cost Estimate using {{rce_download_url}}.
-9. Keep the tone warm, professional, and conversational — similar to how a trusted insurance advisor would speak to a long-time client.
-10. Be time-respectful — reassure the client this process won't take long.
-
-Generate the email now, filling in the client's actual details.`,
+STRICT AGENCY RULES & GUARDRAILS (YOU MUST FOLLOW ALL OF THESE):
+1. AGENCY IDENTITY & SIGN-OFF: Do NOT include a personal agent name or introduction. Sign off ONLY as "Alsop and Associates Insurance Agency" with phone (800) 555-0100 and support@coveragechecknow.com.
+2. PERMISSION-BASED FRAMING: Frame all coverage recommendations using permission-requesting language. Always request client permission before suggesting changes.
+3. NON-JUDGMENTAL COMPARATIVE TONE (STRICT BAN): NEVER use words like "adequate", "inadequate", "deficient", "underinsured", "poor", or "lacking". Describe coverage neutrally by comparing current limits to updated replacement cost estimates.
+4. CLIENT RESPONSIBILITY DISCLAIMER: Include the statement: "Please remember that final coverage selections and decisions remain the responsibility of the policyholder."
+5. CONCISENESS & RESPECT FOR TIME: Keep the email concise — under 200 words — and reassure the client the review takes only a few minutes.
+6. PREPARATION CHECKLIST: Include the "what to have handy" checklist (mortgage statement, non-Allstate dec pages, questions).
+7. OUTPUT FORMAT: Output ONLY the Subject line and the complete email body ready to send. Do NOT include conversational preamble or surrounding code block backticks.`,
         rules: [
             ...STANDARD_RULES,
             {
                 id: 'include_office_phone',
                 label: 'Include Office Phone Number',
-                instruction: 'Direct clients to call the main office at (909) 626-5000 to speak with a licensed agent.',
+                instruction: 'Direct clients to call the main office at (800) 555-0100 to speak with a licensed agent.',
                 enabled: true,
             },
             {
@@ -216,7 +224,23 @@ Final coverage selections and decisions remain the responsibility of the policyh
 
 Thank you,
 Alsop and Associates Insurance Agency`,
-        copilotPromptTemplate: `Create a customized welcome email introducing {{client_name}} to CoverageCheckNow for {{property_address}}. Keep the tone warm, professional, and concise. Explain that the portal securely houses property details, coverage insights, AI-supported review information, and Replacement Cost Estimates. Direct the client to access the portal using {{report_url}}. Include permission-based language stating that any coverage updates are recommendations only and require client approval before changes are made. Include the disclaimer that final coverage decisions remain the policyholder’s responsibility, and optionally invite them to schedule a meeting using {{meeting_url}}.`,
+        copilotPromptTemplate: `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
+
+TASK: Draft a customized welcome email introducing {{client_name}} to CoverageCheckNow for {{property_address}}.
+
+CLIENT & POLICY DETAILS:
+- Client Name: {{client_name}}
+- Property Address: {{property_address}}
+- Portal Access Link: {{report_url}}
+- Meeting Booking Link: {{meeting_url}}
+
+EMAIL INSTRUCTIONS:
+Keep the tone warm, professional, and concise. Explain that the portal securely houses property details, coverage insights, AI-supported review information, and Replacement Cost Estimates. Direct the client to access the portal using {{report_url}}. Include permission-based language stating that any coverage updates are recommendations only and require client approval before changes are made. Include the disclaimer that final coverage decisions remain the policyholder’s responsibility, and invite them to schedule a meeting using {{meeting_url}}.
+
+STRICT AGENCY RULES:
+1. Sign off as "Alsop and Associates Insurance Agency".
+2. Keep under 200 words.
+3. Output ONLY the Subject line and email body ready to send.`,
         rules: STANDARD_RULES,
         variables: ['{{first_name}}', '{{client_name}}', '{{policy_number}}', '{{property_address}}', '{{report_url}}', '{{meeting_url}}'],
         isSystemDefault: true,
@@ -285,10 +309,10 @@ export function resetInternalTemplates(): void {
 /** Interpolate variable tags in text */
 export function interpolateText(text: string, ctx: TemplateContext): string {
     if (!text) return '';
-    const firstName = (ctx.clientName || '').split(' ')[0] || '';
-    const reportLink = ctx.reportUrl ? `View Full Coverage Report: ${ctx.reportUrl}` : '';
-    const rceLink = ctx.rceDownloadUrl ? `Download RCE PDF: ${ctx.rceDownloadUrl}` : '';
-    const meetingLink = ctx.meetingUrl || 'https://outlook.office365.com/owa/calendar/alsopagency/bookings/';
+    const firstName = ctx.clientName || '';
+    const reportLink = ctx.reportUrl || '';
+    const rceLink = ctx.rceDownloadUrl || '';
+    const meetingLink = ctx.meetingUrl || '';
 
     const replacements: Record<string, string> = {
         '{{client_name}}': ctx.clientName || '',
@@ -332,16 +356,14 @@ export function renderInternalCopilotPrompt(template: SystemEmailTemplate, ctx: 
     const interpolatedPrompt = interpolateText(template.copilotPromptTemplate, ctx);
     const activeRules = template.rules.filter(r => r.enabled);
 
-    const rulesBlock = activeRules.map(r => `- ${r.label}: ${r.instruction}`).join('\n');
+    // Only append rules if they are not already integrated into the template
+    const customRules = activeRules.filter(r => !interpolatedPrompt.toLowerCase().includes(r.label.toLowerCase()));
+    
+    if (customRules.length > 0) {
+        const rulesBlock = customRules.map(r => `- ${r.label}: ${r.instruction}`).join('\n');
+        return `${interpolatedPrompt}\n\nAdditional Agency Custom Rules:\n${rulesBlock}`;
+    }
 
-    return `Draft a professional email for an insurance client using the guidelines below.
-
-${interpolatedPrompt}
-
-Active Agency Rules & Guardrails:
-${rulesBlock}
-
-Requirements:
-- Written as an insurance agent from Alsop and Associates Insurance Agency.
-- Keep output clean, professional, and client-ready.`.trim();
+    return interpolatedPrompt.trim();
 }
+

@@ -50,30 +50,47 @@ export interface PromptTemplate {
 
 function formatContextBlock(ctx: CoPilotPromptContext): string {
     const lines = [
-        `- Name: ${ctx.clientName}`,
+        `- Named Insured / Client Name: ${ctx.clientName}`,
         `- Policy Number: ${ctx.policyNumber}`,
         `- Property Address: ${ctx.propertyAddress}`,
     ];
-    if (ctx.expirationDate) lines.push(`- Expiration Date: ${ctx.expirationDate}`);
-    if (ctx.effectiveDate) lines.push(`- Effective Date: ${ctx.effectiveDate}`);
+    if (ctx.expirationDate) lines.push(`- Policy Expiration Date: ${ctx.expirationDate}`);
+    if (ctx.effectiveDate) lines.push(`- Policy Effective Date: ${ctx.effectiveDate}`);
     if (ctx.annualPremium) lines.push(`- Annual Premium: ${ctx.annualPremium}`);
     if (ctx.paymentMethod) lines.push(`- Payment Method: ${ctx.paymentMethod}`);
-    if (ctx.mortgageeName) lines.push(`- Mortgagee: ${ctx.mortgageeName}`);
+    if (ctx.mortgageeName) lines.push(`- Mortgagee / Lender: ${ctx.mortgageeName}`);
     if (ctx.carrierStatus) lines.push(`- Policy Status: ${ctx.carrierStatus}`);
+    if (ctx.reportUrl) lines.push(`- AI Coverage Report URL: ${ctx.reportUrl}`);
+    if (ctx.rceDownloadUrl) lines.push(`- RCE Estimate PDF URL: ${ctx.rceDownloadUrl}`);
+    if (ctx.meetingUrl) lines.push(`- Meeting Scheduling Link: ${ctx.meetingUrl}`);
     return lines.join('\n');
 }
 
-const TONE_AND_RULES = `
-Tone & Guardrails:
-- Tone: Professional, warm, permission-requesting, and advisory. Written as an insurance agent from Alsop and Associates Insurance Agency.
-- Framing: Explain where we identified coverage differences or missing options compared to their previous policy. Request permission to make recommended coverage adjustments where appropriate.
-- Disclaimer: Clarify that final coverage selection and decisions rest with the policyholder.
-- Requirements:
-  - Address the client by first name
-  - Mention the specific policy number and property address
-  - Include a clear call-to-action (e.g. reply to confirm permission or schedule a review)
-  - Keep under 200 words
-  - Sign off with agent name and "Alsop and Associates Insurance Agency"`.trim();
+const MASTER_GUARDRAIL_RULES = `
+STRICT AGENCY RULES & GUARDRAILS (YOU MUST FOLLOW ALL OF THESE):
+1. AGENCY IDENTITY & SIGN-OFF: Do NOT introduce a named individual agent or share personal stories. Sign off ONLY as:
+   Alsop and Associates Insurance Agency
+   (800) 555-0100 | support@coveragechecknow.com
+
+2. PERMISSION-BASED FRAMING: Frame all coverage increases or adjustments as recommendations only. Explicitly state that we request client permission before making any changes to their policy.
+
+3. NON-JUDGMENTAL COMPARATIVE TONE (STRICT BAN):
+   - NEVER use words like "adequate", "inadequate", "deficient", "underinsured", "poor", or "lacking".
+   - Describe coverage differences neutrally by comparing current policy limits directly to updated replacement cost estimates and available options.
+
+4. CLIENT RESPONSIBILITY DISCLAIMER: You must include this exact notice near the end of the email:
+   "Please remember that final coverage selections and decisions remain the responsibility of the policyholder."
+
+5. CONCISENESS & RESPECT FOR TIME: Keep the entire email concise (under 200 words). Reassure the client that an annual review takes only a few minutes.
+
+6. OFFICE PHONE & CONTACT: Direct the client to call our main office at (800) 555-0100 to speak with a licensed agent or use the meeting link if provided.
+
+7. PREPARATION CHECKLIST: Include a short "what to have handy" bulleted list:
+   - Current mortgage statement / lender information
+   - Declaration pages for any non-Allstate policies they would like reviewed
+   - Any questions, concerns, or feedback
+
+8. OUTPUT FORMAT: Output ONLY the Subject line and the complete email body ready to send. Do NOT include conversational preambles, introductory filler ("Here is the email draft:"), or surrounding code block backticks.`.trim();
 
 // ---------------------------------------------------------------------------
 // Templates
@@ -85,107 +102,157 @@ const PROMPT_TEMPLATES: Record<PromptTemplateId, PromptTemplate> = {
         id: 'rce_verification',
         name: 'Campaign 1: Verify RCE Property Data',
         description: 'Ask client to verify property specs (sq ft, features) from the Replacement Cost Estimate.',
-        generate: (ctx) => `Draft a professional email to a policyholder requesting verification of their Replacement Cost Estimate (RCE) property details.
+        generate: (ctx) => `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
 
-Client Details:
+TASK: Draft a professional, warm, permission-based email requesting that a policyholder review and verify the property specifications on their Replacement Cost Estimate (RCE).
+
+CLIENT & POLICY DETAILS:
 ${formatContextBlock(ctx)}
 
-Email Purpose: Ask the client to review and verify their property specifications (such as square footage, year built, and construction features) noted on their Replacement Cost Estimate (attached as a PDF). Explain that accurate property data ensures their replacement cost calculation aligns with current construction costs.
+EMAIL PURPOSE:
+Ask the client to review and verify their property details (square footage, year built, construction quality, roof age) shown on their attached Replacement Cost Estimate (RCE). Explain that accurate property data ensures their replacement cost calculation properly reflects current construction costs.
 
-${TONE_AND_RULES}`,
+${MASTER_GUARDRAIL_RULES}`,
     },
 
     coverage_recommendations_meeting: {
         id: 'coverage_recommendations_meeting',
         name: 'Campaign 2: Coverage Recommendations & Meeting',
         description: 'Present coverage findings, request permission to apply increases, and invite to Outlook meeting.',
-        generate: (ctx) => `Draft a professional email presenting coverage recommendations and requesting client permission to make updates.
+        generate: (ctx) => `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
 
-Client Details:
+TASK: Draft a professional, warm email presenting annual coverage recommendations and requesting client permission to review and update coverage.
+
+CLIENT & POLICY DETAILS:
 ${formatContextBlock(ctx)}
-${ctx.reportUrl ? `- Full Coverage Report: ${ctx.reportUrl}` : ''}
 
-Email Purpose: Highlight coverage options or differences identified when comparing their previous policy with current replacement cost estimates. Request permission from the client to apply recommended coverage increases where appropriate. Invite them to accept the proposed adjustments or schedule a quick meeting to review together.
+EMAIL PURPOSE:
+Highlight key coverage differences identified during our annual review when comparing current policy limits against updated replacement cost estimates. Request permission from the client to apply recommended adjustments, and invite them to schedule a brief appointment or call our office.
 
-${TONE_AND_RULES}`,
+${MASTER_GUARDRAIL_RULES}`,
     },
 
     renewal_notice_insured: {
         id: 'renewal_notice_insured',
         name: 'Renewal Notice — Insured Billed',
         description: 'For clients who pay their own CFP bill. Prompts CoPilot to draft a payment-due notification.',
-        generate: (ctx) => `Draft a professional email to a California Fair Plan policyholder about their upcoming renewal.
+        generate: (ctx) => `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
 
-Client Details:
+TASK: Draft a professional, warm renewal review email to a California Fair Plan policyholder who pays their renewal premium directly.
+
+CLIENT & POLICY DETAILS:
 ${formatContextBlock(ctx)}
 
-Email Purpose: Notify the client that their California Fair Plan renewal payment is due soon. The client pays their own bill directly.
+EMAIL PURPOSE:
+Notify the client that their California Fair Plan policy renewal is approaching. Explain the value of an annual review (preventing coverage lapses, closing coverage gaps, ensuring limits keep pace with construction costs). Ask permission to review coverage recommendations prior to finalizing payment.
 
-Style Guide:
-- Open with a compelling hook about the value of annual policy reviews (saving money, avoiding lapses, closing coverage gaps)
-- Do NOT include a personal agent introduction — sign off as "Alsop and Associates Insurance Agency"
-- Explain that now is a great time to review coverage limits, deductibles, and other factors before payment is finalized
-- Include a "what to have handy" checklist: current mortgage info, dec pages for other policies, questions/feedback
-- Be time-respectful — "I won't take too much of your time"
-- Encourage calling the main office at (909) 626-5000 to speak with a licensed agent
-- Request permission to review potential coverage updates
-- Close warmly with appreciation for their time
+REFERENCE EMAIL BLUEPRINT (Match structure, tone, and flow):
+---
+Subject: Your California Fair Plan Renewal Is Approaching — Policy ${ctx.policyNumber}
 
-${TONE_AND_RULES}`,
+Hi ${ctx.clientName || 'Valued Client'},
+
+Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your California Fair Plan policy (${ctx.policyNumber}) for ${ctx.propertyAddress} is coming up for renewal on ${ctx.expirationDate || 'your renewal date'}, now is a great time to review your coverage.
+
+As part of our annual review process, we have evaluated your current policy limits and prepared updated materials for your consideration:
+
+${ctx.reportUrl ? `• AI Coverage Report: ${ctx.reportUrl}\n` : ''}${ctx.rceDownloadUrl ? `• Updated Replacement Cost Estimate: ${ctx.rceDownloadUrl}\n` : ''}
+The review may highlight differences between your current coverage and updated replacement cost information. Any changes are recommendations only — we always request your permission before making updates to your policy.
+
+To make the most of our review, here are a few items you may want to have handy:
+• Current mortgage statement (lender name and loan number)
+• Declaration pages for any non-Allstate policies you'd like us to review
+• Any questions, concerns, or feedback you have
+
+We won't take too much of your time. To speak with a licensed agent, please call our main office at (800) 555-0100${ctx.meetingUrl ? ` or schedule a review online at ${ctx.meetingUrl}` : ''}.
+
+Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
+
+Thank you for your time and trust,
+
+Alsop and Associates Insurance Agency
+(800) 555-0100 | support@coveragechecknow.com
+---
+
+${MASTER_GUARDRAIL_RULES}`,
     },
 
     renewal_notice_mortgage: {
         id: 'renewal_notice_mortgage',
         name: 'Renewal Notice — Mortgage Billed',
         description: 'For clients whose lender pays CFP. Prompts CoPilot to draft a mortgage-billed renewal notice.',
-        generate: (ctx) => `Draft a professional email to a California Fair Plan policyholder about their upcoming renewal.
+        generate: (ctx) => `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
 
-Client Details:
+TASK: Draft a professional, warm renewal review email to a California Fair Plan policyholder whose renewal premium is paid through mortgage escrow.
+
+CLIENT & POLICY DETAILS:
 ${formatContextBlock(ctx)}
 
-Email Purpose: Inform the client that their California Fair Plan policy renewal is approaching. Their mortgage company handles payment through escrow, but we'd like permission to review recommended coverage adjustments prior to renewal.
+EMAIL PURPOSE:
+Inform the client that their California Fair Plan renewal is approaching. Clarify that while their mortgage escrow account handles the premium payment, conducting an annual coverage review ensures their property remains fully protected against current rebuilding costs. Request permission to review potential coverage updates.
 
-Style Guide:
-- Open with a compelling hook about the value of annual policy reviews (saving money, avoiding lapses, closing coverage gaps)
-- Do NOT include a personal agent introduction — sign off as "Alsop and Associates Insurance Agency"
-- Clarify that their lender handles payment through escrow, but that reviewing coverage limits, deductibles, and contact information is still important
-- Include a "what to have handy" checklist: current mortgage info, dec pages for other policies, questions/feedback
-- Be time-respectful — "I won't take too much of your time"
-- Encourage calling the main office at (909) 626-5000 to speak with a licensed agent
-- Request permission to review potential coverage updates
-- Close warmly with appreciation for their time
+REFERENCE EMAIL BLUEPRINT (Match structure, tone, and flow):
+---
+Subject: Important Renewal Review Notice — Policy ${ctx.policyNumber}
 
-${TONE_AND_RULES}`,
+Hi ${ctx.clientName || 'Valued Client'},
+
+Your California Fair Plan policy (${ctx.policyNumber}) for ${ctx.propertyAddress} is approaching its upcoming renewal on ${ctx.expirationDate || 'your renewal date'}. While your mortgage lender (${ctx.mortgageeName || 'your mortgage escrow account'}) handles premium payments, conducting an annual review ensures your coverage limits align with current rebuilding costs.
+
+As part of our annual review process, we have prepared updated materials for your property:
+
+${ctx.reportUrl ? `• AI Coverage Report: ${ctx.reportUrl}\n` : ''}${ctx.rceDownloadUrl ? `• Updated Replacement Cost Estimate: ${ctx.rceDownloadUrl}\n` : ''}
+Any suggested adjustments are recommendations only — we always request your permission before making any changes to your policy.
+
+To assist with our review, please have handy:
+• Current mortgage statement / lender details
+• Declaration pages for any non-Allstate policies
+• Any questions or feedback you'd like to share
+
+We respect your time and this quick review will ensure your renewal stays on track. Call our office at (800) 555-0100${ctx.meetingUrl ? ` or schedule a review at ${ctx.meetingUrl}` : ''}.
+
+Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
+
+Thank you for your time and continued trust,
+
+Alsop and Associates Insurance Agency
+(800) 555-0100 | support@coveragechecknow.com
+---
+
+${MASTER_GUARDRAIL_RULES}`,
     },
 
     schedule_review: {
         id: 'schedule_review',
         name: 'Schedule Coverage Review',
         description: 'Invite the client to schedule a coverage review appointment.',
-        generate: (ctx) => `Draft a professional email to a California Fair Plan policyholder inviting them to schedule a coverage review.
+        generate: (ctx) => `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
 
-Client Details:
+TASK: Draft a professional, warm email inviting a policyholder to schedule a policy review appointment.
+
+CLIENT & POLICY DETAILS:
 ${formatContextBlock(ctx)}
-${ctx.reportUrl ? `- Coverage Report: ${ctx.reportUrl}` : ''}
 
-Email Purpose: Invite the client to schedule a time to review their insurance coverage options and discuss recommended policy updates.
-${ctx.reportUrl ? '\nMention that a coverage report is ready for them to review.' : ''}
+EMAIL PURPOSE:
+Invite the client to schedule a brief appointment to review their coverage options and discuss recommended policy updates. Reassure them that the review is quick, permission-based, and designed to protect their property investment.
 
-${TONE_AND_RULES}`,
+${MASTER_GUARDRAIL_RULES}`,
     },
 
     custom: {
         id: 'custom',
         name: 'Custom Prompt',
         description: 'Provide your own purpose — CoPilot drafts based on the context you supply.',
-        generate: (ctx) => `Draft a professional email to a California Fair Plan policyholder.
+        generate: (ctx) => `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
 
-Client Details:
+TASK: Draft a professional, warm email to a California Fair Plan policyholder.
+
+CLIENT & POLICY DETAILS:
 ${formatContextBlock(ctx)}
 
-Email Purpose: [DESCRIBE THE PURPOSE OF THIS EMAIL]
+EMAIL PURPOSE: [Describe the purpose of this email]
 
-${TONE_AND_RULES}`,
+${MASTER_GUARDRAIL_RULES}`,
     },
 };
 

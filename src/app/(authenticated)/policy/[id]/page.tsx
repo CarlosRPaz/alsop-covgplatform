@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, use } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import styles from './page.module.css';
 import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
-import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload, ShieldCheck, MapPin, Phone, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload, ShieldCheck, MapPin, Phone, RotateCcw, ShieldAlert } from 'lucide-react';
 import { PropertyBanner } from '@/components/policy/PropertyBanner';
 import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, fetchPlatformDocumentsByPolicyId, getPlatformDocDownloadUrl, fetchRceDocDataByPolicyId, RceDocData, fetchDicDocDataByPolicyId, DicDocData, generatePolicyReport, fetchRenewalEmailLog, RenewalEmailLogEntry } from '@/lib/api';
 import { PolicyStatusBar } from '@/components/policy/PolicyStatusBar';
@@ -25,6 +25,7 @@ import { PolicyEditPanel } from '@/components/policy/PolicyEditPanel';
 import { TermHistoryPanel } from '@/components/policy/TermHistoryPanel';
 import { FullWorkupModal } from '@/components/dashboard/FullWorkupModal';
 import { PolicyEmailComposer } from '@/components/email/PolicyEmailComposer';
+import { EmailGuardrailModal, GuardrailCheck } from '@/components/email/EmailGuardrailModal';
 import { useRecentlyVisited } from '@/hooks/useRecentlyVisited';
 import { useToast } from '@/components/ui/Toast/Toast';
 import { getUserProfile, UserRole } from '@/lib/auth';
@@ -75,6 +76,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     const [dicDocStoragePath, setDicDocStoragePath] = useState<string | null>(null);
     const [dicDocLoading, setDicDocLoading] = useState(false);
     const [showEmailComposer, setShowEmailComposer] = useState(false);
+    const [showGuardrailModal, setShowGuardrailModal] = useState(false);
     const [emailLog, setEmailLog] = useState<RenewalEmailLogEntry[]>([]);
     const [userRole, setUserRole] = useState<UserRole | null>(null);
     const [roleLoading, setRoleLoading] = useState(true);
@@ -119,6 +121,71 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     // Derive fire risk data
     const fireRiskEnrichment = enrichments.find(e => e.field_key === 'fire_risk_label');
     const fireRiskLabel = fireRiskEnrichment?.field_value || null;
+
+    // ── Email Composition Guardrail Checks ──
+    const emailGuardrailChecks: GuardrailCheck[] = useMemo(() => {
+        const hasDecPageFile = !!decPageStoragePath;
+        const hasRce = rceDocData.length > 0;
+        const hasEnrichment = enrichments.length > 0;
+        const flagsHaveBeenRun = allFlags.length > 0;
+        const hasDic = dicDocData.length > 0;
+
+        return [
+            {
+                id: 'dec_page',
+                label: 'Declaration Page',
+                description: hasDecPageFile ? 'Dec page uploaded and available' : 'No dec page found — upload one first',
+                passed: hasDecPageFile,
+                required: true,
+                icon: <FileText size={16} />,
+            },
+            {
+                id: 'rce',
+                label: 'RCE Document',
+                description: hasRce ? 'RCE data has been extracted' : 'No RCE document processed for this policy',
+                passed: hasRce,
+                required: true,
+                icon: <ShieldCheck size={16} />,
+            },
+            {
+                id: 'enrichment',
+                label: 'Property Data Enrichment',
+                description: hasEnrichment ? `${enrichments.length} enrichment field(s) available` : 'Property enrichment has not been run',
+                passed: hasEnrichment,
+                required: true,
+                icon: <Satellite size={16} />,
+            },
+            {
+                id: 'flags',
+                label: 'Flag System Evaluated',
+                description: flagsHaveBeenRun ? `${allFlags.length} flag(s) evaluated` : 'Flag check has not been run yet',
+                passed: flagsHaveBeenRun,
+                required: true,
+                icon: <Flag size={16} />,
+            },
+            {
+                id: 'dic',
+                label: 'DIC Document',
+                description: hasDic ? 'DIC policy data has been extracted' : 'No DIC document — recommended before emailing',
+                passed: hasDic,
+                required: false,
+                icon: <ShieldAlert size={16} />,
+            },
+        ];
+    }, [decPageStoragePath, rceDocData, enrichments, allFlags, dicDocData]);
+
+    const handleComposeEmail = useCallback(() => {
+        const requiredChecks = emailGuardrailChecks.filter(c => c.required);
+        const allRequiredPassed = requiredChecks.every(c => c.passed);
+
+        if (allRequiredPassed) {
+            // All requirements met — go straight to composer
+            setShowEmailComposer(true);
+        } else {
+            // Show guardrail modal
+            setShowGuardrailModal(true);
+        }
+    }, [emailGuardrailChecks]);
 
     const copyPolicyNumber = () => {
         if (declaration?.policy_number) {
@@ -626,7 +693,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
 
                             {declaration.client_email && (
                                 <span
-                                    onClick={() => setShowEmailComposer(true)}
+                                    onClick={() => handleComposeEmail()}
                                     title="Compose email to client"
                                     style={{
                                         display: 'inline-flex',
@@ -918,7 +985,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                             </span>
                             <span
                                 className={styles.contextLink}
-                                onClick={() => setShowEmailComposer(true)}
+                                onClick={() => handleComposeEmail()}
                                 title="Compose email to client"
                             >
                                 <Mail size={14} />
@@ -1007,6 +1074,21 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                     setOpenFlags(flagData.filter(f => (!f.status && !f.resolved_at) || f.status === 'open'));
                     setAllFlags(flagData);
                     if (reportData) setReportRow(reportData);
+                }}
+            />
+
+            {/* Email Guardrail Check Modal */}
+            <EmailGuardrailModal
+                isOpen={showGuardrailModal}
+                onClose={() => setShowGuardrailModal(false)}
+                checks={emailGuardrailChecks}
+                onProceed={() => {
+                    setShowGuardrailModal(false);
+                    setShowEmailComposer(true);
+                }}
+                onOverride={() => {
+                    setShowGuardrailModal(false);
+                    setShowEmailComposer(true);
                 }}
             />
 
