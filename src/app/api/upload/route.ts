@@ -420,37 +420,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
         });
 
         // ---------------------------------------------------------------
-        // 7. Create ingestion job for the worker to pick up
-        //    CRITICAL: Without this, the file is uploaded but never processed.
-        //    NOTE: run_after MUST be set explicitly — NULL values are
-        //    invisible to the worker's lte() filter.
+        // 7. Ingestion job: handled by DB trigger on dec_page_submissions INSERT.
+        //    The trigger auto-creates a queued ingestion_jobs row for every insert.
+        //    We previously ALSO inserted a job here manually, which created
+        //    DUPLICATE jobs — two workers would race on the same submission,
+        //    causing status flicker and stuck-processing states.
+        //    See line ~282 where we DELETE the trigger-created job for duplicates.
+        //    The worker's claim_next_job() handles NULL run_after correctly
+        //    via .or_("run_after.lte.now,run_after.is.null").
         // ---------------------------------------------------------------
-        const { error: jobError } = await supabaseAdmin
-            .from('ingestion_jobs')
-            .insert({
-                submission_id: submissionId!,
-                account_id: accountId,
-                status: 'queued',
-                run_after: new Date().toISOString(),
-            });
-
-        if (jobError) {
-            logger.error('Upload', 'CRITICAL: Failed to create ingestion job', {
-                submissionId,
-                error: jobError.message,
-            });
-
-            await markSubmissionFailed(submissionId!, 'Failed to queue for processing', {
-                jobError: jobError.message,
-            });
-
-            return NextResponse.json(
-                { success: false, message: 'File uploaded but failed to queue for processing. Please try again or contact support.', error: 'JOB_CREATE_FAILED' },
-                { status: 500 }
-            );
-        }
-
-        logger.info('Upload', 'Ingestion job queued', { submissionId });
+        logger.info('Upload', 'Ingestion job will be created by DB trigger', { submissionId });
 
         // ---------------------------------------------------------------
         // 8. Activity event: dec page uploaded (fire-and-forget, non-critical)

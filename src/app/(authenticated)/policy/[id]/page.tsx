@@ -331,14 +331,49 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             try {
                 const { data: { session } } = await (await import('@/lib/supabaseClient')).supabase.auth.getSession();
                 if (!session?.access_token) return;
-                const res = await fetch(`/api/upload/status?ids=${pendingIds.join(',')}`, {
+
+                // Re-read from sessionStorage each tick (DecPageObserver may have pruned some)
+                const freshStored = sessionStorage.getItem(TRACKING_KEY);
+                if (!freshStored) {
+                    setBgProcessing(false);
+                    setBgProcessingStep(null);
+                    return;
+                }
+                let currentIds: string[];
+                try { currentIds = JSON.parse(freshStored); } catch { return; }
+                if (!Array.isArray(currentIds) || currentIds.length === 0) {
+                    sessionStorage.removeItem(TRACKING_KEY);
+                    setBgProcessing(false);
+                    setBgProcessingStep(null);
+                    return;
+                }
+
+                const res = await fetch(`/api/upload/status?ids=${currentIds.join(',')}`, {
                     headers: { Authorization: `Bearer ${session.access_token}` },
                 });
                 if (!res.ok) return;
                 const json = await res.json();
                 if (!json.success || !json.data) return;
-                const active = (json.data as Array<{ status: string; processing_step?: string }>)
-                    .find(s => s.status === 'processing' || s.status === 'queued');
+
+                const statuses = json.data as Array<{ id: string; status: string; processing_step?: string }>;
+
+                // Prune terminal IDs from sessionStorage so we stop polling them
+                const terminalStatuses = new Set(['parsed', 'failed', 'duplicate']);
+                const stillPending = currentIds.filter(cid => {
+                    const row = statuses.find(s => s.id === cid);
+                    // Keep if not found in DB (might be a timing issue) or still processing
+                    return !row || !terminalStatuses.has(row.status);
+                });
+
+                if (stillPending.length !== currentIds.length) {
+                    if (stillPending.length === 0) {
+                        sessionStorage.removeItem(TRACKING_KEY);
+                    } else {
+                        sessionStorage.setItem(TRACKING_KEY, JSON.stringify(stillPending));
+                    }
+                }
+
+                const active = statuses.find(s => s.status === 'processing' || s.status === 'queued');
                 if (active) {
                     setBgProcessing(true);
                     const stepLabels: Record<string, string> = {

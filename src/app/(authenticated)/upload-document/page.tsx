@@ -122,6 +122,7 @@ export default function UploadDocumentPage() {
     const [docStatus, setDocStatus] = useState<DocumentStatus | null>(null);
     const [isDuplicate, setIsDuplicate] = useState(false);
     const [startTime, setStartTime] = useState<number | null>(null);
+    const startTimeRef = useRef<number>(0);
     const [processingTime, setProcessingTime] = useState('');
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -278,7 +279,9 @@ export default function UploadDocumentPage() {
 
     const startPolling = useCallback((docId: string) => {
         setPhase('polling');
-        setStartTime(Date.now());
+        const now = Date.now();
+        setStartTime(now);
+        startTimeRef.current = now;
 
         const fetchStatus = async () => {
             try {
@@ -307,7 +310,7 @@ export default function UploadDocumentPage() {
                 if (terminal || noMatchDone || isDocStalled) {
                     setPhase('done');
                     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-                    const elapsed = Math.floor((Date.now() - (startTime || Date.now())) / 1000);
+                    const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
                     setProcessingTime(elapsed >= 60 ? `${Math.floor(elapsed / 60)}m ${elapsed % 60}s` : `${elapsed}s`);
                 }
             } catch { /* swallow */ }
@@ -315,13 +318,15 @@ export default function UploadDocumentPage() {
 
         fetchStatus(); // immediate
         pollRef.current = setInterval(fetchStatus, 2000);
-    }, [startTime]);
+    }, []);
 
     /* ── Dec Page Polling (uses /api/upload/status) ─────────────────── */
 
     const startDecPagePolling = useCallback((submissionId: string) => {
         setPhase('polling');
-        setStartTime(Date.now());
+        const now = Date.now();
+        setStartTime(now);
+        startTimeRef.current = now;
         setDecPageStatus('queued');
 
         const fetchStatus = async () => {
@@ -345,7 +350,7 @@ export default function UploadDocumentPage() {
                 if (status === 'parsed' || status === 'failed') {
                     setPhase('done');
                     if (decPagePollRef.current) { clearInterval(decPagePollRef.current); decPagePollRef.current = null; }
-                    const elapsed = Math.floor((Date.now() - (startTime || Date.now())) / 1000);
+                    const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
                     setProcessingTime(elapsed >= 60 ? `${Math.floor(elapsed / 60)}m ${elapsed % 60}s` : `${elapsed}s`);
                     if (status === 'parsed') {
                         window.dispatchEvent(new CustomEvent('decPageParsed'));
@@ -356,7 +361,7 @@ export default function UploadDocumentPage() {
 
         fetchStatus();
         decPagePollRef.current = setInterval(fetchStatus, 3000);
-    }, [startTime]);
+    }, []);
 
     /* ── Load existing doc for duplicate ─────────────────────────────── */
 

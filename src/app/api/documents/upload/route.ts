@@ -207,7 +207,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<DocumentU
         }
 
         // ---------------------------------------------------------------
-        // 4. INSERT platform_documents row (parse_status='pending')
+        // 4. Upload to storage FIRST (before creating any DB records)
+        //    This ensures we never create orphan DB rows without a file.
         // ---------------------------------------------------------------
         // If uploaded from a policy page, resolve policy_term_id for writeback
         let policyTermId: string | null = null;
@@ -222,48 +223,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<DocumentU
             policyTermId = latestTerm?.id || null;
         }
 
-        const now = new Date().toISOString();
-        const { data: docRow, error: insertError } = await supabaseAdmin
-            .from('platform_documents')
-            .insert({
-                account_id: accountId,
-                doc_type: docType,
-                file_name: file.name,
-                file_size: file.size,
-                file_hash: fileHash,
-                bucket: STORAGE_BUCKET,
-                parse_status: 'pending',
-                processing_step: 'uploaded',
-                match_status: policyId ? 'manual' : 'pending',
-                policy_id: policyId || null,
-                policy_term_id: policyTermId,
-                created_at: now,
-                updated_at: now,
-            })
-            .select('id')
-            .single();
-
-        if (insertError || !docRow) {
-            logger.error('DocumentUpload', 'Failed to insert platform_documents', {
-                error: insertError?.message,
-            });
-            return NextResponse.json(
-                { success: false, message: 'Failed to create document record. Please try again.', error: 'DB_INSERT_FAILED' },
-                { status: 500 }
-            );
-        }
-
-        documentId = docRow.id;
-        logger.info('DocumentUpload', 'Created document record', {
-            documentId,
-            docType,
-            fileName: file.name,
-            fileSize: file.size,
-        });
-
-        // ---------------------------------------------------------------
-        // 5. Upload to storage
-        // ---------------------------------------------------------------
+        // Generate document ID upfront so storage path is deterministic
+        documentId = crypto.randomUUID();
         const storagePath = `${docType}/${accountId}/${documentId}.pdf`;
 
         const { error: storageError } = await supabaseAdmin
@@ -280,17 +241,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DocumentU
                 storagePath,
                 error: storageError.message,
             });
-
-            // Mark document as failed
-            await supabaseAdmin
-                .from('platform_documents')
-                .update({
-                    parse_status: 'failed',
-                    error_message: `Storage upload failed: ${storageError.message}`,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq('id', documentId);
-
+            documentId = null; // No DB row to clean up
             return NextResponse.json(
                 { success: false, message: 'Failed to upload file to storage. Please try again.', error: 'STORAGE_ERROR' },
                 { status: 500 }
@@ -298,19 +249,61 @@ export async function POST(request: NextRequest): Promise<NextResponse<DocumentU
         }
 
         // ---------------------------------------------------------------
-        // 6. Update document with storage path
+        // 5. Single atomic INSERT with storage_path already populated
+        //    Worker can safely download immediately after claiming the job.
         // ---------------------------------------------------------------
-        await supabaseAdmin
+        const now = new Date().toISOString();
+        const { error: insertError } = await supabaseAdmin
             .from('platform_documents')
-            .update({
+            .insert({
+                id: documentId,
+                account_id: accountId,
+                doc_type: docType,
+                file_name: file.name,
+                file_size: file.size,
+                file_hash: fileHash,
+                bucket: STORAGE_BUCKET,
                 storage_path: storagePath,
+                parse_status: 'pending',
                 processing_step: 'queued',
-                updated_at: new Date().toISOString(),
-            })
-            .eq('id', documentId);
+                match_status: policyId ? 'manual' : 'pending',
+                policy_id: policyId || null,
+                policy_term_id: policyTermId,
+                created_at: now,
+                updated_at: now,
+            });
+
+        if (insertError) {
+            logger.error('DocumentUpload', 'Failed to insert platform_documents', {
+                documentId,
+                error: insertError.message,
+            });
+
+            // Clean up the orphaned storage file
+            try {
+                await supabaseAdmin.storage.from(STORAGE_BUCKET).remove([storagePath]);
+                logger.info('DocumentUpload', 'Cleaned up storage after DB insert failure', { storagePath });
+            } catch (cleanupErr) {
+                logger.warn('DocumentUpload', `Failed to clean up storage: ${cleanupErr}`);
+            }
+
+            documentId = null; // No DB row exists
+            return NextResponse.json(
+                { success: false, message: 'Failed to create document record. Please try again.', error: 'DB_INSERT_FAILED' },
+                { status: 500 }
+            );
+        }
+
+        logger.info('DocumentUpload', 'Created document record with storage_path', {
+            documentId,
+            docType,
+            fileName: file.name,
+            fileSize: file.size,
+            storagePath,
+        });
 
         // ---------------------------------------------------------------
-        // 7. Queue ingestion job
+        // 6. Queue ingestion job
         // ---------------------------------------------------------------
         const { error: jobError } = await supabaseAdmin
             .from('ingestion_jobs')
