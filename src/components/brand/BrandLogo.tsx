@@ -15,18 +15,14 @@ export interface BrandLogoProps {
     className?: string;
     /** Dark, light, or auto contrast mode */
     mode?: 'auto' | 'light' | 'dark' | 'monochrome';
-    /** Optional custom subtitle text */
-    subtitle?: string;
-    /** Show or hide subtitle on lg/xl sizes */
-    showSubtitle?: boolean;
 }
 
 const SIZES = {
-    xs: { icon: 20, fontSize: '0.85rem', gap: '0.4rem' },
-    sm: { icon: 26, fontSize: '1.05rem', gap: '0.5rem' },
-    md: { icon: 34, fontSize: '1.3rem', gap: '0.65rem' },
-    lg: { icon: 42, fontSize: '1.55rem', gap: '0.75rem' },
-    xl: { icon: 54, fontSize: '1.95rem', gap: '0.9rem' },
+    xs: { icon: 18, fontSize: '1rem', gap: '0.4rem' },
+    sm: { icon: 24, fontSize: '1.3rem', gap: '0.5rem' },
+    md: { icon: 32, fontSize: '1.75rem', gap: '0.65rem' },
+    lg: { icon: 40, fontSize: '2.2rem', gap: '0.8rem' },
+    xl: { icon: 52, fontSize: '2.85rem', gap: '1rem' },
 };
 
 /**
@@ -108,8 +104,6 @@ export function BrandLogo({
     hideText = false,
     className = '',
     mode = 'auto',
-    subtitle = 'Insurance Policy Intelligence',
-    showSubtitle,
 }: BrandLogoProps) {
     const config = SIZES[size] || SIZES.md;
     const finalIconSize = iconSize || config.icon;
@@ -121,19 +115,14 @@ export function BrandLogo({
     // Determine text colors based on mode
     let mainTextColor = '#0F172A'; // Slate-900
     let checkTextColor = '#2563EB'; // Blue-600
-    let subtitleColor = '#64748B'; // Slate-500
 
     if (mode === 'dark') {
         mainTextColor = '#FFFFFF';
         checkTextColor = '#60A5FA'; // Bright Blue-400 for high dark contrast
-        subtitleColor = '#94A3B8';
     } else if (mode === 'monochrome') {
         mainTextColor = 'currentColor';
         checkTextColor = 'currentColor';
-        subtitleColor = 'currentColor';
     }
-
-    const shouldShowSubtitle = showSubtitle ?? (size === 'lg' || size === 'xl');
 
     return (
         <div
@@ -148,37 +137,22 @@ export function BrandLogo({
             }}
         >
             <BrandEmblem size={finalIconSize} mode={mode} />
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <span
-                    style={{
-                        fontSize: config.fontSize,
-                        fontWeight: 900,
-                        letterSpacing: '-0.03em',
-                        color: mainTextColor,
-                        display: 'flex',
-                        alignItems: 'center',
-                        fontFamily: 'inherit',
-                    }}
-                >
-                    <span>Coverage</span>
-                    <span style={{ color: checkTextColor, fontWeight: 900 }}>Check</span>
-                    <span>Now</span>
-                </span>
-                {shouldShowSubtitle && (
-                    <span
-                        style={{
-                            fontSize: '0.65rem',
-                            fontWeight: 600,
-                            letterSpacing: '0.08em',
-                            textTransform: 'uppercase',
-                            color: subtitleColor,
-                            marginTop: '2px',
-                        }}
-                    >
-                        {subtitle}
-                    </span>
-                )}
-            </div>
+            <span
+                style={{
+                    fontSize: config.fontSize,
+                    fontWeight: 900,
+                    letterSpacing: '-0.03em',
+                    color: mainTextColor,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    lineHeight: 1,
+                    fontFamily: 'inherit',
+                }}
+            >
+                <span>Coverage</span>
+                <span style={{ color: checkTextColor, fontWeight: 900 }}>Check</span>
+                <span>Now</span>
+            </span>
         </div>
     );
 }
