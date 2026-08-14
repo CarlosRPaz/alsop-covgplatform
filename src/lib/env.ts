@@ -93,6 +93,32 @@ export const env = {
         return process.env.ATTOM_API_KEY;
     },
 
+    // ── OpenAI ──
+    get OPENAI_API_KEY(): string {
+        const v = process.env.OPENAI_API_KEY;
+        if (!v) throw new Error('Missing OPENAI_API_KEY');
+        return v;
+    },
+
+    // ── Google Maps ──
+    get GOOGLE_MAPS_API_KEY(): string {
+        const v = process.env.GOOGLE_MAPS_API_KEY;
+        if (!v) throw new Error('Missing GOOGLE_MAPS_API_KEY');
+        return v;
+    },
+
+    // ── EagleView ──
+    get EAGLEVIEW_CLIENT_ID(): string {
+        const v = process.env.EAGLEVIEW_CLIENT_ID;
+        if (!v) throw new Error('Missing EAGLEVIEW_CLIENT_ID');
+        return v;
+    },
+    get EAGLEVIEW_CLIENT_SECRET(): string {
+        const v = process.env.EAGLEVIEW_CLIENT_SECRET;
+        if (!v) throw new Error('Missing EAGLEVIEW_CLIENT_SECRET');
+        return v;
+    },
+
     // ── Internal API ──
 
     /**
@@ -103,5 +129,16 @@ export const env = {
      */
     get INTERNAL_API_KEY(): string {
         return process.env.INTERNAL_API_KEY || '';
+    },
+
+    // ── App Base URL ──
+
+    /**
+     * Base URL of the Next.js application for internal API calls.
+     * Used to construct URLs for server-to-server fetch requests.
+     * Falls back to http://localhost:3000 in development.
+     */
+    get APP_BASE_URL(): string {
+        return process.env.APP_BASE_URL || 'http://localhost:3000';
     },
 } as const;

@@ -32,17 +32,22 @@ export async function GET(req: NextRequest) {
         .select('id, named_insured, email, phone');
 
     for (const token of tokens) {
-        clientQuery = clientQuery.ilike('named_insured', `%${token}%`);
+        const safeToken = token.replace(/[%_,().*+?^${}|\[\]\\]/g, '');
+        if (safeToken.length >= 2) {
+            clientQuery = clientQuery.ilike('named_insured', `%${safeToken}%`);
+        }
     }
 
     const clientsPromise = clientQuery.limit(10);
 
     // For policies, use the full query as a single pattern (policy numbers are structured)
-    const pattern = `%${q}%`;
+    // Sanitize: strip PostgREST operators and special chars to prevent filter injection
+    const sanitized = q.replace(/[%_,().*+?^${}|\[\]\\]/g, '');
+    const pattern = `%${sanitized}%`;
     const policiesPromise = supabase
         .from('policies')
         .select('id, policy_number, property_address_raw, carrier_name, client_id, clients(named_insured)')
-        .or(`policy_number.ilike.${pattern},property_address_raw.ilike.${pattern}`)
+        .or(`policy_number.ilike."${pattern}",property_address_raw.ilike."${pattern}"`)
         .limit(5);
 
     const [clientsRes, policiesRes] = await Promise.all([clientsPromise, policiesPromise]);

@@ -10,6 +10,8 @@ import {
 } from '@/lib/api';
 import { useToast } from '@/components/ui/Toast/Toast';
 import styles from './ClientFiles.module.css';
+import { logger } from '@/lib/logger';
+
 
 interface ClientFilesProps {
   clientId: string;
@@ -70,7 +72,7 @@ export function ClientFiles({ clientId }: ClientFilesProps) {
       const platformData = await fetchPlatformDocumentsByClientId(clientId);
       setPlatformDocs(platformData);
     } catch (err) {
-      console.error('Failed to fetch client files:', err);
+      logger.error('ClientFiles', 'Failed to fetch client files:', { error: err instanceof Error ? err.message : String(err) })
     } finally {
       setLoading(false);
     }
@@ -92,7 +94,7 @@ export function ClientFiles({ clientId }: ClientFilesProps) {
         toast.error('Could not generate preview link.');
       }
     } catch (err) {
-      console.error('View failed:', err);
+      logger.error('ClientFiles', 'View failed:', { error: err instanceof Error ? err.message : String(err) })
       toast.error('Failed to open file.');
     } finally {
       setActionId(null);
@@ -118,7 +120,7 @@ export function ClientFiles({ clientId }: ClientFilesProps) {
         toast.error('Could not generate download link.');
       }
     } catch (err) {
-      console.error('Download failed:', err);
+      logger.error('ClientFiles', 'Download failed:', { error: err instanceof Error ? err.message : String(err) })
       toast.error('Failed to download file.');
     } finally {
       setActionId(null);
@@ -143,7 +145,7 @@ export function ClientFiles({ clientId }: ClientFilesProps) {
         toast.error('Failed to delete document.');
       }
     } catch (err) {
-      console.error('Delete failed:', err);
+      logger.error('ClientFiles', 'Delete failed:', { error: err instanceof Error ? err.message : String(err) })
       toast.error('Failed to delete document.');
     } finally {
       setActionId(null);

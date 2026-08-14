@@ -333,7 +333,7 @@ export function InviteUserModal({ isOpen, onClose, onSuccess }: InviteUserModalP
                                     display: 'flex', alignItems: 'center', gap: '0.4rem',
                                     padding: '0.5rem 1.25rem', borderRadius: '7px',
                                     background: sending || !email.trim() ? 'var(--accent-primary-muted)' : 'var(--accent-primary)',
-                                    color: sending || !email.trim() ? 'var(--accent-primary)' : '#fff',
+                                    color: sending || !email.trim() ? 'var(--accent-primary)' : 'var(--text-inverse)',
                                     border: 'none', cursor: sending || !email.trim() ? 'not-allowed' : 'pointer',
                                     opacity: sending ? 0.7 : 1,
                                     fontSize: '0.82rem', fontWeight: 600,

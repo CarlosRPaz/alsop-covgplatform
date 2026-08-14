@@ -269,64 +269,69 @@ def process_job(job: dict) -> None:
                      job_id, submission_id, parse_elapsed)
 
         # ─────────────────────────────────────────────────────────────
-        # 11. BACKGROUND ENRICHMENT — Runs AFTER job is marked done.
-        #     Order: enrichment → flags → report (each depends on prior).
-        #     Failures here are non-fatal; the policy is already saved.
-        #     Each step creates its own activity event for agent visibility.
+        # 11. BACKGROUND ENRICHMENT — Runs in a separate daemon thread
+        #     so the ThreadPoolExecutor slot is freed immediately.
+        #     Failures are non-fatal; the policy is already saved.
         # ─────────────────────────────────────────────────────────────
         if policy_id:
-            bg_start = _time.monotonic()
-            logger.info(">>> job_id=%s starting background enrichment for policy_id=%s",
-                         job_id, policy_id)
-
-            # 11a. FULL ENRICHMENT (ATTOM, satellite, vision, geocoding, fire risk)
-            enrichment_ok = False
-            try:
-                enrich_result = trigger_full_enrichment(policy_id)
-                enrichment_ok = enrich_result.get("success", False)
-                if not enrichment_ok:
-                    logger.warning(
-                        "job_id=%s bg_enrichment returned non-success: %s",
-                        job_id, enrich_result.get("error"),
-                    )
-                else:
-                    logger.info("job_id=%s bg_enrichment completed in %.2fs",
-                                job_id, _time.monotonic() - bg_start)
-            except Exception as enrich_exc:
-                logger.warning(
-                    "job_id=%s bg_enrichment failed (non-fatal): %s",
-                    job_id, enrich_exc,
-                )
-
-            # 11b. FLAG EVALUATION (must run AFTER enrichment for accurate flags)
-            flags_ok = False
-            if enrichment_ok:
+            import threading
+            def _background_enrich(pid: str, jid: str) -> None:
                 try:
-                    flag_result = trigger_flag_evaluation(policy_id)
-                    flags_ok = flag_result.get("success", False)
-                    if not flags_ok:
+                    bg_start = _time.monotonic()
+                    logger.info(">>> job_id=%s starting background enrichment for policy_id=%s",
+                                 jid, pid)
+
+                    enrichment_ok = False
+                    try:
+                        enrich_result = trigger_full_enrichment(pid)
+                        enrichment_ok = enrich_result.get("success", False)
+                        if not enrichment_ok:
+                            logger.warning(
+                                "job_id=%s bg_enrichment returned non-success: %s",
+                                jid, enrich_result.get("error"),
+                            )
+                        else:
+                            logger.info("job_id=%s bg_enrichment completed in %.2fs",
+                                        jid, _time.monotonic() - bg_start)
+                    except Exception as enrich_exc:
                         logger.warning(
-                            "job_id=%s bg_flags returned non-success: %s",
-                            job_id, flag_result.get("error"),
+                            "job_id=%s bg_enrichment failed (non-fatal): %s",
+                            jid, enrich_exc,
                         )
-                    else:
-                        logger.info("job_id=%s bg_flags completed", job_id)
-                except Exception as flag_exc:
-                    logger.warning(
-                        "job_id=%s bg_flags failed (non-fatal): %s",
-                        job_id, flag_exc,
-                    )
-            else:
-                # Still try flags even without enrichment — some flags are data-only
-                try:
-                    flag_result = trigger_flag_evaluation(policy_id)
-                    flags_ok = flag_result.get("success", False)
-                except Exception:
-                    pass
 
-            bg_elapsed = _time.monotonic() - bg_start
-            logger.info("<<< job_id=%s bg_enrichment_total elapsed=%.2fs enrichment=%s flags=%s",
-                         job_id, bg_elapsed, enrichment_ok, flags_ok)
+                    flags_ok = False
+                    try:
+                        flag_result = trigger_flag_evaluation(pid)
+                        flags_ok = flag_result.get("success", False)
+                        if not flags_ok:
+                            logger.warning(
+                                "job_id=%s bg_flags returned non-success: %s",
+                                jid, flag_result.get("error"),
+                            )
+                        else:
+                            logger.info("job_id=%s bg_flags completed", jid)
+                    except Exception as flag_exc:
+                        logger.error(
+                            "job_id=%s bg_flags failed (non-fatal): %s",
+                            jid, flag_exc,
+                        )
+
+                    bg_elapsed = _time.monotonic() - bg_start
+                    logger.info("<<< job_id=%s bg_enrichment_total elapsed=%.2fs enrichment=%s flags=%s",
+                                 jid, bg_elapsed, enrichment_ok, flags_ok)
+                except Exception as bg_outer_exc:
+                    logger.warning(
+                        "job_id=%s background enrichment block failed (non-fatal): %s",
+                        jid, bg_outer_exc,
+                    )
+
+            t = threading.Thread(
+                target=_background_enrich,
+                args=(policy_id, job_id),
+                name=f"bg-enrich-{policy_id[:8]}",
+                daemon=True,
+            )
+            t.start()
 
     except Exception as exc:
         error_msg = str(exc)
@@ -423,6 +428,9 @@ def run() -> None:
     except Exception as exc:
         logger.error("Failed to requeue stale jobs on startup: %s", exc)
 
+    stale_check_counter = 0
+    STALE_CHECK_INTERVAL = 60  # Check every ~60 poll cycles (~5 min at 5s interval)
+
     executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENT, thread_name_prefix="job")
     active_futures: list[Future] = []
 
@@ -436,6 +444,17 @@ def run() -> None:
                 for f in list(active_futures):
                     if f.done() and f.exception():
                         logger.error("Job thread raised: %s", f.exception())
+
+                # Periodically requeue stale processing jobs
+                stale_check_counter += 1
+                if stale_check_counter >= STALE_CHECK_INTERVAL:
+                    stale_check_counter = 0
+                    try:
+                        requeued = requeue_stale_jobs()
+                        if requeued > 0:
+                            logger.info("Periodic requeue: recovered %d stale job(s)", requeued)
+                    except Exception as stale_exc:
+                        logger.warning("Periodic stale job requeue failed: %s", stale_exc)
 
                 available_slots = MAX_CONCURRENT - len(active_futures)
 

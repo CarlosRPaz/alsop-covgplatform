@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 import { getEmailSystemStatus } from '@/lib/emailService';
 import { getAllTemplates } from '@/lib/emailTemplates';
 
@@ -14,7 +15,10 @@ import { getAllTemplates } from '@/lib/emailTemplates';
  * The Postmark fetch ensures the composer only shows templates that actually exist
  * in the Postmark account, not templates that are only locally registered.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+    const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+    if (isAuthError(auth)) return auth;
+
     const status = getEmailSystemStatus();
 
     // Attempt to fetch live templates from Postmark so we always reflect

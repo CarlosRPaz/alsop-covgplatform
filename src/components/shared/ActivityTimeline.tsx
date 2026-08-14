@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import styles from './ActivityTimeline.module.css';
 import { fetchActivityEvents, ActivityEventRow } from '@/lib/notes';
+import { logger } from '@/lib/logger';
+
 
 interface ActivityTimelineProps {
     clientId?: string;
@@ -57,7 +59,7 @@ export function ActivityTimeline({ clientId, policyId }: ActivityTimelineProps) 
                 });
                 setEvents(data);
             } catch (error) {
-                console.error('Error loading activity:', error);
+                logger.error('ActivityTimeline', 'Error loading activity:', { error: error instanceof Error ? error.message : String(error) })
             } finally {
                 setLoading(false);
             }

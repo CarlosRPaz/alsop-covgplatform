@@ -4,6 +4,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './DashboardChart.module.css';
 import { supabase } from '@/lib/supabaseClient';
+import { logger } from '@/lib/logger';
+
 
 interface DayBucket {
     date: Date;
@@ -109,7 +111,7 @@ export function DashboardChart() {
                 }
 
                 if (error) {
-                    console.error('Error fetching renewal data:', error);
+                    logger.error('DashboardChart', 'Error fetching renewal data:', error)
                     setBuckets(dayBuckets);
                     setLoading(false);
                     return;
@@ -131,7 +133,7 @@ export function DashboardChart() {
 
                 setBuckets(dayBuckets);
             } catch (err) {
-                console.error('Error fetching renewals:', err);
+                logger.error('DashboardChart', 'Error fetching renewals:', { error: err instanceof Error ? err.message : String(err) })
                 setBuckets(dayBuckets);
             }
             setLoading(false);

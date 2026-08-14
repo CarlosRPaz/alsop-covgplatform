@@ -3,7 +3,12 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getReportById, PolicyReportRow } from '@/lib/api';
+import { ErrorState } from '@/components/shared/ErrorState';
+import { BrandLogo } from '@/components/brand/BrandLogo';
+import { Loader2 } from 'lucide-react';
 import styles from './page.module.css';
+import { logger } from '@/lib/logger';
+
 
 /* ── Helpers ── */
 const SEVERITY_LABEL: Record<string, string> = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' };
@@ -111,7 +116,7 @@ export default function ReportPage() {
                 alert('Failed to regenerate report');
             }
         } catch (e) {
-            console.error(e);
+            logger.error('page', 'Error:', { error: e instanceof Error ? e.message : String(e) })
             alert('Error generating report');
         } finally {
             setIsGenerating(false);
@@ -121,23 +126,23 @@ export default function ReportPage() {
     // Early returns AFTER all hooks
     if (loading) {
         return (
-            <div className={styles.container}>
-                <div className={styles.loadingState}>Loading Report…</div>
+            <div className={styles.container} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh', background: 'var(--bg-base)' }}>
+                <Loader2 size={28} style={{ animation: 'spin 1s linear infinite', color: 'var(--accent-primary)' }} />
             </div>
         );
     }
     if (!report) {
         return (
-            <div className={styles.container}>
-                <div className={styles.errorState}>Report not found or unavailable.</div>
+            <div className={styles.container} style={{ background: 'var(--bg-base)' }}>
+                <ErrorState message="Report not found or unavailable." onRetry={() => router.push('/')} />
             </div>
         );
     }
 
     const GROUP_LABELS: Record<string, { title: string; color: string }> = {
-        review_now: { title: 'Review Now', color: '#ef4444' },
-        discuss_at_renewal: { title: 'Discuss at Renewal', color: '#f59e0b' },
-        confirm_and_update: { title: 'Confirm & Update', color: '#3b82f6' },
+        review_now: { title: 'Review Now', color: 'var(--status-danger)' },
+        discuss_at_renewal: { title: 'Discuss at Renewal', color: 'var(--status-warning)' },
+        confirm_and_update: { title: 'Confirm & Update', color: 'var(--status-info)' },
     };
 
     return (
@@ -164,8 +169,7 @@ export default function ReportPage() {
                 <header className={styles.header}>
                     <div className={styles.headerTop}>
                         <div className={styles.brand}>
-                            <div className={styles.brandMark}>CCN</div>
-                            <span className={styles.brandName}>CoverageCheckNow</span>
+                            <BrandLogo variant="horizontal" size="sm" iconSize={26} />
                         </div>
                         <div className={styles.headerDate}>{issuedDate}</div>
                     </div>
@@ -310,8 +314,8 @@ export default function ReportPage() {
 
                 {/* ── 5. FOOTER ── */}
                 <footer className={styles.footer}>
-                    <div className={styles.disclaimer} style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '1rem', fontSize: '0.78rem', color: '#475569', lineHeight: '1.5' }}>
-                        <strong style={{ color: '#0f172a' }}>Notice & Client Responsibility:</strong> This report is provided for informational and comparative purposes only, based on documents provided to our office (such as current policy declarations and replacement cost estimates). CoverageCheckNow and Alsop and Associates Insurance Agency do not determine policy adequacy or guarantee complete protection. Final decisions regarding coverage selection, limits, and policy adjustments remain solely the responsibility of the policyholder. We strongly recommend reviewing your policy terms with a licensed insurance advisor.
+                    <div className={styles.disclaimer} style={{ background: 'var(--bg-surface-raised, #f8fafc)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-default, #e2e8f0)', marginBottom: '1rem', fontSize: '0.78rem', color: 'var(--text-mid, #475569)', lineHeight: '1.5' }}>
+                        <strong style={{ color: 'var(--text-high, #0f172a)' }}>Notice & Client Responsibility:</strong> This report is provided for informational and comparative purposes only, based on documents provided to our office (such as current policy declarations and replacement cost estimates). CoverageCheckNow and Alsop and Associates Insurance Agency do not determine policy adequacy or guarantee complete protection. Final decisions regarding coverage selection, limits, and policy adjustments remain solely the responsibility of the policyholder. We strongly recommend reviewing your policy terms with a licensed insurance advisor.
                     </div>
                     <div className={styles.footerBottom}>
                         <span className={styles.footerBrand}>CoverageCheckNow</span>

@@ -8,6 +8,8 @@ import { RefreshCw, ShieldCheck, Home } from 'lucide-react';
 import { Card } from '@/components/ui/Card/Card';
 import { Button } from '@/components/ui/Button/Button';
 import styles from '../PolicyDashboard.module.css';
+import { logger } from '@/lib/logger';
+
 
 interface PolicyOverviewTabProps {
     declaration: Declaration;
@@ -64,7 +66,7 @@ export function PolicyOverviewTab({ declaration, policyDetail, enrichments = [] 
             const policyId = declaration.policy_id || declaration.id;
             const result = await generatePolicyReport(policyId);
             if (result.report) router.push(`/report/${result.report.id}`);
-        } catch (e) { console.error(e); }
+        } catch (e) { logger.error('PolicyOverviewTab', 'Error:', { error: e instanceof Error ? e.message : String(e) }) }
         finally { setIsGenerating(false); }
     };
 

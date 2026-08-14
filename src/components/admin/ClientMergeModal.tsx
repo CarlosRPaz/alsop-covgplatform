@@ -6,6 +6,8 @@ import {
     Crown, ArrowRightLeft, ChevronDown, ChevronUp, Mail, Phone, MapPin, User, Calendar, DollarSign
 } from "lucide-react";
 import styles from "./ClientMergeModal.module.css";
+import { logger } from '@/lib/logger';
+
 
 /* ── Data Interfaces ── */
 
@@ -247,7 +249,7 @@ export default function ClientMergeModal({ survivor: initialSurvivor, candidates
             await onConfirm(survivor.id, candidates.map(c => c.id), payload, keepDocs);
             onClose();
         } catch (error) {
-            console.error("Failed to execute guided merge", error);
+            logger.error('ClientMergeModal', "Failed to execute guided merge", { error: error instanceof Error ? error.message : String(error) })
         } finally {
             setIsSubmitting(false);
         }

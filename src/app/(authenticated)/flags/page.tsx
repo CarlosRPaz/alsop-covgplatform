@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { FlaggedPolicyGroup } from '@/lib/api';
 import { useFlags } from '@/hooks/useFlags';
 import { Button } from '@/components/ui/Button/Button';
+import { ErrorState } from '@/components/shared/ErrorState';
 import {
     Flag,
     CheckCircle,
@@ -218,7 +219,7 @@ function FlagsContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-    const { groups, loading, refresh } = useFlags();
+    const { groups, loading, refresh, error } = useFlags();
 
     // Filters — initialized from URL query params
     const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
@@ -354,6 +355,16 @@ function FlagsContent() {
         router.replace('/flags');
     };
 
+    if (error) {
+        return (
+            <div className={styles.flagsPage}>
+                <div style={{ marginTop: '10vh' }}>
+                    <ErrorState message="Failed to load flagged policies. Please try again." onRetry={refresh} />
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className={styles.flagsPage}>
             {/* Header */}
@@ -435,12 +446,14 @@ function FlagsContent() {
                             placeholder="Search by policy #, insured, carrier..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
+                            aria-label="Search flags by policy number, insured name, or carrier"
                         />
                     </div>
                     <select
                         className={styles.filterSelect}
                         value={categoryFilter}
                         onChange={(e) => setCategoryFilter(e.target.value)}
+                        aria-label="Filter by category"
                     >
                         <option value="">All Categories</option>
                         {categories.map(c => (
@@ -452,6 +465,7 @@ function FlagsContent() {
                             className={styles.filterSelect}
                             value={officeFilter}
                             onChange={(e) => setOfficeFilter(e.target.value)}
+                            aria-label="Filter by office"
                         >
                             <option value="">All Offices</option>
                             {offices.map(o => (

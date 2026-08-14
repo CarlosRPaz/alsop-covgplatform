@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
 import { logger } from '@/lib/logger';
-import { createClient } from '@supabase/supabase-js';
-import { env } from '@/lib/env';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 
 /**
  * GET /api/documents/upload/status?ids=id1,id2,...
@@ -13,26 +12,9 @@ import { env } from '@/lib/env';
 export async function GET(request: NextRequest) {
     try {
         // Authenticate
-        const authHeader = request.headers.get('Authorization');
-        if (!authHeader?.startsWith('Bearer ')) {
-            return NextResponse.json(
-                { error: 'Authentication required' },
-                { status: 401 }
-            );
-        }
-
-        const token = authHeader.slice(7);
-        const userClient = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
-            global: { headers: { Authorization: `Bearer ${token}` } },
-        });
-
-        const { data: { user }, error: authError } = await userClient.auth.getUser(token);
-        if (authError || !user) {
-            return NextResponse.json(
-                { error: 'Session expired' },
-                { status: 401 }
-            );
-        }
+        const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+        if (isAuthError(auth)) return auth;
+        const user = auth.user;
 
         // Parse document IDs
         const idsParam = request.nextUrl.searchParams.get('ids');

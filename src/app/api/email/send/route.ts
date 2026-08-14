@@ -12,6 +12,8 @@ import {
     renderTemplate,
 } from '@/lib/emailTemplates';
 import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
+import { logger } from '@/lib/logger';
+
 
 /**
  * POST /api/email/send
@@ -134,7 +136,7 @@ export async function POST(req: NextRequest) {
         });
 
     } catch (err: any) {
-        console.error('[Email Send] Error:', err);
+        logger.error('Send', '[Email Send] Error:', err)
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }
@@ -180,7 +182,7 @@ async function sendWithPostmarkTemplate(opts: {
         const mode = getEmailSendMode();
         if (mode === 'disabled') {
             // Just log, don't send
-            console.log(`[Email withTemplate] DISABLED — would send "${opts.postmarkAlias}" to ${originalTo}`);
+            logger.info('Send', `[Email withTemplate] DISABLED — would send "${opts.postmarkAlias}" to ${originalTo}`)
             return { success: true, mode: 'disabled', timestamp: now };
         }
         if (mode === 'redirect') {
@@ -248,7 +250,7 @@ async function sendWithPostmarkTemplate(opts: {
                 },
             });
         } catch (logErr) {
-            console.error('[Email withTemplate] Failed to log activity event:', logErr);
+            logger.error('Send', '[Email withTemplate] Failed to log activity event:', { error: logErr instanceof Error ? logErr.message : String(logErr) })
         }
 
         return {

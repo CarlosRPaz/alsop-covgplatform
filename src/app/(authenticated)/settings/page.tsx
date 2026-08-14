@@ -12,6 +12,7 @@ import {
 import DataSourcesCatalog from '@/components/settings/DataSourcesCatalog';
 import EagleViewSandboxSection from '@/components/settings/EagleViewSandboxSection';
 import { InviteUserModal } from '@/components/admin/InviteUserModal';
+import { StaffManagementTable } from '@/components/admin/StaffManagementTable';
 import { useTheme } from 'next-themes';
 
 type Section = 'account' | 'notifications' | 'display' | 'admin' | 'data_sources' | 'report_editor' | 'email_system' | 'user_management' | 'eagleview_sandbox';
@@ -52,7 +53,7 @@ export default function SettingsPage() {
     const showAdmin = profile && isAdmin(profile.role);
 
     return (
-        <div style={{ maxWidth: activeSection === 'data_sources' || activeSection === 'report_editor' ? '1200px' : '900px', margin: isMobile ? '1rem auto' : '2rem auto', padding: isMobile ? '0 0.5rem' : '0 1.5rem', transition: 'max-width 0.3s ease' }}>
+        <div style={{ maxWidth: activeSection === 'data_sources' || activeSection === 'report_editor' || activeSection === 'user_management' ? '1200px' : '900px', margin: isMobile ? '1rem auto' : '2rem auto', padding: isMobile ? '0 0.5rem' : '0 1.5rem', transition: 'max-width 0.3s ease' }}>
             {/* Header */}
             <div style={{ marginBottom: '1.5rem' }}>
                 <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-high)', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -128,7 +129,7 @@ export default function SettingsPage() {
                     {activeSection === 'data_sources' && <DataSourcesCatalog />}
                     {activeSection === 'report_editor' && <ReportEditorSection />}
                     {activeSection === 'email_system' && <EmailSystemSection />}
-                    {activeSection === 'user_management' && <UserManagementSection />}
+                    {activeSection === 'user_management' && <UserManagementSection profile={profile} />}
                     {activeSection === 'eagleview_sandbox' && <EagleViewSandboxSection />}
                     {activeSection === 'admin' && <AdminSection />}
                 </div>
@@ -732,65 +733,28 @@ function EmailSystemSection() {
 }
 
 // ─── User Management Section ──────────────────────────────────
-function UserManagementSection() {
+function UserManagementSection({ profile }: { profile: UserProfile | null }) {
     const [showInvite, setShowInvite] = useState(false);
-    const [inviteHistory, setInviteHistory] = useState<{ email: string; roleLabel: string; at: string }[]>([]);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     return (
         <div>
-            <SectionHeader title="User Management" description="Invite and manage platform users (admin only)" />
+            <SectionHeader
+                title="User Management"
+                description="Directory, roles, and access management for platform staff (admin only)"
+            />
 
-            <SettingGroup title="Invite Users" icon={UserPlus}>
-                <div style={{ padding: '0.875rem' }}>
-                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.75rem', lineHeight: 1.5 }}>
-                        Invite a new user by email. They will receive a secure invite link from Supabase.
-                        Their access level is set by the role you select.
-                    </p>
-                    <button
-                        onClick={() => setShowInvite(true)}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: '0.4rem',
-                            padding: '0.5rem 1rem', borderRadius: '7px',
-                            background: 'rgba(99,102,241,0.15)', color: '#a5b4fc',
-                            border: '1px solid rgba(99,102,241,0.3)',
-                            cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
-                        }}
-                    >
-                        <UserPlus size={14} />
-                        Invite User
-                    </button>
-                </div>
-
-                {inviteHistory.length > 0 && (
-                    <div style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                        <div style={{ padding: '0.4rem 0.875rem', fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            Sent this session
-                        </div>
-                        {inviteHistory.map((h, i) => (
-                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0.875rem', fontSize: '0.75rem', color: 'var(--text-mid)', borderTop: '1px solid var(--border-subtle)' }}>
-                                <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                    <CheckCircle2 size={11} style={{ color: '#4ade80' }} />
-                                    {h.email}
-                                </span>
-                                <span style={{ color: '#818cf8', fontSize: '0.68rem' }}>{h.roleLabel}</span>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </SettingGroup>
-
-            <SettingGroup title="Access Roles" icon={Shield}>
-                <SettingRow label="Administrator" value="Full platform access, settings, invites, all policies" />
-                <SettingRow label="Agent" value="Policy review, enrichment, flags, email compose" note="service role" />
-                <SettingRow label="Client" value="Own portal only — own policy view, submit dec pages" note="customer role" />
-            </SettingGroup>
+            <StaffManagementTable
+                key={refreshKey}
+                currentUserId={profile?.id}
+                onOpenInvite={() => setShowInvite(true)}
+            />
 
             <InviteUserModal
                 isOpen={showInvite}
                 onClose={() => setShowInvite(false)}
-                onSuccess={(email, role) => {
-                    const labels: Record<string, string> = { admin: 'Administrator', service: 'Agent', customer: 'Client' };
-                    setInviteHistory(prev => [{ email, roleLabel: labels[role] || role, at: new Date().toLocaleTimeString() }, ...prev]);
+                onSuccess={() => {
+                    setRefreshKey(prev => prev + 1);
                 }}
             />
         </div>

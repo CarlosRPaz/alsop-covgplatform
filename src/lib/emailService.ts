@@ -21,6 +21,8 @@
  */
 
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
+import { logger } from '@/lib/logger';
+
 
 // ---------------------------------------------------------------------------
 // Types
@@ -171,11 +173,11 @@ class ConsoleProvider implements EmailProvider {
 
     async send(message: EmailMessage): Promise<{ success: boolean; messageId?: string }> {
         const toStr = typeof message.to === 'string' ? message.to : message.to.email;
-        console.log(`\n📧 [Console Email Provider]`);
-        console.log(`   To: ${toStr}`);
-        console.log(`   Subject: ${message.subject}`);
-        console.log(`   Template: ${message.templateId || 'none'}`);
-        console.log(`   Body length: ${message.htmlBody.length} chars\n`);
+        logger.info('emailService', `\n📧 [Console Email Provider]`)
+        logger.info('emailService', `   To: ${toStr}`)
+        logger.info('emailService', `   Subject: ${message.subject}`)
+        logger.info('emailService', `   Template: ${message.templateId || 'none'}`)
+        logger.info('emailService', `   Body length: ${message.htmlBody.length} chars\n`)
         return { success: true, messageId: `console-${Date.now()}` };
     }
 }
@@ -190,7 +192,7 @@ export function getEmailSendMode(): EmailSendMode {
 
     // Extra safety: 'live' mode requires production environment
     if (mode === 'live' && process.env.NODE_ENV !== 'production') {
-        console.warn('[Email] EMAIL_SEND_MODE=live ignored — NODE_ENV is not production. Falling back to redirect.');
+        logger.warn('emailService', '[Email] EMAIL_SEND_MODE=live ignored — NODE_ENV is not production. Falling back to redirect.')
         return 'redirect';
     }
 
@@ -265,7 +267,7 @@ export async function sendEmail(message: EmailMessage): Promise<EmailSendResult>
     if (isForceRedirectEnabled()) {
         const forceTarget = getForceRedirectTarget();
 
-        console.log(`[Email] ⚠️  FORCE REDIRECT ACTIVE: ${originalTo} → ${forceTarget}`);
+        logger.info('emailService', `[Email] ⚠️  FORCE REDIRECT ACTIVE: ${originalTo} → ${forceTarget}`)
 
         const redirectedMessage: EmailMessage = {
             ...message,
@@ -415,7 +417,7 @@ async function logEmailEvent(
             },
         });
     } catch (err) {
-        console.error('[Email] Failed to log activity event:', err);
+        logger.error('emailService', '[Email] Failed to log activity event:', { error: err instanceof Error ? err.message : String(err) })
     }
 }
 

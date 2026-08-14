@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FileText, Mail, MessageSquare } from 'lucide-react';
+import { BrandLogo } from '@/components/brand/BrandLogo';
+import { Mail, MessageSquare } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { getUserProfile } from '@/lib/auth';
 import { SupportModal } from '@/components/shared/SupportModal';
@@ -49,11 +50,10 @@ export function Footer() {
                     {/* Company Info */}
                     <div>
                         <div className={styles.logoWrapper}>
-                            <FileText className={styles.logoIcon} />
-                            <span className={styles.logoText}>CoverageCheckNow</span>
+                            <BrandLogo variant="horizontal" size="sm" iconSize={24} />
                         </div>
                         <p className={styles.description}>
-                            Streamlining policy review and coverage analysis for insurance agents.
+                            Streamlining policy review, RCE validation, and coverage analysis for Alsop and Associates Insurance Agency.
                         </p>
                     </div>
 

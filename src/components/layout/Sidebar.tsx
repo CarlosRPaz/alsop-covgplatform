@@ -9,12 +9,12 @@ import { useSidebar } from './SidebarContext';
 import { SidebarSearch } from './SidebarSearch';
 import { SidebarRecent } from './SidebarRecent';
 import { type UserRole } from '@/lib/auth';
+import { BrandLogo, BrandEmblem } from '@/components/brand/BrandLogo';
 import {
     LayoutDashboard,
     FileText,
     Settings,
     LogOut,
-    Shield,
     ChevronsLeft,
     ChevronsRight,
     Flag,
@@ -94,8 +94,11 @@ export function Sidebar({ userRole }: SidebarProps) {
             <aside className={sidebarClasses}>
                 <div className={styles.brandRow}>
                     <Link href="/" className={styles.brand} style={{ textDecoration: 'none', color: 'inherit' }} onClick={handleNavClick}>
-                        <Shield size={22} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-                        {(!collapsed || isMobile) && <span className={styles.brandText}>CoverageCheckNow</span>}
+                        {collapsed && !isMobile ? (
+                            <BrandEmblem size={24} />
+                        ) : (
+                            <BrandLogo variant="horizontal" size="sm" iconSize={24} />
+                        )}
                     </Link>
                     {isMobile ? (
                         <button className={styles.collapseBtn} onClick={closeMobile} title="Close menu">

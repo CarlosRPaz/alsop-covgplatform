@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
-import { createClient } from '@supabase/supabase-js';
-import { env } from '@/lib/env';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 import { logger } from '@/lib/logger';
 import { HEADER_ALIASES, ImportRow, ImportStats, RowStatus } from '@/lib/csvImport';
 
@@ -117,19 +116,9 @@ export async function POST(request: NextRequest) {
         const supabaseAdmin = getSupabaseAdmin();
 
         // 1. Auth
-        const authHeader = request.headers.get('Authorization');
-        if (!authHeader?.startsWith('Bearer ')) {
-            return NextResponse.json({ success: false, error: 'AUTH_REQUIRED' }, { status: 401 });
-        }
-
-        const token = authHeader.slice(7);
-        const userClient = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
-            global: { headers: { Authorization: `Bearer ${token}` } },
-        });
-        const { data: { user }, error: authError } = await userClient.auth.getUser(token);
-        if (authError || !user) {
-            return NextResponse.json({ success: false, error: 'AUTH_INVALID' }, { status: 401 });
-        }
+        const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+        if (isAuthError(auth)) return auth;
+        const user = auth.user;
 
         // 2. Read CSV file
         const formData = await request.formData();

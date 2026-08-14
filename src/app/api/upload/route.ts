@@ -2,8 +2,8 @@ import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
 import { logger } from '@/lib/logger';
-import { createClient } from '@supabase/supabase-js';
-import { env } from '@/lib/env';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
+import { checkRateLimit } from '@/lib/rateLimit';
 
 /** Vercel function config — allow sufficient time for large PDF uploads */
 export const maxDuration = 60; // seconds
@@ -78,7 +78,7 @@ async function markSubmissionFailed(
  * 6. UPDATE row: status='uploaded', storage_path, file_path
  * 7. On error after step 4: UPDATE status='failed', error_message, error_detail
  */
-export async function POST(request: NextRequest): Promise<NextResponse<UploadResponse>> {
+export async function POST(request: NextRequest): Promise<NextResponse<UploadResponse> | NextResponse> {
     let submissionId: string | null = null;
 
     try {
@@ -87,30 +87,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
         // ---------------------------------------------------------------
         // 1. Authenticate user (REQUIRED)
         // ---------------------------------------------------------------
-        const authHeader = request.headers.get('Authorization');
-        if (!authHeader?.startsWith('Bearer ')) {
-            logger.warn('Upload', 'Missing or invalid Authorization header');
+        const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+        if (isAuthError(auth)) return auth;
+        const accountId = auth.user.id;
+        
+        const rateLimitKey = `upload:${auth.user.id}`;
+        const rateCheck = checkRateLimit(rateLimitKey, 20, 60_000); // 20 uploads/min
+        if (!rateCheck.allowed) {
             return NextResponse.json(
-                { success: false, message: 'Authentication required. Please sign in and try again.', error: 'AUTH_REQUIRED' },
-                { status: 401 }
+                { error: 'Rate limit exceeded. Please wait before uploading more files.' },
+                { status: 429, headers: { 'Retry-After': String(Math.ceil(rateCheck.resetMs / 1000)) } }
             );
         }
 
-        const token = authHeader.slice(7);
-        const userClient = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
-            global: { headers: { Authorization: `Bearer ${token}` } },
-        });
-
-        const { data: { user }, error: authError } = await userClient.auth.getUser(token);
-        if (authError || !user) {
-            logger.warn('Upload', 'Invalid or expired auth token', { error: authError?.message });
-            return NextResponse.json(
-                { success: false, message: 'Session expired. Please sign in again.', error: 'AUTH_INVALID' },
-                { status: 401 }
-            );
-        }
-
-        const accountId = user.id;
         logger.info('Upload', 'Authenticated user', { accountId });
 
         // ---------------------------------------------------------------

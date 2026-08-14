@@ -13,11 +13,14 @@ import {
 import { Button } from '@/components/ui/Button/Button';
 import { useToast } from '@/components/ui/Toast/Toast';
 import { SupportModal } from '@/components/shared/SupportModal';
+import { ErrorState } from '@/components/shared/ErrorState';
 import {
     getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId,
     getDecPageFileDownloadUrl
 } from '@/lib/api';
 import styles from './portal.module.css';
+import { logger } from '@/lib/logger';
+
 
 interface ClientRecord {
     id: string;
@@ -56,6 +59,8 @@ export default function ClientPortalPage() {
     const [recentDocs, setRecentDocs] = useState<{ label: string; policyNumber: string; type: 'dec' | 'report'; path?: string; reportData?: any; reportId?: string }[]>([]);
     const [downloadingDoc, setDownloadingDoc] = useState<string | null>(null);
     const [supportOpen, setSupportOpen] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     useEffect(() => {
         async function loadPortal() {
@@ -92,7 +97,7 @@ export default function ClientPortalPage() {
                     }
                 }
 
-                console.log('[Portal] Profile email:', profile.email, '| Client found:', !!clientData);
+                logger.info('page', '[Portal] Profile email:', { email: profile.email, clientFound: !!clientData })
 
                 if (clientData) {
                     setClient(clientData);
@@ -117,7 +122,7 @@ export default function ClientPortalPage() {
                         .eq('client_id', clientData.id)
                         .order('created_at', { ascending: false });
 
-                    console.log('[Portal] Policies found:', policyData?.length ?? 0);
+                    logger.info('page', '[Portal] Policies found:', { value: policyData?.length ?? 0 })
 
                     if (policyData) {
                         setPolicies(policyData as PolicyRecord[]);
@@ -157,14 +162,15 @@ export default function ClientPortalPage() {
                     }
                 }
             } catch (err) {
-                console.error('[Portal] Error loading portal data:', err);
+                logger.error('page', '[Portal] Error loading portal data:', { error: err instanceof Error ? err.message : String(err) })
+                setError('Failed to load your policies. Please try again.');
             } finally {
                 setLoading(false);
             }
         }
 
         loadPortal();
-    }, [router]);
+    }, [router, refreshKey]);
 
     if (loading) {
         return (
@@ -172,6 +178,10 @@ export default function ClientPortalPage() {
                 <Loader2 size={28} style={{ animation: 'spin 1s linear infinite', color: '#6366f1' }} />
             </div>
         );
+    }
+
+    if (error) {
+        return <ErrorState message={error} onRetry={() => { setError(null); setLoading(true); setRefreshKey(k => k + 1); }} />;
     }
 
     const currentTerm = (p: PolicyRecord) =>
@@ -231,9 +241,12 @@ export default function ClientPortalPage() {
                         <div>
                             {policies.map((p) => {
                                 const term = currentTerm(p);
-                                const statusColor = p.status === 'active' ? '#22c55e'
-                                    : p.status === 'pending_review' ? '#f59e0b'
-                                    : '#64748b';
+                                const statusBg = p.status === 'active' ? 'rgba(34,197,94,0.12)'
+                                    : p.status === 'pending_review' ? 'rgba(245,158,11,0.12)'
+                                    : 'rgba(100,116,139,0.12)';
+                                const statusText = p.status === 'active' ? '#4ade80'
+                                    : p.status === 'pending_review' ? '#fbbf24'
+                                    : '#94a3b8';
                                 return (
                                     <div
                                         key={p.id}
@@ -252,8 +265,8 @@ export default function ClientPortalPage() {
                                                     fontWeight: 600,
                                                     padding: '0.15rem 0.5rem',
                                                     borderRadius: '999px',
-                                                    background: `${statusColor}15`,
-                                                    color: statusColor,
+                                                    background: statusBg,
+                                                    color: statusText,
                                                     textTransform: 'uppercase',
                                                 }}>
                                                     {p.status?.replace('_', ' ') || 'Unknown'}

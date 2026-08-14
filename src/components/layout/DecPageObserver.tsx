@@ -3,6 +3,8 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useToast } from '@/components/ui/Toast/Toast';
 import { supabase } from '@/lib/supabaseClient';
+import { logger } from '@/lib/logger';
+
 
 const TRACKING_KEY = 'cfp_pending_dec_uploads';
 const POLL_INTERVAL_MS = 3000;
@@ -120,7 +122,7 @@ export function DecPageObserver() {
             }
 
         } catch (err) {
-            console.error('[DecPageObserver] Polling error:', err);
+            logger.error('DecPageObserver', '[DecPageObserver] Polling error:', { error: err instanceof Error ? err.message : String(err) })
         }
     }, [success, error, info, stopPolling]);
 

@@ -745,26 +745,9 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
         const policyIds = allData.map((r: { id: string }) => r.id);
         const flagMap = await fetchFlagSummaryForPolicies(policyIds);
 
-        // Batch-fetch enrichment status (chunked to avoid URL limits)
+        // Batch-fetch document/enrichment status via pre-computed view
+        // (replaces 3 separate chunked loops that caused N+1 queries)
         const enrichedSet = new Set<string>();
-        try {
-            for (let i = 0; i < policyIds.length; i += IN_CHUNK) {
-                const chunk = policyIds.slice(i, i + IN_CHUNK);
-                const { data: enrichRows } = await supabase
-                    .from('property_enrichments')
-                    .select('policy_id')
-                    .in('policy_id', chunk);
-                if (enrichRows) {
-                    for (const row of enrichRows) {
-                        enrichedSet.add(row.policy_id);
-                    }
-                }
-            }
-        } catch {
-            // Non-fatal: if enrichment check fails, all show as unenriched
-        }
-
-        // Batch-fetch document presence (dec_pages + platform_documents)
         const decPageSet = new Set<string>();
         const rceSet = new Set<string>();
         const dicSet = new Set<string>();
@@ -772,33 +755,22 @@ export async function fetchDashboardPolicies(): Promise<DashboardPolicy[]> {
         try {
             for (let i = 0; i < policyIds.length; i += IN_CHUNK) {
                 const chunk = policyIds.slice(i, i + IN_CHUNK);
-                const { data: decRows } = await supabase
-                    .from('dec_pages')
-                    .select('policy_id')
+                const { data: statusRows } = await supabase
+                    .from('policy_document_status')
+                    .select('policy_id, is_enriched, has_dec_page, has_rce, has_dic, has_es_doc')
                     .in('policy_id', chunk);
-                if (decRows) {
-                    for (const row of decRows) {
-                        decPageSet.add(row.policy_id);
-                    }
-                }
-            }
-            for (let i = 0; i < policyIds.length; i += IN_CHUNK) {
-                const chunk = policyIds.slice(i, i + IN_CHUNK);
-                const { data: docRows } = await supabase
-                    .from('platform_documents')
-                    .select('policy_id, doc_type')
-                    .in('policy_id', chunk)
-                    .in('doc_type', ['rce', 'dic_dec_page', 'es_doc']);
-                if (docRows) {
-                    for (const row of docRows) {
-                        if (row.doc_type === 'rce') rceSet.add(row.policy_id);
-                        if (row.doc_type === 'dic_dec_page') dicSet.add(row.policy_id);
-                        if (row.doc_type === 'es_doc') esSet.add(row.policy_id);
+                if (statusRows) {
+                    for (const row of statusRows) {
+                        if (row.is_enriched) enrichedSet.add(row.policy_id);
+                        if (row.has_dec_page) decPageSet.add(row.policy_id);
+                        if (row.has_rce) rceSet.add(row.policy_id);
+                        if (row.has_dic) dicSet.add(row.policy_id);
+                        if (row.has_es_doc) esSet.add(row.policy_id);
                     }
                 }
             }
         } catch {
-            // Non-fatal: if document check fails, all show as missing
+            // Non-fatal: if status check fails, all show as missing/unenriched
         }
 
         // Map the joined result to DashboardPolicy
@@ -1365,7 +1337,7 @@ export async function getDecPageFileUrl(decPageId: string): Promise<string | nul
         // 3. Generate signed URL via server-side API (bypass RLS)
         return _getSignedUrlViaApi(storagePath, 'cfp-raw-decpage');
     } catch (err) {
-        console.error('Error getting dec page file URL:', err);
+        logger.error('api', 'Error getting dec page file URL:', { error: err instanceof Error ? err.message : String(err) })
         return null;
     }
 }
@@ -1572,9 +1544,12 @@ export interface AIReportData {
 }
 
 /**
- * Generate an AI report for a declaration.
- * Currently uses deterministic rule-based logic.
- * TODO: Replace with actual AI integration.
+ * Generate a coverage analysis report for a declaration.
+ * Uses deterministic rule-based logic to evaluate coverage gaps,
+ * flag anomalies, and suggest improvements.
+ *
+ * Enhancement opportunity: Could be augmented with AI-powered analysis
+ * for more nuanced recommendations (e.g., regional risk factors).
  */
 export function generateAIReport(declaration: Declaration): AIReportData {
     const gaps: string[] = [];
@@ -2041,71 +2016,7 @@ export async function createManualFlag(fields: {
     }
 }
 
-/**
- * Fetch all open flags with optional filters — for the /flags work queue.
- */
-export async function fetchAllOpenFlags(filters?: {
-    status?: string;
-    severity?: string;
-    category?: string;
-    code?: string;
-    source?: string;
-}): Promise<PolicyFlagRow[]> {
-    try {
-        let query = supabase
-            .from('policy_flags')
-            .select('*, policies(policy_number, client_id, clients(is_demo))')
-            .order('created_at', { ascending: false })
-            .limit(1000);
-
-        const targetStatus = filters?.status !== undefined ? filters.status : 'open';
-
-        if (targetStatus && targetStatus !== 'all' && targetStatus !== '') {
-            query = query.eq('status', targetStatus);
-        }
-        if (filters?.severity) query = query.eq('severity', filters.severity);
-        if (filters?.category) query = query.eq('category', filters.category);
-        if (filters?.code) query = query.eq('code', filters.code);
-        if (filters?.source) query = query.eq('source', filters.source);
-
-        let { data, error } = await query;
-
-        // If the query failed (e.g. old schema missing 'status', 'category', 'source'), fallback to memory filtering
-        if (error) {
-            const fallback = await supabase
-                .from('policy_flags')
-                .select('*, policies(policy_number)')
-                .order('created_at', { ascending: false })
-                .limit(1000);
-
-            if (fallback.error || !fallback.data) return [];
-
-            const fallbackStatus = targetStatus || 'open';
-            data = fallback.data.filter(f => {
-                const effectiveStatus = f.status || (f.resolved_at ? 'resolved' : 'open');
-                if (fallbackStatus !== 'all' && fallbackStatus !== '' && effectiveStatus !== fallbackStatus) return false;
-                if (filters?.severity && f.severity !== filters.severity) return false;
-                if (filters?.category && f.category !== filters.category) return false;
-                if (filters?.code && f.code !== filters.code) return false;
-                if (filters?.source && f.source !== filters.source) return false;
-                return true;
-            });
-        }
-
-        if (!data) return [];
-
-        return (data as any[])
-            .filter(row => !row.policies?.clients?.is_demo) // Exclude demo client flags
-            .map(row => ({
-                ...row,
-                policy_number: row.policies?.policy_number || null,
-            })).sort((a, b) => {
-                return (PRIORITY_ORDER[b.severity] || 0) - (PRIORITY_ORDER[a.severity] || 0);
-            });
-    } catch {
-        return [];
-    }
-}
+// NOTE: fetchAllOpenFlags was removed (dead code — zero callers). Restorable from Git.
 
 
 // ------------------------------------------------------------------
@@ -2153,7 +2064,7 @@ export async function fetchFlaggedPoliciesGrouped(): Promise<FlaggedPolicyGroup[
                 .range(r_start, r_start + limit - 1);
 
             if (error) {
-                console.error('fetchFlaggedPoliciesGrouped error:', error);
+                logger.error('api', 'fetchFlaggedPoliciesGrouped error:', { error: error instanceof Error ? error.message : String(error) })
                 break;
             }
             if (!data || data.length === 0) {
@@ -2250,7 +2161,7 @@ export async function fetchFlaggedPoliciesGrouped(): Promise<FlaggedPolicyGroup[
 
         return groups;
     } catch (err) {
-        console.error('fetchFlaggedPoliciesGrouped error:', err);
+        logger.error('api', 'fetchFlaggedPoliciesGrouped error:', { error: err instanceof Error ? err.message : String(err) })
         return [];
     }
 }
@@ -2328,7 +2239,7 @@ export async function fetchRecentSubmissions(limit = 20): Promise<SubmissionDebu
             .limit(limit);
 
         if (error) {
-            console.error("Error fetching submissions:", error);
+            logger.error('api', "Error fetching submissions:", { error: error.message })
             throw error;
         }
 
@@ -2353,7 +2264,7 @@ export async function fetchRecentSubmissions(limit = 20): Promise<SubmissionDebu
             };
         });
     } catch (err) {
-        console.error("Exception in fetchRecentSubmissions:", err);
+        logger.error('api', "Exception in fetchRecentSubmissions:", { error: err instanceof Error ? err.message : String(err) })
         throw err;
     }
 }
@@ -2964,7 +2875,7 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
                 }
             }
         } catch (e) {
-            console.warn('Failed to fetch document events:', e);
+            logger.warn('api', 'Failed to fetch document events:', { error: e instanceof Error ? e.message : String(e) })
         }
 
         // Merge + sort chronologically
@@ -2981,45 +2892,7 @@ export async function fetchActivityFeed(limit = 20): Promise<ActivityFeedItem[]>
     }
 }
 
-// ---------------------------------------------------------------------------
-// Entity Activity (Policy / Client detail pages)
-// ---------------------------------------------------------------------------
-
-export interface EntityActivityEvent {
-    id: string;
-    event_type: string;
-    title: string;
-    detail: string | null;
-    created_at: string;
-    meta: Record<string, any> | null;
-}
-
-export async function fetchEntityActivity(
-    entityType: 'policy' | 'client',
-    entityId: string,
-    limit = 20
-): Promise<EntityActivityEvent[]> {
-    try {
-        const col = entityType === 'policy' ? 'policy_id' : 'client_id';
-        const { data, error } = await supabase
-            .from('activity_events')
-            .select('id, event_type, title, detail, created_at, meta')
-            .eq(col, entityId)
-            .order('created_at', { ascending: false })
-            .limit(limit);
-
-        if (error) {
-            logger.error('API', `Error fetching ${entityType} activity`, { message: error.message });
-            return [];
-        }
-        return data || [];
-    } catch (err) {
-        logger.error('API', `Unexpected error fetching ${entityType} activity`, {
-            error: err instanceof Error ? err.message : String(err),
-        });
-        return [];
-    }
-}
+// NOTE: fetchEntityActivity + EntityActivityEvent were removed (dead code — zero callers). Restorable from Git.
 
 
 // ---------------------------------------------------------------------------
@@ -4074,4 +3947,4 @@ export async function fetchRenewalEmailLog(policyId: string): Promise<RenewalEma
         return [];
     }
 }
-
+

@@ -3,6 +3,8 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import styles from './LineChartKPI.module.css';
 import { supabase } from '@/lib/supabaseClient';
+import { logger } from '@/lib/logger';
+
 
 interface DailyData {
     date: Date;
@@ -53,7 +55,7 @@ export function LineChartKPI() {
                     });
                 }
             } catch (e) {
-                console.error("Error fetching line chart KPI", e);
+                logger.error('LineChartKPI', "Error fetching line chart KPI", { error: e instanceof Error ? e.message : String(e) })
             }
 
             setData(buckets);

@@ -6,18 +6,44 @@ import styles from './DataTable.module.scss';
 import { clsx } from 'clsx';
 import { DashboardPolicy, bulkUpdatePolicyStatus } from '@/lib/api';
 import { usePolicies } from '@/hooks/usePolicies';
-import { ArrowUpDown, Search, ChevronDown, ChevronUp, Columns, ArrowUp, ArrowDown, EyeOff, X, GripVertical, Flag, ChevronFirst, ChevronLast, Download, Satellite, Zap, MoreVertical, Filter, CircleDot, AlertCircle, CheckSquare } from 'lucide-react';
+import { ArrowUpDown, Search, ChevronDown, ChevronUp, Columns, ArrowUp, ArrowDown, EyeOff, X, GripVertical, Flag, ChevronFirst, ChevronLast, Download, Satellite, Zap, MoreVertical, Filter, CircleDot, AlertCircle, CheckSquare, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/Button/Button';
 import { useRouter } from 'next/navigation';
 import { FullWorkupModal } from './FullWorkupModal';
+import { logger } from '@/lib/logger';
+
 
 // localStorage keys (v2 — reset to pick up new column order & visibility defaults)
 const LS_VISIBLE_COLUMNS = 'cfp_datatable_visibleColumns_v5';
 const LS_COLUMN_ORDER = 'cfp_datatable_columnOrder_v5';
+const LS_COLUMN_WIDTHS = 'cfp_datatable_columnWidths_v1';
 const LS_SELECTED_FLAGS = 'cfp_datatable_selectedFlags';
 const LS_SELECTED_STATUSES = 'cfp_datatable_selectedStatuses';
 const LS_ENRICHMENT_FILTER = 'cfp_datatable_enrichmentFilter';
 const LS_DOC_FILTER = 'cfp_datatable_docFilter';
+
+// Default column widths in pixels — compact defaults for status & indicator columns
+const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
+    policy_number: 140,
+    flag_count: 85,
+    is_enriched: 95,
+    has_dec_page: 95,
+    has_rce: 80,
+    has_dic: 80,
+    has_es: 80,
+    named_insured: 180,
+    status: 120,
+    effective_date: 110,
+    expiration_date: 115,
+    annual_premium: 125,
+    payment_status: 125,
+    payment_plan: 115,
+    policy_activity: 100,
+    property_address: 230,
+    mailing_address: 230,
+    carrier_name: 120,
+    created_at: 110,
+};
 
 // All known policy statuses for the status filter
 const ALL_STATUSES = [
@@ -183,6 +209,7 @@ function ColumnPopup({
                         className={styles.popupSearchInput}
                         value={columnSearch}
                         onChange={(e) => onColumnSearch(e.target.value)}
+                        aria-label={`Search in ${column.label}`}
                         autoFocus
                     />
                     {columnSearch && (
@@ -234,6 +261,10 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
     const [columnOrder, setColumnOrder] = useState<ColumnDef[]>(INITIAL_COLUMNS);
     const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
     const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+
+    // Column Widths State (persisted per agent)
+    const [columnWidths, setColumnWidths] = useState<Record<string, number>>(DEFAULT_COLUMN_WIDTHS);
+    const [resizingColumn, setResizingColumn] = useState<{ key: string; startX: number; startWidth: number } | null>(null);
 
     // Column Visibility State
     const [visibleColumns, setVisibleColumns] = useState<Set<string>>(DEFAULT_VISIBLE_KEYS);
@@ -320,6 +351,57 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [isRowsPerPageMenuOpen, setIsRowsPerPageMenuOpen] = useState(false);
 
+    // Column Resize Handler
+    const handleResizeStart = (e: React.MouseEvent, columnKey: string) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const currentWidth = columnWidths[columnKey] || DEFAULT_COLUMN_WIDTHS[columnKey] || 120;
+        setResizingColumn({
+            key: columnKey,
+            startX: e.clientX,
+            startWidth: currentWidth,
+        });
+    };
+
+    useEffect(() => {
+        if (!resizingColumn) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            const delta = e.clientX - resizingColumn.startX;
+            const newWidth = Math.max(50, Math.min(800, resizingColumn.startWidth + delta));
+            setColumnWidths(prev => ({
+                ...prev,
+                [resizingColumn.key]: newWidth,
+            }));
+        };
+
+        const handleMouseUp = () => {
+            setResizingColumn(null);
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        };
+    }, [resizingColumn]);
+
+    // Reset Table Widths and Column Layout to System Defaults
+    const handleResetLayout = () => {
+        setColumnOrder(INITIAL_COLUMNS);
+        setVisibleColumns(new Set(DEFAULT_VISIBLE_KEYS));
+        setColumnWidths(DEFAULT_COLUMN_WIDTHS);
+        saveToStorage(LS_COLUMN_ORDER, INITIAL_COLUMNS.map(c => c.key));
+        saveToStorage(LS_VISIBLE_COLUMNS, Array.from(DEFAULT_VISIBLE_KEYS));
+        saveToStorage(LS_COLUMN_WIDTHS, DEFAULT_COLUMN_WIDTHS);
+    };
+
     // --- Load preferences from localStorage on mount ---
     useEffect(() => {
         // Visible columns
@@ -340,6 +422,12 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                 if (!restored.find(r => r.key === c.key)) restored.push(c);
             });
             setColumnOrder(restored);
+        }
+
+        // Column widths
+        const savedWidths = loadFromStorage<Record<string, number> | null>(LS_COLUMN_WIDTHS, null);
+        if (savedWidths) {
+            setColumnWidths(prev => ({ ...prev, ...savedWidths }));
         }
 
         // Selected flags — skip restore if URL provides an initial flag filter
@@ -375,6 +463,11 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
         if (!prefsLoaded) return;
         saveToStorage(LS_COLUMN_ORDER, columnOrder.map(c => c.key));
     }, [columnOrder, prefsLoaded]);
+
+    useEffect(() => {
+        if (!prefsLoaded) return;
+        saveToStorage(LS_COLUMN_WIDTHS, columnWidths);
+    }, [columnWidths, prefsLoaded]);
 
     useEffect(() => {
         if (!prefsLoaded) return;
@@ -418,7 +511,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
     // Listen for background dec page parsing completions to auto-refresh via SWR
     useEffect(() => {
         const handleDecPageParsed = () => {
-            console.log('[DataTable] Dec page parsed, auto-refreshing via SWR...');
+            logger.info('DataTable', '[DataTable] Dec page parsed, auto-refreshing via SWR...')
             swrRefresh();
         };
         window.addEventListener('decPageParsed', handleDecPageParsed);
@@ -1316,6 +1409,23 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                         </div>
                                     </div>
                                 ))}
+                                <div style={{ padding: '0.4rem 0.5rem', borderTop: '1px solid var(--border-default)', marginTop: '0.25rem' }}>
+                                    <button
+                                        onClick={handleResetLayout}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: '0.35rem',
+                                            width: '100%', padding: '0.4rem 0.6rem',
+                                            fontSize: '0.72rem', fontWeight: 600,
+                                            color: 'var(--accent-primary)', background: 'transparent',
+                                            border: 'none', borderRadius: '4px',
+                                            cursor: 'pointer', textAlign: 'left',
+                                        }}
+                                        title="Reset column widths, visibility, and ordering to system default"
+                                    >
+                                        <RotateCcw size={12} />
+                                        <span>Reset Widths &amp; Order</span>
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -1446,48 +1556,60 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                         style={{ accentColor: 'var(--accent-primary)', cursor: 'pointer', width: 16, height: 16 }}
                                     />
                                 </th>
-                                {orderedVisibleColumns.map((col) => (
-                                    <th
-                                        key={col.key}
-                                        className={clsx(
-                                            styles.th,
-                                            styles.thClickable,
-                                            columnSearchQueries[col.key] && styles.thFiltered,
-                                            draggedColumn === col.key && styles.thDragging
-                                        )}
-                                        onClick={() => handleHeaderSortClick(col.key as keyof DashboardPolicy)}
-                                        style={{ minWidth: col.width }}
-                                        draggable
-                                        onDragStart={(e) => handleDragStart(e, col.key)}
-                                        onDragOver={(e) => handleDragOver(e, col.key)}
-                                        onDragEnd={handleDragEnd}
-                                    >
-                                        <div className={styles.thInner}>
-                                            <span>{col.label}</span>
-                                            <div className={styles.sortIcon}>
-                                                {sortConfig?.key === col.key ? (
-                                                    sortConfig.direction === 'asc'
-                                                        ? <ArrowUp size={14} className={styles.sortActive} />
-                                                        : <ArrowDown size={14} className={styles.sortActive} />
-                                                ) : (
-                                                    <ArrowUpDown size={12} className={styles.sortInactive} />
-                                                )}
-                                            </div>
-                                            {columnSearchQueries[col.key] && (
-                                                <div className={styles.columnFilterIndicator}>
-                                                    <Search size={10} />
-                                                </div>
+                                {orderedVisibleColumns.map((col) => {
+                                    const colWidth = columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 120;
+                                    return (
+                                        <th
+                                            key={col.key}
+                                            className={clsx(
+                                                styles.th,
+                                                styles.thClickable,
+                                                columnSearchQueries[col.key] && styles.thFiltered,
+                                                draggedColumn === col.key && styles.thDragging,
+                                                resizingColumn?.key === col.key && styles.thResizing
                                             )}
-                                            <button
-                                                className={styles.headerKebab}
-                                                onClick={(e) => handleColumnHeaderClick(e, col.key)}
-                                                title="Column options"
-                                            >
-                                                <MoreVertical size={14} />
-                                            </button>
-                                        </div>
-                                    </th>
-                                ))}
+                                            onClick={() => handleHeaderSortClick(col.key as keyof DashboardPolicy)}
+                                            style={{ width: colWidth, minWidth: colWidth, maxWidth: colWidth }}
+                                            draggable={!resizingColumn}
+                                            onDragStart={(e) => handleDragStart(e, col.key)}
+                                            onDragOver={(e) => handleDragOver(e, col.key)}
+                                            onDragEnd={handleDragEnd}
+                                        >
+                                            <div className={styles.thInner}>
+                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{col.label}</span>
+                                                <div className={styles.sortIcon}>
+                                                    {sortConfig?.key === col.key ? (
+                                                        sortConfig.direction === 'asc'
+                                                            ? <ArrowUp size={14} className={styles.sortActive} />
+                                                            : <ArrowDown size={14} className={styles.sortActive} />
+                                                    ) : (
+                                                        <ArrowUpDown size={12} className={styles.sortInactive} />
+                                                    )}
+                                                </div>
+                                                {columnSearchQueries[col.key] && (
+                                                    <div className={styles.columnFilterIndicator}>
+                                                        <Search size={10} />
+                                                    </div>
+                                                )}
+                                                <button
+                                                    className={styles.headerKebab}
+                                                    onClick={(e) => handleColumnHeaderClick(e, col.key)}
+                                                    title="Column options"
+                                                >
+                                                    <MoreVertical size={14} />
+                                                </button>
+                                            </div>
+
+                                            {/* Drag to resize column width handle */}
+                                            <div
+                                                className={clsx(styles.colResizer, resizingColumn?.key === col.key && styles.colResizerActive)}
+                                                onMouseDown={(e) => handleResizeStart(e, col.key)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                title="Drag to resize column width"
+                                            />
+                                        </th>
+                                    );
+                                })}
                             </tr>
                         </thead>
                         <tbody>
@@ -1513,7 +1635,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                     title={tooltip}
                                     style={selectedRows.has(row.id) ? { background: 'rgba(99, 102, 241, 0.06)' } : undefined}
                                 >
-                                    <td className={styles.td} style={{ width: 40 }}>
+                                    <td className={styles.td} style={{ width: 40, minWidth: 40, maxWidth: 40 }}>
                                         <input
                                             type="checkbox"
                                             checked={selectedRows.has(row.id)}
@@ -1522,8 +1644,21 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                             style={{ accentColor: 'var(--accent-primary)', cursor: 'pointer', width: 16, height: 16 }}
                                         />
                                     </td>
-                                    {orderedVisibleColumns.map(col => (
-                                        <td key={col.key} className={styles.td}>
+                                    {orderedVisibleColumns.map(col => {
+                                        const colWidth = columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 120;
+                                        return (
+                                        <td
+                                            key={col.key}
+                                            className={styles.td}
+                                            style={{
+                                                width: colWidth,
+                                                minWidth: colWidth,
+                                                maxWidth: colWidth,
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                            }}
+                                        >
                                             {col.key === 'policy_number' ? (
                                                 <span className="font-medium text-blue-600">{row[col.key]}</span>
                                             ) : col.key === 'named_insured' ? (
@@ -1618,7 +1753,8 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                                 (row[col.key] ?? '') as React.ReactNode
                                             )}
                                         </td>
-                                    ))}
+                                        );
+                                    })}
                                 </tr>
                                 );
                             })}
@@ -1626,7 +1762,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                 <>
                                     {Array.from({ length: 8 }).map((_, i) => (
                                         <tr key={`skel-${i}`} className={styles.tr} style={{ pointerEvents: 'none' }}>
-                                            <td className={styles.td} style={{ width: 40 }}>
+                                            <td className={styles.td} style={{ width: 40, minWidth: 40, maxWidth: 40 }}>
                                                 <div style={{
                                                     width: 16, height: 16, borderRadius: 3,
                                                     background: 'var(--bg-elevated, #1e293b)',
@@ -1634,8 +1770,10 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                                     animationDelay: `${i * 0.07}s`,
                                                 }} />
                                             </td>
-                                            {orderedVisibleColumns.map((col, ci) => (
-                                                <td key={col.key} className={styles.td}>
+                                            {orderedVisibleColumns.map((col, ci) => {
+                                                const colWidth = columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 120;
+                                                return (
+                                                <td key={col.key} className={styles.td} style={{ width: colWidth, minWidth: colWidth, maxWidth: colWidth }}>
                                                     <div style={{
                                                         height: 14,
                                                         width: ci === 0 ? '60%' : ci === 1 ? '80%' : '50%',
@@ -1646,7 +1784,8 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                                         animationDelay: `${i * 0.07 + ci * 0.03}s`,
                                                     }} />
                                                 </td>
-                                            ))}
+                                                );
+                                            })}
                                         </tr>
                                     ))}
                                     <tr>

@@ -40,6 +40,8 @@ import {
     Search,
 } from 'lucide-react';
 import styles from './PolicyFlags.module.scss';
+import { logger } from '@/lib/logger';
+
 
 interface PolicyFlagsProps {
     policyId: string;
@@ -340,7 +342,7 @@ export function PolicyFlags({ policyId, clientId }: PolicyFlagsProps) {
                 setClientFlags(cf.filter(f => !f.policy_id || f.policy_id !== policyId));
             }
         } catch (error) {
-            console.error('Error loading flags:', error);
+            logger.error('PolicyFlags', 'Error loading flags:', { error: error instanceof Error ? error.message : String(error) })
         } finally {
             setLoading(false);
         }

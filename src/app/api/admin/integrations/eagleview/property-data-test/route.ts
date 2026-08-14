@@ -2,32 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
 import { fetchEagleViewPropertyData } from '@/lib/eagleview';
 import { logger } from '@/lib/logger';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 
 export async function POST(req: NextRequest) {
     try {
-        const authHeader = req.headers.get('Authorization');
-        if (!authHeader?.startsWith('Bearer ')) {
-            return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-        }
-
-        // Verify the user is an admin
-        const token = authHeader.split(' ')[1];
-        const admin = getSupabaseAdmin();
-        const { data: { user }, error: userError } = await admin.auth.getUser(token);
-
-        if (userError || !user) {
-            return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { data: profile } = await admin
-            .from('accounts')
-            .select('role')
-            .eq('id', user.id)
-            .single();
-
-        if (profile?.role !== 'admin') {
-            return NextResponse.json({ success: false, message: 'Forbidden: Admin access required' }, { status: 403 });
-        }
+        const auth = await authenticateRequest(req, { requiredRole: ['admin', 'service'] });
+        if (isAuthError(auth)) return auth;
+        const user = auth.user;
 
         // Parse payload
         let body: { address: string };

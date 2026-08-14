@@ -11,6 +11,8 @@ import { SidebarProvider, useSidebar } from "@/components/layout/SidebarContext"
 import { ToastProvider } from "@/components/ui/Toast/Toast";
 import { DecPageObserver } from "@/components/layout/DecPageObserver";
 import { Menu } from 'lucide-react';
+import { logger } from '@/lib/logger';
+
 
 // Routes that customers are allowed to access
 const CLIENT_ALLOWED_ROUTES = ['/portal', '/submit', '/profile', '/settings', '/policy'];
@@ -122,7 +124,7 @@ export default function AuthenticatedLayout({
 
         async function checkRoleAccess(userId: string) {
             try {
-                console.log('[Auth] Fetching profile for user:', userId);
+                logger.info('layout', '[Auth] Fetching profile for user:', { detail: userId })
 
                 const { data, error, status, statusText } = await supabase
                     .from('accounts')
@@ -133,40 +135,40 @@ export default function AuthenticatedLayout({
                 if (!isMounted) return;
 
                 if (error) {
-                    console.error('[Auth] Profile fetch error:', {
+                    logger.error('layout', '[Auth] Profile fetch error:', {
                         message: error.message,
                         code: error.code,
                         details: error.details,
                         hint: error.hint,
                         status,
                         statusText,
-                    });
+                    })
                     setDebugInfo(`Profile fetch failed: ${error.message} (code: ${error.code}, status: ${status})`);
                     setAuthState('no-access');
                     return;
                 }
 
                 if (!data) {
-                    console.error('[Auth] No profile data returned for user:', userId);
+                    logger.error('layout', '[Auth] No profile data returned for user:', { detail: userId })
                     setDebugInfo('No profile found for your account.');
                     setAuthState('no-access');
                     return;
                 }
 
                 const role = data.role as UserRole;
-                console.log('[Auth] User role:', role);
+                logger.info('layout', '[Auth] User role:', { role })
                 setUserRole(role);
 
                 if (role === 'admin' || role === 'service' || role === 'agent' || role === 'user' || role === 'customer') {
-                    console.log('[Auth] Access granted for role:', role);
+                    logger.info('layout', '[Auth] Access granted for role:', { role })
                     setAuthState('authorized');
                 } else {
-                    console.log('[Auth] Access denied for role:', role);
+                    logger.info('layout', '[Auth] Access denied for role:', role)
                     setDebugInfo(`Role "${role}" does not have dashboard access.`);
                     setAuthState('no-access');
                 }
             } catch (err) {
-                console.error('[Auth] Unexpected error checking role:', err);
+                logger.error('layout', '[Auth] Unexpected error checking role:', { error: err instanceof Error ? err.message : String(err) })
                 if (isMounted) {
                     setDebugInfo(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
                     setAuthState('no-access');
@@ -177,10 +179,10 @@ export default function AuthenticatedLayout({
         // Listen for auth state changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (!isMounted) return;
-            console.log('[Auth] Auth state changed:', event, session?.user?.id);
+            logger.info('layout', '[Auth] Auth state changed:', { event, userId: session?.user?.id })
 
             if (!session) {
-                console.log('[Auth] No session, redirecting to sign-in');
+                logger.info('layout', '[Auth] No session, redirecting to sign-in')
                 router.replace('/auth/signin');
                 return;
             }
@@ -193,17 +195,17 @@ export default function AuthenticatedLayout({
             if (!isMounted) return;
 
             if (error) {
-                console.error('[Auth] getSession error:', error);
+                logger.error('layout', '[Auth] getSession error:', { error: error.message })
                 setDebugInfo(`Session error: ${error.message}`);
                 router.replace('/auth/signin');
                 return;
             }
 
             if (!session) {
-                console.log('[Auth] No active session found');
+                logger.info('layout', '[Auth] No active session found')
                 router.replace('/auth/signin');
             } else {
-                console.log('[Auth] Active session found for:', session.user.id, session.user.email);
+                logger.info('layout', '[Auth] Active session found for:', { userId: session.user.id, email: session.user.email })
                 checkRoleAccess(session.user.id);
             }
         });

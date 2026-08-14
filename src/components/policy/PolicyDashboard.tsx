@@ -10,6 +10,8 @@ import { RefreshCw, TriangleAlert } from 'lucide-react';
 import styles from './PolicyDashboard.module.css';
 import { Card } from '../ui/Card/Card';
 import { supabase } from '@/lib/supabaseClient';
+import { logger } from '@/lib/logger';
+
 
 interface PolicyDashboardProps {
     declaration: Declaration;
@@ -77,7 +79,7 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
                 alert(result.error || 'Failed to generate report');
             }
         } catch (e) {
-            console.error(e);
+            logger.error('PolicyDashboard', 'Error:', { error: e instanceof Error ? e.message : String(e) });
             alert('Error generating report');
         } finally {
             setIsGenerating(false);

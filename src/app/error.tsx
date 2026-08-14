@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
+import { logger } from '@/lib/logger';
+
 
 /**
  * Next.js root error boundary.
@@ -16,7 +18,7 @@ export default function GlobalError({
 }) {
     useEffect(() => {
         // Log the error (in production, send to monitoring service)
-        console.error('[GlobalError]', error);
+        logger.error('error', '[GlobalError]', { error: error.message, digest: error.digest })
     }, [error]);
 
     return (

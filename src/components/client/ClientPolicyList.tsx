@@ -4,6 +4,8 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { fetchPoliciesByClientId, DashboardPolicy } from '@/lib/api';
 import styles from './ClientPolicyList.module.css';
+import { logger } from '@/lib/logger';
+
 
 interface ClientPolicyListProps {
     clientId: string;
@@ -31,7 +33,7 @@ export function ClientPolicyList({ clientId }: ClientPolicyListProps) {
                 const clientPolicies = await fetchPoliciesByClientId(clientId);
                 setPolicies(clientPolicies);
             } catch (error) {
-                console.error('Error loading policies:', error);
+                logger.error('ClientPolicyList', 'Error loading policies:', { error: error instanceof Error ? error.message : String(error) })
             } finally {
                 setLoading(false);
             }

@@ -30,6 +30,8 @@ import { useRecentlyVisited } from '@/hooks/useRecentlyVisited';
 import { useToast } from '@/components/ui/Toast/Toast';
 import { getUserProfile, UserRole } from '@/lib/auth';
 import { ClientPolicyView } from './client-view';
+import { logger } from '@/lib/logger';
+
 
 const policyTabs = [
     { id: 'overview', label: 'OVERVIEW' },
@@ -208,7 +210,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                     setDeclaration(decl);
                 }
             } catch (error) {
-                console.error("Failed to fetch policy data", error);
+                logger.error('page', "Failed to fetch policy data", { error: error instanceof Error ? error.message : String(error) })
             } finally {
                 setLoading(false);
             }
@@ -296,14 +298,14 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                 }
             });
         } catch (e) {
-            console.error('[PolicyPage] Failed to refresh data:', e);
+            logger.error('page', '[PolicyPage] Failed to refresh data:', { error: e instanceof Error ? e.message : String(e) })
         }
     }, [id]);
 
     // Auto-refresh when a dec page finishes processing in the background
     useEffect(() => {
         const handleDecPageParsed = () => {
-            console.log('[PolicyPage] Dec page parsed — refreshing all data');
+            logger.info('page', '[PolicyPage] Dec page parsed — refreshing all data')
             setBgProcessing(false);
             setBgProcessingStep(null);
             refreshAllData();
@@ -474,7 +476,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                 low: open.filter((f: PolicyFlagRow) => f.severity === 'low').length,
             });
         } catch (e) {
-            console.error('Flag check failed:', e);
+            logger.error('page', 'Flag check failed:', { error: e instanceof Error ? e.message : String(e) })
         } finally {
             setFlagCheckRunning(false);
         }
@@ -795,7 +797,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                                         alert(result.error || 'Failed to generate report — please try again.');
                                     }
                                 } catch (e) {
-                                    console.error('Report generation failed:', e);
+                                    logger.error('page', 'Report generation failed:', { error: e instanceof Error ? e.message : String(e) })
                                     alert('Error generating report. Check the console for details.');
                                 } finally {
                                     setIsGeneratingReport(false);
@@ -880,7 +882,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                                                     toast.error(json.message || 'Upload failed. Please try again.');
                                                 }
                                             } catch (err) {
-                                                console.error(err);
+                                                logger.error('page', 'Error:', { error: err instanceof Error ? err.message : String(err) })
                                                 toast.error('Network error during upload. Please try again.');
                                             } finally {
                                                 setDecPageLoading(false);
@@ -963,7 +965,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                                                     toast.error(json.message || 'DIC upload failed.');
                                                 }
                                             } catch (err) {
-                                                console.error(err);
+                                                logger.error('page', 'Error:', { error: err instanceof Error ? err.message : String(err) })
                                                 toast.error('Network error during DIC upload.');
                                             } finally {
                                                 setDicDocLoading(false);

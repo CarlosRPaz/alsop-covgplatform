@@ -50,7 +50,7 @@ export interface TemplateContext {
 // Storage Keys & Constants
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = 'cfp_internal_email_templates_v1';
+const STORAGE_KEY = 'cfp_internal_email_templates_v2';
 
 export const AVAILABLE_VARIABLES = [
     { tag: '{{client_name}}', description: 'Named Insured / Client Full Name' },
@@ -288,12 +288,16 @@ export function saveInternalTemplate(template: SystemEmailTemplate): void {
         updated = [...current, template];
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('cfp-templates-updated', { detail: updated }));
+    window.dispatchEvent(new Event('storage'));
 }
 
 /** Reset templates to factory defaults */
 export function resetInternalTemplates(): void {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(STORAGE_KEY);
+    window.dispatchEvent(new CustomEvent('cfp-templates-updated', { detail: DEFAULT_TEMPLATES }));
+    window.dispatchEvent(new Event('storage'));
 }
 
 // ---------------------------------------------------------------------------

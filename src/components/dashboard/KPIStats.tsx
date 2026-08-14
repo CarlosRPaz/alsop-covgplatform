@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import styles from './KPIStats.module.scss';
 import { Flag, ShieldAlert, CalendarClock, ArrowRight, AlertTriangle, Search } from 'lucide-react';
+import { logger } from '@/lib/logger';
+
 
 interface MetricCardProps {
     title: string;
@@ -110,7 +112,7 @@ export function KPIStats() {
                     loading: false
                 });
             } catch (error) {
-                console.error('Error loading operational KPI stats:', error);
+                logger.error('KPIStats', 'Error loading operational KPI stats:', { error: error instanceof Error ? error.message : String(error) });
                 setStats(s => ({ ...s, loading: false }));
             }
         };

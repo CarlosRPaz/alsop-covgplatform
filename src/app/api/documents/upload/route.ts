@@ -2,8 +2,8 @@ import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
 import { logger } from '@/lib/logger';
-import { createClient } from '@supabase/supabase-js';
-import { env } from '@/lib/env';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
+import { checkRateLimit } from '@/lib/rateLimit';
 
 /** Vercel function config */
 export const maxDuration = 60;
@@ -79,7 +79,7 @@ export async function GET() {
  *   6. UPDATE platform_documents with storage_path
  *   7. Queue ingestion_jobs with document_id
  */
-export async function POST(request: NextRequest): Promise<NextResponse<DocumentUploadResponse>> {
+export async function POST(request: NextRequest): Promise<NextResponse<DocumentUploadResponse> | NextResponse> {
     let documentId: string | null = null;
 
     try {
@@ -88,28 +88,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<DocumentU
         // ---------------------------------------------------------------
         // 1. Authenticate user (REQUIRED)
         // ---------------------------------------------------------------
-        const authHeader = request.headers.get('Authorization');
-        if (!authHeader?.startsWith('Bearer ')) {
+        const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+        if (isAuthError(auth)) return auth;
+        const accountId = auth.user.id;
+
+        const rateLimitKey = `upload:${auth.user.id}`;
+        const rateCheck = checkRateLimit(rateLimitKey, 20, 60_000); // 20 uploads/min
+        if (!rateCheck.allowed) {
             return NextResponse.json(
-                { success: false, message: 'Authentication required. Please sign in and try again.', error: 'AUTH_REQUIRED' },
-                { status: 401 }
+                { error: 'Rate limit exceeded. Please wait before uploading more files.' },
+                { status: 429, headers: { 'Retry-After': String(Math.ceil(rateCheck.resetMs / 1000)) } }
             );
         }
 
-        const token = authHeader.slice(7);
-        const userClient = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
-            global: { headers: { Authorization: `Bearer ${token}` } },
-        });
-
-        const { data: { user }, error: authError } = await userClient.auth.getUser(token);
-        if (authError || !user) {
-            return NextResponse.json(
-                { success: false, message: 'Session expired. Please sign in again.', error: 'AUTH_INVALID' },
-                { status: 401 }
-            );
-        }
-
-        const accountId = user.id;
         logger.info('DocumentUpload', 'Authenticated user', { accountId });
 
         // ---------------------------------------------------------------

@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { CFPForm } from '@/components/forms/CFPForm';
 import Link from 'next/link';
-import { ChevronLeft, Shield, LogIn, UserPlus, Mail, Lock, User, Phone, ArrowRight } from 'lucide-react';
+import { ChevronLeft, LogIn, UserPlus, Mail, Lock, User, Phone, ArrowRight } from 'lucide-react';
+import { BrandLogo } from '@/components/brand/BrandLogo';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/Button/Button';
 import type { UserRole } from '@/lib/auth';
@@ -117,8 +118,7 @@ function AuthGate() {
             {/* Brand */}
             <div className={styles.brandSection}>
                 <div className={styles.brandRow}>
-                    <Shield size={24} className={styles.brandIcon} />
-                    <span className={styles.brandName}>CoverageCheckNow</span>
+                    <BrandLogo variant="horizontal" size="md" />
                 </div>
                 <p className={styles.brandTagline}>
                     Sign in to submit your declaration

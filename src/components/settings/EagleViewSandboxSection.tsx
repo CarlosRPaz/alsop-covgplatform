@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabaseClient';
 import { Loader2, Search, Satellite, Code, LayoutDashboard, Copy, Check, MapPin, AlertCircle } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast/Toast';
 import EagleViewReportModal from './EagleViewReportModal';
+import { logger } from '@/lib/logger';
+
 
 const SAMPLE_ADDRESSES = [
     { label: 'Sample 1 - Omaha NE (Valid Sandbox Bounds)', value: '4220 BARKER AVE, OMAHA, NE 68105' },
@@ -45,7 +47,7 @@ export default function EagleViewSandboxSection() {
             } else {
                 setError(data.message || 'Unknown error occurred');
                 if (data.details) {
-                    console.error('EagleView API Error Details:', data.details);
+                    logger.error('EagleViewSandboxSection', 'EagleView API Error Details:', data.details)
                 }
             }
         } catch (err: any) {

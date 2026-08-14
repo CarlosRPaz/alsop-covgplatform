@@ -1,4 +1,5 @@
 import { logger } from './logger';
+import { env } from '@/lib/env';
 
 export interface EagleViewConfig {
     clientId: string;
@@ -9,8 +10,8 @@ export interface EagleViewConfig {
 
 function getConfig(): EagleViewConfig {
     return {
-        clientId: process.env.EAGLEVIEW_CLIENT_ID || '',
-        clientSecret: process.env.EAGLEVIEW_CLIENT_SECRET || '',
+        clientId: env.EAGLEVIEW_CLIENT_ID || '',
+        clientSecret: env.EAGLEVIEW_CLIENT_SECRET || '',
         baseUrl: process.env.EAGLEVIEW_API_BASE_URL || 'https://sandbox.apis.eagleview.com',
         authUrl: process.env.EAGLEVIEW_AUTH_URL || 'https://apicenter.eagleview.com/oauth2/v1/token',
     };
@@ -95,7 +96,7 @@ export async function fetchEagleViewPropertyData(address: string, maxWaitMs = 60
     const requestId = postData.request?.id || postData.requestId;
 
     if (!requestId) {
-        console.error("NO REQUEST ID, POST DATA WAS:", postData);
+        logger.error('eagleview', "NO REQUEST ID, POST DATA WAS:", postData)
         throw new Error('No requestId returned from EagleView POST request. Response: ' + JSON.stringify(postData));
     }
 

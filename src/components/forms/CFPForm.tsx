@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/Button/Button';
 import styles from './CFPForm.module.scss';
 import { Upload, CheckCircle, AlertCircle, ArrowRight, Loader2, FileText } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
+import { logger } from '@/lib/logger';
+
 
 /** Maximum file size: 10 MB */
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -341,7 +343,7 @@ export function CFPForm({ userId, userRole }: CFPFormProps) {
                         sessionStorage.setItem(key, JSON.stringify(pending));
                     }
                 } catch (e) {
-                    console.error('Failed to update session storage for dec page tracking', e);
+                    logger.error('CFPForm', 'Failed to update session storage for dec page tracking', { error: e instanceof Error ? e.message : String(e) })
                 }
 
                 // Notify DecPageObserver about the new upload

@@ -14,6 +14,8 @@ import {
     renderInternalCopilotPrompt,
 } from '@/lib/internalTemplateStore';
 import { RenewalEmailLogEntry } from '@/lib/api';
+import { logger } from '@/lib/logger';
+
 
 // Re-export for consumers
 export type { RenewalEmailLogEntry };
@@ -99,15 +101,24 @@ export function PolicyEmailComposer({
     // Load templates
     useEffect(() => {
         if (!isOpen) return;
-        const loaded = getInternalTemplates();
-        setTemplates(loaded);
-        if (defaultTemplateId && loaded.some(t => t.id === defaultTemplateId)) {
-            setSelectedTemplateId(defaultTemplateId);
-        } else if (loaded.length > 0) {
-            setSelectedTemplateId(loaded[0].id);
-        }
+        const load = () => {
+            const loaded = getInternalTemplates();
+            setTemplates(loaded);
+            if (defaultTemplateId && loaded.some(t => t.id === defaultTemplateId)) {
+                setSelectedTemplateId(defaultTemplateId);
+            } else if (loaded.length > 0) {
+                setSelectedTemplateId(prev => loaded.some(t => t.id === prev) ? prev : loaded[0].id);
+            }
+        };
+        load();
+        window.addEventListener('cfp-templates-updated', load);
+        window.addEventListener('storage', load);
         // Reset marked state when reopening
         setJustMarkedSent(false);
+        return () => {
+            window.removeEventListener('cfp-templates-updated', load);
+            window.removeEventListener('storage', load);
+        };
     }, [isOpen, defaultTemplateId]);
 
     const activeTemplate = useMemo(() => {
@@ -186,7 +197,7 @@ export function PolicyEmailComposer({
                 alert(json.error || 'Failed to mark as sent');
             }
         } catch (err) {
-            console.error('Mark sent failed:', err);
+            logger.error('PolicyEmailComposer', 'Mark sent failed:', { error: err instanceof Error ? err.message : String(err) })
             alert('Error marking email as sent.');
         } finally {
             setMarkingSent(false);

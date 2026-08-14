@@ -134,7 +134,7 @@ def fail_job(job_id: str, error_msg: str, error_detail: dict | None = None,
                 "run_after": run_after,
                 "updated_at": now_iso,
             }
-        ).eq("id", job_id).execute()
+        ).eq("id", job_id).eq("status", "processing").execute()
     else:
         sb.table("ingestion_jobs").update(
             {
@@ -143,7 +143,7 @@ def fail_job(job_id: str, error_msg: str, error_detail: dict | None = None,
                 "last_error_detail": error_detail or {},
                 "updated_at": now_iso,
             }
-        ).eq("id", job_id).execute()
+        ).eq("id", job_id).eq("status", "processing").execute()
         logger.error("Job %s permanently failed after %d attempts: %s",
                       job_id, attempts, safe_error)
 

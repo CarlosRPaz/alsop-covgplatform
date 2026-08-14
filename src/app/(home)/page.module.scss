@@ -99,6 +99,16 @@ $transition: 250ms ease;
   }
 }
 
+.heroBrandLogo {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1.25rem;
+
+  @media (max-width: 960px) {
+    justify-content: center;
+  }
+}
+
 .heroBadge {
   display: inline-flex;
   align-items: center;

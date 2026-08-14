@@ -12,6 +12,7 @@ the manual "Full Analysis" button provides — no gaps, no partial data.
 
 import logging
 import os
+import time as _time
 
 import httpx
 
@@ -37,6 +38,39 @@ def _headers() -> dict:
     return h
 
 
+def _call_with_retry(
+    url: str,
+    payload: dict,
+    timeout: int,
+    max_retries: int = 3,
+    backoff_base: float = 2.0,
+) -> httpx.Response:
+    """POST with exponential backoff. Retries on 5xx, timeout, and connection errors."""
+    last_exc: Exception | None = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+                resp = client.post(url, json=payload, headers=_headers())
+            if resp.status_code < 500:
+                return resp  # Success or 4xx client error — don't retry
+            logger.warning(
+                "Attempt %d/%d got %d for %s",
+                attempt, max_retries, resp.status_code, url,
+            )
+        except (httpx.TimeoutException, httpx.ConnectError) as e:
+            logger.warning(
+                "Attempt %d/%d failed for %s: %s",
+                attempt, max_retries, url, e,
+            )
+            last_exc = e
+        if attempt < max_retries:
+            sleep_time = backoff_base ** attempt
+            _time.sleep(sleep_time)
+    if last_exc:
+        raise last_exc
+    return resp  # Return the last 5xx response
+
+
 def trigger_full_enrichment(policy_id: str, step_callback=None) -> dict:
     """
     Call POST /api/enrichment/run to run the full enrichment pipeline.
@@ -51,8 +85,7 @@ def trigger_full_enrichment(policy_id: str, step_callback=None) -> dict:
     logger.info("Triggering full enrichment: policy_id=%s url=%s", policy_id, url)
 
     try:
-        with httpx.Client(timeout=ENRICHMENT_TIMEOUT, follow_redirects=True) as client:
-            response = client.post(url, json={"policy_id": policy_id}, headers=_headers())
+        response = _call_with_retry(url, {"policy_id": policy_id}, ENRICHMENT_TIMEOUT)
 
         if response.status_code != 200:
             error_text = response.text[:500]
@@ -96,8 +129,7 @@ def trigger_flag_evaluation(policy_id: str) -> dict:
     logger.info("Triggering flag evaluation: policy_id=%s url=%s", policy_id, url)
 
     try:
-        with httpx.Client(timeout=FLAGS_TIMEOUT, follow_redirects=True) as client:
-            response = client.post(url, json={"policy_id": policy_id}, headers=_headers())
+        response = _call_with_retry(url, {"policy_id": policy_id}, FLAGS_TIMEOUT)
 
         if response.status_code != 200:
             error_text = response.text[:500]

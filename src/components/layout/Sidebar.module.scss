@@ -52,9 +52,10 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 0.75rem;
+    padding: 0 0.875rem;
     border-bottom: 1px solid var(--border-default);
     flex-shrink: 0;
+    gap: 0.5rem;
 
     .collapsed & {
         justify-content: center;
@@ -70,24 +71,15 @@
         justify-content: space-between;
         flex-direction: row;
         height: var(--topbar-height);
-        padding: 0 0.75rem;
+        padding: 0 0.875rem;
     }
 }
 
 .brand {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 0.95rem;
-    font-weight: 800;
-    color: var(--text-high);
-    white-space: nowrap;
-    overflow: hidden;
-
-    span {
-        color: var(--accent-primary);
-        margin-right: 0.25rem;
-    }
+    min-width: 0;
+    flex: 1;
 }
 
 .brandText {

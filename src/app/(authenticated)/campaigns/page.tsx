@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { generateCoPilotPrompt, type CoPilotPromptContext, type PromptTemplateId } from '@/lib/copilotPromptGenerator';
 import { PolicyEmailComposer } from '@/components/email/PolicyEmailComposer';
+import { logger } from '@/lib/logger';
 import {
     Calendar,
     Search,
@@ -71,7 +72,7 @@ export default function RenewalCampaignsPage() {
                 setPolicies(result.data);
             }
         } catch (error) {
-            console.error('Failed to fetch renewals:', error);
+            logger.error('page', 'Failed to fetch renewals:', { error: error instanceof Error ? error.message : String(error) })
         } finally {
             setLoading(false);
         }

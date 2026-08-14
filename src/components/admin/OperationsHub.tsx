@@ -28,22 +28,22 @@ const TABS: TabDef[] = [
 ];
 
 const DOC_TYPE_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
-    es_doc: { label: 'E&S', color: '#f59e0b', icon: '🛡️' },
-    rce: { label: 'RCE', color: '#10b981', icon: '📊' },
-    dic_dec_page: { label: 'DIC', color: '#8b5cf6', icon: '📋' },
-    dec_page: { label: 'Dec Page', color: '#6366f1', icon: '📋' },
-    invoice: { label: 'Invoice', color: '#3b82f6', icon: '💰' },
+    es_doc: { label: 'E&S', color: 'var(--status-warning)', icon: '🛡️' },
+    rce: { label: 'RCE', color: 'var(--status-success)', icon: '📊' },
+    dic_dec_page: { label: 'DIC', color: 'var(--accent-secondary)', icon: '📋' },
+    dec_page: { label: 'Dec Page', color: 'var(--accent-primary)', icon: '📋' },
+    invoice: { label: 'Invoice', color: 'var(--status-info)', icon: '💰' },
     inspection: { label: 'Inspection', color: '#ec4899', icon: '🔍' },
-    endorsement: { label: 'Endorsement', color: '#14b8a6', icon: '📝' },
-    questionnaire: { label: 'Questionnaire', color: '#a855f7', icon: '📝' },
-    other: { label: 'Other', color: '#64748b', icon: '📄' },
+    endorsement: { label: 'Endorsement', color: 'var(--status-info)', icon: '📝' },
+    questionnaire: { label: 'Questionnaire', color: 'var(--accent-secondary)', icon: '📝' },
+    other: { label: 'Other', color: 'var(--text-muted)', icon: '📄' },
 };
 
 function getMatchStatusBadge(doc: PlatformDocumentInfo): { label: string; color: string; bg: string } {
-    if (doc.parse_status === 'failed') return { label: 'Failed', color: '#ef4444', bg: '#ef444412' };
-    if (doc.match_status === 'no_match') return { label: 'No Match', color: '#ef4444', bg: '#ef444412' };
-    if (doc.match_status === 'needs_review') return { label: 'Needs Review', color: '#f59e0b', bg: '#f59e0b12' };
-    return { label: doc.match_status, color: '#64748b', bg: '#64748b12' };
+    if (doc.parse_status === 'failed') return { label: 'Failed', color: 'var(--status-error)', bg: 'var(--bg-error-subtle)' };
+    if (doc.match_status === 'no_match') return { label: 'No Match', color: 'var(--status-error)', bg: 'var(--bg-error-subtle)' };
+    if (doc.match_status === 'needs_review') return { label: 'Needs Review', color: 'var(--status-warning)', bg: 'var(--bg-warning-subtle)' };
+    return { label: doc.match_status, color: 'var(--text-muted)', bg: 'var(--text-muted)12' };
 }
 
 function formatTimeAgo(dateStr: string): string {
@@ -170,7 +170,7 @@ function ReviewCard({ doc, onDelete, isDeleting }: {
                         <div style={{
                             height: '100%', borderRadius: '2px',
                             width: `${Math.min(doc.match_confidence * 100, 100)}%`,
-                            background: doc.match_confidence > 0.7 ? '#10b981' : doc.match_confidence > 0.4 ? '#f59e0b' : '#ef4444',
+                            background: doc.match_confidence > 0.7 ? 'var(--status-success)' : doc.match_confidence > 0.4 ? 'var(--status-warning)' : 'var(--status-error)',
                             transition: 'width 0.3s ease',
                         }} />
                     </div>
@@ -181,8 +181,8 @@ function ReviewCard({ doc, onDelete, isDeleting }: {
             {doc.error_message && (
                 <div style={{
                     padding: '0.5rem 0.75rem', borderRadius: '0.375rem',
-                    background: '#ef444408', border: '1px solid #ef444420',
-                    fontSize: '0.72rem', color: '#ef4444', marginBottom: '0.875rem',
+                    background: 'var(--bg-error-subtle)', border: '1px solid var(--status-error)20',
+                    fontSize: '0.72rem', color: 'var(--status-error)', marginBottom: '0.875rem',
                     lineHeight: 1.4,
                     overflow: 'hidden', display: '-webkit-box',
                     WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
@@ -198,7 +198,7 @@ function ReviewCard({ doc, onDelete, isDeleting }: {
                     style={{
                         flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem',
                         padding: '0.55rem 1rem', borderRadius: '0.5rem',
-                        background: docConfig.color, color: '#fff',
+                        background: docConfig.color, color: 'var(--text-inverse)',
                         fontSize: '0.78rem', fontWeight: 600,
                         textDecoration: 'none', transition: 'all 0.15s',
                         boxShadow: `0 2px 8px ${docConfig.color}30`,
@@ -218,7 +218,7 @@ function ReviewCard({ doc, onDelete, isDeleting }: {
                         color: 'var(--text-muted)', cursor: isDeleting ? 'wait' : 'pointer',
                         transition: 'all 0.15s', opacity: isDeleting ? 0.5 : 1,
                     }}
-                    onMouseEnter={e => { if (!isDeleting) { e.currentTarget.style.borderColor = '#ef444440'; e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = '#ef444408'; } }}
+                    onMouseEnter={e => { if (!isDeleting) { e.currentTarget.style.borderColor = 'var(--status-error)40'; e.currentTarget.style.color = 'var(--status-error)'; e.currentTarget.style.background = 'var(--bg-error-subtle)'; } }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent'; }}
                     title="Delete document"
                 >
@@ -273,7 +273,7 @@ function DocumentReviewTab() {
                     background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
-                    <CheckCircle size={22} style={{ color: '#10b981' }} />
+                    <CheckCircle size={22} style={{ color: 'var(--status-success)' }} />
                 </div>
                 <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-high)' }}>All Clear</div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', maxWidth: '380px', lineHeight: 1.5 }}>
@@ -305,9 +305,9 @@ function DocumentReviewTab() {
             {/* Summary strip */}
             <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
                 {[
-                    { label: 'Needs Review', count: needsReview.length, color: '#f59e0b', bg: '#f59e0b10' },
-                    { label: 'No Match', count: noMatch.length, color: '#ef4444', bg: '#ef444410' },
-                    { label: 'Failed', count: failed.length, color: '#ef4444', bg: '#ef444410' },
+                    { label: 'Needs Review', count: needsReview.length, color: 'var(--status-warning)', bg: 'var(--bg-warning-subtle)' },
+                    { label: 'No Match', count: noMatch.length, color: 'var(--status-error)', bg: 'var(--bg-error-subtle)' },
+                    { label: 'Failed', count: failed.length, color: 'var(--status-error)', bg: 'var(--bg-error-subtle)' },
                     { label: 'Total', count: docs.length, color: 'var(--text-high)', bg: 'var(--bg-surface-raised)' },
                 ].map(s => (
                     <div key={s.label} style={{
@@ -374,10 +374,10 @@ export default function OperationsHub() {
                 }}>
                     <div style={{
                         width: '2.25rem', height: '2.25rem', borderRadius: '0.625rem',
-                        background: 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)',
+                        background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                        <Shield size={16} style={{ color: '#fff' }} />
+                        <Shield size={16} style={{ color: 'var(--text-inverse)' }} />
                     </div>
                     Operations Hub
                 </h1>
@@ -424,7 +424,7 @@ export default function OperationsHub() {
                                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                                     minWidth: '1.25rem', height: '1.25rem',
                                     padding: '0 0.35rem', borderRadius: '999px',
-                                    background: '#ef4444', color: '#fff',
+                                    background: 'var(--status-error)', color: 'var(--text-inverse)',
                                     fontSize: '0.62rem', fontWeight: 800,
                                     lineHeight: 1,
                                 }}>

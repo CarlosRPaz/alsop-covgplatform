@@ -11,6 +11,7 @@ import { AnimatedHeadline } from '@/components/ui/AnimatedHeadline';
 import { AnimatedStagger } from '@/components/ui/AnimatedStagger';
 import { SmoothScrollLink } from '@/components/ui/SmoothScrollLink';
 import { HeroCarousel } from '@/components/ui/HeroCarousel';
+import { BrandLogo } from '@/components/brand/BrandLogo';
 import styles from './page.module.scss';
 
 // ─── Data ───
@@ -77,7 +78,7 @@ const testimonials = [
 ];
 
 const faqs = [
-  { q: 'Is it free?', a: 'Yes. CoverageCheckNow is completely free to use. There are no hidden fees or upsells.' },
+  { q: 'Is it free?', a: 'Yes. CoverageCheckNow is completely free to use. There are no hidden fees.' },
   { q: 'What do you need from me?', a: 'Just your insurance declarations page — the summary page from your policy documents. It\'s usually 1–3 pages.' },
   { q: 'Do I need an account?', a: 'Yes, a free account is required so your documents and reports stay secure and accessible only to you.' },
   { q: 'How long does the analysis take?', a: 'Most reports are generated within minutes of uploading your declarations page.' },
@@ -99,6 +100,9 @@ export default function Home() {
         <section className={styles.hero}>
           <div className={styles.heroInner}>
             <div className={styles.heroText}>
+              <div className={styles.heroBrandLogo}>
+                <BrandLogo variant="horizontal" size="lg" mode="dark" />
+              </div>
               <div className={styles.heroBadge}>
                 <Shield size={14} />
                 <span>Powered by Alsop & Associates · 40 years in California</span>

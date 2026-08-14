@@ -9,6 +9,8 @@ import {
     SqFtCandidate,
 } from '@/lib/valuationEngine';
 import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
+import { logger } from '@/lib/logger';
+
 
 /**
  * POST /api/valuation
@@ -149,7 +151,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, valuation: result });
 
     } catch (err: any) {
-        console.error('Valuation error:', err);
+        logger.error('Valuation', 'Valuation error:', err)
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }

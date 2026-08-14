@@ -5,6 +5,8 @@ import { Copy, AlertCircle, CheckCircle2, X, Merge, RefreshCw, Users, ShieldAler
 import ClientMergeModal from "./ClientMergeModal";
 import { supabase } from "@/lib/supabaseClient";
 import styles from "./DuplicateReview.module.css";
+import { logger } from '@/lib/logger';
+
 
 export default function DuplicateReview() {
     const [selectedClient, setSelectedClient] = useState<string | null>(null);
@@ -53,7 +55,7 @@ export default function DuplicateReview() {
                 setDuplicatePolicies(data.policies || []);
             }
         } catch (err) {
-            console.error("Failed to load duplicates:", err);
+            logger.error('DuplicateReview', "Failed to load duplicates:", { error: err instanceof Error ? err.message : String(err) })
         } finally {
             if (showLoadingSpinner) setLoading(false);
         }
@@ -102,7 +104,7 @@ export default function DuplicateReview() {
             // Re-fetch fresh duplicate list from backend to keep UI 100% in sync
             await fetchDuplicates(false);
         } catch (err) {
-            console.error(err);
+            logger.error('DuplicateReview', String(err))
             alert("Failed to merge client. Please see console.");
         } finally {
             setIsMerging(false);
@@ -141,7 +143,7 @@ export default function DuplicateReview() {
             // Re-fetch fresh duplicate list from backend
             await fetchDuplicates(false);
         } catch (err) {
-            console.error(err);
+            logger.error('DuplicateReview', String(err))
             alert("Failed to merge policy. Please check console.");
         } finally {
             setIsMerging(false);
@@ -168,7 +170,7 @@ export default function DuplicateReview() {
                 const filtered = (data.clients || []).filter((c: any) => !selectedIds.has(c.id));
                 setManualSearchResults(filtered);
             } catch (err) {
-                console.error('Manual merge search error:', err);
+                logger.error('DuplicateReview', 'Manual merge search error:', { error: err instanceof Error ? err.message : String(err) })
             } finally {
                 setManualSearchLoading(false);
             }
@@ -223,7 +225,7 @@ export default function DuplicateReview() {
                 candidates: fullClients.slice(1),
             });
         } catch (err) {
-            console.error('Failed to load clients for manual merge:', err);
+            logger.error('DuplicateReview', 'Failed to load clients for manual merge:', { error: err instanceof Error ? err.message : String(err) })
         } finally {
             setManualMergeLoadingModal(false);
         }
@@ -290,7 +292,7 @@ export default function DuplicateReview() {
                     }}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <UserPlus size={16} style={{ color: '#818cf8' }} />
+                        <UserPlus size={16} style={{ color: 'var(--accent-primary)' }} />
                         <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-high)' }}>Manual Client Merge</span>
                         <span style={{
                             fontSize: '0.7rem', fontWeight: 500, color: 'var(--text-muted)',
@@ -300,7 +302,7 @@ export default function DuplicateReview() {
                             Search &amp; select any clients
                         </span>
                     </div>
-                    <span style={{ fontSize: '0.75rem', color: '#818cf8', fontWeight: 500 }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', fontWeight: 500 }}>
                         {manualMergeOpen ? 'Close' : 'Open'}
                     </span>
                 </div>
@@ -319,7 +321,7 @@ export default function DuplicateReview() {
                                         display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
                                         padding: '0.25rem 0.6rem', background: 'rgba(129, 140, 248, 0.1)',
                                         border: '1px solid rgba(129, 140, 248, 0.25)', borderRadius: '999px',
-                                        fontSize: '0.78rem', fontWeight: 500, color: '#818cf8',
+                                        fontSize: '0.78rem', fontWeight: 500, color: 'var(--accent-primary)',
                                     }}>
                                         <User size={11} />
                                         {c.name}
@@ -375,10 +377,10 @@ export default function DuplicateReview() {
                                     >
                                         <div style={{
                                             width: 28, height: 28, borderRadius: '50%',
-                                            background: 'linear-gradient(135deg, #818cf8, #6366f1)',
+                                            background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
                                             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                                         }}>
-                                            <User size={12} style={{ color: '#fff' }} />
+                                            <User size={12} style={{ color: 'var(--text-inverse)' }} />
                                         </div>
                                         <div style={{ flex: 1, minWidth: 0 }}>
                                             <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-high)' }}>{result.name}</div>
@@ -387,7 +389,7 @@ export default function DuplicateReview() {
                                                 {result.phone && <span>{result.phone}</span>}
                                             </div>
                                         </div>
-                                        <UserPlus size={13} style={{ color: '#818cf8', flexShrink: 0 }} />
+                                        <UserPlus size={13} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
                                     </button>
                                 ))}
                             </div>
@@ -407,8 +409,8 @@ export default function DuplicateReview() {
                                 style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
                                     width: '100%', marginTop: '0.75rem', padding: '0.65rem',
-                                    background: 'linear-gradient(135deg, #818cf8, #6366f1)',
-                                    color: '#fff', border: 'none', borderRadius: '8px',
+                                    background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                                    color: 'var(--text-inverse)', border: 'none', borderRadius: '8px',
                                     fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
                                     opacity: manualMergeLoadingModal ? 0.7 : 1, transition: 'opacity 0.15s',
                                 }}

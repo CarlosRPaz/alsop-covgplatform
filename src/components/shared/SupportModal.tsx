@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { X, MessageSquare, Send, User, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/Button/Button';
 import { useToast } from '@/components/ui/Toast/Toast';
+import { logger } from '@/lib/logger';
+
 
 interface SupportModalProps {
     isOpen: boolean;
@@ -55,7 +57,7 @@ export function SupportModal({ isOpen, onClose, clientName, clientEmail, policyN
                 toast.error(data.error || 'Failed to send support request. Please try again.');
             }
         } catch (err) {
-            console.error('Support request submission error:', err);
+            logger.error('SupportModal', 'Support request submission error:', { error: err instanceof Error ? err.message : String(err) })
             toast.error('Network error sending message. Please email support@coveragechecknow.com directly.');
         } finally {
             setSending(false);

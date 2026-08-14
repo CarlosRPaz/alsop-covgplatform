@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Search, X, FileText, User, Flag as FlagIcon, ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import styles from './GlobalSearch.module.css';
+import { logger } from '@/lib/logger';
+
 
 interface SearchResult {
     type: 'policy' | 'client';
@@ -100,15 +102,13 @@ export function GlobalSearch() {
                     });
                 });
             }
-
-
         } catch (err) {
-            console.error('Global search error:', err);
+            logger.error('GlobalSearch', 'Global search error:', { error: err instanceof Error ? err.message : String(err) })
+        } finally {
+            setResults(searchResults);
+            setSelectedIndex(-1);
+            setLoading(false);
         }
-
-        setResults(searchResults);
-        setSelectedIndex(-1);
-        setLoading(false);
     }, []);
 
     const handleInputChange = (value: string) => {

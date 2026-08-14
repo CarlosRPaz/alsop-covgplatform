@@ -137,33 +137,8 @@ def upsert_open_flag(
     sb = get_supabase()
     now = _now_iso()
 
-    existing = get_open_flag_by_key(flag_key)
-
-    if existing:
-        # Refresh existing open flag
-        update_payload: dict[str, Any] = {
-            "last_seen_at": now,
-            "updated_at": now,
-            "times_seen": (existing.get("times_seen") or 1) + 1,
-        }
-        if message is not None:
-            update_payload["message"] = message
-        if details is not None:
-            update_payload["details"] = details
-        if severity != existing.get("severity"):
-            update_payload["severity"] = severity
-
-        try:
-            sb.table("policy_flags").update(update_payload).eq("id", existing["id"]).execute()
-            logger.debug("Refreshed open flag %s (key=%s, times_seen=%d)",
-                         existing["id"], flag_key, update_payload["times_seen"])
-            return existing["id"]
-        except Exception as e:
-            logger.error("Failed to refresh flag %s: %s", existing["id"], e)
-            return existing["id"]
-
-    # Insert new flag
-    insert_payload: dict[str, Any] = {
+    # Build the full payload for insert (new flag) or update (existing)
+    payload: dict[str, Any] = {
         "flag_key": flag_key,
         "code": code,
         "severity": severity,
@@ -171,40 +146,64 @@ def upsert_open_flag(
         "status": "open",
         "source": source,
         "category": category,
-        "first_seen_at": now,
         "last_seen_at": now,
-        "times_seen": 1,
-        "created_at": now,
         "updated_at": now,
     }
-    if message:
-        insert_payload["message"] = message
-    if details:
-        insert_payload["details"] = details
+    if message is not None:
+        payload["message"] = message
+    if details is not None:
+        payload["details"] = details
     if policy_id:
-        insert_payload["policy_id"] = policy_id
+        payload["policy_id"] = policy_id
     if client_id:
-        insert_payload["client_id"] = client_id
+        payload["client_id"] = client_id
     if policy_term_id:
-        insert_payload["policy_term_id"] = policy_term_id
+        payload["policy_term_id"] = policy_term_id
     if dec_page_id:
-        insert_payload["dec_page_id"] = dec_page_id
-        insert_payload["source_dec_page_id"] = dec_page_id
+        payload["dec_page_id"] = dec_page_id
+        payload["source_dec_page_id"] = dec_page_id
     if submission_id:
-        insert_payload["submission_id"] = submission_id
+        payload["submission_id"] = submission_id
     if action_path:
-        insert_payload["action_path"] = action_path
+        payload["action_path"] = action_path
     if rule_version:
-        insert_payload["rule_version"] = rule_version
+        payload["rule_version"] = rule_version
+
+    # For new inserts, set first_seen_at and times_seen
+    payload["first_seen_at"] = now
+    payload["times_seen"] = 1
+    payload["created_at"] = now
 
     try:
-        res = sb.table("policy_flags").insert(insert_payload).select("id").single().execute()
+        res = (
+            sb.table("policy_flags")
+            .upsert(
+                payload,
+                on_conflict="flag_key",  # partial unique index WHERE status='open'
+                count="exact",
+            )
+            .select("id, times_seen")
+            .single()
+            .execute()
+        )
         flag_id = res.data["id"]
-        logger.info("Created flag %s  code=%s  key=%s", flag_id, code, flag_key)
-        append_flag_event(flag_id, "created", note=f"System created flag: {title}")
+        was_update = (res.data.get("times_seen", 1) > 1)
+        
+        if was_update:
+            # Increment times_seen for existing flags
+            sb.table("policy_flags").update({
+                "times_seen": res.data["times_seen"] + 1,
+                "last_seen_at": now,
+                "updated_at": now,
+            }).eq("id", flag_id).execute()
+            logger.debug("Refreshed open flag %s (key=%s)", flag_id, flag_key)
+        else:
+            logger.info("Created flag %s  code=%s  key=%s", flag_id, code, flag_key)
+            append_flag_event(flag_id, "created", note=f"System created flag: {title}")
+        
         return flag_id
     except Exception as e:
-        logger.error("Failed to insert flag code=%s key=%s: %s", code, flag_key, e)
+        logger.error("Failed to upsert flag code=%s key=%s: %s", code, flag_key, e)
         return None
 
 

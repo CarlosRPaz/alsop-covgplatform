@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/Button/Button';
-import { Shield, Lock, ArrowRight, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { BrandLogo } from '@/components/brand/BrandLogo';
+import { Lock, ArrowRight, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import styles from './page.module.css';
 
@@ -100,8 +101,7 @@ export default function ResetPasswordPage() {
                 <div className={styles.formWrapper}>
                     <div className={styles.brandHeader}>
                         <Link href="/" className={styles.brandLink}>
-                            <Shield size={32} className={styles.brandIcon} />
-                            <span className={styles.brandName}>CoverageCheckNow</span>
+                            <BrandLogo variant="horizontal" size="lg" />
                         </Link>
                     </div>
                     <div className={styles.centerContent}>
@@ -120,8 +120,7 @@ export default function ResetPasswordPage() {
                 <div className={styles.formWrapper}>
                     <div className={styles.brandHeader}>
                         <Link href="/" className={styles.brandLink}>
-                            <Shield size={32} className={styles.brandIcon} />
-                            <span className={styles.brandName}>CoverageCheckNow</span>
+                            <BrandLogo variant="horizontal" size="lg" />
                         </Link>
                     </div>
                     <div className={styles.centerContent}>
@@ -150,8 +149,7 @@ export default function ResetPasswordPage() {
                 <div className={styles.formWrapper}>
                     <div className={styles.brandHeader}>
                         <Link href="/" className={styles.brandLink}>
-                            <Shield size={32} className={styles.brandIcon} />
-                            <span className={styles.brandName}>CoverageCheckNow</span>
+                            <BrandLogo variant="horizontal" size="lg" />
                         </Link>
                     </div>
                     <div className={styles.centerContent}>
@@ -180,8 +178,7 @@ export default function ResetPasswordPage() {
                 {/* Brand Header */}
                 <div className={styles.brandHeader}>
                     <Link href="/" className={styles.brandLink}>
-                        <Shield size={32} className={styles.brandIcon} />
-                        <span className={styles.brandName}>CoverageCheckNow</span>
+                        <BrandLogo variant="horizontal" size="lg" />
                     </Link>
                     <p className={styles.brandTagline}>
                         Set your new password

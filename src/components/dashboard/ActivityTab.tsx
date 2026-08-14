@@ -1,10 +1,15 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Upload, Loader2, CheckCircle, CheckCircle2, Clock, AlertTriangle, XCircle, RefreshCw, Sparkles, Shield, Timer, Merge, ExternalLink } from 'lucide-react';
+import {
+    FileText, Upload, Loader2, CheckCircle, CheckCircle2, Clock, AlertTriangle,
+    XCircle, RefreshCw, Sparkles, Shield, Timer, Merge, ExternalLink,
+    Layers, FileUp, Files, Filter, RotateCcw
+} from 'lucide-react';
 import { fetchActivityFeed, ActivityFeedItem } from '@/lib/api';
 import styles from './ActivityTab.module.css';
+import { logger } from '@/lib/logger';
 
 function formatTimeAgo(dateStr: string): string {
     const date = new Date(dateStr);
@@ -89,6 +94,15 @@ function getDocumentActionLabel(activity: ActivityFeedItem): string {
     return activity.title || 'Document Event';
 }
 
+export type ActivityFilterType = 'all' | 'dec' | 'rce' | 'dic' | 'other_docs' | 'merge' | 'issues';
+
+interface FilterOption {
+    id: ActivityFilterType;
+    label: string;
+    icon: React.ReactNode;
+    isIssues?: boolean;
+}
+
 const MAX_VISIBLE = 25;
 
 export function ActivityTab() {
@@ -97,6 +111,7 @@ export function ActivityTab() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [showAll, setShowAll] = useState(false);
+    const [selectedFilter, setSelectedFilter] = useState<ActivityFilterType>('all');
 
     const loadActivities = async (isRefresh = false) => {
         if (isRefresh) setRefreshing(true);
@@ -105,7 +120,7 @@ export function ActivityTab() {
             const data = await fetchActivityFeed(50);
             setActivities(data);
         } catch (err) {
-            console.error('Activity feed error:', err);
+            logger.error('ActivityTab', 'Activity feed error:', { error: err instanceof Error ? err.message : String(err) })
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -116,11 +131,63 @@ export function ActivityTab() {
         loadActivities();
     }, []);
 
-    const visibleActivities = showAll ? activities : activities.slice(0, MAX_VISIBLE);
-    const hasMore = activities.length > MAX_VISIBLE;
+    // Filter counts
+    const counts = useMemo(() => {
+        return {
+            all: activities.length,
+            dec: activities.filter(a => a.type === 'upload').length,
+            rce: activities.filter(a => a.type === 'document' && a.doc_type === 'rce').length,
+            dic: activities.filter(a => a.type === 'document' && a.doc_type === 'dic_dec_page').length,
+            other_docs: activities.filter(a => a.type === 'document' && a.doc_type !== 'rce' && a.doc_type !== 'dic_dec_page').length,
+            merge: activities.filter(a => a.type === 'merge').length,
+            issues: activities.filter(a =>
+                a.status === 'failed' ||
+                (a.event_type || '').includes('failed') ||
+                (a.event_type || '').includes('needs_review') ||
+                (a.event_type || '').includes('no_match') ||
+                a.match_status === 'needs_review' ||
+                a.match_status === 'no_match'
+            ).length,
+        };
+    }, [activities]);
+
+    // Filtered activities list
+    const filteredActivities = useMemo(() => {
+        if (selectedFilter === 'all') return activities;
+        if (selectedFilter === 'dec') return activities.filter(a => a.type === 'upload');
+        if (selectedFilter === 'rce') return activities.filter(a => a.type === 'document' && a.doc_type === 'rce');
+        if (selectedFilter === 'dic') return activities.filter(a => a.type === 'document' && a.doc_type === 'dic_dec_page');
+        if (selectedFilter === 'other_docs') return activities.filter(a => a.type === 'document' && a.doc_type !== 'rce' && a.doc_type !== 'dic_dec_page');
+        if (selectedFilter === 'merge') return activities.filter(a => a.type === 'merge');
+        if (selectedFilter === 'issues') {
+            return activities.filter(a =>
+                a.status === 'failed' ||
+                (a.event_type || '').includes('failed') ||
+                (a.event_type || '').includes('needs_review') ||
+                (a.event_type || '').includes('no_match') ||
+                a.match_status === 'needs_review' ||
+                a.match_status === 'no_match'
+            );
+        }
+        return activities;
+    }, [activities, selectedFilter]);
+
+    const visibleActivities = showAll ? filteredActivities : filteredActivities.slice(0, MAX_VISIBLE);
+    const hasMore = filteredActivities.length > MAX_VISIBLE;
+
+    const filterOptions: FilterOption[] = [
+        { id: 'all', label: 'All', icon: <Layers size={12} /> },
+        { id: 'dec', label: 'Dec Pages', icon: <FileText size={12} /> },
+        { id: 'rce', label: 'RCE Reports', icon: <FileUp size={12} /> },
+        { id: 'dic', label: 'DIC Decs', icon: <Shield size={12} /> },
+        ...(counts.other_docs > 0 ? [{ id: 'other_docs' as const, label: 'Other Documents', icon: <Files size={12} /> }] : []),
+        ...(counts.merge > 0 ? [{ id: 'merge' as const, label: 'Consolidations', icon: <Merge size={12} /> }] : []),
+        ...(counts.issues > 0 ? [{ id: 'issues' as const, label: 'Needs Review', icon: <AlertTriangle size={12} />, isIssues: true }] : []),
+    ];
 
     return (
         <div className={styles.container}>
+            {/* Header */}
             <div className={styles.header}>
                 <h2 className={styles.title}>Recent Activity</h2>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -133,10 +200,43 @@ export function ActivityTab() {
                         <RefreshCw size={14} className={refreshing ? styles.spinSlow : ''} />
                         {refreshing ? 'Refreshing…' : 'Refresh'}
                     </button>
-                    <span className={styles.count}>{activities.length} events</span>
+                    <span className={styles.count}>
+                        {selectedFilter === 'all'
+                            ? `${activities.length} events`
+                            : `${filteredActivities.length} of ${activities.length} events`}
+                    </span>
                 </div>
             </div>
 
+            {/* Quick Filter Pill Bar */}
+            {!loading && activities.length > 0 && (
+                <div className={styles.filterBar}>
+                    {filterOptions.map(opt => {
+                        const count = counts[opt.id];
+                        const isActive = selectedFilter === opt.id;
+                        return (
+                            <button
+                                key={opt.id}
+                                onClick={() => {
+                                    setSelectedFilter(opt.id);
+                                    setShowAll(false);
+                                }}
+                                className={[
+                                    styles.filterPill,
+                                    isActive ? styles.filterPillActive : '',
+                                    opt.isIssues ? styles.filterPillIssues : '',
+                                ].filter(Boolean).join(' ')}
+                            >
+                                {opt.icon}
+                                <span>{opt.label}</span>
+                                <span className={styles.filterBadge}>{count}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Content States */}
             {loading ? (
                 <div className={styles.loadingState}>
                     <Loader2 className={styles.spinner} />
@@ -145,7 +245,19 @@ export function ActivityTab() {
             ) : activities.length === 0 ? (
                 <div className={styles.emptyState}>
                     <Upload className={styles.emptyIcon} />
-                    <p>No recent uploads. Submit a declaration to see activity here.</p>
+                    <p>No recent uploads. Submit a declaration or document to see activity here.</p>
+                </div>
+            ) : filteredActivities.length === 0 ? (
+                <div className={styles.emptyFilterState}>
+                    <Filter size={24} style={{ opacity: 0.5, color: 'var(--text-muted)' }} />
+                    <p>No activity found matching the "{filterOptions.find(o => o.id === selectedFilter)?.label}" filter.</p>
+                    <button
+                        className={styles.clearFilterBtn}
+                        onClick={() => setSelectedFilter('all')}
+                    >
+                        <RotateCcw size={12} style={{ marginRight: 4 }} />
+                        Show All Activities ({activities.length})
+                    </button>
                 </div>
             ) : (
                 <>
@@ -191,7 +303,7 @@ export function ActivityTab() {
                                             {isMerge ? 'Client Records Consolidated' : isDoc ? getDocumentActionLabel(activity) : 'Dec Page Uploaded'}
                                         </span>
 
-                                        {/* Client link — always show when available (not all docs have policies) */}
+                                        {/* Client link */}
                                         {activity.insured_name && (
                                             <>
                                                 <span className={styles.divider}>·</span>
@@ -336,7 +448,7 @@ export function ActivityTab() {
                             >
                                 {showAll
                                     ? `Show fewer (${MAX_VISIBLE})`
-                                    : `Show all ${activities.length} events`
+                                    : `Show all ${filteredActivities.length} events`
                                 }
                             </button>
                         </div>

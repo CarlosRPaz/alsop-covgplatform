@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { CheckCircle2, AlertTriangle, Info, X, AlertCircle, Loader2 } from 'lucide-react';
+import { logger } from '@/lib/logger';
+
 
 type ToastType = 'success' | 'error' | 'warning' | 'info' | 'loading';
 
@@ -28,12 +30,12 @@ export function useToast(): ToastContextValue {
     const ctx = useContext(ToastContext);
     if (!ctx) {
         return {
-            toast: (msg) => { console.log('[Toast]', msg); return '1'; },
-            success: (msg) => { console.log('[Toast:success]', msg); return '1'; },
-            error: (msg) => { console.error('[Toast:error]', msg); return '1'; },
-            warning: (msg) => { console.warn('[Toast:warning]', msg); return '1'; },
-            info: (msg) => { console.info('[Toast:info]', msg); return '1'; },
-            loading: (msg) => { console.info('[Toast:loading]', msg); return '1'; },
+            toast: (msg) => { logger.info('Toast', '[Toast]', { msg }); return '1'; },
+            success: (msg) => { logger.info('Toast', '[Toast:success]', { msg }); return '1'; },
+            error: (msg) => { logger.error('Toast', '[Toast:error]', { msg }); return '1'; },
+            warning: (msg) => { logger.warn('Toast', '[Toast:warning]', { msg }); return '1'; },
+            info: (msg) => { logger.info('Toast', '[Toast:info]', { msg }); return '1'; },
+            loading: (msg) => { logger.info('Toast', '[Toast:loading]', { msg }); return '1'; },
             removeToast: () => {},
         };
     }

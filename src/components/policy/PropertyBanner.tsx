@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
+import Image from 'next/image';
 import { MapPin, Satellite, Maximize2, X, RefreshCw, ImageOff, Loader2, ExternalLink, Zap, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import styles from './PropertyBanner.module.css';
 
@@ -272,9 +273,11 @@ export function PropertyBanner({
                                 {idx === 1 && !streetViewLoaded && (
                                     <div className={styles.imageLoadingShimmer} />
                                 )}
-                                <img
+                                <Image
                                     src={slide.src}
                                     alt={slide.alt}
+                                    fill
+                                    unoptimized
                                     className={`${styles.bannerImage} ${
                                         (idx === 0 && imageLoaded) || (idx === 1 && streetViewLoaded)
                                             ? styles.imageVisible
@@ -425,9 +428,11 @@ export function PropertyBanner({
                                     </button>
                                 </>
                             )}
-                            <img
+                            <Image
                                 src={currentSlide.src}
                                 alt={currentSlide.alt}
+                                fill
+                                unoptimized
                                 className={styles.modalImage}
                             />
                         </div>

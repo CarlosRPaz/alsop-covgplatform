@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
 import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
+import { logger } from '@/lib/logger';
+
 
 /**
  * POST /api/email/mark-sent
@@ -34,7 +36,7 @@ export async function POST(req: NextRequest) {
             .single();
 
         if (logError) {
-            console.warn('renewal_email_log insert note:', logError.message);
+            logger.warn('Mark-sent', 'renewal_email_log insert note:', { detail: logError.message })
             // Fallback: create synthetic entry so UI works seamlessly
             entry = {
                 id: `evt-${Date.now()}`,
@@ -59,7 +61,7 @@ export async function POST(req: NextRequest) {
                 })
                 .eq('id', policyId);
         } catch (updateError) {
-            console.warn('Failed to update policies table (columns might not exist yet):', updateError);
+            logger.warn('Mark-sent', 'Failed to update policies table (columns might not exist yet):', { error: updateError instanceof Error ? updateError.message : String(updateError) });
         }
 
         // 3. Insert an activity event (guaranteed to log the send event)
@@ -73,13 +75,13 @@ export async function POST(req: NextRequest) {
                 meta: { template_id: templateId, template_name: templateName }
             });
         } catch (eventError) {
-            console.warn('Activity event insert failed (non-fatal):', eventError);
+            logger.warn('Mark-sent', 'Activity event insert failed (non-fatal):', { error: eventError instanceof Error ? eventError.message : String(eventError) });
         }
 
         return NextResponse.json({ success: true, entry });
 
     } catch (err: any) {
-        console.error('Error in POST /api/email/mark-sent:', err);
+        logger.error('Mark-sent', 'Error in POST /api/email/mark-sent:', err)
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }
@@ -111,7 +113,7 @@ export async function DELETE(req: NextRequest) {
                 .eq('id', entryId);
 
             if (delError) {
-                console.warn('renewal_email_log delete note:', delError.message);
+                logger.warn('Mark-sent', 'renewal_email_log delete note:', { detail: delError.message })
             }
         }
 
@@ -126,7 +128,7 @@ export async function DELETE(req: NextRequest) {
                     })
                     .eq('id', policyId);
             } catch (updateError) {
-                console.warn('Failed to update policies table:', updateError);
+                logger.warn('Mark-sent', 'Failed to update policies table:', { error: updateError instanceof Error ? updateError.message : String(updateError) })
             }
         }
 
@@ -140,13 +142,13 @@ export async function DELETE(req: NextRequest) {
                 meta: { entry_id: entryId, template_id: templateId }
             });
         } catch (eventError) {
-            console.warn('Activity event insert failed (non-fatal):', eventError);
+            logger.warn('Mark-sent', 'Activity event insert failed (non-fatal):', { error: eventError instanceof Error ? eventError.message : String(eventError) });
         }
 
         return NextResponse.json({ success: true });
 
     } catch (err: any) {
-        console.error('Error in DELETE /api/email/mark-sent:', err);
+        logger.error('Mark-sent', 'Error in DELETE /api/email/mark-sent:', err)
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }

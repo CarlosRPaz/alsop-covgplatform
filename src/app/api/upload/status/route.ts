@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
-import { createClient } from '@supabase/supabase-js';
-import { env } from '@/lib/env';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 
 export async function GET(request: NextRequest) {
     try {
@@ -17,20 +16,9 @@ export async function GET(request: NextRequest) {
         }
 
         // Must authenticate to prevent polling abuse, even though we use admin for DB read
-        const authHeader = request.headers.get('Authorization');
-        if (!authHeader?.startsWith('Bearer ')) {
-            return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-        }
-        
-        const token = authHeader.slice(7);
-        const userClient = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
-            global: { headers: { Authorization: `Bearer ${token}` } }
-        });
-        const { data: { user } } = await userClient.auth.getUser(token);
-        
-        if (!user) {
-            return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+        if (isAuthError(auth)) return auth;
+        const user = auth.user;
 
         const admin = getSupabaseAdmin();
         const { data, error } = await admin

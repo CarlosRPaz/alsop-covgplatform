@@ -6,6 +6,7 @@ import {
     CheckCircle2, XCircle, Droplets, Info, Maximize2,
     Clock, Hash, Compass, ChevronDown, ChevronRight, Wind, Shield
 } from 'lucide-react';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabaseClient';
 
 interface EagleViewReportModalProps { result: any; onClose: () => void; }
@@ -87,9 +88,8 @@ function ImgCard({ imgRef, imgData, sessionToken }: { imgRef: string; imgData: a
                     {state === 'loading' && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', fontSize: '0.7rem' }}><div style={{ textAlign: 'center' }}><ImageIcon size={20} style={{ opacity: 0.4, marginBottom: 4 }} /><div>Loading…</div></div></div>}
                     {state === 'error' && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#BF1932', fontSize: '0.7rem', background: '#fef2f2' }}><div style={{ textAlign: 'center' }}><AlertTriangle size={18} style={{ marginBottom: 4 }} /><div>Failed</div></div></div>}
                     {state !== 'error' && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={src} alt={`${view}${dir ? ' — ' + dir : ''}`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: state === 'loaded' ? 'block' : 'none' }}
-                            onLoad={() => setState('loaded')} onError={() => setState('error')} />
+                        <Image src={src} alt={`${view}${dir ? ' — ' + dir : ''}`} fill unoptimized style={{ objectFit: 'cover', display: state === 'loaded' ? 'block' : 'none' }}
+                            onLoad={() => setState('loaded')} onError={() => setState('error')} loading="lazy" />
                     )}
                     {state === 'loaded' && <div style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: 4, color: '#fff' }}><Maximize2 size={12} /></div>}
                     <div style={{ position: 'absolute', bottom: 6, left: 6, background: meta.view === 'oblique' ? 'rgba(34,67,182,0.9)' : 'rgba(0,0,0,0.65)', color: '#fff', fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: 3, textTransform: 'uppercase' }}>{view}</div>
@@ -104,8 +104,7 @@ function ImgCard({ imgRef, imgData, sessionToken }: { imgRef: string; imgData: a
             </div>
             {expanded && (
                 <div onClick={() => setExpanded(false)} style={{ position: 'fixed', inset: 0, zIndex: 999999, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={src} alt="Full" style={{ maxWidth: '95vw', maxHeight: '95vh', objectFit: 'contain', borderRadius: 8 }} />
+                    <Image src={src} alt="Full" fill unoptimized style={{ objectFit: 'contain', borderRadius: 8, padding: '2.5vw' }} loading="lazy" />
                     <button onClick={() => setExpanded(false)} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={20} /></button>
                 </div>
             )}

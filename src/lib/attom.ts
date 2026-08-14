@@ -1,3 +1,5 @@
+import { logger } from '@/lib/logger';
+
 /**
  * ATTOM Data Solutions — Property Enrichment Client
  *
@@ -17,7 +19,8 @@
  */
 
 const ATTOM_API_BASE = 'https://api.gateway.attomdata.com/propertyapi/v1.0.0';
-const ATTOM_API_KEY = process.env.ATTOM_API_KEY || '';
+import { env } from '@/lib/env';
+const ATTOM_API_KEY = env.ATTOM_API_KEY || '';
 
 /** Any field produced by ATTOM should use this source tier. */
 export const ATTOM_SOURCE_TIER = 'enriched_real' as const;
@@ -142,7 +145,7 @@ export async function fetchAttomPropertyDetail(
     if (address2) url.searchParams.set('address2', address2);
 
     // Diagnostic: log the parsed address for debugging
-    console.log(`[ATTOM] Parsed address: address1="${address1}", address2="${address2}" (from: "${fullAddress}")`);
+    logger.info('attom', `[ATTOM] Parsed address: address1="${address1}", address2="${address2}" (from: "${fullAddress}")`);
 
     let rawResponse: Record<string, unknown> = {};
 

@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
+import { logger } from '@/lib/logger';
 import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 
 export async function POST(req: NextRequest) {
@@ -36,9 +37,33 @@ export async function POST(req: NextRequest) {
         if (errSur || !survivor) return NextResponse.json({ error: 'Survivor policy not found' }, { status: 404 });
         if (errDup || !duplicate) return NextResponse.json({ error: 'Duplicate policy not found' }, { status: 404 });
 
+        // Pre-merge snapshot for recovery
+        const { data: preSnapshotTerms } = await supabaseAdmin
+            .from('policy_terms')
+            .select('id')
+            .eq('policy_id', merged_id);
+
+        const { data: mergeLogEntry } = await supabaseAdmin
+            .from('merge_logs')
+            .insert({
+                entity_type: 'policy',
+                survivor_id,
+                merged_id,
+                performed_by: performed_by || null,
+                merge_details: {
+                    status: 'in_progress',
+                    survivor_state: survivor,
+                    duplicate_state: duplicate,
+                    pre_merge_term_count: preSnapshotTerms?.length ?? 0,
+                }
+            })
+            .select('id')
+            .single();
+        const mergeLogId = mergeLogEntry?.id;
+
         // Optional Strict Policy Invariant Check: Only exact matching base numbers can be merged (safety protocol)
         if (survivor.policy_number !== duplicate.policy_number) {
-            console.warn(`Merging distinct policy strings: ${survivor.policy_number} vs ${duplicate.policy_number}`);
+            logger.info('Merge', `Merging distinct policy strings: ${survivor.policy_number} vs ${duplicate.policy_number}`);
         }
 
         // Helper function to pick the carrier policy number with a suffix (e.g. "CFP 0101772837 08") over one without.
@@ -154,7 +179,7 @@ export async function POST(req: NextRequest) {
                         property_address_norm: norm,
                     })
                     .eq('id', survivor_id);
-                console.log(`Propagated property address "${currentTerm.property_location}" to survivor policy ${survivor_id}`);
+                logger.info('Merge', `Propagated property address "${currentTerm.property_location}" to survivor policy ${survivor_id}`);
             }
         }
 
@@ -199,6 +224,34 @@ export async function POST(req: NextRequest) {
             .from('manual_overrides')
             .update({ policy_id: survivor_id })
             .eq('policy_id', merged_id);
+        // Verify all terms were remapped before deleting the duplicate
+        const { data: remainingTerms } = await supabaseAdmin
+            .from('policy_terms')
+            .select('id')
+            .eq('policy_id', merged_id);
+
+        if (remainingTerms && remainingTerms.length > 0) {
+            logger.error('Merge', 'Critical: policy_terms remain on duplicate after remap', {
+                merged_id,
+                remaining: remainingTerms.length,
+            });
+            // Update merge log to reflect partial failure
+            if (mergeLogId) {
+                await supabaseAdmin.from('merge_logs').update({
+                    merge_details: {
+                        status: 'partial_failure',
+                        error: `${remainingTerms.length} terms not remapped`,
+                    }
+                }).eq('id', mergeLogId);
+            }
+            return NextResponse.json({
+                error: `Merge aborted: ${remainingTerms.length} terms could not be remapped. No data was deleted.`,
+                partial: true,
+                survivor_id,
+                merged_id,
+            }, { status: 500 });
+        }
+
         // 5. Delete Duplicate Policy Record
         const { error: delError } = await supabaseAdmin
             .from('policies')
@@ -208,23 +261,15 @@ export async function POST(req: NextRequest) {
         if (delError) throw delError;
 
         // 6. Log Audit Trail natively
-        const isValidUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-        const safePerformedBy = performed_by && isValidUuid(performed_by) ? performed_by : null;
-
-        await supabaseAdmin
-            .from('merge_logs')
-            .insert({
-                entity_type: 'policy',
-                survivor_id,
-                merged_id,
-                performed_by: safePerformedBy,
+        if (mergeLogId) {
+            await supabaseAdmin.from('merge_logs').update({
                 merge_details: {
+                    status: 'completed',
                     survivor_state: survivor,
-                    duplicate_state: duplicate
+                    duplicate_state: duplicate,
                 }
-            })
-            // Ignore error gracefully if table hasn't been migrated by admin yet
-            .then(res => { if (res.error) console.error("Audit Log Note: ", res.error.message) });
+            }).eq('id', mergeLogId);
+        }
 
         // 7. Activity Event for Dashboard Feed
         supabaseAdmin.from('activity_events').insert({
@@ -239,12 +284,12 @@ export async function POST(req: NextRequest) {
                 survivor_policy_number: survivor.policy_number,
                 duplicate_policy_number: duplicate.policy_number,
             },
-        }).then(r => { if (r.error) console.error('Activity event error (non-fatal):', r.error.message); });
+        }).then(r => { if (r.error) logger.error('Merge', 'Activity event error (non-fatal):', { detail: r.error.message }); });
 
         return NextResponse.json({ success: true, survivor_id });
 
     } catch (error: any) {
-        console.error('Policy Merge Transaction Error:', error);
+        logger.error('Merge', 'Policy Merge Transaction Error:', error);
         return NextResponse.json({ error: error.message || 'Server error during merge transaction' }, { status: 500 });
     }
 }

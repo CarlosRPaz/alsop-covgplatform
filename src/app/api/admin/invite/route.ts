@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
-import { env } from '@/lib/env';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
+import { logger } from '@/lib/logger';
+
 
 /**
  * POST /api/admin/invite
@@ -29,43 +30,9 @@ const ROLE_LABELS: Record<InviteRole, string> = {
 export async function POST(req: NextRequest) {
     try {
         // ── Auth check: admin only (via Bearer token) ──
-        const authHeader = req.headers.get('Authorization');
-        if (!authHeader?.startsWith('Bearer ')) {
-            return NextResponse.json(
-                { error: 'Authentication required — please sign in and try again.' },
-                { status: 401 }
-            );
-        }
-
-        const token = authHeader.slice(7);
-        const userClient = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
-            global: { headers: { Authorization: `Bearer ${token}` } },
-        });
-
-        const { data: { user }, error: authError } = await userClient.auth.getUser(token);
-        if (authError || !user) {
-            return NextResponse.json(
-                { error: 'Session expired — please sign in again.' },
-                { status: 401 }
-            );
-        }
-
-        // Look up role from accounts table
-        const supabaseAdmin = getSupabaseAdmin();
-        const { data: account } = await supabaseAdmin
-            .from('accounts')
-            .select('id, email, role')
-            .eq('id', user.id)
-            .single();
-
-        if (!account || account.role !== 'admin') {
-            return NextResponse.json(
-                { error: 'Forbidden — admin access required' },
-                { status: 403 }
-            );
-        }
-
-        const profile = account;
+        const auth = await authenticateRequest(req, { requiredRole: ['admin'] });
+        if (isAuthError(auth)) return auth;
+        const profile = auth.user;
 
         const body = await req.json();
         const { email, role, firstName, lastName } = body as {
@@ -110,7 +77,7 @@ export async function POST(req: NextRequest) {
                     { status: 409 }
                 );
             }
-            console.error('[Admin Invite] Supabase invite error:', error);
+            logger.error('Invite', '[Admin Invite] Supabase invite error:', { error: error.message })
             return NextResponse.json({ error: error.message }, { status: 500 });
         }
 
@@ -137,7 +104,7 @@ export async function POST(req: NextRequest) {
         });
 
     } catch (err: any) {
-        console.error('[Admin Invite] Unexpected error:', err);
+        logger.error('Invite', '[Admin Invite] Unexpected error:', err)
         return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
     }
 }

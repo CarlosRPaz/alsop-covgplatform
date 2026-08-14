@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
+import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
 import { fetchAttomPropertyDetail, ATTOM_SOURCE_NAME, ATTOM_SOURCE_TIER } from '@/lib/attom';
 import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
@@ -14,7 +15,7 @@ import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
  * Body: { policy_id: string }
  */
 
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || '';
+const GOOGLE_MAPS_API_KEY = env.GOOGLE_MAPS_API_KEY || '';
 
 const CALFIRE_THREAT_URL =
     'https://egis.fire.ca.gov/arcgis/rest/services/FRAP/FireThreat/MapServer';
@@ -431,7 +432,7 @@ export async function POST(request: NextRequest) {
         if (results.satellite_image) {
             t0 = Date.now();
             try {
-                const origin = request.nextUrl.origin;
+                const origin = env.APP_BASE_URL;
                 const visionRes = await fetch(`${origin}/api/enrichment/vision-analyze`, {
                     method: 'POST',
                     headers: fwdHeaders,
@@ -453,7 +454,7 @@ export async function POST(request: NextRequest) {
         if (results.street_view_image) {
             t0 = Date.now();
             try {
-                const origin = request.nextUrl.origin;
+                const origin = env.APP_BASE_URL;
                 const streetVisionRes = await fetch(`${origin}/api/enrichment/street-vision-analyze`, {
                     method: 'POST',
                     headers: fwdHeaders,
@@ -475,7 +476,7 @@ export async function POST(request: NextRequest) {
         t0 = Date.now();
         let reportGenerated = false;
         try {
-            const origin = request.nextUrl.origin;
+            const origin = env.APP_BASE_URL;
             const reportRes = await fetch(`${origin}/api/reports/generate`, {
                 method: 'POST',
                 headers: fwdHeaders,

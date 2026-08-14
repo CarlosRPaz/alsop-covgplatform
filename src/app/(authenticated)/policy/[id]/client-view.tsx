@@ -17,6 +17,8 @@ import {
 import { useToast } from '@/components/ui/Toast/Toast';
 import { SupportModal } from '@/components/shared/SupportModal';
 import { useSidebar } from '@/components/layout/SidebarContext';
+import { logger } from '@/lib/logger';
+
 
 interface ClientPolicyViewProps {
     policyId: string;
@@ -44,7 +46,7 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
                 const d = await getPolicyDetailById(policyId);
                 if (d) setDetail(d);
             } catch (err) {
-                console.error('Client view: failed to load policy', err);
+                logger.error('client-view', 'Client view: failed to load policy', { error: err instanceof Error ? err.message : String(err) })
             } finally {
                 setLoading(false);
             }
@@ -84,7 +86,7 @@ export function ClientPolicyView({ policyId }: ClientPolicyViewProps) {
             const daysSince = (Date.now() - created.getTime()) / (1000 * 60 * 60 * 24);
             if (daysSince < 7) {
                 toast.info('Your report was generated recently. Your agent has been notified of your request for a new one.');
-                console.log('[Support] Client requested a new report — agent should be notified via email.');
+                logger.info('client-view', '[Support] Client requested a new report — agent should be notified via email.')
                 return;
             }
         }

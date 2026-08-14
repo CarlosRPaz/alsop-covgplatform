@@ -63,6 +63,12 @@ $bp-xl: 1280px;  // Desktops
     --status-error: #BF1932;         // True Red
     --status-info: #00B5BE;          // Blue Atoll
 
+    // ── Semantic Aliases ──
+    --semantic-success: #2B9B4B;
+    --semantic-warning: #FF9F00;
+    --semantic-error: #BF1932;
+    --semantic-info: #00B5BE;
+
     // ── Status Backgrounds (subtle tints for alert bars/badges) ──
     --bg-success-subtle: rgba(43, 155, 75, 0.08);
     --bg-warning-subtle: rgba(255, 159, 0, 0.08);
@@ -93,7 +99,7 @@ $bp-xl: 1280px;  // Desktops
     --transition-normal: 250ms ease;
 
     // ── Layout ──
-    --sidebar-width: 240px;
+    --sidebar-width: 260px;
     --sidebar-collapsed-width: 64px;
     --topbar-height: 48px;
     --content-max-width: 960px;

@@ -11,6 +11,8 @@ import { useRecentlyVisited } from '@/hooks/useRecentlyVisited';
 import { useToast } from '@/components/ui/Toast/Toast';
 import ClientMergeModal from '@/components/admin/ClientMergeModal';
 import styles from './ClientInfo.module.css';
+import { logger } from '@/lib/logger';
+
 
 interface ClientInfoProps {
     clientId: string;
@@ -75,7 +77,7 @@ export function ClientInfo({ clientId }: ClientInfoProps) {
                     .eq('status', 'open');
                 setFlagCount(count ?? 0);
             } catch (error) {
-                console.error('Error loading client data:', error);
+                logger.error('ClientInfo', 'Error loading client data:', { error: error instanceof Error ? error.message : String(error) })
             } finally {
                 setLoading(false);
             }
@@ -173,7 +175,7 @@ export function ClientInfo({ clientId }: ClientInfoProps) {
                 const filtered = (data.clients || []).filter((c: any) => c.id !== clientId);
                 setMergeSearchResults(filtered);
             } catch (err) {
-                console.error('Merge search error:', err);
+                logger.error('ClientInfo', 'Merge search error:', { error: err instanceof Error ? err.message : String(err) })
             } finally {
                 setMergeSearchLoading(false);
             }
@@ -207,8 +209,8 @@ export function ClientInfo({ clientId }: ClientInfoProps) {
             setMergeSearchQuery('');
             setMergeSearchResults([]);
         } catch (err) {
-            console.error('Failed to load merge target:', err);
-            toast.error('Failed to load client data');
+            logger.error('ClientInfo', 'Failed to load merge target:', { error: err instanceof Error ? err.message : String(err) })
+            alert('Failed to load full client data for merge. Check console.');
         } finally {
             setMergeSearchLoading(false);
         }
@@ -246,8 +248,8 @@ export function ClientInfo({ clientId }: ClientInfoProps) {
                 router.push(`/client/${survivorId}`);
             }
         } catch (err) {
-            console.error('Merge failed:', err);
-            toast.error('Failed to merge clients. Please check console.');
+            logger.error('ClientInfo', 'Merge failed:', { error: err instanceof Error ? err.message : String(err) })
+            alert('Merge failed. Check console for details.');
         } finally {
             setIsMerging(false);
         }

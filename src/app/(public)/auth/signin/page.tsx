@@ -4,7 +4,8 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/Button/Button';
-import { Shield, Mail, Lock, ArrowRight, UserPlus, LogIn, User, Phone } from 'lucide-react';
+import { BrandLogo } from '@/components/brand/BrandLogo';
+import { Mail, Lock, ArrowRight, UserPlus, LogIn, User, Phone } from 'lucide-react';
 import Link from 'next/link';
 import styles from './page.module.css';
 
@@ -15,8 +16,7 @@ export default function SignInPage() {
                 <div className={styles.formWrapper}>
                     <div className={styles.brandHeader}>
                         <div className={styles.brandLink}>
-                            <Shield size={32} className={styles.brandIcon} />
-                            <span className={styles.brandName}>CoverageCheckNow</span>
+                            <BrandLogo variant="horizontal" size="md" />
                         </div>
                         <p className={styles.brandTagline}>Loading...</p>
                     </div>
@@ -189,11 +189,10 @@ function SignInContent() {
                 {/* Brand Header */}
                 <div className={styles.brandHeader}>
                     <Link href="/" className={styles.brandLink}>
-                        <Shield size={32} className={styles.brandIcon} />
-                        <span className={styles.brandName}>CoverageCheckNow</span>
+                        <BrandLogo variant="horizontal" size="lg" />
                     </Link>
                     <p className={styles.brandTagline}>
-                        Intelligent coverage gap analysis
+                        Intelligent coverage gap analysis &amp; policy review
                     </p>
                 </div>
 

@@ -1,8 +1,51 @@
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
 import { normalizePolicyNumber } from '@/lib/normalization';
+import { logger } from '@/lib/logger';
+
+/** Detect hex-string placeholder names from legacy CSV imports */
+function isHexPlaceholder(name: string | null): boolean {
+    if (!name) return false;
+    return /^[0-9A-Fa-f]{10,}$/.test(name.replace(/\s/g, ''));
+}
+
+/**
+ * Selects the best survivor from a cluster of duplicate clients.
+ * Priority: real name > hex placeholder, more tokens > fewer, older > newer
+ */
+function selectBestSurvivor(cluster: any[]): { survivor: any; duplicates: any[] } {
+    const scored = cluster.map(c => {
+        const name = c.named_insured || '';
+        const isHex = isHexPlaceholder(name);
+        const tokens = name.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter((t: string) => t.length >= 2);
+        return {
+            client: c,
+            isHex,
+            tokenCount: tokens.length,
+            nameLength: name.length,
+            createdAt: new Date(c.created_at).getTime(),
+        };
+    });
+    
+    scored.sort((a, b) => {
+        // Real names win over hex placeholders
+        if (a.isHex !== b.isHex) return a.isHex ? 1 : -1;
+        // More tokens = more context = better survivor
+        if (a.tokenCount !== b.tokenCount) return b.tokenCount - a.tokenCount;
+        // Longer name = more detail
+        if (a.nameLength !== b.nameLength) return b.nameLength - a.nameLength;
+        // Tie-break: older record
+        return a.createdAt - b.createdAt;
+    });
+    
+    return {
+        survivor: scored[0].client,
+        duplicates: scored.slice(1).map(s => s.client),
+    };
+}
 
 export interface DuplicateGroup {
     type: 'client' | 'policy';
+    tier: 1 | 2 | 3;
     survivor_id: string;
     merged_ids: string[];
     confidence: number;
@@ -28,23 +71,28 @@ export class DuplicateEngine {
         const pageSize = 1000;
 
         while (hasMore) {
-            const { data, error } = await supabaseAdmin
-                .from('policies')
-                .select('id, policy_number, created_at, client_id, property_address_norm')
-                .order('id', { ascending: true })
-                .range(page * pageSize, (page + 1) * pageSize - 1);
+            try {
+                const { data, error } = await supabaseAdmin
+                    .from('policies')
+                    .select('id, policy_number, created_at, client_id, property_address_norm')
+                    .order('id', { ascending: true })
+                    .range(page * pageSize, (page + 1) * pageSize - 1);
 
-            if (error) {
-                console.error("Error fetching policies for duplicate detection", error);
+                if (error) {
+                    logger.error('duplicateEngine', "Error fetching policies for duplicate detection", { error: error.message })
+                    return [];
+                }
+
+                if (data && data.length > 0) {
+                    policies = policies.concat(data);
+                    if (data.length < pageSize) hasMore = false;
+                    else page++;
+                } else {
+                    hasMore = false;
+                }
+            } catch (error) {
+                logger.error('duplicateEngine', "Error fetching policies for duplicate detection", { error: error instanceof Error ? error.message : String(error) })
                 return [];
-            }
-
-            if (data && data.length > 0) {
-                policies = policies.concat(data);
-                if (data.length < pageSize) hasMore = false;
-                else page++;
-            } else {
-                hasMore = false;
             }
         }
 
@@ -84,6 +132,7 @@ export class DuplicateEngine {
 
                 exactDuplicates.push({
                     type: 'policy',
+                    tier: 1,
                     survivor_id: survivor.id,
                     merged_ids: merges.map(m => m.id),
                     confidence: 100, // Exact Base Match is 100% confidence globally
@@ -110,29 +159,34 @@ export class DuplicateEngine {
         const pageSize = 1000;
 
         while (hasMore) {
-            const { data, error } = await supabaseAdmin
-                .from('clients')
-                .select(`
-                    id, named_insured, email, phone, mailing_address_raw, mailing_address_norm, created_at,
-                    policies(id, policy_number, carrier_name, property_address_raw, status, created_at,
-                        policy_terms(id, effective_date, expiration_date, annual_premium, is_current),
-                        platform_documents(id, doc_type, file_name, created_at)),
-                    dec_pages(id, policy_number, created_at, submission_id, dec_page_submissions(file_name))
-                `)
-                .order('id', { ascending: true })
-                .range(page * pageSize, (page + 1) * pageSize - 1);
+            try {
+                const { data, error } = await supabaseAdmin
+                    .from('clients')
+                    .select(`
+                        id, named_insured, email, phone, mailing_address_raw, mailing_address_norm, created_at,
+                        policies(id, policy_number, carrier_name, property_address_raw, status, created_at,
+                            policy_terms(id, effective_date, expiration_date, annual_premium, is_current),
+                            platform_documents(id, doc_type, file_name, created_at)),
+                        dec_pages(id, policy_number, created_at, submission_id, dec_page_submissions(file_name))
+                    `)
+                    .order('id', { ascending: true })
+                    .range(page * pageSize, (page + 1) * pageSize - 1);
 
-            if (error) {
-                console.error("Error fetching clients for duplicate detection", error);
+                if (error) {
+                    logger.error('duplicateEngine', "Error fetching clients for duplicate detection", { error: error.message })
+                    return [];
+                }
+
+                if (data && data.length > 0) {
+                    clients = clients.concat(data);
+                    if (data.length < pageSize) hasMore = false;
+                    else page++;
+                } else {
+                    hasMore = false;
+                }
+            } catch (error) {
+                logger.error('duplicateEngine', "Error fetching clients for duplicate detection", { error: error instanceof Error ? error.message : String(error) })
                 return [];
-            }
-
-            if (data && data.length > 0) {
-                clients = clients.concat(data);
-                if (data.length < pageSize) hasMore = false;
-                else page++;
-            } else {
-                hasMore = false;
             }
         }
 
@@ -156,17 +210,66 @@ export class DuplicateEngine {
 
         for (const [, cluster] of grouped.entries()) {
             if (cluster.length > 1) {
-                cluster.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                const { survivor, duplicates: merges } = selectBestSurvivor(cluster);
 
-                const survivor = cluster[0];
-                const merges = cluster.slice(1);
+                const survivorAddresses = (survivor.policies || []).map((p: any) => 
+                    (p.property_address_raw || '').toUpperCase().replace(/[^A-Z0-9\s]/g, '').split(' ').slice(0, 3).join(' ')
+                ).filter((a: string) => a.length > 5);
+
+                const dupAddresses = merges.flatMap((d: any) => 
+                    (d.policies || []).map((p: any) =>
+                        (p.property_address_raw || '').toUpperCase().replace(/[^A-Z0-9\s]/g, '').split(' ').slice(0, 3).join(' ')
+                    ).filter((a: string) => a.length > 5)
+                );
+
+                const sharedAddress = survivorAddresses.some((a: string) => dupAddresses.includes(a));
+
+                const survivorBases = new Set((survivor.policies || []).map((p: any) => normalizePolicyNumber(p.policy_number).basePolicy).filter(Boolean));
+                const sharedPolicy = merges.some((d: any) => 
+                    (d.policies || []).some((p: any) => survivorBases.has(normalizePolicyNumber(p.policy_number).basePolicy))
+                );
+
+                let confidence = 85;
+                let reason = 'Identical Normalized Name';
+                let tier: 1 | 2 | 3 = 1;
+
+                const isSingleWord = (survivor.named_insured || '').trim().split(/\s+/).length === 1;
+                const survivorIsHex = isHexPlaceholder(survivor.named_insured);
+                const hasHexMerge = merges.some((m: any) => isHexPlaceholder(m.named_insured));
+                const isHexToReal = !survivorIsHex && hasHexMerge;
+                const isHexToHex = survivorIsHex && merges.every((m: any) => isHexPlaceholder(m.named_insured));
+
+                if (sharedPolicy) {
+                    confidence = 95;
+                    reason = 'Identical Normalized Name + Shared Policy Base Number';
+                } else if (sharedAddress) {
+                    confidence = 90;
+                    reason = 'Identical Normalized Name + Shared Property Address';
+                }
+
+                if (isSingleWord) {
+                    if (sharedPolicy || sharedAddress) {
+                        tier = 2;
+                    } else {
+                        confidence = 40;
+                        tier = 3;
+                    }
+                } else {
+                    if (confidence >= 90 || isHexToReal || (!isHexToHex)) {
+                        tier = 1;
+                    }
+                    if (isHexToHex && !sharedPolicy) {
+                        tier = 3;
+                    }
+                }
 
                 candidateDuplicates.push({
                     type: 'client',
+                    tier,
                     survivor_id: survivor.id,
-                    merged_ids: merges.map(m => m.id),
-                    confidence: 85,
-                    reason: `Identical Normalized Name`,
+                    merged_ids: merges.map((m: any) => m.id),
+                    confidence,
+                    reason,
                     details: {
                         survivor,
                         duplicates: merges
@@ -213,8 +316,10 @@ export class DuplicateEngine {
                 // Check if one is a subset of the other (both directions)
                 // e.g. {jason, wolsefer} ⊂ {jason, wolsefer} (exact on long tokens)
                 // or {jason, wolsefer} vs {jason, j, wolsefer} — after filtering short tokens
-                const aSubsetOfB = a.tokens.size > 0 && [...a.tokens].every(t => b.tokens.has(t));
-                const bSubsetOfA = b.tokens.size > 0 && [...b.tokens].every(t => a.tokens.has(t));
+                // Require at least 2 tokens on the subset side to prevent
+                // single-name over-matching (e.g. "Jason" matching all "Jason *")
+                const aSubsetOfB = a.tokens.size > 1 && [...a.tokens].every(t => b.tokens.has(t));
+                const bSubsetOfA = b.tokens.size > 1 && [...b.tokens].every(t => a.tokens.has(t));
 
                 if (aSubsetOfB || bSubsetOfA) {
                     fuzzyCluster.push(b.client);
@@ -224,17 +329,53 @@ export class DuplicateEngine {
 
             if (fuzzyCluster.length > 1) {
                 fuzzyMatchedIds.add(a.client.id);
-                fuzzyCluster.sort((x, y) => new Date(x.created_at).getTime() - new Date(y.created_at).getTime());
+                const { survivor, duplicates: merges } = selectBestSurvivor(fuzzyCluster);
 
-                const survivor = fuzzyCluster[0];
-                const merges = fuzzyCluster.slice(1);
+                let confidence = 70;
+                let reason = 'Similar Name (Token Match)';
+                let tier: 1 | 2 | 3 = 2; // Token-subset matching implies 2+ shared tokens
+
+                const survivorAddresses = (survivor.policies || []).map((p: any) => 
+                    (p.property_address_raw || '').toUpperCase().replace(/[^A-Z0-9\s]/g, '').split(' ').slice(0, 3).join(' ')
+                ).filter((a: string) => a.length > 5);
+
+                const dupAddresses = merges.flatMap((d: any) => 
+                    (d.policies || []).map((p: any) =>
+                        (p.property_address_raw || '').toUpperCase().replace(/[^A-Z0-9\s]/g, '').split(' ').slice(0, 3).join(' ')
+                    ).filter((a: string) => a.length > 5)
+                );
+
+                const sharedAddress = survivorAddresses.some((a: string) => dupAddresses.includes(a));
+
+                const survivorBases = new Set((survivor.policies || []).map((p: any) => normalizePolicyNumber(p.policy_number).basePolicy).filter(Boolean));
+                const sharedPolicy = merges.some((d: any) => 
+                    (d.policies || []).some((p: any) => survivorBases.has(normalizePolicyNumber(p.policy_number).basePolicy))
+                );
+
+                if (sharedPolicy) {
+                    confidence = 95;
+                    reason = 'Similar Name + Shared Policy Base Number';
+                } else if (sharedAddress) {
+                    confidence = 90;
+                    reason = 'Similar Name + Shared Property Address';
+                }
+
+                const survivorIsHex = isHexPlaceholder(survivor.named_insured);
+                const isHexToHex = survivorIsHex && merges.every((m: any) => isHexPlaceholder(m.named_insured));
+
+                if (confidence >= 90) {
+                    tier = 1;
+                } else if (isHexToHex && !sharedPolicy) {
+                    tier = 3;
+                }
 
                 candidateDuplicates.push({
                     type: 'client',
+                    tier,
                     survivor_id: survivor.id,
-                    merged_ids: merges.map(m => m.id),
-                    confidence: 70,
-                    reason: `Similar Name (Token Match)`,
+                    merged_ids: merges.map((m: any) => m.id),
+                    confidence,
+                    reason,
                     details: {
                         survivor,
                         duplicates: merges

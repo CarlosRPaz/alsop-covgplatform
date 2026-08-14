@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
 import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
+import { logger } from '@/lib/logger';
+
 
 /**
  * PATCH /api/reports/update
@@ -38,13 +40,13 @@ export async function PATCH(req: NextRequest) {
             .single();
 
         if (error) {
-            console.error('Failed to update report:', error);
+            logger.error('Update', 'Failed to update report:', { error: error.message })
             return NextResponse.json({ error: 'Failed to update report' }, { status: 500 });
         }
 
         return NextResponse.json({ success: true, report: data });
     } catch (err: any) {
-        console.error('Error updating report:', err);
+        logger.error('Update', 'Error updating report:', err)
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }

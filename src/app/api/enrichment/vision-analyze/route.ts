@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
+import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
 
 /**
@@ -12,7 +14,7 @@ import { logger } from '@/lib/logger';
  * Body: { policy_id: string }
  */
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const OPENAI_API_KEY = env.OPENAI_API_KEY || '';
 
 // ---------------------------------------------------------------------------
 // Target datapoints for overhead satellite detection (v1)
@@ -295,6 +297,9 @@ async function analyzeWithGPT4o(imageBase64: string): Promise<VisionResponse | n
 // ---------------------------------------------------------------------------
 
 export async function POST(request: NextRequest) {
+    const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+    if (isAuthError(auth)) return auth;
+
     try {
         const body = await request.json();
         const { policy_id } = body;

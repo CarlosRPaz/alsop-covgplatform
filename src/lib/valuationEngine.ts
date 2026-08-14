@@ -1,3 +1,5 @@
+import { logger } from '@/lib/logger';
+
 /**
  * Valuation Engine — Square Footage Strategy & Replacement Cost Estimation
  *
@@ -283,7 +285,7 @@ export async function getReplacementCostEstimate(
             const result = await provider.getEstimate(params);
             if (result && result.estimatedRCV > 0) return result;
         } catch (err) {
-            console.warn(`Vendor provider ${provider.name} failed:`, err);
+            logger.warn('valuationEngine', `Vendor provider ${provider.name} failed:`, { error: err instanceof Error ? err.message : String(err) })
         }
     }
 

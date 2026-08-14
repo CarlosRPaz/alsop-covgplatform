@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
 import { getPolicyDetailById, fetchFlagsByPolicyId, PolicyDetail, PolicyFlagRow } from '@/lib/api';
 import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
+import { env } from '@/lib/env';
+import { logger } from '@/lib/logger';
+
 
 /**
  * Expected schema from the GPT-4o report synthesizer (v3 — compact client-facing).
@@ -107,9 +110,9 @@ export async function POST(req: NextRequest) {
         };
 
         // 3. Prompt GPT-4o for Synthesis (Layer 2)
-        const openAiKey = process.env.OPENAI_API_KEY;
+        const openAiKey = env.OPENAI_API_KEY;
         if (!openAiKey) {
-            console.warn('OPENAI_API_KEY missing - saving draft report without AI insights');
+            logger.warn('Generate', 'OPENAI_API_KEY missing - saving draft report without AI insights')
             return saveAndReturnReport(policyId, policy.client_id, dataPayload, {
                 executive_summary: "Coverage review in progress.",
                 renewal_snapshot: "",
@@ -250,7 +253,7 @@ ${JSON.stringify(dataPayload, null, 2)}
 
         if (!response.ok) {
             const errBody = await response.text();
-            console.error('OpenAI Error:', errBody);
+            logger.error('Generate', 'OpenAI Error:', { detail: errBody })
             throw new Error('Failed to generate AI insights');
         }
 
@@ -261,7 +264,7 @@ ${JSON.stringify(dataPayload, null, 2)}
         return await saveAndReturnReport(policyId, policy.client_id, dataPayload, aiInsights);
 
     } catch (err: any) {
-        console.error('Error generating report:', err);
+        logger.error('Generate', 'Error generating report:', err)
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }
@@ -282,7 +285,7 @@ async function saveAndReturnReport(policyId: string, clientId: string | undefine
         .single();
 
     if (error) {
-        console.error('Failed to save report to DB:', error);
+        logger.error('Generate', 'Failed to save report to DB:', { error: error.message })
         return NextResponse.json({ error: 'Failed to save report' }, { status: 500 });
     }
 
@@ -297,7 +300,7 @@ async function saveAndReturnReport(policyId: string, clientId: string | undefine
             meta: { report_id: data.id },
         });
     } catch (e) {
-        console.warn('Activity event insert failed (non-fatal):', e);
+        logger.warn('Generate', 'Activity event insert failed (non-fatal):', { error: e instanceof Error ? e.message : String(e) });
     }
 
     // Save a reference in platform_documents so report appears in Files tab
@@ -317,7 +320,7 @@ async function saveAndReturnReport(policyId: string, clientId: string | undefine
             error_message: null,
         });
     } catch (e) {
-        console.warn('platform_documents insert for report failed (non-fatal):', e);
+        logger.warn('Generate', 'platform_documents insert for report failed (non-fatal):', { error: e instanceof Error ? e.message : String(e) });
     }
 
     return NextResponse.json({ success: true, report: data });

@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { FileText, Clock, Calendar, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import styles from './InfoCards.module.css';
+import { logger } from '@/lib/logger';
+
 
 interface InfoCard {
     title: string;
@@ -86,7 +88,7 @@ export function InfoCards() {
                     },
                 ]);
             } catch (error) {
-                console.error('Error loading dashboard stats:', error);
+                logger.error('InfoCards', 'Error loading dashboard stats:', { error: error instanceof Error ? error.message : String(error) })
             }
         };
 

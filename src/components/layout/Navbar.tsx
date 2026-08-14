@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import styles from './Navbar.module.css';
 import { Button } from '@/components/ui/Button/Button';
-import { Shield, LogIn, LogOut, User, ArrowRight } from 'lucide-react';
+import { BrandLogo } from '@/components/brand/BrandLogo';
+import { LogIn, LogOut, User, ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { getUserProfile, UserRole } from '@/lib/auth';
 
@@ -80,8 +81,7 @@ export function Navbar() {
         <nav className={styles.navbar}>
             <div className={styles.container}>
                 <Link href="/" className={styles.logo}>
-                    <Shield size={28} className={styles.logoIcon} />
-                    <span className={styles.logoText}>CoverageCheckNow</span>
+                    <BrandLogo variant="horizontal" size="sm" iconSize={26} />
                 </Link>
 
                 <div className={styles.navLinks}>

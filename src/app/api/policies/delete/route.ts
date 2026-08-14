@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
 import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
+import { logger } from '@/lib/logger';
+
 
 /**
  * DELETE /api/policies/delete
@@ -172,7 +174,7 @@ export async function POST(req: NextRequest) {
         });
 
     } catch (err: any) {
-        console.error('[DELETE POLICY] Unexpected error:', err);
+        logger.error('Delete', '[DELETE POLICY] Unexpected error:', err)
         return NextResponse.json(
             { success: false, error: err.message || 'Unknown server error' },
             { status: 500 }
