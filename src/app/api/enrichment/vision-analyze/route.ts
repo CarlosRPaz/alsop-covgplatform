@@ -14,6 +14,8 @@ import { logger } from '@/lib/logger';
  * Body: { policy_id: string }
  */
 
+export const dynamic = 'force-dynamic';
+
 const OPENAI_API_KEY = env.OPENAI_API_KEY || '';
 
 // ---------------------------------------------------------------------------

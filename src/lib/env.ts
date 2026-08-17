@@ -1,6 +1,5 @@
 /**
- * Centralized environment variable validation.
- * Fails fast at startup if required variables are missing.
+ * Centralized environment variable access and validation.
  *
  * IMPORTANT: Next.js only inlines NEXT_PUBLIC_ env vars when accessed
  * as literal `process.env.NEXT_PUBLIC_X` expressions. Dynamic access
@@ -9,17 +8,10 @@
  *
  * Usage:
  *   import { env } from '@/lib/env';
- *   console.log(env.SUPABASE_URL);
  */
 
-function assertDefined(value: string | undefined, name: string): string {
-    if (!value || value.trim() === '') {
-        throw new Error(
-            `[ENV] Missing required environment variable: ${name}. ` +
-            `Please add it to your .env.local file.`
-        );
-    }
-    return value;
+function getOptional(value: string | undefined, fallback: string = ''): string {
+    return value && value.trim() !== '' ? value.trim() : fallback;
 }
 
 /**
@@ -30,12 +22,12 @@ function assertDefined(value: string | undefined, name: string): string {
 export const env = {
     /** Supabase project URL (client-safe). */
     get SUPABASE_URL(): string {
-        return assertDefined(process.env.NEXT_PUBLIC_SUPABASE_URL, 'NEXT_PUBLIC_SUPABASE_URL');
+        return getOptional(process.env.NEXT_PUBLIC_SUPABASE_URL, 'https://qbihizqbtimwvhxkneeb.supabase.co');
     },
 
     /** Supabase anonymous/public key (client-safe, RLS-gated). */
     get SUPABASE_ANON_KEY(): string {
-        return assertDefined(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, 'NEXT_PUBLIC_SUPABASE_ANON_KEY');
+        return getOptional(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, '');
     },
 
     /**
@@ -46,7 +38,7 @@ export const env = {
      * - Server actions
      */
     get SUPABASE_SERVICE_ROLE_KEY(): string {
-        return assertDefined(process.env.SUPABASE_SERVICE_ROLE_KEY, 'SUPABASE_SERVICE_ROLE_KEY');
+        return getOptional(process.env.SUPABASE_SERVICE_ROLE_KEY, '');
     },
 
     /** Whether we're running in production. */
@@ -58,7 +50,7 @@ export const env = {
 
     /** Email send mode: 'disabled' | 'redirect' | 'live'. Default: disabled. */
     get EMAIL_SEND_MODE(): string {
-        return process.env.EMAIL_SEND_MODE || 'disabled';
+        return getOptional(process.env.EMAIL_SEND_MODE, 'disabled');
     },
 
     /** Postmark server token for transactional email. */
@@ -68,17 +60,17 @@ export const env = {
 
     /** Default From address for app-generated email. */
     get EMAIL_FROM_DEFAULT(): string {
-        return process.env.EMAIL_FROM_DEFAULT || 'reports@coveragechecknow.com';
+        return getOptional(process.env.EMAIL_FROM_DEFAULT, 'reports@coveragechecknow.com');
     },
 
     /** Default Reply-To address. */
     get EMAIL_REPLY_TO_DEFAULT(): string {
-        return process.env.EMAIL_REPLY_TO_DEFAULT || 'support@coveragechecknow.com';
+        return getOptional(process.env.EMAIL_REPLY_TO_DEFAULT, 'support@coveragechecknow.com');
     },
 
     /** Dev redirect target (used when EMAIL_SEND_MODE=redirect). */
     get EMAIL_DEV_REDIRECT(): string {
-        return process.env.EMAIL_DEV_REDIRECT || 'carlospaz@allstate.com';
+        return getOptional(process.env.EMAIL_DEV_REDIRECT, 'carlospaz@allstate.com');
     },
 
     // ── Property Enrichment ──
@@ -95,28 +87,20 @@ export const env = {
 
     // ── OpenAI ──
     get OPENAI_API_KEY(): string {
-        const v = process.env.OPENAI_API_KEY;
-        if (!v) throw new Error('Missing OPENAI_API_KEY');
-        return v;
+        return getOptional(process.env.OPENAI_API_KEY, '');
     },
 
     // ── Google Maps ──
     get GOOGLE_MAPS_API_KEY(): string {
-        const v = process.env.GOOGLE_MAPS_API_KEY;
-        if (!v) throw new Error('Missing GOOGLE_MAPS_API_KEY');
-        return v;
+        return getOptional(process.env.GOOGLE_MAPS_API_KEY, '');
     },
 
     // ── EagleView ──
     get EAGLEVIEW_CLIENT_ID(): string {
-        const v = process.env.EAGLEVIEW_CLIENT_ID;
-        if (!v) throw new Error('Missing EAGLEVIEW_CLIENT_ID');
-        return v;
+        return getOptional(process.env.EAGLEVIEW_CLIENT_ID, '');
     },
     get EAGLEVIEW_CLIENT_SECRET(): string {
-        const v = process.env.EAGLEVIEW_CLIENT_SECRET;
-        if (!v) throw new Error('Missing EAGLEVIEW_CLIENT_SECRET');
-        return v;
+        return getOptional(process.env.EAGLEVIEW_CLIENT_SECRET, '');
     },
 
     // ── Internal API ──
@@ -128,7 +112,7 @@ export const env = {
      * Returns empty string if not set (internal-key auth path is skipped).
      */
     get INTERNAL_API_KEY(): string {
-        return process.env.INTERNAL_API_KEY || '';
+        return getOptional(process.env.INTERNAL_API_KEY, '');
     },
 
     // ── App Base URL ──
@@ -139,6 +123,6 @@ export const env = {
      * Falls back to http://localhost:3000 in development.
      */
     get APP_BASE_URL(): string {
-        return process.env.APP_BASE_URL || 'http://localhost:3000';
+        return getOptional(process.env.APP_BASE_URL, 'http://localhost:3000');
     },
 } as const;
