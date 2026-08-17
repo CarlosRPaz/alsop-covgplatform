@@ -6,7 +6,6 @@ Disallow: /client
 Disallow: /flags
 Disallow: /settings
 Disallow: /profile
-Disallow: /submit
 Disallow: /api/
 
 Sitemap: https://coveragechecknow.com/sitemap.xml

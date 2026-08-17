@@ -174,7 +174,7 @@ export function SupportModal({ isOpen, onClose, clientName, clientEmail, policyN
                             <option>Technical Support / App Issue</option>
                             <option>Coverage & Policy Question</option>
                             <option>Report Request</option>
-                            <option>Billing & Payment Question</option>
+                            <option>Account & Access Question</option>
                             <option>Other</option>
                         </select>
                     </div>

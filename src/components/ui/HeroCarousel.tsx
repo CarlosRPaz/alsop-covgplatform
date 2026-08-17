@@ -4,13 +4,10 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 
 const HERO_IMAGES = [
-    { src: '/images/hero-home.png', alt: 'A warm, well-protected home at dusk' },
-    { src: '/images/hero-home-1.png', alt: 'Modern home with warm interior lighting at golden hour' },
-    { src: '/images/hero-home-2.png', alt: 'Charming craftsman home with inviting front porch' },
-    { src: '/images/hero-home-3.png', alt: 'Elegant Mediterranean villa at sunset' },
-    { src: '/images/hero-home-4.png', alt: 'Clean modern farmhouse with cozy atmosphere' },
-    { src: '/images/hero-home-5.png', alt: 'Classic colonial home in autumn setting' },
-    { src: '/images/hero-home-6.png', alt: 'Contemporary glass home in a wooded retreat' },
+    { src: '/images/hero-home.webp', alt: 'A warm, well-protected home at dusk' },
+    { src: '/images/hero-home-1.webp', alt: 'Modern home with warm interior lighting at golden hour' },
+    { src: '/images/hero-home-3.webp', alt: 'Elegant Mediterranean villa at sunset' },
+    { src: '/images/hero-home-5.webp', alt: 'Classic colonial home in autumn setting' },
 ];
 
 const INTERVAL_MS = 10000; // 10 seconds per image

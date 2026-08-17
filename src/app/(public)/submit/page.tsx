@@ -121,7 +121,7 @@ function AuthGate() {
                     <BrandLogo variant="horizontal" size="md" />
                 </div>
                 <p className={styles.brandTagline}>
-                    Sign in to submit your declaration
+                    Sign in to check your coverage
                 </p>
             </div>
 

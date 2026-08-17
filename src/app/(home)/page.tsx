@@ -16,14 +16,14 @@ import { BrandLogo } from '@/components/brand/BrandLogo';
 import styles from './page.module.scss';
 
 export const metadata: Metadata = {
-  title: 'CoverageCheckNow — Homeowners Policy & Coverage Analysis',
-  description: 'Upload your property insurance dec page for instant policy review, RCE verification, and coverage gap detection. Free, independent, and secure.',
+  title: 'Free Policy Coverage Analysis for Homeowners | CoverageCheckNow',
+  description: 'Upload your property insurance policy for instant coverage analysis, replacement cost verification, and gap detection. Free, independent, and secure.',
   alternates: {
     canonical: '/',
   },
   openGraph: {
-    title: 'CoverageCheckNow — Homeowners Policy & Coverage Analysis',
-    description: 'Upload your property insurance dec page for instant policy review, RCE verification, and coverage gap detection. Free, independent, and secure.',
+    title: 'Free Policy Coverage Analysis for Homeowners | CoverageCheckNow',
+    description: 'Upload your property insurance policy for instant coverage analysis, replacement cost verification, and gap detection. Free, independent, and secure.',
     url: '/',
     siteName: 'CoverageCheckNow',
     images: [
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
         url: '/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'CoverageCheckNow — Homeowners Policy & Coverage Analysis',
+        alt: 'CoverageCheckNow — Free Policy Coverage Analysis for Homeowners',
       },
     ],
   },
@@ -50,7 +50,7 @@ const steps = [
     num: '02',
     icon: Search,
     title: 'Advanced Coverage Analysis',
-    desc: 'Crafted with innovative tools, our system reviews your policy, evaluates risk, and highlights ways to strengthen your coverage.',
+    desc: 'Our system cross-references your coverage limits, deductibles, and exclusions against property data, replacement cost estimates, and California-specific risk factors.',
   },
   {
     num: '03',
@@ -137,12 +137,12 @@ export default function Home() {
                 staggerMs={140}
               />
               <p className={styles.heroSub}>
-                Upload your insurance declarations page and get a coverage analysis report — in minutes, not days.
+                Upload your insurance policy and get a personalized coverage report with risk insights and next steps.
               </p>
               <div className={styles.heroCtas}>
                 <Link href="/submit">
                   <Button size="lg" className={styles.primaryCta}>
-                    Submit Declaration
+                    Check My Coverage
                     <ArrowRight size={18} />
                   </Button>
                 </Link>
@@ -158,7 +158,7 @@ export default function Home() {
                 </div>
                 <div className={styles.proofItem}>
                   <Brain size={14} />
-                  <span>Technology-assisted content</span>
+                  <span>Reviewed by licensed agents</span>
                 </div>
                 <div className={styles.proofItem}>
                   <CheckCircle size={14} />
@@ -177,13 +177,13 @@ export default function Home() {
         <section className={styles.trustBar}>
           <div className={styles.trustBarInner}>
             <div className={styles.trustStat}>
-              <strong>40+</strong>
-              <span>Years in business</span>
+              <strong>40+ Years</strong>
+              <span>Backed by Alsop & Associates</span>
             </div>
             <div className={styles.trustDivider} />
             <div className={styles.trustStat}>
-              <strong>Advanced Technology</strong>
-              <span>Coverage analysis engine</span>
+              <strong>50+ Risk Checks</strong>
+              <span>Per policy analysis</span>
             </div>
             <div className={styles.trustDivider} />
             <div className={styles.trustStat}>
@@ -383,11 +383,11 @@ export default function Home() {
         {/* ─── FINAL CTA ─── */}
         <section className={styles.finalCta}>
           <div className={styles.contain}>
-            <h2>Ready to see what your policy is missing?</h2>
-            <p>Submit your declarations page in minutes. Free. Fast. No surprises.</p>
+            <h2>Ready to check your coverage?</h2>
+            <p>Upload your policy and get your free report in minutes. No credit card. No obligation.</p>
             <Link href="/submit">
               <Button size="lg" className={styles.primaryCta}>
-                Submit Declaration
+                Check My Coverage
                 <ArrowRight size={18} />
               </Button>
             </Link>

@@ -12,7 +12,7 @@ import { getUserProfile, UserRole } from '@/lib/auth';
 
 const navLinks = [
     { href: '/dashboard', label: 'Dashboard', authRequired: true, hideForRole: 'customer' },
-    { href: '/submit', label: 'Submit', authRequired: false, hideForRole: 'customer' },
+    { href: '/submit', label: 'Check My Coverage', authRequired: false, hideForRole: 'customer' },
 ];
 
 export function Navbar() {
@@ -129,7 +129,7 @@ export function Navbar() {
                             </Link>
                             <Link href="/submit">
                                 <Button size="sm" className={styles.ctaButton}>
-                                    Get Started
+                                    Check My Coverage
                                 </Button>
                             </Link>
                         </>

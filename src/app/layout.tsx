@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.scss";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
+import { CookieConsent } from "@/components/shared/CookieConsent";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -13,7 +14,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "CoverageCheckNow — Homeowners & Property Insurance Intelligence",
+    default: "Free Coverage Analysis — Upload Your Policy | CoverageCheckNow",
     template: "%s | CoverageCheckNow",
   },
   description: "Comprehensive policy analysis, replacement cost estimation (RCE), coverage gap detection, and automated CoPilot outreach for property insurance policies.",
@@ -110,6 +111,77 @@ const jsonLd = {
   ],
 };
 
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Is CoverageCheckNow free?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. CoverageCheckNow is completely free to use. There are no hidden fees."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What do you need from me?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Just your insurance declarations page — the summary page from your policy documents. It's usually 1–3 pages."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Do I need an account?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes, a free account is required so your documents and reports stay secure and accessible only to you."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How long does the analysis take?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Most reports are generated within minutes of uploading your declarations page."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is my data safe?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. We use encryption, least-privilege access, and never sell your personal data."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What file types are supported?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "We accept PDF, PNG, JPG, and JPEG files up to 10MB."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does this replace my insurance agent?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. CoverageCheckNow helps you and your agent make more informed decisions. We recommend reviewing results with a licensed professional."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What states are supported?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "We are currently focused on California."
+      }
+    }
+  ]
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -122,10 +194,15 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+        />
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider>
           {children}
+          <CookieConsent />
         </ThemeProvider>
       </body>
     </html>
