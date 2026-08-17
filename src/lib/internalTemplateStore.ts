@@ -50,22 +50,20 @@ export interface TemplateContext {
 // Storage Keys & Constants
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = 'cfp_internal_email_templates_v2';
+const STORAGE_KEY = 'cfp_internal_email_templates_v3';
 
 export const AVAILABLE_VARIABLES = [
-    { tag: '{{client_name}}', description: 'Named Insured / Client Full Name' },
     { tag: '{{first_name}}', description: 'Client First Name' },
-    { tag: '{{client_email}}', description: 'Client Email Address' },
-    { tag: '{{policy_number}}', description: 'Carrier Policy Number' },
-    { tag: '{{property_address}}', description: 'Insured Property Location' },
+    { tag: '{{client_name}}', description: 'Named Insured / Full Client Name' },
+    { tag: '{{policy_number}}', description: 'Policy Number' },
     { tag: '{{expiration_date}}', description: 'Policy Expiration Date' },
+    { tag: '{{meeting_url}}', description: 'Calendly / Meeting Scheduling Link' },
+    { tag: '{{property_address}}', description: 'Insured Property Location' },
     { tag: '{{effective_date}}', description: 'Policy Effective Date' },
     { tag: '{{annual_premium}}', description: 'Annual Policy Premium' },
-    { tag: '{{payment_method}}', description: 'Payment Type (Insured / Mortgage)' },
+    { tag: '{{payment_method}}', description: 'Payment Method (Direct / Mortgage)' },
     { tag: '{{agent_name}}', description: 'Agency / Agent Name' },
-    { tag: '{{report_url}}', description: 'Link to Full Coverage Report' },
-    { tag: '{{rce_download_url}}', description: 'Link to Download RCE PDF' },
-    { tag: '{{meeting_url}}', description: 'Outlook Calendar Meeting Link' },
+    { tag: '{{client_email}}', description: 'Client Email Address' },
 ];
 
 export const STANDARD_RULES: TemplateRule[] = [
@@ -96,41 +94,37 @@ export const STANDARD_RULES: TemplateRule[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Default System Templates
+// Default System Templates (Refreshed with Calendly & Manual Attachments)
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_TEMPLATES: SystemEmailTemplate[] = [
     {
         id: 'renewal_review',
-        name: 'Renewal Review Notice',
+        name: 'Annual Renewal Review Notice',
         category: 'renewal',
-        description: 'Notice of upcoming renewal with attached Coverage Report and RCE, asking client to schedule an appointment.',
-        subjectTemplate: 'Your California Fair Plan Renewal Is Approaching — Policy {{policy_number}}',
-        draftBodyTemplate: `Hi {{client_name}},
+        description: 'Notice of upcoming policy renewal with attached Coverage Report & RCE, offering a Calendly review appointment.',
+        subjectTemplate: 'Your Policy Renewal Is Approaching — Policy {{policy_number}}',
+        draftBodyTemplate: `Hi {{first_name}},
 
-Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your California Fair Plan policy ({{policy_number}}) is coming up for renewal on {{expiration_date}}, now is a great time to take a closer look.
+Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your policy ({{policy_number}}) is coming up for renewal on {{expiration_date}}, now is a great time to take a closer look.
 
-As part of our renewal review process, we've reviewed the coverage on your current policy and prepared updated materials for your consideration:
+As part of our annual review process, we have evaluated your current policy limits and attached your updated Coverage Report and Replacement Cost Estimate (RCE) to this email for your review.
 
-• Coverage Report: {{report_url}}
-• Updated Replacement Cost Estimate: {{rce_download_url}}
-
-The review may highlight differences between your current coverage and updated replacement cost information or available options. Any changes would be recommendations only — we always request your permission before making updates.
+The review may highlight differences between your current coverage and updated replacement cost information or available options. Any changes are recommendations only — we always request your permission before making updates to your policy.
 
 To make the most of our conversation, please have handy any questions, concerns, or feedback you'd like to share.
 
-I won't take too much of your time. In just a few minutes we can make sure your renewal is on track and your coverage continues to provide the protection that's right for you.
-
-To speak with a licensed agent, please call our main office at (909) 626-5000. We're happy to help!
+We won't take too much of your time. To speak with a licensed agent, please call our main office at (909) 626-5000 or schedule a review directly on our calendar: {{meeting_url}}
 
 Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
 
-Your time is certainly appreciated and I look forward to speaking with you soon!
+Thank you for your time and trust,
 
-Alsop and Associates Insurance Agency`,
+Alsop and Associates Insurance Agency
+(909) 626-5000 | support@coveragechecknow.com`,
         copilotPromptTemplate: `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
 
-TASK: Draft a professional, warm, permission-based renewal review email for California Fair Plan policyholder {{client_name}} regarding policy {{policy_number}}, expiring on {{expiration_date}}.
+TASK: Draft a professional, warm, permission-based renewal review email for policyholder {{client_name}} regarding policy {{policy_number}}, expiring on {{expiration_date}}.
 
 CLIENT & POLICY DETAILS:
 - Client Name: {{client_name}}
@@ -140,22 +134,18 @@ CLIENT & POLICY DETAILS:
 - Effective Date: {{effective_date}}
 - Annual Premium: {{annual_premium}}
 - Payment Method: {{payment_method}}
-- Coverage Report: {{report_url}}
-- Replacement Cost Estimate (RCE): {{rce_download_url}}
-- Meeting Link: {{meeting_url}}
+- Calendly Scheduling Link: {{meeting_url}}
+- Attachments: Coverage Report & Replacement Cost Estimate (RCE) attached directly to the email
 
 REFERENCE EMAIL BLUEPRINT (Match structure, tone, and flow closely):
 ---
-Subject: Your California Fair Plan Renewal Is Approaching — Policy {{policy_number}}
+Subject: Your Policy Renewal Is Approaching — Policy {{policy_number}}
 
-Hi {{client_name}},
+Hi {{first_name}},
 
-Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your California Fair Plan policy ({{policy_number}}) is coming up for renewal on {{expiration_date}}, now is a great time to review your coverage.
+Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your policy ({{policy_number}}) is coming up for renewal on {{expiration_date}}, now is a great time to review your coverage.
 
-As part of our annual review process, we have evaluated your current policy limits and prepared updated materials for your consideration:
-
-• Coverage Report: {{report_url}}
-• Updated Replacement Cost Estimate: {{rce_download_url}}
+As part of our annual review process, we have evaluated your current policy limits and attached your updated Coverage Report and Replacement Cost Estimate (RCE) to this email for your review.
 
 The review may highlight differences between your current coverage and updated replacement cost information. Any changes are recommendations only — we always request your permission before making updates to your policy.
 
@@ -175,11 +165,13 @@ STRICT AGENCY RULES & GUARDRAILS (YOU MUST FOLLOW ALL OF THESE):
 1. AGENCY IDENTITY & SIGN-OFF: Do NOT include a personal agent name or introduction. Sign off ONLY as "Alsop and Associates Insurance Agency" with phone (909) 626-5000 and support@coveragechecknow.com.
 2. PERMISSION-BASED FRAMING: Frame all coverage recommendations using permission-requesting language. Always request client permission before suggesting changes.
 3. NON-JUDGMENTAL COMPARATIVE TONE (STRICT BAN): NEVER use words like "adequate", "inadequate", "deficient", "underinsured", "poor", or "lacking". Describe coverage neutrally by comparing current limits to updated replacement cost estimates.
-4. CLIENT RESPONSIBILITY DISCLAIMER: Include the statement: "Please remember that final coverage selections and decisions remain the responsibility of the policyholder."
-5. CONCISENESS & RESPECT FOR TIME: Keep the email concise — under 200 words — and reassure the client the review takes only a few minutes.
-6. PREPARATION CHECKLIST: Encourage the client to have handy any questions, concerns, or feedback they would like to discuss. Do NOT ask for mortgage statements or other policy dec pages.
-7. NO PHYSICAL ADDRESS IN EMAIL TEXT: Do NOT include the physical property address anywhere in the email subject line or body text. Identify the policy strictly by policy number.
-8. OUTPUT FORMAT: Output ONLY the Subject line and the complete email body ready to send. Do NOT include conversational preamble or surrounding code block backticks.`,
+4. ATTACHMENT REFERENCING: Do NOT generate file URLs or download links. State that the Coverage Report and RCE are attached directly to the email.
+5. CALENDLY / MEETING LINK: Include the scheduling link {{meeting_url}} when provided.
+6. CLIENT RESPONSIBILITY DISCLAIMER: Include the statement: "Please remember that final coverage selections and decisions remain the responsibility of the policyholder."
+7. CONCISENESS & RESPECT FOR TIME: Keep the email concise — under 200 words — and reassure the client the review takes only a few minutes.
+8. PREPARATION CHECKLIST: Encourage the client to have handy any questions, concerns, or feedback they would like to discuss. Do NOT ask for mortgage statements or other policy dec pages.
+9. NO PHYSICAL ADDRESS IN EMAIL TEXT: Do NOT include the physical property address anywhere in the email subject line or body text. Identify the policy strictly by policy number.
+10. OUTPUT FORMAT: Output ONLY the Subject line and the complete email body ready to send. Do NOT include conversational preamble or surrounding code block backticks.`,
         rules: [
             ...STANDARD_RULES,
             {
@@ -195,48 +187,96 @@ STRICT AGENCY RULES & GUARDRAILS (YOU MUST FOLLOW ALL OF THESE):
                 enabled: true,
             },
         ],
-        variables: ['{{first_name}}', '{{client_name}}', '{{policy_number}}', '{{property_address}}', '{{expiration_date}}', '{{report_url}}', '{{rce_download_url}}', '{{meeting_url}}', '{{agent_name}}'],
+        variables: ['{{first_name}}', '{{client_name}}', '{{policy_number}}', '{{expiration_date}}', '{{meeting_url}}', '{{property_address}}', '{{agent_name}}'],
         isSystemDefault: true,
     },
     {
-        id: 'welcome_email',
-        name: 'Welcome to CoverageCheckNow',
-        category: 'custom',
-        description: 'Welcome email introducing the client to the agency and the platform.',
-        subjectTemplate: 'Welcome to CoverageCheckNow for {{property_address}}',
+        id: 'rce_verification',
+        name: 'Verify Replacement Cost Estimate',
+        category: 'rce',
+        description: 'Ask client to verify property specs on their attached Replacement Cost Estimate (RCE).',
+        subjectTemplate: 'Please Verify Your Property Details — Policy {{policy_number}}',
         draftBodyTemplate: `Hi {{first_name}},
 
-Welcome to CoverageCheckNow, Alsop and Associates Insurance Agency’s new client portal designed to help you stay informed about your property coverage.
+As part of your upcoming policy review for {{policy_number}}, we have attached an updated Replacement Cost Estimate (RCE) to help ensure your home is properly valued against current construction and labor costs.
 
-Your dedicated portal securely houses important property details, coverage insights, AI-supported review information, and Replacement Cost Estimates related to {{property_address}}. It is intended to give you easier access to the information we use when reviewing available coverage options with you.
+Please take a moment to review the attached estimate, specifically:
+• Living area square footage
+• Year built & construction details
+• Any recent renovations or additions
 
-You can access your CoverageCheckNow portal here: {{report_url}}.
+If any specifications need updating, or if you have any questions, please give our office a call at (909) 626-5000 or schedule a quick review: {{meeting_url}}
 
-Please note that any coverage updates or increases are recommendations only. We will always request your permission before making changes to your policy.
-
-Final coverage selections and decisions remain the responsibility of the policyholder. If you have questions or would like to review your information with a licensed agent, please schedule a meeting here: {{meeting_url}}.
+Any adjustments to your coverage are recommendations only — we will always request your permission before making changes. Final coverage decisions remain the responsibility of the policyholder.
 
 Thank you,
-Alsop and Associates Insurance Agency`,
+
+Alsop and Associates Insurance Agency
+(909) 626-5000 | support@coveragechecknow.com`,
         copilotPromptTemplate: `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
 
-TASK: Draft a customized welcome email introducing {{client_name}} to CoverageCheckNow for {{property_address}}.
+TASK: Draft a professional, warm email requesting that policyholder {{client_name}} review and verify the property specifications on their attached Replacement Cost Estimate (RCE) for policy {{policy_number}}.
 
 CLIENT & POLICY DETAILS:
 - Client Name: {{client_name}}
-- Property Address: {{property_address}}
-- Portal Access Link: {{report_url}}
-- Meeting Booking Link: {{meeting_url}}
+- Policy Number: {{policy_number}}
+- Expiration Date: {{expiration_date}}
+- Calendly Scheduling Link: {{meeting_url}}
+- Attachment: Replacement Cost Estimate (RCE) attached directly to the email
 
-EMAIL INSTRUCTIONS:
-Keep the tone warm, professional, and concise. Explain that the portal securely houses property details, coverage insights, AI-supported review information, and Replacement Cost Estimates. Direct the client to access the portal using {{report_url}}. Include permission-based language stating that any coverage updates are recommendations only and require client approval before changes are made. Include the disclaimer that final coverage decisions remain the policyholder’s responsibility, and invite them to schedule a meeting using {{meeting_url}}.
+EMAIL PURPOSE:
+Ask the client to review and verify their property details (square footage, year built, renovations) shown on their attached Replacement Cost Estimate (RCE). Explain that accurate property data ensures their replacement cost calculation properly reflects current construction costs.
 
 STRICT AGENCY RULES:
-1. Sign off as "Alsop and Associates Insurance Agency".
-2. Keep under 200 words.
-3. Output ONLY the Subject line and email body ready to send.`,
+1. State that the RCE is attached directly to the email. Do not output download links.
+2. Sign off as "Alsop and Associates Insurance Agency" with phone (909) 626-5000.
+3. Include Calendly link {{meeting_url}}.
+4. Include disclaimer: "Final coverage decisions remain the responsibility of the policyholder."
+5. Output ONLY Subject and Email Body ready to send.`,
         rules: STANDARD_RULES,
-        variables: ['{{first_name}}', '{{client_name}}', '{{policy_number}}', '{{property_address}}', '{{report_url}}', '{{meeting_url}}'],
+        variables: ['{{first_name}}', '{{client_name}}', '{{policy_number}}', '{{meeting_url}}', '{{expiration_date}}'],
+        isSystemDefault: true,
+    },
+    {
+        id: 'coverage_recommendations_meeting',
+        name: 'Coverage Recommendations & Consultation',
+        category: 'recommendations',
+        description: 'Present coverage review findings and invite client to schedule a consultation.',
+        subjectTemplate: 'Coverage Review & Recommendations — Policy {{policy_number}}',
+        draftBodyTemplate: `Hi {{first_name}},
+
+We recently completed an annual review of your property coverage under policy {{policy_number}} and have attached your personalized Coverage Analysis Report for your consideration.
+
+Our review highlights comparative options between your current policy limits and updated rebuilding cost estimates. Any coverage adjustments are recommendations only — we will always discuss available options and request your explicit permission before applying changes.
+
+To review these recommendations together, please schedule a convenient time on our calendar: {{meeting_url}} or call our office at (909) 626-5000.
+
+Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
+
+Best regards,
+
+Alsop and Associates Insurance Agency
+(909) 626-5000 | support@coveragechecknow.com`,
+        copilotPromptTemplate: `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
+
+TASK: Draft a professional, warm email presenting annual coverage recommendations and requesting client permission to review and update coverage for policy {{policy_number}}.
+
+CLIENT & POLICY DETAILS:
+- Client Name: {{client_name}}
+- Policy Number: {{policy_number}}
+- Calendly Scheduling Link: {{meeting_url}}
+- Attachment: Coverage Analysis Report attached directly to the email
+
+EMAIL PURPOSE:
+Highlight key coverage differences identified during our annual review when comparing current policy limits against updated replacement cost estimates. Request permission from the client to apply recommended adjustments, and invite them to schedule a brief appointment via {{meeting_url}} or call our office at (909) 626-5000.
+
+STRICT AGENCY RULES:
+1. State that the Coverage Report is attached directly to the email.
+2. Sign off as "Alsop and Associates Insurance Agency".
+3. Include Calendly link {{meeting_url}}.
+4. Output ONLY Subject and Email Body ready to send.`,
+        rules: STANDARD_RULES,
+        variables: ['{{first_name}}', '{{client_name}}', '{{policy_number}}', '{{meeting_url}}'],
         isSystemDefault: true,
     }
 ];
@@ -307,13 +347,17 @@ export function resetInternalTemplates(): void {
 /** Interpolate variable tags in text */
 export function interpolateText(text: string, ctx: TemplateContext): string {
     if (!text) return '';
-    const firstName = ctx.clientName || '';
+    
+    // Automatically extract first name from client name if possible
+    const rawClientName = ctx.clientName || '';
+    const firstName = rawClientName.trim() ? rawClientName.trim().split(/\s+/)[0] : 'Valued Client';
+    
     const reportLink = ctx.reportUrl || '';
     const rceLink = ctx.rceDownloadUrl || '';
     const meetingLink = ctx.meetingUrl || '';
 
     const replacements: Record<string, string> = {
-        '{{client_name}}': ctx.clientName || '',
+        '{{client_name}}': rawClientName || 'Valued Client',
         '{{first_name}}': firstName,
         '{{client_email}}': ctx.clientEmail || '',
         '{{policy_number}}': ctx.policyNumber || '',
@@ -323,9 +367,9 @@ export function interpolateText(text: string, ctx: TemplateContext): string {
         '{{annual_premium}}': ctx.annualPremium || '',
         '{{payment_method}}': ctx.paymentMethod || '',
         '{{agent_name}}': ctx.agentName || 'Alsop and Associates Insurance Agency',
+        '{{meeting_url}}': meetingLink,
         '{{report_url}}': reportLink,
         '{{rce_download_url}}': rceLink,
-        '{{meeting_url}}': meetingLink,
     };
 
     let result = text;
@@ -364,4 +408,3 @@ export function renderInternalCopilotPrompt(template: SystemEmailTemplate, ctx: 
 
     return interpolatedPrompt.trim();
 }
-

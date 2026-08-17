@@ -32,7 +32,7 @@ const SAMPLE_CONTEXT: TemplateContext = {
     paymentMethod: 'Insured Billed',
     reportUrl: 'https://coveragechecknow.com/report/demo-123',
     rceDownloadUrl: 'https://coveragechecknow.com/api/documents/rce-demo.pdf',
-    meetingUrl: 'https://outlook.office365.com/owa/calendar/alsopagency/bookings/',
+    meetingUrl: 'https://calendly.com/alsopagency',
 };
 
 export default function EmailTemplateStudioPage() {

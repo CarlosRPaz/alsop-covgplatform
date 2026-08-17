@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     X, Mail, Check, Sparkles, FileText, ExternalLink,
-    Copy, Sliders, CheckCircle2, AlertTriangle, ShieldCheck, Loader2, Send
+    Copy, Sliders, CheckCircle2, AlertTriangle, ShieldCheck, Loader2, Send,
+    Calendar, RefreshCw, ChevronDown, ChevronUp, User, Hash, DollarSign
 } from 'lucide-react';
 import {
     SystemEmailTemplate,
@@ -15,7 +16,6 @@ import {
 } from '@/lib/internalTemplateStore';
 import { RenewalEmailLogEntry } from '@/lib/api';
 import { logger } from '@/lib/logger';
-
 
 // Re-export for consumers
 export type { RenewalEmailLogEntry };
@@ -72,31 +72,87 @@ export function PolicyEmailComposer({
 
     // State
     const [templates, setTemplates] = useState<SystemEmailTemplate[]>([]);
-    const [selectedTemplateId, setSelectedTemplateId] = useState<string>('rce_verification');
+    const [selectedTemplateId, setSelectedTemplateId] = useState<string>('renewal_review');
     const [outputMode, setOutputMode] = useState<'draft' | 'copilot'>('copilot');
     const [copied, setCopied] = useState(false);
     const [markingSent, setMarkingSent] = useState(false);
     const [justMarkedSent, setJustMarkedSent] = useState(false);
     const [localLog, setLocalLog] = useState<RenewalEmailLogEntry[]>(stableEmailLog);
 
+    // Mini UI: Interactive Variable Adjuster State
+    const [showAdjuster, setShowAdjuster] = useState(false);
+    const [editableClientName, setEditableClientName] = useState(safeClientName);
+    const [editablePolicyNumber, setEditablePolicyNumber] = useState(safePolicyNumber);
+    const [editablePropertyAddress, setEditablePropertyAddress] = useState(safePropertyAddress);
+    const [editableExpirationDate, setEditableExpirationDate] = useState('07/27/2026');
+    const [editableAnnualPremium, setEditableAnnualPremium] = useState('$1,850.00');
+    const [editableMeetingUrl, setEditableMeetingUrl] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('ccn_calendly_url') || 'https://calendly.com/alsopagency';
+        }
+        return 'https://calendly.com/alsopagency';
+    });
+
+    // Reset / sync local fields when props change or modal opens
+    useEffect(() => {
+        if (isOpen) {
+            setEditableClientName(safeClientName);
+            setEditablePolicyNumber(safePolicyNumber);
+            setEditablePropertyAddress(safePropertyAddress);
+            if (typeof window !== 'undefined') {
+                const savedMeeting = localStorage.getItem('ccn_calendly_url');
+                if (savedMeeting) setEditableMeetingUrl(savedMeeting);
+            }
+        }
+    }, [isOpen, safeClientName, safePolicyNumber, safePropertyAddress]);
+
+    // Handle Calendly URL change & auto-persist
+    const handleMeetingUrlChange = (val: string) => {
+        setEditableMeetingUrl(val);
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('ccn_calendly_url', val);
+        }
+    };
+
+    // Reset variables to detected policy defaults
+    const handleResetVariables = () => {
+        setEditableClientName(safeClientName);
+        setEditablePolicyNumber(safePolicyNumber);
+        setEditablePropertyAddress(safePropertyAddress);
+        setEditableExpirationDate('07/27/2026');
+        setEditableAnnualPremium('$1,850.00');
+    };
+
     // Sync external log when it actually changes (by length, not reference)
     useEffect(() => {
         setLocalLog(stableEmailLog);
     }, [stableEmailLog.length]);
 
-    // Context object
+    // Dynamic Context object fed into templates
     const templateContext: TemplateContext = useMemo(() => ({
-        clientName: safeClientName,
+        clientName: editableClientName,
         clientEmail: safeClientEmail,
-        policyNumber: safePolicyNumber,
-        propertyAddress: safePropertyAddress,
+        policyNumber: editablePolicyNumber,
+        propertyAddress: editablePropertyAddress,
         agentName: safeAgentName,
-        expirationDate: '07/27/2026',
-        annualPremium: '$1,850.00',
+        expirationDate: editableExpirationDate,
+        annualPremium: editableAnnualPremium,
         reportUrl: reportUrl || (reportId ? `https://coveragechecknow.com/report/${reportId}` : undefined),
         rceDownloadUrl: rceDownloadUrl || undefined,
-        meetingUrl: 'https://outlook.office365.com/owa/calendar/alsopagency/bookings/',
-    }), [safeClientName, safeClientEmail, safePolicyNumber, safePropertyAddress, safeAgentName, reportUrl, reportId, rceDownloadUrl]);
+        meetingUrl: editableMeetingUrl,
+    }), [
+        editableClientName,
+        safeClientEmail,
+        editablePolicyNumber,
+        editablePropertyAddress,
+        safeAgentName,
+        editableExpirationDate,
+        editableAnnualPremium,
+        editableMeetingUrl,
+        reportUrl,
+        reportId,
+        rceDownloadUrl
+    ]);
 
     // Load templates
     useEffect(() => {
@@ -217,24 +273,24 @@ export function PolicyEmailComposer({
 
     return (
         <div style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(5px)',
             zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem'
         }}>
             <div style={{
-                width: '100%', maxWidth: '850px', maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+                width: '100%', maxWidth: '880px', maxHeight: '92vh', display: 'flex', flexDirection: 'column',
                 background: 'var(--bg-surface)', borderRadius: '14px', border: '1px solid var(--border-default)',
-                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden', color: 'var(--text-high)'
+                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)', overflow: 'hidden', color: 'var(--text-high)'
             }}>
                 
                 {/* ── Modal Header ── */}
                 <div style={{
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-default)',
+                    padding: '1.15rem 1.5rem', borderBottom: '1px solid var(--border-default)',
                     background: 'var(--bg-surface-raised)'
                 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                         <div style={{
-                            width: '34px', height: '34px', borderRadius: '8px',
+                            width: '36px', height: '36px', borderRadius: '8px',
                             background: outputMode === 'draft' ? 'rgba(34,197,94,0.15)' : 'var(--accent-secondary-muted)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             color: outputMode === 'draft' ? 'var(--semantic-success)' : 'var(--accent-secondary)'
@@ -246,7 +302,7 @@ export function PolicyEmailComposer({
                                 {outputMode === 'draft' ? 'Email Draft Composer' : 'CoPilot Prompt Generator'}
                             </h2>
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-mid)', margin: '0.1rem 0 0 0' }}>
-                                Native agency templates & permission-requesting rules
+                                Native agency templates with live variable customization
                             </div>
                         </div>
                     </div>
@@ -259,35 +315,162 @@ export function PolicyEmailComposer({
                 </div>
 
                 {/* ── Modal Content Body ── */}
-                <div style={{ padding: '1.5rem', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div style={{ padding: '1.25rem 1.5rem', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     
-                    {/* Policy Context Pill Bar */}
+                    {/* ── Mini UI: Live Variable Adjuster Toolbar ── */}
                     <div style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem',
-                        padding: '0.75rem 1rem', background: 'var(--bg-surface-raised)', border: '1px solid var(--border-default)', borderRadius: '9px'
+                        background: 'var(--bg-surface-raised)',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: '10px',
+                        padding: '0.85rem 1rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.75rem',
                     }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', fontSize: '0.8rem' }}>
-                            <div>
-                                <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', display: 'block' }}>CLIENT</span>
-                                <strong style={{ color: 'var(--text-high)' }}>{safeClientName || 'N/A'}</strong>
+                        {/* Top Line: Calendly input + Quick Expand Button */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flex: '1 1 320px' }}>
+                                <span style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                                    fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-primary)',
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    <Calendar size={14} /> Calendly Link:
+                                </span>
+                                <input
+                                    type="text"
+                                    value={editableMeetingUrl}
+                                    onChange={e => handleMeetingUrlChange(e.target.value)}
+                                    placeholder="https://calendly.com/your-name/policy-review"
+                                    style={{
+                                        flex: 1,
+                                        padding: '0.45rem 0.65rem',
+                                        fontSize: '0.8rem',
+                                        background: 'var(--bg-surface)',
+                                        border: '1px solid var(--border-default)',
+                                        borderRadius: '6px',
+                                        color: 'var(--text-high)',
+                                    }}
+                                />
                             </div>
-                            <div>
-                                <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', display: 'block' }}>POLICY #</span>
-                                <strong style={{ color: 'var(--accent-primary)' }}>{safePolicyNumber || 'N/A'}</strong>
-                            </div>
-                            <div>
-                                <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', display: 'block' }}>PROPERTY</span>
-                                <span style={{ color: 'var(--text-mid)' }}>{safePropertyAddress || 'N/A'}</span>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAdjuster(prev => !prev)}
+                                    style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                                        padding: '0.45rem 0.75rem', borderRadius: '6px',
+                                        background: showAdjuster ? 'var(--accent-secondary-muted)' : 'var(--bg-surface)',
+                                        color: showAdjuster ? 'var(--accent-secondary)' : 'var(--text-mid)',
+                                        border: '1px solid var(--border-default)',
+                                        fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer',
+                                    }}
+                                >
+                                    <Sliders size={13} />
+                                    <span>{showAdjuster ? 'Hide Fields' : 'Edit Email Fields'}</span>
+                                    {showAdjuster ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                                </button>
+
+                                <span style={{
+                                    fontSize: '0.7rem', color: 'var(--semantic-success)', fontWeight: 600,
+                                    display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                                    padding: '0.35rem 0.6rem', background: 'rgba(34,197,94,0.1)', borderRadius: '5px'
+                                }}>
+                                    ● Live Auto-Filled
+                                </span>
                             </div>
                         </div>
-                        {rceDownloadUrl ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.6rem', borderRadius: '5px', fontSize: '0.72rem', fontWeight: 600, background: 'rgba(34,197,94,0.12)', color: 'var(--semantic-success)', border: '1px solid rgba(34,197,94,0.25)' }}>
-                                <Check size={12} /> RCE Ready
-                            </span>
-                        ) : (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.6rem', borderRadius: '5px', fontSize: '0.72rem', fontWeight: 500, background: 'rgba(239,68,68,0.08)', color: 'var(--semantic-error)', border: '1px solid rgba(239,68,68,0.2)' }}>
-                                RCE Missing
-                            </span>
+
+                        {/* Expandable Variable Editor Drawer */}
+                        {showAdjuster && (
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                                gap: '0.65rem',
+                                paddingTop: '0.75rem',
+                                borderTop: '1px dashed var(--border-default)',
+                            }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '3px' }}>
+                                        CLIENT NAME
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={editableClientName}
+                                        onChange={e => setEditableClientName(e.target.value)}
+                                        style={{
+                                            width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.78rem',
+                                            background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
+                                            borderRadius: '6px', color: 'var(--text-high)'
+                                        }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '3px' }}>
+                                        POLICY #
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={editablePolicyNumber}
+                                        onChange={e => setEditablePolicyNumber(e.target.value)}
+                                        style={{
+                                            width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.78rem',
+                                            background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
+                                            borderRadius: '6px', color: 'var(--text-high)'
+                                        }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '3px' }}>
+                                        EXPIRATION DATE
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={editableExpirationDate}
+                                        onChange={e => setEditableExpirationDate(e.target.value)}
+                                        style={{
+                                            width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.78rem',
+                                            background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
+                                            borderRadius: '6px', color: 'var(--text-high)'
+                                        }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '3px' }}>
+                                        PROPERTY ADDRESS
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={editablePropertyAddress}
+                                        onChange={e => setEditablePropertyAddress(e.target.value)}
+                                        style={{
+                                            width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.78rem',
+                                            background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
+                                            borderRadius: '6px', color: 'var(--text-high)'
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                                    <button
+                                        type="button"
+                                        onClick={handleResetVariables}
+                                        style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                                            padding: '0.4rem 0.65rem', borderRadius: '6px',
+                                            background: 'transparent', color: 'var(--text-mid)',
+                                            border: '1px solid var(--border-default)', fontSize: '0.74rem',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        <RefreshCw size={12} /> Reset Defaults
+                                    </button>
+                                </div>
+                            </div>
                         )}
                     </div>
 
@@ -354,7 +537,7 @@ export function PolicyEmailComposer({
                     {activeTemplateSentInfo && (
                         <div style={{
                             display: 'flex', alignItems: 'center', gap: '0.5rem',
-                            padding: '0.5rem 0.85rem', borderRadius: '7px',
+                            padding: '0.45rem 0.85rem', borderRadius: '7px',
                             background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)',
                             fontSize: '0.78rem', color: 'var(--semantic-success, #16a34a)',
                         }}>
@@ -362,18 +545,6 @@ export function PolicyEmailComposer({
                             <span>
                                 <strong>This template was sent</strong> on {formatSentDate(activeTemplateSentInfo.sent_at)}
                             </span>
-                        </div>
-                    )}
-
-                    {/* Active Rules Pill Bar */}
-                    {activeTemplate && activeTemplate.rules.length > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-low)', textTransform: 'uppercase' }}>Active Rules:</span>
-                            {activeTemplate.rules.filter(r => r.enabled).map(r => (
-                                <span key={r.id} style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'var(--accent-secondary-muted)', color: 'var(--accent-secondary)', border: '1px solid var(--border-default)' }}>
-                                    ✓ {r.label}
-                                </span>
-                            ))}
                         </div>
                     )}
 
@@ -400,14 +571,28 @@ export function PolicyEmailComposer({
                         </button>
 
                         {outputMode === 'draft' ? (
-                            <div style={{ background: 'var(--bg-surface-raised)', color: 'var(--text-high)', padding: '1.25rem', borderRadius: '10px', fontSize: '0.84rem', lineHeight: 1.65, minHeight: '260px', whiteSpace: 'pre-wrap', border: '1px solid var(--border-default)' }}>
-                                <div style={{ fontWeight: 700, borderBottom: '1px solid var(--border-default)', paddingBottom: '0.5rem', marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--text-high)' }}>
+                            <div style={{
+                                background: 'var(--bg-surface-raised)', color: 'var(--text-high)',
+                                padding: '1.25rem', borderRadius: '10px', fontSize: '0.84rem',
+                                lineHeight: 1.65, minHeight: '260px', whiteSpace: 'pre-wrap',
+                                border: '1px solid var(--border-default)'
+                            }}>
+                                <div style={{
+                                    fontWeight: 700, borderBottom: '1px solid var(--border-default)',
+                                    paddingBottom: '0.5rem', marginBottom: '0.75rem', fontSize: '0.9rem',
+                                    color: 'var(--text-high)'
+                                }}>
                                     Subject: {renderedDraft.subject}
                                 </div>
                                 {renderedDraft.body}
                             </div>
                         ) : (
-                            <div style={{ background: 'var(--bg-surface-raised)', color: 'var(--text-high)', padding: '1.25rem', borderRadius: '10px', fontSize: '0.84rem', fontFamily: 'monospace', lineHeight: 1.65, minHeight: '260px', whiteSpace: 'pre-wrap', border: '1px solid var(--border-default)' }}>
+                            <div style={{
+                                background: 'var(--bg-surface-raised)', color: 'var(--text-high)',
+                                padding: '1.25rem', borderRadius: '10px', fontSize: '0.82rem',
+                                fontFamily: 'monospace', lineHeight: 1.65, minHeight: '260px',
+                                whiteSpace: 'pre-wrap', border: '1px solid var(--border-default)'
+                            }}>
                                 {renderedPrompt}
                             </div>
                         )}
@@ -418,7 +603,7 @@ export function PolicyEmailComposer({
                 {/* ── Modal Footer Bar ── */}
                 <div style={{
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '1rem 1.5rem', borderTop: '1px solid var(--border-default)',
+                    padding: '0.9rem 1.5rem', borderTop: '1px solid var(--border-default)',
                     background: 'var(--bg-surface-raised)'
                 }}>
                     <div>
@@ -434,7 +619,7 @@ export function PolicyEmailComposer({
                                     textDecoration: 'none'
                                 }}
                             >
-                                <FileText size={14} /> Download RCE PDF Attachment
+                                <FileText size={14} /> Download RCE PDF for Manual Attachment
                             </a>
                         )}
                     </div>
@@ -447,48 +632,37 @@ export function PolicyEmailComposer({
                                 fontSize: '0.82rem', fontWeight: 500
                             }}
                         >
-                            Cancel
+                            Close
                         </button>
+
+                        {/* Mark as Sent Button */}
                         <button
-                            onClick={handleCopy}
+                            onClick={handleMarkSent}
+                            disabled={markingSent || justMarkedSent || !policyId}
                             style={{
-                                display: 'flex', alignItems: 'center', gap: '0.4rem',
-                                padding: '0.55rem 1.25rem', borderRadius: '7px', cursor: 'pointer',
-                                fontSize: '0.84rem', fontWeight: 600, border: 'none',
-                                background: copied ? 'var(--semantic-success)' : (outputMode === 'draft' ? 'var(--semantic-success)' : 'var(--accent-secondary)'),
-                                color: '#ffffff',
+                                display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                                padding: '0.55rem 1.15rem', borderRadius: '7px',
+                                background: justMarkedSent ? 'var(--semantic-success, #16a34a)' : 'var(--accent-primary)',
+                                color: '#ffffff', border: 'none', cursor: policyId ? 'pointer' : 'not-allowed',
+                                fontSize: '0.82rem', fontWeight: 600,
+                                opacity: !policyId ? 0.5 : 1,
                                 transition: 'all 0.15s'
                             }}
                         >
-                            {copied ? <Check size={16} /> : (outputMode === 'draft' ? <Copy size={16} /> : <Sparkles size={16} />)}
-                            {copied ? 'Copied to Clipboard!' : (outputMode === 'draft' ? 'Copy Email Draft' : 'Copy CoPilot Prompt')}
+                            {markingSent ? (
+                                <>
+                                    <Loader2 size={14} className="animate-spin" /> Marking...
+                                </>
+                            ) : justMarkedSent ? (
+                                <>
+                                    <Check size={14} /> Marked as Emailed!
+                                </>
+                            ) : (
+                                <>
+                                    <CheckCircle2 size={14} /> Mark as Emailed
+                                </>
+                            )}
                         </button>
-
-                        {/* Mark as Emailed Button */}
-                        {policyId && (
-                            <button
-                                onClick={handleMarkSent}
-                                disabled={markingSent}
-                                style={{
-                                    display: 'flex', alignItems: 'center', gap: '0.4rem',
-                                    padding: '0.55rem 1.25rem', borderRadius: '7px', cursor: markingSent ? 'wait' : 'pointer',
-                                    fontSize: '0.84rem', fontWeight: 600,
-                                    border: justMarkedSent ? 'none' : '1px solid var(--border-default)',
-                                    background: justMarkedSent ? 'var(--semantic-success, #16a34a)' : 'var(--bg-surface)',
-                                    color: justMarkedSent ? '#ffffff' : 'var(--text-high)',
-                                    transition: 'all 0.2s',
-                                    opacity: markingSent ? 0.7 : 1,
-                                }}
-                            >
-                                {markingSent ? (
-                                    <><Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> Marking…</>
-                                ) : justMarkedSent ? (
-                                    <><CheckCircle2 size={15} /> Marked as Sent!</>
-                                ) : (
-                                    <><Send size={15} /> Mark as Emailed</>
-                                )}
-                            </button>
-                        )}
                     </div>
                 </div>
 
