@@ -2,7 +2,7 @@ import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
 
-export const alt = 'CoverageCheckNow — Insurance Policy Intelligence Platform';
+export const alt = 'CoverageCheckNow — Policy Analysis & Coverage Review';
 export const size = {
     width: 1200,
     height: 630,
@@ -31,7 +31,7 @@ export default async function Image() {
                 {/* Header: Brand Logo & Agency Name */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                     {/* Exact Subtle Chimney Shield Emblem */}
-                    <svg width="64" height="64" viewBox="0 0 48 48" fill="none">
+                    <svg width="72" height="72" viewBox="0 0 48 48" fill="none">
                         <path d="M24 4 L4 14 V28 C4 38 12 44 24 47 Z" fill="#2563EB" />
                         <path d="M24 4 L32 8 V4 H38 V11 L44 14 V28 C44 38 36 44 24 47 Z" fill="#60A5FA" />
                         <path d="M0 34 H48" stroke="#0F172A" strokeWidth="4" />
@@ -45,12 +45,12 @@ export default async function Image() {
                     </svg>
 
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ fontSize: '38px', fontWeight: 900, letterSpacing: '-0.03em', display: 'flex' }}>
+                        <div style={{ fontSize: '42px', fontWeight: 900, letterSpacing: '-0.03em', display: 'flex' }}>
                             <span style={{ color: '#FFFFFF' }}>Coverage</span>
                             <span style={{ color: '#60A5FA' }}>Check</span>
                             <span style={{ color: '#FFFFFF' }}>Now</span>
                         </div>
-                        <div style={{ fontSize: '16px', color: '#94A3B8', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: '2px' }}>
+                        <div style={{ fontSize: '15px', color: '#94A3B8', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: '2px' }}>
                             Alsop and Associates Insurance Agency
                         </div>
                     </div>
@@ -73,12 +73,12 @@ export default async function Image() {
                             alignSelf: 'flex-start',
                         }}
                     >
-                        <span>🛡️</span> Insurance Policy Intelligence &amp; Coverage Review
+                        <span>🛡️</span> Policy Analysis &amp; Coverage Review
                     </div>
 
                     <h1
                         style={{
-                            fontSize: '54px',
+                            fontSize: '52px',
                             fontWeight: 900,
                             lineHeight: 1.15,
                             letterSpacing: '-0.03em',

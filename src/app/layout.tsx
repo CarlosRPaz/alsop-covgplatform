@@ -31,22 +31,31 @@ export const metadata: Metadata = {
     "Homeowners Insurance California",
     "Property Insurance Intelligence",
   ],
-  metadataBase: new URL("https://coveragechecknow.com"),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` :
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://coveragechecknow.com"))
+  ),
   alternates: {
     canonical: "/",
   },
   icons: {
     icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon.png", sizes: "512x512", type: "image/png" },
       { url: "/icon.svg", type: "image/svg+xml" },
     ],
+    shortcut: "/favicon.ico",
     apple: [
-      { url: "/apple-icon", sizes: "180x180", type: "image/png" },
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
     ],
   },
   openGraph: {
-    title: "CoverageCheckNow — Insurance Policy Intelligence Platform",
+    title: "CoverageCheckNow — Policy Analysis & Coverage Review",
     description: "Automatic dec page ingestion, RCE verification, coverage gap detection, and Allstate CoPilot prompt generation for Alsop and Associates.",
-    url: "https://coveragechecknow.com",
+    url: "/",
     siteName: "CoverageCheckNow",
     type: "website",
     locale: "en_US",
@@ -55,13 +64,13 @@ export const metadata: Metadata = {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "CoverageCheckNow — Insurance Policy Intelligence Platform",
+        alt: "CoverageCheckNow — Policy Analysis & Coverage Review",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "CoverageCheckNow — Insurance Policy Intelligence Platform",
+    title: "CoverageCheckNow — Policy Analysis & Coverage Review",
     description: "Comprehensive policy analysis, coverage gap detection, and automated outreach for property insurance agencies.",
     images: ["/twitter-image"],
   },
@@ -86,8 +95,8 @@ const jsonLd = {
       "@id": "https://coveragechecknow.com/#agency",
       "name": "Alsop and Associates Insurance Agency",
       "url": "https://coveragechecknow.com",
-      "logo": "https://coveragechecknow.com/icon.svg",
-      "description": "Insurance policy intelligence, property policy review, companion coverage analysis, and replacement cost estimation.",
+      "logo": "https://coveragechecknow.com/icon.png",
+      "description": "Property policy review, companion coverage analysis, and replacement cost estimation for homeowners.",
       "areaServed": "California",
     },
     {
@@ -96,7 +105,7 @@ const jsonLd = {
       "name": "CoverageCheckNow",
       "applicationCategory": "BusinessApplication",
       "operatingSystem": "Web",
-      "description": "AI-powered policy analysis, flag detection, and coverage review platform for property insurance agents and homeowners.",
+      "description": "AI-supported policy analysis, flag detection, and coverage review platform for property insurance agents and homeowners.",
     },
   ],
 };

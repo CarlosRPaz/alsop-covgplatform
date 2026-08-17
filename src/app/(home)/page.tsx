@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button/Button';
 import { Navbar } from '@/components/layout/Navbar';
@@ -13,6 +14,28 @@ import { SmoothScrollLink } from '@/components/ui/SmoothScrollLink';
 import { HeroCarousel } from '@/components/ui/HeroCarousel';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import styles from './page.module.scss';
+
+export const metadata: Metadata = {
+  title: 'CoverageCheckNow — Homeowners Policy & Coverage Analysis',
+  description: 'Upload your property insurance dec page for instant policy review, RCE verification, and coverage gap detection. Free, independent, and secure.',
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    title: 'CoverageCheckNow — Homeowners Policy & Coverage Analysis',
+    description: 'Upload your property insurance dec page for instant policy review, RCE verification, and coverage gap detection. Free, independent, and secure.',
+    url: '/',
+    siteName: 'CoverageCheckNow',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'CoverageCheckNow — Homeowners Policy & Coverage Analysis',
+      },
+    ],
+  },
+};
 
 // ─── Data ───
 
