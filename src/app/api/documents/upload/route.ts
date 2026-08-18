@@ -159,11 +159,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<DocumentU
             );
         }
 
+        // Validate PDF magic bytes (%PDF-) to reject spoofed files
+        const fileBuffer = Buffer.from(await file.arrayBuffer());
+        if (fileBuffer.length < 4 || fileBuffer[0] !== 0x25 || fileBuffer[1] !== 0x50 || fileBuffer[2] !== 0x44 || fileBuffer[3] !== 0x46) {
+            logger.warn('DocumentUpload', 'File does not have valid PDF magic bytes', { name: file.name });
+            return NextResponse.json(
+                { success: false, message: 'The uploaded file is not a valid PDF document.', error: 'CORRUPTED_FILE' },
+                { status: 400 }
+            );
+        }
+
         // ---------------------------------------------------------------
         // 3. Read file and compute hash
         // ---------------------------------------------------------------
-        const fileArrayBuffer = await file.arrayBuffer();
-        const fileBuffer = Buffer.from(fileArrayBuffer);
         const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
         // Check for duplicate

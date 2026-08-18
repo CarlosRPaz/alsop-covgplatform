@@ -29,6 +29,15 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Validate bucket against whitelist
+        const ALLOWED_BUCKETS = ['cfp-raw-decpage', 'cfp-platform-documents', 'dec-pages'];
+        if (!ALLOWED_BUCKETS.includes(bucket)) {
+            return NextResponse.json(
+                { error: `Invalid bucket: ${bucket}` },
+                { status: 400 }
+            );
+        }
+
         // 3. Generate signed URL with admin client (bypasses RLS)
         const admin = getSupabaseAdmin();
         const { data, error } = await admin.storage

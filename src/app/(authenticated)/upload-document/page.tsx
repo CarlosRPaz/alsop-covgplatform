@@ -611,16 +611,18 @@ export default function UploadDocumentPage() {
             // Run two queries: one for policy fields, one for client name
             // The !inner join + .or() doesn't work correctly across tables in Supabase
             const q = searchQuery.trim();
+            const safe = q.replace(/[%_,().*+?^${}|\[\]\\]/g, '');
+            if (safe.length < 2) { setIsSearching(false); return; }
             const [byPolicy, byClient] = await Promise.all([
                 supabase
                     .from('policies')
                     .select(`id, policy_number, property_address_raw, carrier_name, client_id, clients (id, named_insured)`)
-                    .or(`policy_number.ilike.%${q}%,property_address_raw.ilike.%${q}%`)
+                    .or(`policy_number.ilike.%${safe}%,property_address_raw.ilike.%${safe}%`)
                     .limit(5),
                 supabase
                     .from('policies')
                     .select(`id, policy_number, property_address_raw, carrier_name, client_id, clients!inner (id, named_insured)`)
-                    .ilike('clients.named_insured', `%${q}%`)
+                    .ilike('clients.named_insured', `%${safe}%`)
                     .limit(5),
             ]);
 

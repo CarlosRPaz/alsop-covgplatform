@@ -5,19 +5,18 @@ const sharp = require('sharp');
 async function generate() {
     const publicDir = path.join(__dirname, '..', 'public');
 
-    // SVG for standalone emblem (transparent background with dark-slate floor cut or transparent cut)
+    // SVG for standalone emblem (transparent background with clean transparent floor cut)
     const emblemSvg = `
     <svg width="512" height="512" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-            <mask id="floorMask">
-                <rect width="48" height="48" fill="#FFFFFF" />
-                <path d="M0 34 H48" stroke="#000000" stroke-width="4" />
-            </mask>
-        </defs>
-        <g mask="url(#floorMask)">
-            <path d="M24 4 L4 14 V28 C4 38 12 44 24 47 Z" fill="#1E40AF" />
-            <path d="M24 4 L32 8 V4 H38 V11 L44 14 V28 C44 38 36 44 24 47 Z" fill="#3B82F6" />
-        </g>
+        <!-- Left Side (Upper + Lower) -->
+        <path d="M24 4 L4 14 V28 C4 29.41 4.16 30.74 4.47 32 H24 Z" fill="#1E40AF" />
+        <path d="M24 36 H6.08 C9.2 41.35 15.63 44.91 24 47 Z" fill="#1E40AF" />
+        
+        <!-- Right Side (Upper + Lower) -->
+        <path d="M24 4 L32 8 V4 H38 V11 L44 14 V28 C44 29.41 43.84 30.74 43.53 32 H24 Z" fill="#3B82F6" />
+        <path d="M24 36 H41.92 C38.8 41.35 32.37 44.91 24 47 Z" fill="#3B82F6" />
+        
+        <!-- Precision White Checkmark -->
         <path d="M16 20 L22 26 L32 14" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
     `;
@@ -51,9 +50,10 @@ async function generate() {
     <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect width="180" height="180" rx="36" fill="#0F172A" />
         <g transform="translate(36, 36) scale(2.25)">
-            <path d="M24 4 L4 14 V28 C4 38 12 44 24 47 Z" fill="#2563EB" />
-            <path d="M24 4 L32 8 V4 H38 V11 L44 14 V28 C44 38 36 44 24 47 Z" fill="#60A5FA" />
-            <path d="M0 34 H48" stroke="#0F172A" stroke-width="4" />
+            <path d="M24 4 L4 14 V28 C4 29.41 4.16 30.74 4.47 32 H24 Z" fill="#2563EB" />
+            <path d="M24 36 H6.08 C9.2 41.35 15.63 44.91 24 47 Z" fill="#2563EB" />
+            <path d="M24 4 L32 8 V4 H38 V11 L44 14 V28 C44 29.41 43.84 30.74 43.53 32 H24 Z" fill="#60A5FA" />
+            <path d="M24 36 H41.92 C38.8 41.35 32.37 44.91 24 47 Z" fill="#60A5FA" />
             <path d="M16 20 L22 26 L32 14" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
         </g>
     </svg>
@@ -107,9 +107,10 @@ async function generate() {
         <!-- Brand Emblem & Typography Header -->
         <g transform="translate(80, 70)">
             <g transform="scale(1.5)">
-                <path d="M24 4 L4 14 V28 C4 38 12 44 24 47 Z" fill="#2563EB" />
-                <path d="M24 4 L32 8 V4 H38 V11 L44 14 V28 C44 38 36 44 24 47 Z" fill="#60A5FA" />
-                <path d="M0 34 H48" stroke="#0F172A" stroke-width="4" />
+                <path d="M24 4 L4 14 V28 C4 29.41 4.16 30.74 4.47 32 H24 Z" fill="#2563EB" />
+                <path d="M24 36 H6.08 C9.2 41.35 15.63 44.91 24 47 Z" fill="#2563EB" />
+                <path d="M24 4 L32 8 V4 H38 V11 L44 14 V28 C44 29.41 43.84 30.74 43.53 32 H24 Z" fill="#60A5FA" />
+                <path d="M24 36 H41.92 C38.8 41.35 32.37 44.91 24 47 Z" fill="#60A5FA" />
                 <path d="M16 20 L22 26 L32 14" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
             </g>
             <text x="90" y="46" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="44" letter-spacing="-1.5">

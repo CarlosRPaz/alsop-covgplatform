@@ -19,7 +19,23 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { name, email, subject, message, policyNumber } = body;
 
-        if (!email || typeof email !== 'string' || !email.trim()) {
+        // Input length limits to prevent abuse
+        const MAX_MSG_LEN = 5000;
+        const MAX_FIELD_LEN = 200;
+        if (typeof name === 'string' && name.length > MAX_FIELD_LEN) {
+            return NextResponse.json({ error: 'Name is too long (max 200 characters)' }, { status: 400 });
+        }
+        if (typeof subject === 'string' && subject.length > MAX_FIELD_LEN) {
+            return NextResponse.json({ error: 'Subject is too long (max 200 characters)' }, { status: 400 });
+        }
+        if (typeof message === 'string' && message.length > MAX_MSG_LEN) {
+            return NextResponse.json({ error: 'Message is too long (max 5000 characters)' }, { status: 400 });
+        }
+
+        // Basic email format validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!email || typeof email !== 'string' || !email.trim() || !emailRegex.test(email.trim())) {
             return NextResponse.json({ error: 'Valid email address is required' }, { status: 400 });
         }
         if (!message || typeof message !== 'string' || !message.trim()) {
@@ -101,10 +117,10 @@ export async function POST(req: NextRequest) {
             logger.warn('Support', 'Failed to insert activity event for support request:', { error: actErr instanceof Error ? actErr.message : String(actErr) })
         }
 
-        return NextResponse.json({ success: true, message: 'Support request sent successfully', sendResult });
+        return NextResponse.json({ success: true, message: 'Support request sent successfully' });
 
     } catch (err: any) {
         logger.error('Support', 'Error in POST /api/support:', { error: err instanceof Error ? err.message : String(err) })
-        return NextResponse.json({ error: err.message || 'Failed to submit support request' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to submit support request' }, { status: 500 });
     }
 }

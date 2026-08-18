@@ -508,14 +508,87 @@ $transition: 250ms ease;
 // DELIVERABLES
 // ═══════════════════════════════════════════
 
+.delivFeatured {
+  margin-bottom: 1.5rem;
+}
+
+.delivHeroCard {
+  position: relative;
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  padding: 2rem 2.5rem;
+  background: linear-gradient(135deg, rgba(34, 67, 182, 0.08) 0%, rgba(42, 42, 80, 0.9) 100%);
+  border: 1px solid rgba(34, 67, 182, 0.25);
+  border-radius: $radius-lg;
+  overflow: hidden;
+  transition: all $transition;
+
+  &:hover {
+    border-color: rgba(34, 67, 182, 0.45);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(34, 67, 182, 0.15);
+  }
+
+  h3 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: $dark-text;
+    margin-bottom: 0.375rem;
+  }
+
+  p {
+    font-size: 0.925rem;
+    color: $dark-text-mid;
+    line-height: 1.6;
+    max-width: 640px;
+  }
+
+  @media (max-width: 600px) {
+    flex-direction: column;
+    padding: 1.5rem;
+    text-align: center;
+    align-items: center;
+  }
+}
+
+.delivHeroGlow {
+  position: absolute;
+  top: -60%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(34, 67, 182, 0.12) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.delivHeroIconWrap {
+  position: relative;
+  z-index: 1;
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle, rgba(34, 67, 182, 0.15) 0%, transparent 70%);
+  border: 1px solid rgba(34, 67, 182, 0.3);
+  color: #8ba3e8;
+  box-shadow: 0 0 20px rgba(34, 67, 182, 0.2), inset 0 0 12px rgba(34, 67, 182, 0.1);
+}
+
+.delivHeroContent {
+  position: relative;
+  z-index: 1;
+}
+
 .delivGrid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 1.25rem;
-
-  @media (max-width: 900px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
 
   @media (max-width: 600px) {
     grid-template-columns: 1fr;
@@ -528,12 +601,14 @@ $transition: 250ms ease;
   align-items: flex-start;
   background: $dark-card;
   border: 1px solid $dark-border;
+  border-left: 2px solid rgba(34, 67, 182, 0.2);
   border-radius: $radius;
   padding: 1.5rem;
   transition: all $transition;
 
   &:hover {
     border-color: rgba(255, 255, 255, 0.12);
+    border-left-color: rgba(34, 67, 182, 0.6);
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   }
@@ -553,15 +628,17 @@ $transition: 250ms ease;
 }
 
 .delivIconWrap {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
-  background: $accent-soft;
-  border-radius: 10px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #C5B9D8;
+  background: radial-gradient(circle, rgba(34, 67, 182, 0.12) 0%, transparent 70%);
+  border: 1px solid rgba(34, 67, 182, 0.2);
+  color: #8ba3e8;
+  box-shadow: 0 0 12px rgba(34, 67, 182, 0.12);
 }
 
 // ═══════════════════════════════════════════

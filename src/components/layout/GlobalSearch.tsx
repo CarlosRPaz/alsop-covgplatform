@@ -65,11 +65,15 @@ export function GlobalSearch() {
         const searchResults: SearchResult[] = [];
 
         try {
+            // Sanitize: strip PostgREST operators and special chars to prevent filter injection
+            const safe = q.replace(/[%_,().*+?^${}|\[\]\\]/g, '');
+            if (safe.length < 2) { setResults([]); setLoading(false); return; }
+
             // Search policies (by policy number, insured name, address)
             const { data: policies } = await supabase
                 .from('policies')
                 .select('id, policy_number, named_insured, property_address')
-                .or(`policy_number.ilike.%${q}%,named_insured.ilike.%${q}%,property_address.ilike.%${q}%`)
+                .or(`policy_number.ilike.%${safe}%,named_insured.ilike.%${safe}%,property_address.ilike.%${safe}%`)
                 .limit(5);
 
             if (policies) {
@@ -88,7 +92,7 @@ export function GlobalSearch() {
             const { data: clients } = await supabase
                 .from('clients')
                 .select('id, display_name, email')
-                .or(`display_name.ilike.%${q}%,email.ilike.%${q}%`)
+                .or(`display_name.ilike.%${safe}%,email.ilike.%${safe}%`)
                 .limit(5);
 
             if (clients) {

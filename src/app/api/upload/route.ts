@@ -148,20 +148,24 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
             );
         }
 
-        // ---------------------------------------------------------------
-        // 3+4. Fetch user info AND read file buffer in PARALLEL
-        //       (these are independent — doing them concurrently saves 1-2s)
-        // ---------------------------------------------------------------
-        const [accountResult, fileArrayBuffer] = await Promise.all([
-            supabaseAdmin
-                .from('accounts')
-                .select('first_name, last_name, email, phone')
-                .eq('id', accountId)
-                .single(),
-            file.arrayBuffer(),
-        ]);
+        // Validate PDF magic bytes (%PDF-) to reject spoofed files
+        const fileBuffer = Buffer.from(await file.arrayBuffer());
+        if (fileBuffer.length < 4 || fileBuffer[0] !== 0x25 || fileBuffer[1] !== 0x50 || fileBuffer[2] !== 0x44 || fileBuffer[3] !== 0x46) {
+            logger.warn('Upload', 'File does not have valid PDF magic bytes', { name: file.name });
+            return NextResponse.json(
+                { success: false, message: 'The uploaded file is not a valid PDF document.', error: 'CORRUPTED_FILE' },
+                { status: 400 }
+            );
+        }
 
-        const { data: account, error: accountError } = accountResult;
+        // ---------------------------------------------------------------
+        // 3. Fetch user info
+        // ---------------------------------------------------------------
+        const { data: account, error: accountError } = await supabaseAdmin
+            .from('accounts')
+            .select('first_name, last_name, email, phone')
+            .eq('id', accountId)
+            .single();
 
         if (accountError || !account) {
             logger.error('Upload', 'Failed to fetch account info', {
@@ -178,7 +182,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
         // 4. DB-FIRST: Insert dec_page_submissions row (status='pending')
         // ---------------------------------------------------------------
         const now = new Date().toISOString();
-        const fileBuffer = Buffer.from(fileArrayBuffer);
         const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
         // Check for existing duplicate (exact file match by same account)

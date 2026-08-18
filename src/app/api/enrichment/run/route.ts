@@ -17,6 +17,9 @@ import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 
 const GOOGLE_MAPS_API_KEY = env.GOOGLE_MAPS_API_KEY || '';
 
+// Base URL for internal image proxy (keeps Google API key server-side)
+const IMAGE_PROXY_BASE = '/api/enrichment/image-proxy';
+
 const CALFIRE_THREAT_URL =
     'https://egis.fire.ca.gov/arcgis/rest/services/FRAP/FireThreat/MapServer';
 
@@ -101,11 +104,11 @@ async function enrichSatelliteImage(
     const res = await fetch(mapUrl, { method: 'HEAD' });
     if (!res.ok) return false;
 
-    // Store the direct Google Maps URL — no intermediary storage needed
+    // Store the proxy URL (keeps API key server-side)
     await upsertEnrichment(sb, {
         policy_id: policyId,
         field_key: 'property_image',
-        field_value: mapUrl,
+        field_value: `${IMAGE_PROXY_BASE}?type=satellite&address=${encodeURIComponent(address)}&zoom=19`,
         source_name: 'Google Maps',
         source_type: 'api',
         source_url: `https://maps.google.com/?q=${encodeURIComponent(address)}`,
@@ -136,8 +139,8 @@ async function enrichStreetViewImage(
             return false;
         }
 
-        // 2. Build the actual image URL (browser will load this directly)
-        const imageUrl = `https://maps.googleapis.com/maps/api/streetview?location=${coords.lat},${coords.lng}&size=640x440&pitch=0&key=${GOOGLE_MAPS_API_KEY}`;
+        // 2. Build the proxy image URL
+        const imageUrl = `${IMAGE_PROXY_BASE}?type=streetview&lat=${coords.lat}&lng=${coords.lng}`;
         
         // 3. Store the URL in enrichments
         await upsertEnrichment(sb, {

@@ -1,6 +1,4 @@
-'use client';
-
-import React, { useId } from 'react';
+import React from 'react';
 
 export interface BrandLogoProps {
     /** Layout variant */
@@ -39,10 +37,6 @@ export function BrandEmblem({
     className?: string;
     mode?: 'auto' | 'light' | 'dark' | 'monochrome';
 }) {
-    const rawId = useId();
-    // Sanitize useId string for SVG id compatibility
-    const maskId = `ccn_floor_${rawId.replace(/[^a-zA-Z0-9]/g, '')}`;
-
     // Color definitions based on mode
     let leftColor = '#1E40AF';
     let rightColor = '#3B82F6';
@@ -68,22 +62,13 @@ export function BrandEmblem({
             className={className}
             style={{ flexShrink: 0, display: 'block' }}
         >
-            <defs>
-                <mask id={maskId}>
-                    {/* White exposes the graphic */}
-                    <rect width="48" height="48" fill="#FFFFFF" />
-                    {/* Black cuts the floor line through all shapes, revealing background */}
-                    <path d="M0 34 H48" stroke="#000000" strokeWidth="4" />
-                </mask>
-            </defs>
+            {/* Left Half: Upper Shield Body + Lower Shield Tip (Clean transparent floor gap) */}
+            <path d="M24 4 L4 14 V28 C4 29.41 4.16 30.74 4.47 32 H24 Z" fill={leftColor} />
+            <path d="M24 36 H6.08 C9.2 41.35 15.63 44.91 24 47 Z" fill={leftColor} />
 
-            {/* Split-tone Shield with Chimney, cut through at y=34 */}
-            <g mask={`url(#${maskId})`}>
-                {/* Left Half (Deep Royal Blue) */}
-                <path d="M24 4 L4 14 V28 C4 38 12 44 24 47 Z" fill={leftColor} />
-                {/* Right Half (Electric Blue with Chimney) */}
-                <path d="M24 4 L32 8 V4 H38 V11 L44 14 V28 C44 38 36 44 24 47 Z" fill={rightColor} />
-            </g>
+            {/* Right Half: Upper Shield Body with Chimney + Lower Shield Tip */}
+            <path d="M24 4 L32 8 V4 H38 V11 L44 14 V28 C44 29.41 43.84 30.74 43.53 32 H24 Z" fill={rightColor} />
+            <path d="M24 36 H41.92 C38.8 41.35 32.37 44.91 24 47 Z" fill={rightColor} />
 
             {/* Crisp Precision Checkmark */}
             <path

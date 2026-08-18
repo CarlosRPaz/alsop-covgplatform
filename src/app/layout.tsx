@@ -160,7 +160,7 @@ const faqJsonLd = {
       "name": "What file types are supported?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "We accept PDF, PNG, JPG, and JPEG files up to 10MB."
+        "text": "We accept PDF files up to 10MB."
       }
     },
     {

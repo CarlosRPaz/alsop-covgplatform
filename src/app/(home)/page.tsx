@@ -105,8 +105,8 @@ const faqs = [
   { q: 'What do you need from me?', a: 'Just your insurance declarations page — the summary page from your policy documents. It\'s usually 1–3 pages.' },
   { q: 'Do I need an account?', a: 'Yes, a free account is required so your documents and reports stay secure and accessible only to you.' },
   { q: 'How long does the analysis take?', a: 'Most reports are generated within minutes of uploading your declarations page.' },
-  { q: 'Is my data safe?', a: 'Yes. We use encryption, least-privilege access, and never sell your personal data.' },
-  { q: 'What file types are supported?', a: 'We accept PDF, PNG, JPG, and JPEG files up to 10MB.' },
+  { q: 'Is my data safe?', a: 'Yes. All data is encrypted in transit (TLS) and at rest. We enforce role-based access control, row-level security, and never sell your personal data.' },
+  { q: 'What file types are supported?', a: 'We accept PDF files up to 10MB.' },
   { q: 'Does this replace my agent?', a: 'No. CoverageCheckNow helps you and your agent make more informed decisions. We recommend reviewing results with a licensed professional.' },
   { q: 'What states are supported?', a: 'We are currently focused on California.' },
 ];
@@ -231,8 +231,24 @@ export default function Home() {
               <h2>A comprehensive analysis — not just a summary.</h2>
               <p>Every report is built to help you and your agent take action.</p>
             </div>
-            <AnimatedStagger className={styles.delivGrid} staggerMs={100} distance={30}>
-              {deliverables.map((d, i) => (
+
+            {/* Featured hero card */}
+            <AnimatedStagger className={styles.delivFeatured} staggerMs={0} distance={40}>
+              <div className={styles.delivHeroCard}>
+                <div className={styles.delivHeroGlow} />
+                <div className={styles.delivHeroIconWrap}>
+                  <AlertTriangle size={28} />
+                </div>
+                <div className={styles.delivHeroContent}>
+                  <h3>{deliverables[0].title}</h3>
+                  <p>{deliverables[0].desc}</p>
+                </div>
+              </div>
+            </AnimatedStagger>
+
+            {/* 2×2 grid for remaining items */}
+            <AnimatedStagger className={styles.delivGrid} staggerMs={80} distance={30}>
+              {deliverables.slice(1).map((d, i) => (
                 <div key={i} className={styles.delivCard}>
                   <div className={styles.delivIconWrap}>
                     <d.icon size={20} />

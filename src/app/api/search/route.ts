@@ -9,7 +9,7 @@ import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
  * Returns up to 5 clients + 5 policies matching the query.
  */
 export async function GET(req: NextRequest) {
-    const auth = await authenticateRequest(req);
+    const auth = await authenticateRequest(req, { requiredRole: ['admin', 'service', 'agent'] });
     if (isAuthError(auth)) return auth;
 
     const q = req.nextUrl.searchParams.get('q')?.trim();

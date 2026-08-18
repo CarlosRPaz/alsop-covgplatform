@@ -9,6 +9,10 @@ export async function GET(
 ) {
     try {
         const { token } = await context.params;
+        // Validate token format to prevent path traversal / SSRF
+        if (token && !/^[a-zA-Z0-9_-]+$/.test(token)) {
+            return NextResponse.json({ success: false, message: 'Invalid token format' }, { status: 400 });
+        }
         if (!token) {
             return NextResponse.json({ success: false, message: 'Missing image token' }, { status: 400 });
         }

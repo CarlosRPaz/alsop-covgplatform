@@ -27,18 +27,27 @@ DECLARE
     v_first_name  TEXT;
     v_last_name   TEXT;
     v_email       TEXT;
+    v_invited_by  TEXT;
 BEGIN
     -- Extract values from auth metadata
-    v_role       := COALESCE(
-                       NEW.raw_user_meta_data->>'role',
-                       'customer'  -- safe default if not set
-                   );
+    v_invited_by := NEW.raw_user_meta_data->>'invited_by';
     v_first_name := COALESCE(NEW.raw_user_meta_data->>'first_name', '');
     v_last_name  := COALESCE(NEW.raw_user_meta_data->>'last_name', '');
     v_email      := NEW.email;
 
-    -- Validate role to prevent arbitrary values being inserted
-    IF v_role NOT IN ('admin', 'service', 'customer') THEN
+    -- ─── Hardened role assignment ─────────────────────────────────────
+    -- Only users invited via admin.inviteUserByEmail() have 'invited_by'
+    -- set server-side in their metadata (tamper-proof).
+    -- Direct self-signups CANNOT have this field, so they are forced to
+    -- 'customer' regardless of what they pass in metadata.
+    IF v_invited_by IS NOT NULL AND v_invited_by != '' THEN
+        -- Invited user: trust the admin-assigned role
+        v_role := COALESCE(NEW.raw_user_meta_data->>'role', 'customer');
+        IF v_role NOT IN ('admin', 'service', 'customer') THEN
+            v_role := 'customer';
+        END IF;
+    ELSE
+        -- Direct self-signup: ALWAYS force customer role
         v_role := 'customer';
     END IF;
 

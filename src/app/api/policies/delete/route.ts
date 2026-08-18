@@ -14,7 +14,7 @@ import { logger } from '@/lib/logger';
  * Body: { policy_id: string, delete_orphaned_client?: boolean }
  */
 export async function POST(req: NextRequest) {
-    const auth = await authenticateRequest(req);
+    const auth = await authenticateRequest(req, { requiredRole: ['admin', 'service'] });
     if (isAuthError(auth)) return auth;
 
     try {
