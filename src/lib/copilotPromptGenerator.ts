@@ -74,7 +74,7 @@ function formatContextBlock(ctx: CoPilotPromptContext): string {
     if (ctx.paymentMethod) lines.push(`- Payment Method: ${ctx.paymentMethod}`);
     if (ctx.mortgageeName) lines.push(`- Mortgagee / Lender: ${ctx.mortgageeName}`);
     if (ctx.meetingUrl) lines.push(`- Calendly / Meeting Scheduling Link: ${ctx.meetingUrl}`);
-    lines.push(`- Attached Files: Coverage Report & Replacement Cost Estimate (RCE) attached to email`);
+    lines.push(`- Attached Files: Replacement Cost Estimate (RCE) & generated Coverage Report attached directly to email`);
     return lines.join('\n');
 }
 
@@ -92,7 +92,7 @@ STRICT AGENCY RULES & GUARDRAILS (YOU MUST FOLLOW ALL OF THESE):
    - NEVER use words like "adequate", "inadequate", "deficient", "underinsured", "poor", or "lacking".
    - Describe coverage differences neutrally by comparing current policy limits directly to updated replacement cost estimates and available options.
 
-5. MANUAL ATTACHMENTS (NO DOWNLOAD LINKS): State that the Coverage Report and Replacement Cost Estimate (RCE) are attached directly to the email. Do NOT generate file URLs or download links.
+5. MANUAL ATTACHMENTS (RCE FIRST, GENERATED COVERAGE REPORT): State that the Replacement Cost Estimate (RCE) and a generated Coverage Report are attached directly to the email (always list the RCE first, and refer to the report as a generated coverage report rather than an 'updated' report). Do NOT generate file URLs or download links.
 
 6. CALENDLY & CONTACT PRIORITY: Prioritize the Calendly scheduling link as the primary call to action for booking a dedicated review appointment. Offer the office phone number (909) 626-5000 secondarily if the client requires immediate assistance.
 
@@ -141,7 +141,7 @@ Hi ${ctx.clientName ? ctx.clientName.trim().split(/\s+/)[0] : 'Valued Client'},
 
 Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your policy ${cleanPolicy} is coming up for renewal on ${ctx.expirationDate || 'your renewal date'}, now is a great time to review your coverage.
 
-As part of our annual review process, we have evaluated your current policy limits and attached your updated Coverage Report and Replacement Cost Estimate (RCE) to this email for your review.
+As part of our annual review process, we have evaluated your current policy limits and attached your Replacement Cost Estimate (RCE) along with a generated Coverage Report to this email for your review.
 
 The review may highlight differences between your current coverage and updated replacement cost estimates. Please note that no changes have been made to your policy — all coverage adjustments are strictly recommendations for your review, and we will never make updates without your explicit permission.
 
@@ -195,7 +195,7 @@ CLIENT & POLICY DETAILS:
 ${formatContextBlock(ctx)}
 
 EMAIL PURPOSE:
-Highlight key coverage differences identified during our annual review when comparing current policy limits against updated replacement cost estimates. Explicitly clarify that NO changes have been made to their policy pre-review. Request permission from the client to review recommended adjustments, and invite them to schedule a brief appointment via Calendly${ctx.meetingUrl ? ` (${ctx.meetingUrl})` : ''} as primary, or call our office at (909) 626-5000 for immediate assistance.
+Highlight key coverage differences identified during our annual review when comparing current policy limits against updated replacement cost estimates. Explicitly clarify that NO changes have been made to their policy pre-review. State that the Replacement Cost Estimate (RCE) and a generated Coverage Report are attached directly to the email. Request permission from the client to review recommended adjustments, and invite them to schedule a brief appointment via Calendly${ctx.meetingUrl ? ` (${ctx.meetingUrl})` : ''} as primary, or call our office at (909) 626-5000 for immediate assistance.
 
 ${MASTER_GUARDRAIL_RULES}`;
         },
@@ -219,7 +219,7 @@ CLIENT & POLICY DETAILS:
 ${formatContextBlock(ctx)}
 
 EMAIL PURPOSE:
-Inform the client that their policy renewal is approaching. Clarify that while their mortgage escrow account (${ctx.mortgageeName || 'mortgage escrow'}) handles premium payments, conducting an annual coverage review ensures their property remains fully protected against current rebuilding costs. Explicitly state that NO changes have been made to their policy pre-review. Request permission to review potential coverage recommendations. Prioritize scheduling via Calendly, with office phone for immediate assistance.
+Inform the client that their policy renewal is approaching. Clarify that while their mortgage escrow account (${ctx.mortgageeName || 'mortgage escrow'}) handles premium payments, conducting an annual coverage review ensures their property remains fully protected against current rebuilding costs. Explicitly state that NO changes have been made to their policy pre-review. State that their Replacement Cost Estimate (RCE) along with a generated Coverage Report are attached for review. Request permission to review potential coverage recommendations. Prioritize scheduling via Calendly, with office phone for immediate assistance.
 
 REFERENCE EMAIL BLUEPRINT (Match structure, tone, and flow):
 ---
@@ -229,7 +229,7 @@ Hi ${ctx.clientName ? ctx.clientName.trim().split(/\s+/)[0] : 'Valued Client'},
 
 Your policy ${cleanPolicy} is approaching its upcoming renewal on ${ctx.expirationDate || 'your renewal date'}. While your mortgage lender (${ctx.mortgageeName || 'your mortgage escrow account'}) handles premium payments, conducting an annual review ensures your coverage limits align with current rebuilding costs.
 
-As part of our annual review process, we have attached your updated Coverage Report and Replacement Cost Estimate (RCE) to this email for your review.
+As part of our annual review process, we have attached your Replacement Cost Estimate (RCE) along with a generated Coverage Report to this email for your review.
 
 Please note that no changes have been made to your policy. Any suggested adjustments are recommendations only for your consideration — we always request your explicit permission before making updates to your policy.
 

@@ -51,7 +51,7 @@ export interface TemplateContext {
 // Storage Keys & Constants
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = 'cfp_internal_email_templates_v4';
+const STORAGE_KEY = 'cfp_internal_email_templates_v5';
 
 /**
  * Strips parentheses, explicit term labels ("Term 1"), and trailing term/sequence suffixes
@@ -136,13 +136,13 @@ export const DEFAULT_TEMPLATES: SystemEmailTemplate[] = [
         id: 'renewal_review',
         name: 'Annual Renewal Review Notice',
         category: 'renewal',
-        description: 'Notice of upcoming policy renewal with attached Coverage Report & RCE, offering a Calendly review appointment.',
+        description: 'Notice of upcoming policy renewal with attached Replacement Cost Estimate (RCE) & generated Coverage Report, offering a Calendly review appointment.',
         subjectTemplate: 'Your Policy Renewal Is Approaching — Policy {{policy_number}}',
         draftBodyTemplate: `Hi {{first_name}},
 
 Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your policy {{policy_number}} is coming up for renewal on {{expiration_date}}, now is a great time to review your coverage.
 
-As part of our annual review process, we have evaluated your current policy limits and attached your updated Coverage Report and Replacement Cost Estimate (RCE) to this email for your review.
+As part of our annual review process, we have evaluated your current policy limits and attached your Replacement Cost Estimate (RCE) along with a generated Coverage Report to this email for your review.
 
 The review may highlight differences between your current coverage and updated replacement cost estimates. Please note that no changes have been made to your policy — all coverage adjustments are strictly recommendations for your review, and we will never make updates without your explicit permission.
 
@@ -169,7 +169,7 @@ CLIENT & POLICY DETAILS:
 - Annual Premium: {{annual_premium}}
 - Payment Method: {{payment_method}}
 - Calendly Scheduling Link: {{meeting_url}}
-- Attachments: Coverage Report & Replacement Cost Estimate (RCE) attached directly to the email
+- Attachments: Replacement Cost Estimate (RCE) and generated Coverage Report attached directly to the email
 
 REFERENCE EMAIL BLUEPRINT (Match structure, tone, and flow closely):
 ---
@@ -179,7 +179,7 @@ Hi {{first_name}},
 
 Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your policy {{policy_number}} is coming up for renewal on {{expiration_date}}, now is a great time to review your coverage.
 
-As part of our annual review process, we have evaluated your current policy limits and attached your updated Coverage Report and Replacement Cost Estimate (RCE) to this email for your review.
+As part of our annual review process, we have evaluated your current policy limits and attached your Replacement Cost Estimate (RCE) along with a generated Coverage Report to this email for your review.
 
 The review may highlight differences between your current coverage and updated replacement cost estimates. Please note that no changes have been made to your policy — all coverage adjustments are strictly recommendations for your review, and we will never make updates without your explicit permission.
 
@@ -201,7 +201,7 @@ STRICT AGENCY RULES & GUARDRAILS (YOU MUST FOLLOW ALL OF THESE):
 3. POLICY NUMBER FORMAT (NO PARENTHESES, NO TERMS): Do NOT enclose the policy number in parentheses in the email text or subject. Do NOT include term numbers or sequence suffixes (e.g. write "policy {{policy_number}}", never "policy ({{policy_number}})" or "{{policy_number}}-01").
 4. CALENDLY & CONTACT PRIORITY: Prioritize the Calendly scheduling link ({{meeting_url}}) as the primary call to action for booking a dedicated review appointment. Offer the office phone number (909) 626-5000 secondarily if the client requires immediate assistance.
 5. NON-JUDGMENTAL COMPARATIVE TONE (STRICT BAN): NEVER use words like "adequate", "inadequate", "deficient", "underinsured", "poor", or "lacking". Describe coverage neutrally by comparing current limits to updated replacement cost estimates.
-6. ATTACHMENT REFERENCING: Do NOT generate file URLs or download links. State that the Coverage Report and RCE are attached directly to the email.
+6. ATTACHMENT REFERENCING (RCE FIRST, GENERATED COVERAGE REPORT): State that the Replacement Cost Estimate (RCE) and a generated Coverage Report are attached directly to the email (always list the RCE first, and refer to the report as a generated coverage report rather than an 'updated' report). Do NOT output file URLs or download links.
 7. CLIENT RESPONSIBILITY DISCLAIMER: Include the statement: "Please remember that final coverage selections and decisions remain the responsibility of the policyholder."
 8. CONCISENESS & RESPECT FOR TIME: Keep the email concise — under 200 words — and reassure the client the review takes only a few minutes.
 9. PREPARATION CHECKLIST: Encourage the client to have handy any questions, concerns, or feedback they would like to discuss. Do NOT ask for mortgage statements or other policy dec pages.
@@ -278,7 +278,7 @@ STRICT AGENCY RULES:
         subjectTemplate: 'Coverage Review & Recommendations — Policy {{policy_number}}',
         draftBodyTemplate: `Hi {{first_name}},
 
-We recently completed an annual review of your property coverage under policy {{policy_number}} and have attached your personalized Coverage Analysis Report for your consideration.
+We recently completed an annual review of your property coverage under policy {{policy_number}} and have attached your Replacement Cost Estimate (RCE) along with a generated Coverage Report for your review.
 
 Our review highlights comparative options between your current policy limits and updated rebuilding cost estimates. Please note that no changes have been made to your policy — all adjustments are strictly recommendations for your review, and we will always discuss available options and request your explicit permission before making any updates.
 
@@ -298,13 +298,13 @@ CLIENT & POLICY DETAILS:
 - Client Name: {{client_name}}
 - Policy Number: {{policy_number}}
 - Calendly Scheduling Link: {{meeting_url}}
-- Attachment: Coverage Analysis Report attached directly to the email
+- Attachments: Replacement Cost Estimate (RCE) and generated Coverage Report attached directly to the email
 
 EMAIL PURPOSE:
 Highlight key coverage differences identified during our annual review when comparing current policy limits against updated replacement cost estimates. Explicitly clarify that NO changes have been made to the policy pre-review. Request permission from the client to discuss recommended adjustments, and invite them to schedule a review via Calendly {{meeting_url}}, or call our office at (909) 626-5000 for immediate assistance.
 
 STRICT AGENCY RULES:
-1. State that the Coverage Report is attached directly to the email.
+1. State that the Replacement Cost Estimate (RCE) and generated Coverage Report are attached directly to the email (do NOT refer to it as an 'updated' report).
 2. Explicitly state that NO changes have been made pre-review; all adjustments are recommendations requiring client permission.
 3. Do NOT enclose policy numbers in parentheses or include term numbers.
 4. Prioritize the Calendly link {{meeting_url}} for scheduling, offering office phone (909) 626-5000 secondarily for immediate needs.
