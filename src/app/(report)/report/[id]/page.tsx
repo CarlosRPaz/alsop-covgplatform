@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getReportById, PolicyReportRow } from '@/lib/api';
+import { getReportById, PolicyReportRow, getLatestReportConfigVersion } from '@/lib/api';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { Loader2 } from 'lucide-react';
@@ -11,17 +11,6 @@ import { logger } from '@/lib/logger';
 
 
 /* ── Helpers ── */
-const SEVERITY_LABEL: Record<string, string> = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' };
-const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
-    review_suggested: { label: 'Option Available', cls: 'adeqReview' },
-    missing_coverage: { label: 'Coverage Difference', cls: 'adeqGap' },
-    informational:    { label: 'Policy Comparison', cls: 'adeqOk' },
-    adequate:         { label: 'Policy Comparison', cls: 'adeqOk' },
-    review:           { label: 'Option Available', cls: 'adeqReview' },
-    gap:              { label: 'Coverage Difference', cls: 'adeqGap' },
-    unknown:          { label: '—', cls: 'adeqUnknown' },
-};
-
 /** Only keep real named sources — filter out generic internal labels. */
 const INTERNAL_SOURCES = new Set([
     'enrichment', 'policy', 'flag_engine', 'inferred', 'analysis',
@@ -58,11 +47,24 @@ export default function ReportPage() {
     const [report, setReport] = useState<PolicyReportRow | null>(null);
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isStale, setIsStale] = useState(false);
 
     useEffect(() => {
         if (!id) return;
         getReportById(id).then(data => { setReport(data || null); setLoading(false); });
     }, [id]);
+
+    // Check if report is stale (generated before config change)
+    useEffect(() => {
+        if (!report?.created_at) return;
+        getLatestReportConfigVersion().then(config => {
+            if (config?.changed_at && report.created_at) {
+                const reportDate = new Date(report.created_at);
+                const configDate = new Date(config.changed_at);
+                setIsStale(reportDate < configDate);
+            }
+        });
+    }, [report?.created_at]);
 
     const ai = report?.ai_insights;
     const data = report?.data_payload;
@@ -162,6 +164,16 @@ export default function ReportPage() {
                 </div>
             </div>
 
+            {/* Stale Report Warning (hidden in print) */}
+            {isStale && (
+                <div className={styles.staleWarning}>
+                    <span>⚠ This report was generated before recent changes to flag reporting rules.</span>
+                    <button onClick={handleRegenerate} disabled={isGenerating} className={styles.staleRegenBtn}>
+                        {isGenerating ? 'Regenerating...' : 'Regenerate Report'}
+                    </button>
+                </div>
+            )}
+
             {/* ════ DOCUMENT ════ */}
             <div className={styles.document}>
 
@@ -226,7 +238,7 @@ export default function ReportPage() {
                         <thead>
                             <tr>
                                 <th>Coverage</th>
-                                <th>Limit</th>
+                                <th>Limit <span style={{ fontWeight: 400, fontSize: '0.5rem', color: '#94a3b8', textTransform: 'none', letterSpacing: 'normal' }}>Policy Declaration</span></th>
                                 <th>Note</th>
                             </tr>
                         </thead>
@@ -243,22 +255,29 @@ export default function ReportPage() {
                                 const aiRow = (ai?.coverage_review || []).find(
                                     (c: any) => c.coverage?.toLowerCase().includes(cov.label.split(' (')[0].toLowerCase())
                                 );
-                                const statusKey = aiRow?.status || aiRow?.adequacy || 'unknown';
-                                const adeq = STATUS_CONFIG[statusKey] || STATUS_CONFIG.unknown;
+                                const relatedFindings: Array<{ text: string; source: string }> = aiRow?.related_findings || [];
+                                const hasFindings = relatedFindings.length > 0;
                                 return (
-                                    <tr key={i}>
+                                    <tr key={i} className={hasFindings ? styles.covRowWithFindings : undefined}>
                                         <td className={styles.covName}>
                                             {cov.label}
-                                            {aiRow?.source && (
-                                                <div style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 400, marginTop: '2px' }}>
-                                                    Source: {aiRow.source}
-                                                </div>
-                                            )}
                                         </td>
                                         <td className={styles.covValue}>
                                             {cov.value ? fmtCurrency(cov.value) : <span className={styles.noData}>Not on file</span>}
                                         </td>
-                                        <td className={styles.covNote}>{aiRow?.observation || '—'}</td>
+                                        <td className={styles.covNote}>
+                                            {aiRow?.observation || '—'}
+                                            {hasFindings && (
+                                                <div className={styles.relatedFindings}>
+                                                    {relatedFindings.map((rf, j) => (
+                                                        <div key={j} className={styles.relatedFinding}>
+                                                            <span className={styles.relatedFindingText}>{rf.text}</span>
+                                                            <span className={styles.relatedFindingSource}>Source: {rf.source}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </td>
                                     </tr>
                                 );
                             })}

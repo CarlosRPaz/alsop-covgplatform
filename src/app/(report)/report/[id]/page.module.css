@@ -266,7 +266,7 @@
 .covNote {
     font-size: 0.76rem;
     color: #64748b;
-    max-width: 260px;
+    max-width: 320px;
 }
 
 .noData {
@@ -274,6 +274,72 @@
     font-style: italic;
     font-weight: 400;
 }
+
+/* ── Coverage Row with Related Findings ── */
+.covRowWithFindings {
+    background: #fefce8;
+}
+
+.relatedFindings {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-top: 0.4rem;
+}
+
+.relatedFinding {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.35rem 0.55rem;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 4px;
+    font-size: 0.72rem;
+}
+
+.relatedFindingText {
+    color: #92400e;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.relatedFindingSource {
+    color: #b45309;
+    font-size: 0.62rem;
+    font-weight: 400;
+}
+
+/* ── Stale Report Warning ── */
+.staleWarning {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    background: #fef3c7;
+    border: 1px solid #fde68a;
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    font-size: 0.78rem;
+    color: #92400e;
+    font-weight: 500;
+}
+
+.staleRegenBtn {
+    background: #f59e0b;
+    color: #fff;
+    border: none;
+    padding: 0.35rem 0.8rem;
+    border-radius: 5px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+.staleRegenBtn:hover { background: #d97706; }
+.staleRegenBtn:disabled { opacity: 0.6; cursor: wait; }
 
 /* ── Next Steps ── */
 .stepsContainer {
@@ -434,6 +500,7 @@
     }
 
     .actionBar { display: none !important; }
+    .staleWarning { display: none !important; }
 
     .container * {
         -webkit-print-color-adjust: exact !important;

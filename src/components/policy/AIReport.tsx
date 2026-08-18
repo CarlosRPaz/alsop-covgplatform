@@ -1,9 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../ui/Card/Card';
 import { Eye, AlertTriangle, MessageSquare, ExternalLink, Zap, CheckCircle2 } from 'lucide-react';
-import { PolicyReportRow } from '@/lib/api';
+import { PolicyReportRow, getLatestReportConfigVersion } from '@/lib/api';
 import styles from './AIReport.module.css';
 
 interface AgentReviewPanelProps {
@@ -13,6 +13,17 @@ interface AgentReviewPanelProps {
 
 export function AgentReviewPanel({ reportRow, reportLink }: AgentReviewPanelProps) {
     const ai = reportRow?.ai_insights;
+    const [isStale, setIsStale] = useState(false);
+
+    // Check if report is stale (generated before config change)
+    useEffect(() => {
+        if (!reportRow?.created_at) return;
+        getLatestReportConfigVersion().then(config => {
+            if (config?.changed_at && reportRow.created_at) {
+                setIsStale(new Date(reportRow.created_at) < new Date(config.changed_at));
+            }
+        });
+    }, [reportRow?.created_at]);
 
     // Merge recommendations + action_items + data_gaps into unified action list
     const actions: Array<{ text: string; type: string; urgency: string }> = [];
@@ -86,6 +97,16 @@ export function AgentReviewPanel({ reportRow, reportLink }: AgentReviewPanelProp
             <div className={styles.header}>
                 <Zap className={styles.aiIcon} size={18} />
                 <h2>Agent Action Items</h2>
+                {isStale && (
+                    <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                        fontSize: '0.65rem', fontWeight: 600, color: '#92400e',
+                        background: '#fef3c7', border: '1px solid #fde68a',
+                        borderRadius: '4px', padding: '0.15rem 0.45rem',
+                    }}>
+                        ⚠ Report outdated
+                    </span>
+                )}
                 {reportLink && (
                     <a href={reportLink} className={styles.reportLink} target="_blank" rel="noopener noreferrer">
                         <ExternalLink size={12} />

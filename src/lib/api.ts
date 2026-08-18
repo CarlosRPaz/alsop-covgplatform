@@ -318,6 +318,10 @@ export interface FlagDefinition {
     dec_page_section?: string;
     suppression_rules?: string;
     notes?: string;
+    /** Whether this flag should be surfaced in the AI-generated client report */
+    report_enabled?: boolean;
+    /** Freeform AI instruction for how to frame this flag in the report */
+    report_prompt_hint?: string | null;
     created_at: string;
 }
 
@@ -3232,7 +3236,7 @@ export async function updateFlagDefinition(
         'label' | 'description' | 'default_severity' | 'category' |
         'auto_resolve' | 'is_manual_allowed' | 'is_active' |
         'trigger_logic' | 'data_fields_checked' | 'dec_page_section' |
-        'suppression_rules' | 'notes'
+        'suppression_rules' | 'notes' | 'report_enabled' | 'report_prompt_hint'
     >>
 ): Promise<FlagDefinition | null> {
     try {
@@ -3948,3 +3952,85 @@ export async function fetchRenewalEmailLog(policyId: string): Promise<RenewalEma
     }
 }
 
+// ---------------------------------------------------------------------------
+// Flag Report Settings — Batch Update & Config Version
+// ---------------------------------------------------------------------------
+
+export interface FlagReportSettingsUpdate {
+    code: string;
+    report_enabled: boolean;
+    report_prompt_hint: string | null;
+}
+
+/**
+ * Batch-update report_enabled and report_prompt_hint for multiple flag definitions.
+ * Also inserts a changelog entry so stale reports can be detected.
+ */
+export async function batchUpdateFlagReportSettings(
+    updates: FlagReportSettingsUpdate[]
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        // Update each flag definition
+        for (const u of updates) {
+            const { error } = await supabase
+                .from('flag_definitions')
+                .update({
+                    report_enabled: u.report_enabled,
+                    report_prompt_hint: u.report_prompt_hint,
+                })
+                .eq('code', u.code);
+
+            if (error) {
+                logger.error('API', 'Error updating flag report settings', { code: u.code, message: error.message });
+                return { success: false, error: `Failed to update ${u.code}: ${error.message}` };
+            }
+        }
+
+        // Insert changelog entry for stale report detection
+        const { data: latestVersion } = await supabase
+            .from('report_config_changelog')
+            .select('version_number')
+            .order('version_number', { ascending: false })
+            .limit(1)
+            .single();
+
+        const nextVersion = (latestVersion?.version_number || 0) + 1;
+
+        await supabase.from('report_config_changelog').insert({
+            version_number: nextVersion,
+            changes: {
+                event: 'flag_report_settings_updated',
+                flags_changed: updates.map(u => u.code),
+                count: updates.length,
+            },
+        });
+
+        return { success: true };
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error('API', 'Unexpected error in batchUpdateFlagReportSettings', { error: msg });
+        return { success: false, error: msg };
+    }
+}
+
+/**
+ * Get the latest report config changelog entry (for stale report detection).
+ */
+export async function getLatestReportConfigVersion(): Promise<{
+    version_number: number;
+    changed_at: string;
+} | null> {
+    try {
+        const { data, error } = await supabase
+            .from('report_config_changelog')
+            .select('version_number, changed_at')
+            .order('changed_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (error || !data) return null;
+        return data;
+    } catch {
+        return null;
+    }
+}

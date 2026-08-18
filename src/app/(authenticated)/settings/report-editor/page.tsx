@@ -3,10 +3,11 @@
 import React, { useState, useCallback } from 'react';
 import {
     FileText, GripVertical, Eye, EyeOff, ChevronDown, ChevronRight,
-    Save, RotateCcw, ArrowLeft, Check
+    Save, RotateCcw, ArrowLeft, Check, ShieldCheck
 } from 'lucide-react';
 import Link from 'next/link';
 import styles from './page.module.css';
+import FlagReportingModal from '@/components/settings/FlagReportingModal';
 
 /* ── Default Report Template ── */
 interface ReportSection {
@@ -60,6 +61,7 @@ export default function ReportEditorPage() {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
     const [draggedId, setDraggedId] = useState<string | null>(null);
+    const [showFlagModal, setShowFlagModal] = useState(false);
 
     const toggleEnabled = useCallback((id: string) => {
         setSections(prev => prev.map(s => s.id === id ? { ...s, enabled: !s.enabled } : s));
@@ -152,6 +154,21 @@ export default function ReportEditorPage() {
             <div className={styles.agentNote}>
                 <strong>Note:</strong> Agent-only insights (property observations, data gaps, AI notes) are shown automatically in the <em>Agent Action Items</em> panel on the policy page. They are never included in client reports.
             </div>
+
+            {/* Flag Reporting Configuration */}
+            <button
+                className={styles.flagConfigBtn}
+                onClick={() => setShowFlagModal(true)}
+            >
+                <ShieldCheck size={16} />
+                Configure Flag Reporting
+                <span className={styles.flagConfigHint}>Control which flags appear in generated reports</span>
+            </button>
+
+            <FlagReportingModal
+                isOpen={showFlagModal}
+                onClose={() => setShowFlagModal(false)}
+            />
 
             {/* Main Content */}
             <div className={styles.editorLayout}>

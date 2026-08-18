@@ -145,6 +145,35 @@
     color: var(--accent-primary);
 }
 
+/* ── Flag Config Button ── */
+.flagConfigBtn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(135deg, #eef2ff, #f0f0ff);
+    border: 1px solid #c7d2fe;
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #4f46e5;
+    margin-bottom: 1.5rem;
+    transition: all 0.15s;
+}
+.flagConfigBtn:hover {
+    background: linear-gradient(135deg, #e0e7ff, #eef2ff);
+    border-color: #818cf8;
+}
+
+.flagConfigHint {
+    font-size: 0.68rem;
+    font-weight: 400;
+    color: #6366f1;
+    margin-left: auto;
+}
+
 /* ── Editor Layout ── */
 .editorLayout {
     display: grid;

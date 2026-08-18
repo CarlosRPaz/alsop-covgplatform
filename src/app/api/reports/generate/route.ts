@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
-import { getPolicyDetailById, fetchFlagsByPolicyId, PolicyDetail, PolicyFlagRow } from '@/lib/api';
+import { getPolicyDetailById, fetchFlagsByPolicyId, PolicyDetail, PolicyFlagRow, FlagDefinition } from '@/lib/api';
 import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
@@ -90,6 +90,42 @@ export async function POST(req: NextRequest) {
 
         const enrichments = enrichmentsData || [];
 
+        // Fetch flag definitions with report config (report_enabled, report_prompt_hint)
+        const { data: flagDefsData } = await supabase
+            .from('flag_definitions')
+            .select('code, label, default_severity, report_enabled, report_prompt_hint')
+            .eq('is_active', true);
+        const flagDefs: Array<Pick<FlagDefinition, 'code' | 'label' | 'default_severity' | 'report_enabled' | 'report_prompt_hint'>> = flagDefsData || [];
+
+        // Fetch latest config version for stale detection
+        const { data: configVersion } = await supabase
+            .from('report_config_changelog')
+            .select('version_number, changed_at')
+            .order('changed_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        // Partition flags into mandatory (report_enabled) and suppressed
+        const openFlagCodes = new Set(flags.filter(f => f.status === 'open').map(f => f.code));
+        const mandatoryFlags = flagDefs.filter(fd => fd.report_enabled && openFlagCodes.has(fd.code));
+        const suppressedFlags = flagDefs.filter(fd => !fd.report_enabled && openFlagCodes.has(fd.code));
+
+        // Build mandatory/suppressed instruction blocks for the prompt
+        let flagInstructions = '';
+        if (mandatoryFlags.length > 0) {
+            flagInstructions += `\nMANDATORY FLAG REPORTING INSTRUCTIONS:\nThe following flags are active on this policy and MUST be addressed in your report.\nDo NOT skip any of these. Use the provided guidance for tone and framing:\n`;
+            mandatoryFlags.forEach(fd => {
+                const hint = fd.report_prompt_hint ? ` — Guidance: "${fd.report_prompt_hint}"` : '';
+                flagInstructions += `- ${fd.label} (${fd.default_severity})${hint}\n`;
+            });
+        }
+        if (suppressedFlags.length > 0) {
+            flagInstructions += `\nSUPPRESSED FLAGS (DO NOT MENTION IN CLIENT REPORT):\nThe following flags exist on this policy but must NOT appear in the client-facing report:\n`;
+            suppressedFlags.forEach(fd => {
+                flagInstructions += `- ${fd.code}\n`;
+            });
+        }
+
         // 2. Build deterministic JSON payload (Layer 1)
         const dataPayload = {
             policy,
@@ -106,7 +142,9 @@ export async function POST(req: NextRequest) {
                 confidence: e.confidence,
                 source: e.source_name,
                 notes: e.notes
-            }))
+            })),
+            config_version: configVersion?.version_number || 1,
+            config_changed_at: configVersion?.changed_at || null,
         };
 
         // 3. Prompt GPT-4o for Synthesis (Layer 2)
@@ -156,6 +194,11 @@ VALUATION DATA GUIDANCE:
 - If replacement cost estimate is available, frame as: "Based on available RCE document, estimated replacement cost is $X. You may review this estimate."
 - NEVER present estimates as authoritative.
 
+COVERAGE REVIEW STRUCTURE:
+- Do NOT include per-row "Source:" text in coverage_review items since coverage data obviously comes from the policy declaration page.
+- For each coverage line, if there are related findings from flags, enrichments, or observations (e.g., pool detected but Other Structures is $0), include them as "related_findings" on that coverage_review item.
+- related_findings should be brief supporting data points that help the reader immediately see WHY this coverage line is notable.
+${flagInstructions}
 Data Context:
 ${JSON.stringify(dataPayload, null, 2)}
 `;
@@ -197,16 +240,29 @@ ${JSON.stringify(dataPayload, null, 2)}
                                 },
                                 coverage_review: {
                                     type: 'array',
-                                    description: 'Comparative notes per coverage line. Keep observations to 10-15 words.',
+                                    description: 'Comparative notes per coverage line. Keep observations to 10-15 words. Attach any related findings (e.g. satellite detections, RCE data) as related_findings so they appear as supporting evidence next to the coverage line.',
                                     items: {
                                         type: 'object',
                                         properties: {
                                             coverage: { type: 'string', description: 'Coverage name' },
                                             current_value: { type: 'string', description: 'Current limit from the policy' },
                                             observation: { type: 'string', description: 'Brief comparative note (10-15 words max)' },
-                                            source: { type: 'string', description: 'Source document or line reference' }
+                                            source: { type: 'string', description: 'Source document or line reference' },
+                                            related_findings: {
+                                                type: 'array',
+                                                description: 'Supporting evidence items linked to this coverage line. Include flag findings, satellite detections, RCE comparisons. Each item has a brief text and its data source.',
+                                                items: {
+                                                    type: 'object',
+                                                    properties: {
+                                                        text: { type: 'string', description: 'Brief supporting finding (1 sentence)' },
+                                                        source: { type: 'string', description: 'Data source: Google imagery, RCE, ATTOM, etc.' }
+                                                    },
+                                                    required: ['text', 'source'],
+                                                    additionalProperties: false
+                                                }
+                                            }
                                         },
-                                        required: ['coverage', 'current_value', 'observation', 'source'],
+                                        required: ['coverage', 'current_value', 'observation', 'source', 'related_findings'],
                                         additionalProperties: false
                                     }
                                 },
