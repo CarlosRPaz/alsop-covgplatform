@@ -13,6 +13,7 @@ import {
     getInternalTemplate,
     renderInternalDraft,
     renderInternalCopilotPrompt,
+    cleanPolicyNumber,
 } from '@/lib/internalTemplateStore';
 import { RenewalEmailLogEntry } from '@/lib/api';
 import { logger } from '@/lib/logger';
@@ -63,7 +64,7 @@ export function PolicyEmailComposer({
 
     const safeClientEmail = clientEmail || '';
     const safeClientName = clientName || '';
-    const safePolicyNumber = policyNumber || '';
+    const safePolicyNumber = cleanPolicyNumber(policyNumber || '');
     const safePropertyAddress = propertyAddress || '';
     const safeAgentName = agentName || 'Alsop and Associates Insurance Agency';
 

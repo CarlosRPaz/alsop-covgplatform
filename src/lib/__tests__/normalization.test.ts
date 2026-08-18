@@ -58,3 +58,28 @@ describe('normalizePolicyNumber', () => {
         expect(a.suffix).not.toBe(b.suffix);
     });
 });
+
+describe('cleanPolicyNumber', () => {
+    it('removes parentheses from policy numbers', async () => {
+        const { cleanPolicyNumber } = await import('@/lib/internalTemplateStore');
+        expect(cleanPolicyNumber('(0102162693)')).toBe('0102162693');
+        expect(cleanPolicyNumber('policy (CFP 0102162693)')).toBe('policy CFP 0102162693');
+    });
+
+    it('removes term suffixes from policy numbers', async () => {
+        const { cleanPolicyNumber } = await import('@/lib/internalTemplateStore');
+        expect(cleanPolicyNumber('CFP 0102162693 01')).toBe('CFP 0102162693');
+        expect(cleanPolicyNumber('0102162693-01')).toBe('0102162693');
+        expect(cleanPolicyNumber('0102162693-1')).toBe('0102162693');
+        expect(cleanPolicyNumber('0102162693 - Term 2')).toBe('0102162693');
+        expect(cleanPolicyNumber('0102162693 (Term 1)')).toBe('0102162693');
+    });
+
+    it('preserves clean policy numbers without terms or parens', async () => {
+        const { cleanPolicyNumber } = await import('@/lib/internalTemplateStore');
+        expect(cleanPolicyNumber('CFP-9842104')).toBe('CFP-9842104');
+        expect(cleanPolicyNumber('0102162693')).toBe('0102162693');
+        expect(cleanPolicyNumber('CFP 0102162693')).toBe('CFP 0102162693');
+    });
+});
+
