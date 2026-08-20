@@ -109,7 +109,7 @@ const DATA_POINTS: DataPoint[] = [
         lifecycle: 'enriched', savedToDb: true, surfacedInUi: true, endpointBuilt: true, sourceAttribution: true,
         notes: 'Primary structural input for RCE modeling. From ATTOM assessor record.',
         detailNotes: 'Field: building.size.livingSize. Source tier: enriched_real. Multi-source resolver selects highest-confidence value. ATTOM is primary.',
-        upgradeNote: 'For certified RCE, supplement ATTOM sq ft with e2Value or EagleView verification for high-value policies.',
+        upgradeNote: 'For certified RCE, supplement ATTOM sq ft with e2Value or licensed appraisal for high-value policies.',
     },
     {
         id: 'total_building_area', name: 'Total Building Area (sq ft)', category: 'valuation',
@@ -198,9 +198,9 @@ const DATA_POINTS: DataPoint[] = [
         status: 'partial', confidence: 'inferred', usedIn: ['report', 'flags'],
         lifecycle: 'enriched', savedToDb: false, surfacedInUi: false, endpointBuilt: false, sourceAttribution: true,
         notes: 'Currently approximated from ATTOM year_built. True roof age (installation date) is distinct.',
-        detailNotes: 'Critical flag: YOUNG_ROOF_WITHOUT_RC uses year_built as proxy. Actual roof install date would require EagleView or permit records.',
+        detailNotes: 'Critical flag: YOUNG_ROOF_WITHOUT_RC uses year_built as proxy. Actual roof install date would require municipal permit records.',
         flagCode: 'YOUNG_ROOF_WITHOUT_RC',
-        upgradeNote: 'EagleView provides a roof install date estimate. High-value selective option.',
+        upgradeNote: 'Roof install dates are verified via permit records or physical verification.',
     },
     {
         id: 'slope_factor', name: 'Slope Factor', category: 'property_basics',

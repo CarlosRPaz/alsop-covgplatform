@@ -10,12 +10,11 @@ import {
     UserPlus, CheckCircle2, AlertTriangle, ShieldAlert, ShieldCheck, RefreshCw, Map, Eye
 } from 'lucide-react';
 import DataSourcesCatalog from '@/components/settings/DataSourcesCatalog';
-import EagleViewSandboxSection from '@/components/settings/EagleViewSandboxSection';
 import { InviteUserModal } from '@/components/admin/InviteUserModal';
 import { StaffManagementTable } from '@/components/admin/StaffManagementTable';
 import { useTheme } from 'next-themes';
 
-type Section = 'account' | 'notifications' | 'display' | 'admin' | 'data_sources' | 'report_editor' | 'email_system' | 'user_management' | 'eagleview_sandbox';
+type Section = 'account' | 'notifications' | 'display' | 'admin' | 'data_sources' | 'report_editor' | 'email_system' | 'user_management';
 
 const SECTIONS = [
     { id: 'account' as Section, label: 'Account', icon: User, description: 'Name, email, password' },
@@ -25,7 +24,6 @@ const SECTIONS = [
     { id: 'report_editor' as Section, label: 'Report Editor', icon: FileText, description: 'Report template & section controls', adminOnly: true },
     { id: 'email_system' as Section, label: 'Email System', icon: Mail, description: 'Safe mode, status & templates', adminOnly: true },
     { id: 'user_management' as Section, label: 'User Management', icon: UserPlus, description: 'Invite & manage platform users', adminOnly: true },
-    { id: 'eagleview_sandbox' as Section, label: 'EagleView Sandbox', icon: Map, description: 'Test EagleView Property Data API', adminOnly: true },
     { id: 'admin' as Section, label: 'Admin Settings', icon: Shield, description: 'Branding, integrations, global config', adminOnly: true },
 ];
 
@@ -130,7 +128,6 @@ export default function SettingsPage() {
                     {activeSection === 'report_editor' && <ReportEditorSection />}
                     {activeSection === 'email_system' && <EmailSystemSection />}
                     {activeSection === 'user_management' && <UserManagementSection profile={profile} />}
-                    {activeSection === 'eagleview_sandbox' && <EagleViewSandboxSection />}
                     {activeSection === 'admin' && <AdminSection />}
                 </div>
             </div>
