@@ -391,6 +391,8 @@ export async function POST(request: NextRequest) {
         let resolvedPolicyId = policy_id;
         let address = '';
 
+        const isCarrierHq = (addr: string) => /725\s*s(\.|\s)*figueroa|p(\.|\s)*o(\.|\s)*box\s*76924|p\.?o\.?\s*box/i.test(addr);
+
         const { data: directPolicy } = await sb
             .from('policies')
             .select('id, property_address_raw, property_address_norm')
@@ -399,11 +401,20 @@ export async function POST(request: NextRequest) {
 
         if (directPolicy) {
             resolvedPolicyId = directPolicy.id;
-            address = directPolicy.property_address_norm || directPolicy.property_address_raw || '';
+            const raw = directPolicy.property_address_raw || '';
+            const norm = directPolicy.property_address_norm || '';
+
+            if (raw && !isCarrierHq(raw)) {
+                address = raw;
+            } else if (norm && !isCarrierHq(norm)) {
+                address = norm;
+            } else {
+                address = raw || norm;
+            }
         }
 
         // If no direct policy address, check declarations linked to this policy or where id = policy_id
-        if (!address) {
+        if (!address || isCarrierHq(address)) {
             const { data: dec } = await sb
                 .from('declarations')
                 .select('id, policy_id, property_location')
@@ -414,12 +425,14 @@ export async function POST(request: NextRequest) {
 
             if (dec) {
                 if (dec.policy_id) resolvedPolicyId = dec.policy_id;
-                if (dec.property_location) address = dec.property_location;
+                if (dec.property_location && !isCarrierHq(dec.property_location)) {
+                    address = dec.property_location;
+                }
             }
         }
 
         // If still no address, check policy_terms
-        if (!address) {
+        if (!address || isCarrierHq(address)) {
             const { data: term } = await sb
                 .from('policy_terms')
                 .select('policy_id, property_address')
@@ -427,7 +440,7 @@ export async function POST(request: NextRequest) {
                 .limit(1)
                 .maybeSingle();
 
-            if (term?.property_address) {
+            if (term?.property_address && !isCarrierHq(term.property_address)) {
                 address = term.property_address;
             }
         }

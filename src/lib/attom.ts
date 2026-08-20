@@ -160,6 +160,13 @@ export async function fetchAttomPropertyDetail(
         });
 
         if (!res.ok) {
+            if (res.status === 401) {
+                return {
+                    success: false,
+                    notConfigured: true,
+                    error: 'ATTOM API key is expired or unauthorized — skipping assessor data.',
+                };
+            }
             const errText = await res.text();
             return {
                 success: false,
