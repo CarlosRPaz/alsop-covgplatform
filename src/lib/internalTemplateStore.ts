@@ -51,7 +51,7 @@ export interface TemplateContext {
 // Storage Keys & Constants
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = 'cfp_internal_email_templates_v5';
+const STORAGE_KEY = 'cfp_internal_email_templates_v6';
 
 /**
  * Strips parentheses, explicit term labels ("Term 1"), and trailing term/sequence suffixes
@@ -74,9 +74,31 @@ export function cleanPolicyNumber(rawPolicy: string | null | undefined): string 
     return s;
 }
 
+/**
+ * Extracts the trailing digits (last 4 characters/digits) from a policy number.
+ *
+ * Examples:
+ *  "0102717347" -> "7347"
+ *  "CFP 0102717347 00" -> "7347"
+ *  "CFP-9842104" -> "2104"
+ *  "7347" -> "7347"
+ */
+export function getPolicyEnding(rawPolicy: string | null | undefined): string {
+    const cleaned = cleanPolicyNumber(rawPolicy);
+    if (!cleaned) return '';
+    const digitsOnly = cleaned.replace(/\D/g, '');
+    if (digitsOnly.length >= 4) {
+        return digitsOnly.slice(-4);
+    }
+    const match = cleaned.match(/([a-zA-Z0-9]{1,4})$/);
+    return match ? match[1] : cleaned;
+}
+
 export const AVAILABLE_VARIABLES = [
     { tag: '{{first_name}}', description: 'Client First Name' },
     { tag: '{{client_name}}', description: 'Named Insured / Full Client Name' },
+    { tag: '{{policy_last4}}', description: 'Last 4 digits / Policy Ending (e.g. 7347)' },
+    { tag: '{{policy_ending}}', description: 'Last 4 digits / Policy Ending (e.g. 7347)' },
     { tag: '{{policy_number}}', description: 'Clean Policy Number (no parens/terms)' },
     { tag: '{{expiration_date}}', description: 'Policy Expiration Date' },
     { tag: '{{meeting_url}}', description: 'Calendly / Meeting Scheduling Link' },
@@ -92,25 +114,25 @@ export const STANDARD_RULES: TemplateRule[] = [
     {
         id: 'no_pre_review_changes',
         label: 'No Pre-Review Changes & Permission-Based Recommendations',
-        instruction: 'Explicitly state that NO changes have been made to the client’s policy pre-review. Frame all coverage adjustments strictly as recommendations for their review, and emphasize that no updates are ever made without the client’s explicit permission.',
+        instruction: 'Explicitly state that NO changes have been made to the client’s policy pre-review: "No changes have been made to your policy. Any changes are recommendations only — we always request your permission before making updates to your policy."',
         enabled: true,
     },
     {
-        id: 'clean_policy_number_format',
-        label: 'Clean Policy Number (No Parentheses, No Terms)',
-        instruction: 'Never enclose the policy number in parentheses in the email text or subject line. Never include term numbers or sequence suffixes (e.g. write "policy 0102162693" or "policy CFP 0102162693", never "policy (0102162693)" or "policy 0102162693-01").',
+        id: 'policy_ending_identification',
+        label: 'Policy Ending Identification (No Parentheses, No Terms)',
+        instruction: 'Identify policies as "policy ending in [last 4 digits]" (e.g. "policy ending in 7347") in subject lines and email text. Never enclose policy numbers in parentheses, and never include term numbers or sequence suffixes.',
         enabled: true,
     },
     {
-        id: 'prioritize_calendly',
-        label: 'Prioritize Calendly Booking with Office Phone as Secondary',
-        instruction: 'Prioritize the Calendly scheduling link as the primary call to action for booking a dedicated review appointment. Offer the office phone number (909) 626-5000 secondarily if the client requires immediate assistance.',
+        id: 'prioritize_calendly_no_period',
+        label: 'Prioritize Calendly Booking (Clean Link Separation)',
+        instruction: 'Prioritize the Calendly scheduling link as the primary call to action for booking a dedicated review appointment at a convenient time. Offer the office phone number (909) 626-5000 secondarily to speak with a licensed agent. Ensure the Calendly link is followed by whitespace and NEVER has an attached trailing period that breaks the link.',
         enabled: true,
     },
     {
-        id: 'client_responsibility',
-        label: 'Client Responsibility Disclaimer',
-        instruction: 'State clearly that final coverage selection and decisions remain the responsibility of the policyholder.',
+        id: 'client_responsibility_and_non_binding',
+        label: 'Client Responsibility & Non-Binding Carrier Disclaimer',
+        instruction: 'Include the exact disclaimer: "Please remember that final coverage selections and decisions remain the responsibility of the policyholder. Email communications do not bind, change, or modify coverage without formal carrier confirmation."',
         enabled: true,
     },
     {
@@ -121,8 +143,8 @@ export const STANDARD_RULES: TemplateRule[] = [
     },
     {
         id: 'concise_length',
-        label: 'Concise Length (Under 200 Words)',
-        instruction: 'Keep the draft email direct, professional, and under 200 words.',
+        label: 'Concise Length (Under 180 Words)',
+        instruction: 'Keep the draft email direct, professional, warm, and under 180 words.',
         enabled: true,
     },
 ];
@@ -136,87 +158,74 @@ export const DEFAULT_TEMPLATES: SystemEmailTemplate[] = [
         id: 'renewal_review',
         name: 'Annual Renewal Review Notice',
         category: 'renewal',
-        description: 'Notice of upcoming policy renewal with attached Replacement Cost Estimate (RCE) & generated Coverage Report, offering a Calendly review appointment.',
-        subjectTemplate: 'Your Policy Renewal Is Approaching — Policy {{policy_number}}',
+        description: 'Notice of upcoming policy renewal with attached Replacement Cost Estimate (RCE) & Coverage Report, offering a Calendly review appointment.',
+        subjectTemplate: '{{first_name}}, Your Home Policy Review Is Ready | Policy Ending in {{policy_last4}}',
         draftBodyTemplate: `Hi {{first_name}},
 
-Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your policy {{policy_number}} is coming up for renewal on {{expiration_date}}, now is a great time to review your coverage.
+With your policy scheduled for renewal on {{expiration_date}}, now is a helpful time to review your current coverage versus updated replacement cost information and available options.
 
-As part of our annual review process, we have evaluated your current policy limits and attached your Replacement Cost Estimate (RCE) along with a generated Coverage Report to this email for your review.
+We have attached your Replacement Cost Estimate (RCE) and Coverage Report for policy ending in {{policy_last4}}. These documents can help guide a brief conversation about your current limits, property information, and any questions or concerns you may have.
 
-The review may highlight differences between your current coverage and updated replacement cost estimates. Please note that no changes have been made to your policy — all coverage adjustments are strictly recommendations for your review, and we will never make updates without your explicit permission.
+No changes have been made to your policy. Any changes are recommendations only — we always request your permission before making updates to your policy.
 
-To make the most of our conversation, please have handy any questions, concerns, or feedback you'd like to share.
+Please schedule a brief review on our calendar: {{meeting_url}} at a convenient time, or call our office at (909) 626-5000 to speak with a licensed agent.
 
-We won't take too much of your time. We encourage you to schedule a quick review on our calendar at a time that works best for you: {{meeting_url}}. If you need immediate assistance or prefer to reach us right away, you are also welcome to call our office directly at (909) 626-5000.
-
-Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
+Please remember that final coverage selections and decisions remain the responsibility of the policyholder. Email communications do not bind, change, or modify coverage without formal carrier confirmation.
 
 Thank you for your time and trust,
 
-Alsop and Associates Insurance Agency
+Alsop & Associates Insurance Agency
 (909) 626-5000 | support@coveragechecknow.com`,
-        copilotPromptTemplate: `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
+        copilotPromptTemplate: `Act as an expert insurance communications specialist writing on behalf of Alsop & Associates Insurance Agency.
 
-TASK: Draft a professional, warm, permission-based renewal review email for policyholder {{client_name}} regarding policy {{policy_number}}, expiring on {{expiration_date}}.
+TASK: Draft a professional, warm, permission-based renewal review email for policyholder {{client_name}} regarding policy ending in {{policy_last4}}, scheduled for renewal on {{expiration_date}}.
 
 CLIENT & POLICY DETAILS:
 - Client Name: {{client_name}}
-- Policy Number: {{policy_number}}
+- Policy Identification: Policy ending in {{policy_last4}} (Full: {{policy_number}})
 - Insured Property Address: {{property_address}}
 - Expiration Date: {{expiration_date}}
 - Effective Date: {{effective_date}}
 - Annual Premium: {{annual_premium}}
 - Payment Method: {{payment_method}}
 - Calendly Scheduling Link: {{meeting_url}}
-- Attachments: Replacement Cost Estimate (RCE) and generated Coverage Report attached directly to the email
+- Attachments: Replacement Cost Estimate (RCE) and Coverage Report attached directly to the email
 
 REFERENCE EMAIL BLUEPRINT (Match structure, tone, and flow closely):
 ---
-Subject: Your Policy Renewal Is Approaching — Policy {{policy_number}}
+Subject: {{first_name}}, Your Home Policy Review Is Ready | Policy Ending in {{policy_last4}}
 
 Hi {{first_name}},
 
-Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your policy {{policy_number}} is coming up for renewal on {{expiration_date}}, now is a great time to review your coverage.
+With your policy scheduled for renewal on {{expiration_date}}, now is a helpful time to review your current coverage versus updated replacement cost information and available options.
 
-As part of our annual review process, we have evaluated your current policy limits and attached your Replacement Cost Estimate (RCE) along with a generated Coverage Report to this email for your review.
+We have attached your Replacement Cost Estimate (RCE) and Coverage Report for policy ending in {{policy_last4}}. These documents can help guide a brief conversation about your current limits, property information, and any questions or concerns you may have.
 
-The review may highlight differences between your current coverage and updated replacement cost estimates. Please note that no changes have been made to your policy — all coverage adjustments are strictly recommendations for your review, and we will never make updates without your explicit permission.
+No changes have been made to your policy. Any changes are recommendations only — we always request your permission before making updates to your policy.
 
-To make the most of our review, please have handy any questions, concerns, or feedback you'd like to share.
+Please schedule a brief review on our calendar: {{meeting_url}} at a convenient time, or call our office at (909) 626-5000 to speak with a licensed agent.
 
-We won't take too much of your time. We encourage you to schedule a quick review on our calendar at a time that works best for you: {{meeting_url}}. If you need immediate assistance, you are also welcome to call our office directly at (909) 626-5000.
-
-Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
+Please remember that final coverage selections and decisions remain the responsibility of the policyholder. Email communications do not bind, change, or modify coverage without formal carrier confirmation.
 
 Thank you for your time and trust,
 
-Alsop and Associates Insurance Agency
+Alsop & Associates Insurance Agency
 (909) 626-5000 | support@coveragechecknow.com
 ---
 
 STRICT AGENCY RULES & GUARDRAILS (YOU MUST FOLLOW ALL OF THESE):
-1. AGENCY IDENTITY & SIGN-OFF: Do NOT include a personal agent name or introduction. Sign off ONLY as "Alsop and Associates Insurance Agency" with phone (909) 626-5000 and support@coveragechecknow.com.
-2. NO PRE-REVIEW CHANGES & PERMISSION-BASED FRAMING: Explicitly state that NO changes have been made to the client's policy. Frame all coverage adjustments strictly as recommendations for their review, and emphasize that no updates are ever made without the client's explicit permission.
-3. POLICY NUMBER FORMAT (NO PARENTHESES, NO TERMS): Do NOT enclose the policy number in parentheses in the email text or subject. Do NOT include term numbers or sequence suffixes (e.g. write "policy {{policy_number}}", never "policy ({{policy_number}})" or "{{policy_number}}-01").
-4. CALENDLY & CONTACT PRIORITY: Prioritize the Calendly scheduling link ({{meeting_url}}) as the primary call to action for booking a dedicated review appointment. Offer the office phone number (909) 626-5000 secondarily if the client requires immediate assistance.
+1. AGENCY IDENTITY & SIGN-OFF: Do NOT include a personal agent name or introduction. Sign off ONLY as "Alsop & Associates Insurance Agency" with phone (909) 626-5000 and support@coveragechecknow.com.
+2. NO PRE-REVIEW CHANGES & PERMISSION-BASED FRAMING: Explicitly state that NO changes have been made to the client's policy: "No changes have been made to your policy. Any changes are recommendations only — we always request your permission before making updates to your policy."
+3. POLICY IDENTIFICATION FORMAT (POLICY ENDING IN XXXX): Refer to the policy as "policy ending in {{policy_last4}}" in the subject line and email body. Never enclose policy numbers in parentheses, and never include term numbers or sequence suffixes.
+4. CALENDLY & CONTACT PRIORITY (NO TRAILING PERIODS): Prioritize the Calendly scheduling link ({{meeting_url}}) as the primary call to action for booking a dedicated review appointment at a convenient time. Offer the office phone number (909) 626-5000 secondarily to speak with a licensed agent. Ensure the Calendly link is followed by whitespace and NEVER has an attached trailing period that breaks the link.
 5. NON-JUDGMENTAL COMPARATIVE TONE (STRICT BAN): NEVER use words like "adequate", "inadequate", "deficient", "underinsured", "poor", or "lacking". Describe coverage neutrally by comparing current limits to updated replacement cost estimates.
-6. ATTACHMENT REFERENCING (RCE FIRST, GENERATED COVERAGE REPORT): State that the Replacement Cost Estimate (RCE) and a generated Coverage Report are attached directly to the email (always list the RCE first, and refer to the report as a generated coverage report rather than an 'updated' report). Do NOT output file URLs or download links.
-7. CLIENT RESPONSIBILITY DISCLAIMER: Include the statement: "Please remember that final coverage selections and decisions remain the responsibility of the policyholder."
-8. CONCISENESS & RESPECT FOR TIME: Keep the email concise — under 200 words — and reassure the client the review takes only a few minutes.
-9. PREPARATION CHECKLIST: Encourage the client to have handy any questions, concerns, or feedback they would like to discuss. Do NOT ask for mortgage statements or other policy dec pages.
-10. NO PHYSICAL ADDRESS IN EMAIL TEXT: Do NOT include the physical property address anywhere in the email subject line or body text. Identify the policy strictly by policy number.
-11. OUTPUT FORMAT: Output ONLY the Subject line and the complete email body ready to send. Do NOT include conversational preamble or surrounding code block backticks.`,
-        rules: [
-            ...STANDARD_RULES,
-            {
-                id: 'include_preparation_checklist',
-                label: 'Include Preparation Checklist',
-                instruction: 'Encourage the client to have ready any questions, concerns, or feedback for the review.',
-                enabled: true,
-            },
-        ],
-        variables: ['{{first_name}}', '{{client_name}}', '{{policy_number}}', '{{expiration_date}}', '{{meeting_url}}', '{{property_address}}', '{{agent_name}}'],
+6. ATTACHMENT REFERENCING (RCE FIRST, COVERAGE REPORT): State that the Replacement Cost Estimate (RCE) and Coverage Report are attached directly to the email for policy ending in {{policy_last4}}. Do NOT output file URLs or download links.
+7. CLIENT RESPONSIBILITY & NON-BINDING DISCLAIMER: Include the exact statement: "Please remember that final coverage selections and decisions remain the responsibility of the policyholder. Email communications do not bind, change, or modify coverage without formal carrier confirmation."
+8. CONCISENESS & RESPECT FOR TIME: Keep the email concise — under 180 words — and reassuring.
+9. NO PHYSICAL ADDRESS IN EMAIL TEXT: Do NOT include the physical property address anywhere in the email subject line or body text. Identify the policy strictly by policy ending.
+10. OUTPUT FORMAT: Output ONLY the Subject line and the complete email body ready to send. Do NOT include conversational preamble or surrounding code block backticks.`,
+        rules: STANDARD_RULES,
+        variables: ['{{first_name}}', '{{client_name}}', '{{policy_last4}}', '{{policy_ending}}', '{{policy_number}}', '{{expiration_date}}', '{{meeting_url}}', '{{property_address}}', '{{agent_name}}'],
         isSystemDefault: true,
     },
     {
@@ -224,50 +233,50 @@ STRICT AGENCY RULES & GUARDRAILS (YOU MUST FOLLOW ALL OF THESE):
         name: 'Verify Replacement Cost Estimate',
         category: 'rce',
         description: 'Ask client to verify property specs on their attached Replacement Cost Estimate (RCE).',
-        subjectTemplate: 'Please Verify Your Property Details — Policy {{policy_number}}',
+        subjectTemplate: '{{first_name}}, Please Verify Your Property Details | Policy Ending in {{policy_last4}}',
         draftBodyTemplate: `Hi {{first_name}},
 
-As part of your upcoming policy review for policy {{policy_number}}, we have attached an updated Replacement Cost Estimate (RCE) to help ensure your home is properly valued against current construction and labor costs.
+With your policy scheduled for renewal on {{expiration_date}}, we have attached your updated Replacement Cost Estimate (RCE) for policy ending in {{policy_last4}} to ensure your home is accurately valued against current construction costs.
 
 Please take a moment to review the attached estimate, specifically:
 • Living area square footage
 • Year built & construction details
 • Any recent renovations or additions
 
-Please note that no changes have been made to your policy. Any coverage adjustments discussed during our review are strictly recommendations for your consideration, and updates are only made with your explicit permission.
+No changes have been made to your policy. Any changes are recommendations only — we always request your permission before making updates to your policy.
 
-If any specifications need updating, or if you have questions, we encourage you to schedule a quick review on our calendar: {{meeting_url}}. If you need immediate assistance, you are also welcome to call our office directly at (909) 626-5000.
+Please schedule a brief review on our calendar: {{meeting_url}} at a convenient time, or call our office at (909) 626-5000 to speak with a licensed agent.
 
-Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
+Please remember that final coverage selections and decisions remain the responsibility of the policyholder. Email communications do not bind, change, or modify coverage without formal carrier confirmation.
 
-Thank you,
+Thank you for your time and trust,
 
-Alsop and Associates Insurance Agency
+Alsop & Associates Insurance Agency
 (909) 626-5000 | support@coveragechecknow.com`,
-        copilotPromptTemplate: `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
+        copilotPromptTemplate: `Act as an expert insurance communications specialist writing on behalf of Alsop & Associates Insurance Agency.
 
-TASK: Draft a professional, warm email requesting that policyholder {{client_name}} review and verify the property specifications on their attached Replacement Cost Estimate (RCE) for policy {{policy_number}}.
+TASK: Draft a professional, warm email requesting that policyholder {{client_name}} review and verify the property specifications on their attached Replacement Cost Estimate (RCE) for policy ending in {{policy_last4}}.
 
 CLIENT & POLICY DETAILS:
 - Client Name: {{client_name}}
-- Policy Number: {{policy_number}}
+- Policy Identification: Policy ending in {{policy_last4}} (Full: {{policy_number}})
 - Expiration Date: {{expiration_date}}
 - Calendly Scheduling Link: {{meeting_url}}
 - Attachment: Replacement Cost Estimate (RCE) attached directly to the email
 
 EMAIL PURPOSE:
-Ask the client to review and verify their property details (square footage, year built, renovations) shown on their attached Replacement Cost Estimate (RCE). Explain that accurate property data ensures their replacement cost calculation properly reflects current construction costs. Explicitly state that NO changes have been made to their policy pre-review and adjustments are recommendations only. Prioritize scheduling via Calendly, with office phone for immediate needs.
+Ask the client to review and verify their property details (square footage, year built, renovations) shown on their attached Replacement Cost Estimate (RCE). Explain that accurate property data ensures their replacement cost calculation properly reflects current construction costs. Explicitly state that NO changes have been made to their policy pre-review and adjustments are recommendations only. Prioritize scheduling via Calendly, with office phone (909) 626-5000 for speaking with a licensed agent.
 
 STRICT AGENCY RULES:
-1. State that the RCE is attached directly to the email. Do not output download links.
+1. State that the RCE is attached directly to the email for policy ending in {{policy_last4}}. Do not output download links.
 2. Explicitly state that no changes have been made to the policy pre-review; all adjustments are recommendations only requiring client permission.
-3. Do NOT enclose policy numbers in parentheses or include term suffixes.
-4. Prioritize the Calendly link {{meeting_url}} for scheduling, offering the office phone (909) 626-5000 secondarily for immediate needs.
-5. Sign off as "Alsop and Associates Insurance Agency" with phone (909) 626-5000.
-6. Include disclaimer: "Please remember that final coverage selections and decisions remain the responsibility of the policyholder."
+3. Refer to the policy as "policy ending in {{policy_last4}}". Do NOT enclose policy numbers in parentheses or include term suffixes.
+4. Prioritize the Calendly link {{meeting_url}} with clean spacing (no attached trailing periods), offering the office phone (909) 626-5000 secondarily.
+5. Sign off as "Alsop & Associates Insurance Agency" with phone (909) 626-5000 | support@coveragechecknow.com.
+6. Include disclaimer: "Please remember that final coverage selections and decisions remain the responsibility of the policyholder. Email communications do not bind, change, or modify coverage without formal carrier confirmation."
 7. Output ONLY Subject and Email Body ready to send.`,
         rules: STANDARD_RULES,
-        variables: ['{{first_name}}', '{{client_name}}', '{{policy_number}}', '{{meeting_url}}', '{{expiration_date}}'],
+        variables: ['{{first_name}}', '{{client_name}}', '{{policy_last4}}', '{{policy_ending}}', '{{policy_number}}', '{{meeting_url}}', '{{expiration_date}}'],
         isSystemDefault: true,
     },
     {
@@ -275,44 +284,44 @@ STRICT AGENCY RULES:
         name: 'Coverage Recommendations & Consultation',
         category: 'recommendations',
         description: 'Present coverage review findings and invite client to schedule a consultation.',
-        subjectTemplate: 'Coverage Review & Recommendations — Policy {{policy_number}}',
+        subjectTemplate: '{{first_name}}, Your Coverage Review & Options Are Ready | Policy Ending in {{policy_last4}}',
         draftBodyTemplate: `Hi {{first_name}},
 
-We recently completed an annual review of your property coverage under policy {{policy_number}} and have attached your Replacement Cost Estimate (RCE) along with a generated Coverage Report for your review.
+With your policy scheduled for renewal on {{expiration_date}}, we recently completed an annual review of your property coverage and have attached your Replacement Cost Estimate (RCE) and Coverage Report for policy ending in {{policy_last4}}.
 
-Our review highlights comparative options between your current policy limits and updated rebuilding cost estimates. Please note that no changes have been made to your policy — all adjustments are strictly recommendations for your review, and we will always discuss available options and request your explicit permission before making any updates.
+These documents highlight comparative options between your current policy limits and updated rebuilding cost estimates. No changes have been made to your policy. Any changes are recommendations only — we always request your permission before making updates to your policy.
 
-To review these recommendations together, please schedule a convenient time on our calendar: {{meeting_url}}. If you need immediate assistance or prefer to speak with us right away, you are also welcome to call our office at (909) 626-5000.
+Please schedule a brief review on our calendar: {{meeting_url}} at a convenient time, or call our office at (909) 626-5000 to speak with a licensed agent.
 
-Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
+Please remember that final coverage selections and decisions remain the responsibility of the policyholder. Email communications do not bind, change, or modify coverage without formal carrier confirmation.
 
-Best regards,
+Thank you for your time and trust,
 
-Alsop and Associates Insurance Agency
+Alsop & Associates Insurance Agency
 (909) 626-5000 | support@coveragechecknow.com`,
-        copilotPromptTemplate: `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
+        copilotPromptTemplate: `Act as an expert insurance communications specialist writing on behalf of Alsop & Associates Insurance Agency.
 
-TASK: Draft a professional, warm email presenting annual coverage recommendations and requesting client permission to review and update coverage for policy {{policy_number}}.
+TASK: Draft a professional, warm email presenting annual coverage recommendations and requesting client permission to review and update coverage for policy ending in {{policy_last4}}.
 
 CLIENT & POLICY DETAILS:
 - Client Name: {{client_name}}
-- Policy Number: {{policy_number}}
+- Policy Identification: Policy ending in {{policy_last4}} (Full: {{policy_number}})
 - Calendly Scheduling Link: {{meeting_url}}
-- Attachments: Replacement Cost Estimate (RCE) and generated Coverage Report attached directly to the email
+- Attachments: Replacement Cost Estimate (RCE) and Coverage Report attached directly to the email
 
 EMAIL PURPOSE:
-Highlight key coverage differences identified during our annual review when comparing current policy limits against updated replacement cost estimates. Explicitly clarify that NO changes have been made to the policy pre-review. Request permission from the client to discuss recommended adjustments, and invite them to schedule a review via Calendly {{meeting_url}}, or call our office at (909) 626-5000 for immediate assistance.
+Highlight key coverage differences identified during our annual review when comparing current policy limits against updated replacement cost estimates. Explicitly clarify that NO changes have been made to the policy pre-review. Request permission from the client to discuss recommended adjustments, and invite them to schedule a review via Calendly {{meeting_url}} (cleanly spaced, no trailing period), or call our office at (909) 626-5000 to speak with a licensed agent.
 
 STRICT AGENCY RULES:
-1. State that the Replacement Cost Estimate (RCE) and generated Coverage Report are attached directly to the email (do NOT refer to it as an 'updated' report).
+1. State that the Replacement Cost Estimate (RCE) and Coverage Report are attached directly to the email for policy ending in {{policy_last4}} (do NOT refer to it as an 'updated' report).
 2. Explicitly state that NO changes have been made pre-review; all adjustments are recommendations requiring client permission.
-3. Do NOT enclose policy numbers in parentheses or include term numbers.
-4. Prioritize the Calendly link {{meeting_url}} for scheduling, offering office phone (909) 626-5000 secondarily for immediate needs.
-5. Sign off as "Alsop and Associates Insurance Agency".
-6. Include disclaimer: "Please remember that final coverage selections and decisions remain the responsibility of the policyholder."
+3. Identify policy as "policy ending in {{policy_last4}}". Do NOT enclose policy numbers in parentheses or include term numbers.
+4. Prioritize the Calendly link {{meeting_url}} for scheduling, offering office phone (909) 626-5000 secondarily.
+5. Sign off as "Alsop & Associates Insurance Agency" with phone (909) 626-5000 | support@coveragechecknow.com.
+6. Include disclaimer: "Please remember that final coverage selections and decisions remain the responsibility of the policyholder. Email communications do not bind, change, or modify coverage without formal carrier confirmation."
 7. Output ONLY Subject and Email Body ready to send.`,
         rules: STANDARD_RULES,
-        variables: ['{{first_name}}', '{{client_name}}', '{{policy_number}}', '{{meeting_url}}'],
+        variables: ['{{first_name}}', '{{client_name}}', '{{policy_last4}}', '{{policy_ending}}', '{{policy_number}}', '{{meeting_url}}', '{{expiration_date}}'],
         isSystemDefault: true,
     }
 ];
@@ -389,6 +398,7 @@ export function interpolateText(text: string, ctx: TemplateContext): string {
     const firstName = rawClientName.trim() ? rawClientName.trim().split(/\s+/)[0] : 'Valued Client';
     
     const cleanPolicy = cleanPolicyNumber(ctx.policyNumber);
+    const policyLast4 = getPolicyEnding(ctx.policyNumber);
     const reportLink = ctx.reportUrl || '';
     const rceLink = ctx.rceDownloadUrl || '';
     const meetingLink = ctx.meetingUrl || '';
@@ -398,12 +408,14 @@ export function interpolateText(text: string, ctx: TemplateContext): string {
         '{{first_name}}': firstName,
         '{{client_email}}': ctx.clientEmail || '',
         '{{policy_number}}': cleanPolicy,
+        '{{policy_last4}}': policyLast4 || cleanPolicy,
+        '{{policy_ending}}': policyLast4 || cleanPolicy,
         '{{property_address}}': ctx.propertyAddress || '',
         '{{expiration_date}}': ctx.expirationDate || '',
         '{{effective_date}}': ctx.effectiveDate || '',
         '{{annual_premium}}': ctx.annualPremium || '',
         '{{payment_method}}': ctx.paymentMethod || '',
-        '{{agent_name}}': ctx.agentName || 'Alsop and Associates Insurance Agency',
+        '{{agent_name}}': ctx.agentName || 'Alsop & Associates Insurance Agency',
         '{{meeting_url}}': meetingLink,
         '{{report_url}}': reportLink,
         '{{rce_download_url}}': rceLink,
@@ -421,12 +433,11 @@ export function renderInternalDraft(template: SystemEmailTemplate, ctx: Template
     const subject = interpolateText(template.subjectTemplate, ctx);
     let body = interpolateText(template.draftBodyTemplate, ctx);
 
-    // Append safety disclaimer if enabled in rules
-    const hasDisclaimerRule = template.rules.some(r => r.enabled && r.id === 'client_responsibility');
-    if (hasDisclaimerRule && !body.includes('Notice & Client Responsibility')) {
-        body += `\n\n---\nNotice & Client Responsibility: This draft is provided for informational and comparative purposes. Final coverage selection and policy adjustments remain solely the responsibility of the policyholder.`;
+    // Append safety disclaimer if enabled in rules and not already present
+    const hasDisclaimerRule = template.rules.some(r => r.enabled && (r.id === 'client_responsibility' || r.id === 'client_responsibility_and_non_binding'));
+    if (hasDisclaimerRule && !body.includes('Please remember that final coverage selections')) {
+        body += `\n\nPlease remember that final coverage selections and decisions remain the responsibility of the policyholder. Email communications do not bind, change, or modify coverage without formal carrier confirmation.`;
     }
-
     return { subject, body };
 }
 

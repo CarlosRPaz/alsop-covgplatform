@@ -83,3 +83,28 @@ describe('cleanPolicyNumber', () => {
     });
 });
 
+describe('getPolicyEnding', () => {
+    it('extracts last 4 digits from various policy number formats', async () => {
+        const { getPolicyEnding } = await import('@/lib/internalTemplateStore');
+        expect(getPolicyEnding('0102717347')).toBe('7347');
+        expect(getPolicyEnding('CFP 0102717347 00')).toBe('7347');
+        expect(getPolicyEnding('CFP-9842104')).toBe('2104');
+        expect(getPolicyEnding('CFP-9842104-1')).toBe('2104');
+        expect(getPolicyEnding('(0102717347)')).toBe('7347');
+        expect(getPolicyEnding('7347')).toBe('7347');
+    });
+
+    it('interpolates policy_last4 and policy_ending in templates', async () => {
+        const { interpolateText } = await import('@/lib/internalTemplateStore');
+        const rendered = interpolateText(
+            'Policy Ending in {{policy_last4}} | {{policy_ending}}',
+            {
+                clientName: 'Puja Sarna',
+                policyNumber: 'CFP 0102717347 00',
+                agentName: 'Alsop & Associates Insurance Agency',
+            }
+        );
+        expect(rendered).toBe('Policy Ending in 7347 | 7347');
+    });
+});
+

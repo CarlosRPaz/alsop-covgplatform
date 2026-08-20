@@ -155,11 +155,11 @@ export default function EmailTemplateStudioPage() {
             name: 'New Custom Template',
             category: 'custom',
             description: 'Custom agency email outreach and CoPilot template.',
-            subjectTemplate: 'Important Notice regarding Policy {{policy_number}}',
-            draftBodyTemplate: 'Hi {{client_name}},\n\n[Write your custom message here]\n\nBest regards,\nAlsop and Associates Insurance Agency',
-            copilotPromptTemplate: `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.\n\nTASK: Draft a custom email for {{client_name}} regarding policy {{policy_number}}.\n\nCLIENT DETAILS:\n- Client Name: {{client_name}}\n- Policy Number: {{policy_number}}\n- Property Address: {{property_address}}\n\nSTRICT AGENCY RULES:\n1. Explicitly state that NO changes have been made to the client's policy pre-review.\n2. Do NOT enclose policy numbers in parentheses or include term suffixes.\n3. Prioritize scheduling via Calendly {{meeting_url}}, with office phone (909) 626-5000 secondarily for immediate needs.\n4. Sign off ONLY as "Alsop and Associates Insurance Agency" with phone (909) 626-5000.\n5. Keep concise and under 200 words.\n6. Output ONLY the Subject line and email body ready to send.`,
+            subjectTemplate: '{{first_name}}, Important Notice regarding Policy Ending in {{policy_last4}}',
+            draftBodyTemplate: 'Hi {{first_name}},\n\n[Write your custom message here]\n\nBest regards,\nAlsop & Associates Insurance Agency\n(909) 626-5000 | support@coveragechecknow.com',
+            copilotPromptTemplate: `Act as an expert insurance communications specialist writing on behalf of Alsop & Associates Insurance Agency.\n\nTASK: Draft a custom email for {{client_name}} regarding policy ending in {{policy_last4}}.\n\nCLIENT DETAILS:\n- Client Name: {{client_name}}\n- Policy Identification: Policy ending in {{policy_last4}} (Full: {{policy_number}})\n- Property Address: {{property_address}}\n\nSTRICT AGENCY RULES:\n1. Explicitly state that NO changes have been made to the client's policy pre-review.\n2. Refer to the policy as "policy ending in {{policy_last4}}". Do NOT enclose policy numbers in parentheses or include term suffixes.\n3. Prioritize scheduling via Calendly {{meeting_url}} (cleanly spaced, no trailing period), with office phone (909) 626-5000 secondarily for immediate assistance.\n4. Sign off ONLY as "Alsop & Associates Insurance Agency" with phone (909) 626-5000 | support@coveragechecknow.com.\n5. Keep concise and under 180 words.\n6. Output ONLY the Subject line and email body ready to send.`,
             rules: [...STANDARD_RULES],
-            variables: ['{{first_name}}', '{{client_name}}', '{{policy_number}}', '{{property_address}}', '{{agent_name}}', '{{meeting_url}}'],
+            variables: ['{{first_name}}', '{{client_name}}', '{{policy_last4}}', '{{policy_ending}}', '{{policy_number}}', '{{property_address}}', '{{agent_name}}', '{{meeting_url}}'],
             isSystemDefault: false,
         };
         saveInternalTemplate(newTpl);

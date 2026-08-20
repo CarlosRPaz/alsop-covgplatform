@@ -61,11 +61,26 @@ export function cleanPolicyNumber(rawPolicy: string | null | undefined): string 
     return s;
 }
 
+/**
+ * Extracts the trailing digits (last 4 characters/digits) from a policy number.
+ */
+export function getPolicyEnding(rawPolicy: string | null | undefined): string {
+    const cleaned = cleanPolicyNumber(rawPolicy);
+    if (!cleaned) return '';
+    const digitsOnly = cleaned.replace(/\D/g, '');
+    if (digitsOnly.length >= 4) {
+        return digitsOnly.slice(-4);
+    }
+    const match = cleaned.match(/([a-zA-Z0-9]{1,4})$/);
+    return match ? match[1] : cleaned;
+}
+
 function formatContextBlock(ctx: CoPilotPromptContext): string {
     const cleanPolicy = cleanPolicyNumber(ctx.policyNumber) || 'N/A';
+    const policyEnding = getPolicyEnding(ctx.policyNumber) || cleanPolicy;
     const lines = [
         `- Named Insured / Client Name: ${ctx.clientName || 'Valued Client'}`,
-        `- Policy Number: ${cleanPolicy}`,
+        `- Policy Identification: Policy ending in ${policyEnding} (Full: ${cleanPolicy})`,
         `- Property Address: ${ctx.propertyAddress || 'N/A'}`,
     ];
     if (ctx.expirationDate) lines.push(`- Policy Expiration Date: ${ctx.expirationDate}`);
@@ -74,36 +89,38 @@ function formatContextBlock(ctx: CoPilotPromptContext): string {
     if (ctx.paymentMethod) lines.push(`- Payment Method: ${ctx.paymentMethod}`);
     if (ctx.mortgageeName) lines.push(`- Mortgagee / Lender: ${ctx.mortgageeName}`);
     if (ctx.meetingUrl) lines.push(`- Calendly / Meeting Scheduling Link: ${ctx.meetingUrl}`);
-    lines.push(`- Attached Files: Replacement Cost Estimate (RCE) & generated Coverage Report attached directly to email`);
+    lines.push(`- Attached Files: Replacement Cost Estimate (RCE) & Coverage Report attached directly to email`);
     return lines.join('\n');
 }
 
 const MASTER_GUARDRAIL_RULES = `
 STRICT AGENCY RULES & GUARDRAILS (YOU MUST FOLLOW ALL OF THESE):
 1. AGENCY IDENTITY & SIGN-OFF: Do NOT introduce a named individual agent or share personal stories. Sign off ONLY as:
-   Alsop and Associates Insurance Agency
+   Alsop & Associates Insurance Agency
    (909) 626-5000 | support@coveragechecknow.com
 
-2. NO PRE-REVIEW CHANGES & PERMISSION-BASED FRAMING: Explicitly state that NO changes have been made to the client's policy. Frame all coverage adjustments strictly as recommendations for their review, and emphasize that no updates are ever made without the client's explicit permission.
+2. NO PRE-REVIEW CHANGES & PERMISSION-BASED FRAMING: Explicitly state that NO changes have been made to the client's policy:
+   "No changes have been made to your policy. Any changes are recommendations only — we always request your permission before making updates to your policy."
 
-3. POLICY NUMBER FORMAT (NO PARENTHESES, NO TERMS): Do NOT enclose the policy number in parentheses in the email subject line or body text. Do NOT include term numbers or sequence suffixes (e.g. write "policy 0102162693" or "policy CFP 0102162693", never "policy (0102162693)" or "0102162693-01").
+3. POLICY IDENTIFICATION FORMAT (POLICY ENDING IN XXXX): Refer to the policy as "policy ending in [last 4 digits]" (e.g. "policy ending in 7347") in both the subject line and email body. NEVER enclose policy numbers in parentheses, and NEVER include term numbers or sequence suffixes.
 
 4. NON-JUDGMENTAL COMPARATIVE TONE (STRICT BAN):
    - NEVER use words like "adequate", "inadequate", "deficient", "underinsured", "poor", or "lacking".
    - Describe coverage differences neutrally by comparing current policy limits directly to updated replacement cost estimates and available options.
 
-5. MANUAL ATTACHMENTS (RCE FIRST, GENERATED COVERAGE REPORT): State that the Replacement Cost Estimate (RCE) and a generated Coverage Report are attached directly to the email (always list the RCE first, and refer to the report as a generated coverage report rather than an 'updated' report). Do NOT generate file URLs or download links.
+5. MANUAL ATTACHMENTS (RCE FIRST, COVERAGE REPORT): State that the Replacement Cost Estimate (RCE) and Coverage Report are attached directly to the email for policy ending in [last 4 digits]. Do NOT refer to it as an "updated" report. Do NOT generate file URLs or download links.
 
-6. CALENDLY & CONTACT PRIORITY: Prioritize the Calendly scheduling link as the primary call to action for booking a dedicated review appointment. Offer the office phone number (909) 626-5000 secondarily if the client requires immediate assistance.
+6. CALENDLY & CONTACT PRIORITY (NO TRAILING PERIODS): Prioritize the Calendly scheduling link as the primary call to action for booking a dedicated review appointment at a convenient time. Offer the office phone number (909) 626-5000 secondarily to speak with a licensed agent.
+   CRITICAL: Ensure the Calendly URL is followed by a space before text like "at a convenient time" and NEVER attach a period directly to the URL (e.g., write "calendar: [URL] at a convenient time", NEVER "[URL].").
 
-7. CLIENT RESPONSIBILITY DISCLAIMER: You must include this notice near the end of the email:
-   "Please remember that final coverage selections and decisions remain the responsibility of the policyholder."
+7. CLIENT RESPONSIBILITY & NON-BINDING DISCLAIMER: You must include this notice near the end of the email:
+   "Please remember that final coverage selections and decisions remain the responsibility of the policyholder. Email communications do not bind, change, or modify coverage without formal carrier confirmation."
 
-8. CONCISENESS & RESPECT FOR TIME: Keep the entire email concise (under 200 words). Reassure the client that an annual review takes only a few minutes.
+8. CONCISENESS & RESPECT FOR TIME: Keep the entire email concise (under 180 words). Reassure the client that an annual review takes only a few minutes.
 
 9. PREPARATION CHECKLIST: Encourage the client to have handy any questions, concerns, or feedback they would like to discuss during the review. Do NOT ask for mortgage statements or other policy dec pages.
 
-10. NO PHYSICAL ADDRESS IN EMAIL TEXT: Do NOT include the physical property address anywhere in the email subject line or body text. Identify the policy strictly by policy number.
+10. NO PHYSICAL ADDRESS IN EMAIL TEXT: Do NOT include the physical property address anywhere in the email subject line or body text. Identify the policy strictly by policy ending digits.
 
 11. OUTPUT FORMAT: Output ONLY the Subject line and the complete email body ready to send. Do NOT include conversational preambles, introductory filler ("Here is the email draft:"), or surrounding code block backticks.`.trim();
 
@@ -119,41 +136,41 @@ const PROMPT_TEMPLATES: Record<PromptTemplateId, PromptTemplate> = {
         description: 'For clients with upcoming renewals. Prompts CoPilot to draft a permission-requesting review email.',
         generate: (ctx) => {
             const cleanPolicy = cleanPolicyNumber(ctx.policyNumber);
+            const policyEnding = getPolicyEnding(ctx.policyNumber) || cleanPolicy;
+            const firstName = ctx.clientName ? ctx.clientName.trim().split(/\s+/)[0] : 'Valued Client';
             const contactSentence = ctx.meetingUrl
-                ? `We encourage you to schedule a quick review at a time that works best for you on our calendar: ${ctx.meetingUrl}. If you need immediate assistance or prefer to reach us right away, you are also welcome to call our office directly at (909) 626-5000.`
-                : `To schedule a review or speak with an agent, please call our main office at (909) 626-5000.`;
+                ? `Please schedule a brief review on our calendar: ${ctx.meetingUrl} at a convenient time, or call our office at (909) 626-5000 to speak with a licensed agent.`
+                : `To schedule a review or speak with a licensed agent, please call our office at (909) 626-5000.`;
 
-            return `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
+            return `Act as an expert insurance communications specialist writing on behalf of Alsop & Associates Insurance Agency.
 
-TASK: Draft a professional, warm renewal review email to a policyholder regarding policy ${cleanPolicy}, expiring on ${ctx.expirationDate || 'upcoming renewal date'}.
+TASK: Draft a professional, warm renewal review email to policyholder ${ctx.clientName || 'Valued Client'} regarding policy ending in ${policyEnding}, expiring on ${ctx.expirationDate || 'upcoming renewal date'}.
 
 CLIENT & POLICY DETAILS:
 ${formatContextBlock(ctx)}
 
 EMAIL PURPOSE:
-Notify the client that their policy renewal is approaching. Explain the value of an annual review (preventing coverage lapses, closing coverage gaps, ensuring limits keep pace with construction costs). Explicitly clarify that NO changes have been made to their policy pre-review and ask permission to review coverage recommendations. Prioritize scheduling via Calendly, with the office phone number offered for immediate assistance.
+Notify the client that their policy renewal is approaching. Explain the value of reviewing current coverage versus updated replacement cost information and available options. Explicitly clarify that NO changes have been made to their policy pre-review and ask permission before any updates. Prioritize scheduling via Calendly (cleanly separated link, no trailing period), with office phone (909) 626-5000 to speak with a licensed agent.
 
 REFERENCE EMAIL BLUEPRINT (Match structure, tone, and flow):
 ---
-Subject: Your Policy Renewal Is Approaching — Policy ${cleanPolicy}
+Subject: ${firstName}, Your Home Policy Review Is Ready | Policy Ending in ${policyEnding}
 
-Hi ${ctx.clientName ? ctx.clientName.trim().split(/\s+/)[0] : 'Valued Client'},
+Hi ${firstName},
 
-Did you know that an annual policy review could help you avoid a lapse in coverage, close potential coverage gaps, and ensure your limits keep pace with current construction costs? Since your policy ${cleanPolicy} is coming up for renewal on ${ctx.expirationDate || 'your renewal date'}, now is a great time to review your coverage.
+With your policy scheduled for renewal on ${ctx.expirationDate || '[confirmed renewal date]'}, now is a helpful time to review your current coverage versus updated replacement cost information and available options.
 
-As part of our annual review process, we have evaluated your current policy limits and attached your Replacement Cost Estimate (RCE) along with a generated Coverage Report to this email for your review.
+We have attached your Replacement Cost Estimate (RCE) and Coverage Report for policy ending in ${policyEnding}. These documents can help guide a brief conversation about your current limits, property information, and any questions or concerns you may have.
 
-The review may highlight differences between your current coverage and updated replacement cost estimates. Please note that no changes have been made to your policy — all coverage adjustments are strictly recommendations for your review, and we will never make updates without your explicit permission.
+No changes have been made to your policy. Any changes are recommendations only — we always request your permission before making updates to your policy.
 
-To make the most of our review, please have handy any questions, concerns, or feedback you would like to discuss.
+${contactSentence}
 
-We won't take too much of your time. ${contactSentence}
-
-Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
+Please remember that final coverage selections and decisions remain the responsibility of the policyholder. Email communications do not bind, change, or modify coverage without formal carrier confirmation.
 
 Thank you for your time and trust,
 
-Alsop and Associates Insurance Agency
+Alsop & Associates Insurance Agency
 (909) 626-5000 | support@coveragechecknow.com
 ---
 
@@ -167,15 +184,46 @@ ${MASTER_GUARDRAIL_RULES}`;
         description: 'Ask client to verify property specs (sq ft, features) from the attached Replacement Cost Estimate.',
         generate: (ctx) => {
             const cleanPolicy = cleanPolicyNumber(ctx.policyNumber);
-            return `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
+            const policyEnding = getPolicyEnding(ctx.policyNumber) || cleanPolicy;
+            const firstName = ctx.clientName ? ctx.clientName.trim().split(/\s+/)[0] : 'Valued Client';
+            const contactSentence = ctx.meetingUrl
+                ? `Please schedule a brief review on our calendar: ${ctx.meetingUrl} at a convenient time, or call our office at (909) 626-5000 to speak with a licensed agent.`
+                : `To schedule a review or speak with a licensed agent, please call our office at (909) 626-5000.`;
 
-TASK: Draft a professional, warm, permission-based email requesting that policyholder ${ctx.clientName || 'Valued Client'} review and verify the property specifications on their attached Replacement Cost Estimate (RCE) for policy ${cleanPolicy}.
+            return `Act as an expert insurance communications specialist writing on behalf of Alsop & Associates Insurance Agency.
+
+TASK: Draft a professional, warm, permission-based email requesting that policyholder ${ctx.clientName || 'Valued Client'} review and verify property specifications on their attached Replacement Cost Estimate (RCE) for policy ending in ${policyEnding}.
 
 CLIENT & POLICY DETAILS:
 ${formatContextBlock(ctx)}
 
 EMAIL PURPOSE:
-Ask the client to review and verify their property details (square footage, year built, construction quality, roof age) shown on their attached Replacement Cost Estimate (RCE). Explain that accurate property data ensures their replacement cost calculation properly reflects current construction costs. Explicitly state that NO changes have been made to their policy pre-review. Prioritize scheduling via Calendly${ctx.meetingUrl ? ` (${ctx.meetingUrl})` : ''}, with office phone (909) 626-5000 for immediate assistance.
+Ask the client to review and verify their property details (square footage, year built, renovations) shown on their attached Replacement Cost Estimate (RCE) for policy ending in ${policyEnding}. Explain that accurate property data ensures their replacement cost calculation properly reflects current construction costs. Explicitly state that NO changes have been made to their policy pre-review and adjustments are recommendations only. Prioritize scheduling via Calendly, with office phone (909) 626-5000 to speak with a licensed agent.
+
+REFERENCE EMAIL BLUEPRINT (Match structure, tone, and flow):
+---
+Subject: ${firstName}, Please Verify Your Property Details | Policy Ending in ${policyEnding}
+
+Hi ${firstName},
+
+With your policy scheduled for renewal on ${ctx.expirationDate || '[confirmed renewal date]'}, we have attached your updated Replacement Cost Estimate (RCE) for policy ending in ${policyEnding} to ensure your home is accurately valued against current construction costs.
+
+Please take a moment to review the attached estimate, specifically:
+• Living area square footage
+• Year built & construction details
+• Any recent renovations or additions
+
+No changes have been made to your policy. Any changes are recommendations only — we always request your permission before making updates to your policy.
+
+${contactSentence}
+
+Please remember that final coverage selections and decisions remain the responsibility of the policyholder. Email communications do not bind, change, or modify coverage without formal carrier confirmation.
+
+Thank you for your time and trust,
+
+Alsop & Associates Insurance Agency
+(909) 626-5000 | support@coveragechecknow.com
+---
 
 ${MASTER_GUARDRAIL_RULES}`;
         },
@@ -187,15 +235,41 @@ ${MASTER_GUARDRAIL_RULES}`;
         description: 'Present coverage findings, request permission to apply increases, and invite to Calendly meeting.',
         generate: (ctx) => {
             const cleanPolicy = cleanPolicyNumber(ctx.policyNumber);
-            return `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
+            const policyEnding = getPolicyEnding(ctx.policyNumber) || cleanPolicy;
+            const firstName = ctx.clientName ? ctx.clientName.trim().split(/\s+/)[0] : 'Valued Client';
+            const contactSentence = ctx.meetingUrl
+                ? `Please schedule a brief review on our calendar: ${ctx.meetingUrl} at a convenient time, or call our office at (909) 626-5000 to speak with a licensed agent.`
+                : `To schedule a review or speak with a licensed agent, please call our office at (909) 626-5000.`;
 
-TASK: Draft a professional, warm email presenting annual coverage recommendations and requesting client permission to review and update coverage for policy ${cleanPolicy}.
+            return `Act as an expert insurance communications specialist writing on behalf of Alsop & Associates Insurance Agency.
+
+TASK: Draft a professional, warm email presenting annual coverage recommendations and requesting client permission to review and update coverage for policy ending in ${policyEnding}.
 
 CLIENT & POLICY DETAILS:
 ${formatContextBlock(ctx)}
 
 EMAIL PURPOSE:
-Highlight key coverage differences identified during our annual review when comparing current policy limits against updated replacement cost estimates. Explicitly clarify that NO changes have been made to their policy pre-review. State that the Replacement Cost Estimate (RCE) and a generated Coverage Report are attached directly to the email. Request permission from the client to review recommended adjustments, and invite them to schedule a brief appointment via Calendly${ctx.meetingUrl ? ` (${ctx.meetingUrl})` : ''} as primary, or call our office at (909) 626-5000 for immediate assistance.
+Highlight key coverage differences identified during our annual review when comparing current policy limits against updated replacement cost estimates. Explicitly clarify that NO changes have been made to their policy pre-review. State that the Replacement Cost Estimate (RCE) and Coverage Report are attached directly to the email for policy ending in ${policyEnding}. Request permission from the client to review recommended adjustments, and invite them to schedule a brief appointment via Calendly (${ctx.meetingUrl ? ctx.meetingUrl : ''}) as primary, or call our office at (909) 626-5000 to speak with a licensed agent.
+
+REFERENCE EMAIL BLUEPRINT (Match structure, tone, and flow):
+---
+Subject: ${firstName}, Your Coverage Review & Options Are Ready | Policy Ending in ${policyEnding}
+
+Hi ${firstName},
+
+With your policy scheduled for renewal on ${ctx.expirationDate || '[confirmed renewal date]'}, we recently completed an annual review of your property coverage and have attached your Replacement Cost Estimate (RCE) and Coverage Report for policy ending in ${policyEnding}.
+
+These documents highlight comparative options between your current policy limits and updated rebuilding cost estimates. No changes have been made to your policy. Any changes are recommendations only — we always request your permission before making updates to your policy.
+
+${contactSentence}
+
+Please remember that final coverage selections and decisions remain the responsibility of the policyholder. Email communications do not bind, change, or modify coverage without formal carrier confirmation.
+
+Thank you for your time and trust,
+
+Alsop & Associates Insurance Agency
+(909) 626-5000 | support@coveragechecknow.com
+---
 
 ${MASTER_GUARDRAIL_RULES}`;
         },
@@ -207,41 +281,41 @@ ${MASTER_GUARDRAIL_RULES}`;
         description: 'For clients whose lender pays premium through escrow.',
         generate: (ctx) => {
             const cleanPolicy = cleanPolicyNumber(ctx.policyNumber);
+            const policyEnding = getPolicyEnding(ctx.policyNumber) || cleanPolicy;
+            const firstName = ctx.clientName ? ctx.clientName.trim().split(/\s+/)[0] : 'Valued Client';
             const contactSentence = ctx.meetingUrl
-                ? `We encourage you to schedule a convenient review on our calendar: ${ctx.meetingUrl}. If you require immediate assistance, you can also reach our office directly at (909) 626-5000.`
-                : `To schedule a review or speak with an agent, please call our main office at (909) 626-5000.`;
+                ? `Please schedule a brief review on our calendar: ${ctx.meetingUrl} at a convenient time, or call our office at (909) 626-5000 to speak with a licensed agent.`
+                : `To schedule a review or speak with a licensed agent, please call our office at (909) 626-5000.`;
 
-            return `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
+            return `Act as an expert insurance communications specialist writing on behalf of Alsop & Associates Insurance Agency.
 
-TASK: Draft a professional, warm renewal review email to a policyholder whose renewal premium is paid through mortgage escrow regarding policy ${cleanPolicy}.
+TASK: Draft a professional, warm renewal review email to a policyholder whose renewal premium is paid through mortgage escrow regarding policy ending in ${policyEnding}.
 
 CLIENT & POLICY DETAILS:
 ${formatContextBlock(ctx)}
 
 EMAIL PURPOSE:
-Inform the client that their policy renewal is approaching. Clarify that while their mortgage escrow account (${ctx.mortgageeName || 'mortgage escrow'}) handles premium payments, conducting an annual coverage review ensures their property remains fully protected against current rebuilding costs. Explicitly state that NO changes have been made to their policy pre-review. State that their Replacement Cost Estimate (RCE) along with a generated Coverage Report are attached for review. Request permission to review potential coverage recommendations. Prioritize scheduling via Calendly, with office phone for immediate assistance.
+Inform the client that their policy renewal is approaching. Clarify that while their mortgage lender handles premium payments, conducting an annual coverage review ensures their property remains fully protected against current rebuilding costs. Explicitly state that NO changes have been made to their policy pre-review. State that their Replacement Cost Estimate (RCE) along with a Coverage Report are attached for review for policy ending in ${policyEnding}. Request permission to review potential coverage recommendations. Prioritize scheduling via Calendly, with office phone (909) 626-5000 to speak with a licensed agent.
 
 REFERENCE EMAIL BLUEPRINT (Match structure, tone, and flow):
 ---
-Subject: Important Renewal Review Notice — Policy ${cleanPolicy}
+Subject: ${firstName}, Your Home Policy Review Is Ready | Policy Ending in ${policyEnding}
 
-Hi ${ctx.clientName ? ctx.clientName.trim().split(/\s+/)[0] : 'Valued Client'},
+Hi ${firstName},
 
-Your policy ${cleanPolicy} is approaching its upcoming renewal on ${ctx.expirationDate || 'your renewal date'}. While your mortgage lender (${ctx.mortgageeName || 'your mortgage escrow account'}) handles premium payments, conducting an annual review ensures your coverage limits align with current rebuilding costs.
+With your policy scheduled for renewal on ${ctx.expirationDate || '[confirmed renewal date]'}, now is a helpful time to review your current coverage versus updated replacement cost information and available options. While your lender (${ctx.mortgageeName || 'mortgage escrow'}) handles premium payments, an annual review ensures your coverage limits align with current rebuilding costs.
 
-As part of our annual review process, we have attached your Replacement Cost Estimate (RCE) along with a generated Coverage Report to this email for your review.
+We have attached your Replacement Cost Estimate (RCE) and Coverage Report for policy ending in ${policyEnding}. These documents can help guide a brief conversation about your current limits, property information, and any questions or concerns you may have.
 
-Please note that no changes have been made to your policy. Any suggested adjustments are recommendations only for your consideration — we always request your explicit permission before making updates to your policy.
+No changes have been made to your policy. Any changes are recommendations only — we always request your permission before making updates to your policy.
 
-To assist with our review, please have handy any questions, concerns, or feedback you would like to share.
+${contactSentence}
 
-We respect your time and this quick review will ensure your renewal stays on track. ${contactSentence}
+Please remember that final coverage selections and decisions remain the responsibility of the policyholder. Email communications do not bind, change, or modify coverage without formal carrier confirmation.
 
-Please remember that final coverage selections and decisions remain the responsibility of the policyholder.
+Thank you for your time and trust,
 
-Thank you for your time and continued trust,
-
-Alsop and Associates Insurance Agency
+Alsop & Associates Insurance Agency
 (909) 626-5000 | support@coveragechecknow.com
 ---
 
@@ -255,15 +329,16 @@ ${MASTER_GUARDRAIL_RULES}`;
         description: 'Invite the client to schedule a coverage review appointment.',
         generate: (ctx) => {
             const cleanPolicy = cleanPolicyNumber(ctx.policyNumber);
-            return `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
+            const policyEnding = getPolicyEnding(ctx.policyNumber) || cleanPolicy;
+            return `Act as an expert insurance communications specialist writing on behalf of Alsop & Associates Insurance Agency.
 
-TASK: Draft a professional, warm email inviting a policyholder to schedule a policy review appointment for policy ${cleanPolicy}.
+TASK: Draft a professional, warm email inviting a policyholder to schedule a policy review appointment for policy ending in ${policyEnding}.
 
 CLIENT & POLICY DETAILS:
 ${formatContextBlock(ctx)}
 
 EMAIL PURPOSE:
-Invite the client to schedule a brief appointment on our calendar${ctx.meetingUrl ? ` (${ctx.meetingUrl})` : ''} to review their coverage options and discuss recommended policy updates. Reassure them that no changes have been made pre-review, the review is quick and permission-based, and designed to protect their property investment. Offer office phone (909) 626-5000 for immediate needs.
+Invite the client to schedule a brief appointment on our calendar${ctx.meetingUrl ? `: ${ctx.meetingUrl} at a convenient time` : ''} to review their coverage options and discuss recommended policy updates. Reassure them that no changes have been made to their policy pre-review, the review is quick and permission-based, and designed to protect their property investment. Offer office phone (909) 626-5000 to speak with a licensed agent.
 
 ${MASTER_GUARDRAIL_RULES}`;
         },
@@ -275,9 +350,10 @@ ${MASTER_GUARDRAIL_RULES}`;
         description: 'Provide your own purpose — CoPilot drafts based on the context you supply.',
         generate: (ctx) => {
             const cleanPolicy = cleanPolicyNumber(ctx.policyNumber);
-            return `Act as an expert insurance communications specialist writing on behalf of Alsop and Associates Insurance Agency.
+            const policyEnding = getPolicyEnding(ctx.policyNumber) || cleanPolicy;
+            return `Act as an expert insurance communications specialist writing on behalf of Alsop & Associates Insurance Agency.
 
-TASK: Draft a professional, warm email to a policyholder regarding policy ${cleanPolicy}.
+TASK: Draft a professional, warm email to a policyholder regarding policy ending in ${policyEnding}.
 
 CLIENT & POLICY DETAILS:
 ${formatContextBlock(ctx)}
