@@ -61,7 +61,7 @@ interface AIReportInsights {
 }
 
 export async function POST(req: NextRequest) {
-    const auth = await authenticateRequest(req, { requiredRole: ['admin', 'service'] });
+    const auth = await authenticateRequest(req, { requiredRole: ['admin', 'service', 'agent'] });
     if (isAuthError(auth)) return auth;
 
     try {

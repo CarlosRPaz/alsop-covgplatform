@@ -391,12 +391,12 @@ export function ActivityTab() {
                                         {activity.type === 'upload' && isDone && (
                                             <span className={styles.successHints}>
                                                 {activity.is_enriched ? (
-                                                    <><Sparkles size={10} /><span>Enriched</span></>
+                                                    <><Sparkles size={10} /><span>Data Checked</span></>
                                                 ) : (
                                                     (new Date().getTime() - new Date(activity.created_at).getTime() > 120_000) ? (
-                                                        <><Sparkles size={10} style={{ opacity: 0.4 }} /><span style={{ opacity: 0.6 }}>Unenriched</span></>
+                                                        <><Sparkles size={10} style={{ opacity: 0.4 }} /><span style={{ opacity: 0.6 }}>No Property Data</span></>
                                                     ) : (
-                                                        <><Loader2 size={10} className={styles.spinSlow} /><span style={{ opacity: 0.6 }}>Enriching…</span></>
+                                                        <><Loader2 size={10} className={styles.spinSlow} /><span style={{ opacity: 0.6 }}>Fetching Data…</span></>
                                                     )
                                                 )}
                                                 {activity.flags_checked ? (

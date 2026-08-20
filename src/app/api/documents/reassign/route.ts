@@ -25,7 +25,7 @@ function normalizeAddress(raw: string | null): string | null {
  *   5. Re-queues for processing on the new policy
  */
 export async function POST(request: NextRequest) {
-    const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+    const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service', 'agent'] });
     if (isAuthError(auth)) return auth;
 
     try {

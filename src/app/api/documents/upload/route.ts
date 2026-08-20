@@ -88,7 +88,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DocumentU
         // ---------------------------------------------------------------
         // 1. Authenticate user (REQUIRED)
         // ---------------------------------------------------------------
-        const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+        const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service', 'agent'] });
         if (isAuthError(auth)) return auth;
         const accountId = auth.user.id;
 

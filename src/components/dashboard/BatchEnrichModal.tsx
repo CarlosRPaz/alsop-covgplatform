@@ -166,24 +166,23 @@ export function BatchEnrichModal({ isOpen, onClose, selectedPolicyIds = [] }: Ba
     const cost = getCost();
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Enrich & Analyze Policies" maxWidth="560px">
+        <Modal isOpen={isOpen} onClose={onClose} title="Fetch Property Data & Analyze" maxWidth="560px">
             {/* ── Warning Banner ── */}
             <div className={styles.warningBanner}>
                 <div className={styles.warningIcon}>
                     <AlertTriangle size={20} />
                 </div>
                 <div className={styles.warningContent}>
-                    <strong className={styles.warningTitle}>⚠ Batch enrichment is expensive</strong>
+                    <strong className={styles.warningTitle}>⚠ Batch property data fetch is resource-intensive</strong>
                     <p className={styles.warningText}>
-                        Running enrichment across your entire book costs real money per policy
-                        (external API calls, AI processing). We strongly recommend enriching
+                        Fetching property data across your entire book calls external satellite, assessor, and AI services. We recommend checking
                         policies <strong>one at a time</strong> from each policy&apos;s detail page,
-                        only when you actually need that data.
+                        when you need updated aerials and hazard data.
                     </p>
                     <p className={styles.warningRecommendation}>
                         <Shield size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '0.25rem' }} />
-                        <strong>Recommended:</strong> Open a policy → click &ldquo;Enrich Property Data&rdquo; → review results.
-                        This gives you control and avoids unnecessary cost.
+                        <strong>Recommended:</strong> Open a policy → click &ldquo;Fetch Property Data&rdquo; → review results.
+                        This gives you control and avoids unnecessary API costs.
                     </p>
                 </div>
             </div>
@@ -195,7 +194,7 @@ export function BatchEnrichModal({ isOpen, onClose, selectedPolicyIds = [] }: Ba
                         <div className={styles.stat}>
                             <FileSearch size={16} className={styles.statIcon} />
                             <div>
-                                <span className={styles.statLabel}>Policies selected to enrich</span>
+                                <span className={styles.statLabel}>Policies selected to fetch data</span>
                                 <span className={styles.statValue}>
                                     {loading ? '…' : unenrichedCount.toLocaleString()}
                                     {!loading && unenrichedCount === 0 && selectedPolicyIds.length === 0 && ' (No policies selected in table)'}
@@ -213,7 +212,7 @@ export function BatchEnrichModal({ isOpen, onClose, selectedPolicyIds = [] }: Ba
                                     onClick={() => setRunMode('enrichment')}
                                 >
                                     <Zap size={14} />
-                                    Enrichment Only
+                                    Property Data Only
                                 </button>
                                 <button
                                     className={`${styles.modeOption} ${runMode === 'full' ? styles.modeActive : ''}`}

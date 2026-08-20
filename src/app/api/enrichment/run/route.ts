@@ -365,7 +365,7 @@ async function enrichAssessorData(
 // ---------------------------------------------------------------------------
 
 export async function POST(request: NextRequest) {
-    const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+    const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service', 'agent'] });
     if (isAuthError(auth)) return auth;
 
     try {
@@ -387,24 +387,60 @@ export async function POST(request: NextRequest) {
         if (incomingAuth) fwdHeaders['Authorization'] = incomingAuth;
         if (incomingKey) fwdHeaders['X-Internal-Key'] = incomingKey;
 
-        // 1. Fetch the policy's property address
-        const { data: policy, error: policyErr } = await sb
+        // 1. Fetch the policy's property address (with fallback to declarations table)
+        let resolvedPolicyId = policy_id;
+        let address = '';
+
+        const { data: directPolicy } = await sb
             .from('policies')
             .select('id, property_address_raw, property_address_norm')
             .eq('id', policy_id)
-            .single();
+            .maybeSingle();
 
-        if (policyErr || !policy) {
-            return NextResponse.json({ error: 'Policy not found' }, { status: 404 });
+        if (directPolicy) {
+            resolvedPolicyId = directPolicy.id;
+            address = directPolicy.property_address_norm || directPolicy.property_address_raw || '';
         }
 
-        const address = policy.property_address_norm || policy.property_address_raw;
+        // If no direct policy address, check declarations linked to this policy or where id = policy_id
+        if (!address) {
+            const { data: dec } = await sb
+                .from('declarations')
+                .select('id, policy_id, property_location')
+                .or(`id.eq.${policy_id},policy_id.eq.${policy_id}`)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (dec) {
+                if (dec.policy_id) resolvedPolicyId = dec.policy_id;
+                if (dec.property_location) address = dec.property_location;
+            }
+        }
+
+        // If still no address, check policy_terms
+        if (!address) {
+            const { data: term } = await sb
+                .from('policy_terms')
+                .select('policy_id, property_address')
+                .eq('policy_id', resolvedPolicyId)
+                .limit(1)
+                .maybeSingle();
+
+            if (term?.property_address) {
+                address = term.property_address;
+            }
+        }
+
         if (!address) {
             return NextResponse.json({
-                error: 'No property address on this policy — cannot enrich',
+                error: 'No property address found for this policy — cannot fetch property data',
                 results: { satellite_image: false, coordinates: false, fire_risk: false },
             }, { status: 422 });
         }
+
+        // Use resolvedPolicyId for all enrichment storage and calls
+        const targetPolicyId = resolvedPolicyId;
 
         const results: Record<string, boolean | string> = {
             satellite_image: false,
@@ -420,7 +456,7 @@ export async function POST(request: NextRequest) {
         // 2. Satellite image
         let t0 = Date.now();
         try {
-            results.satellite_image = await enrichSatelliteImage(sb, policy_id, address);
+            results.satellite_image = await enrichSatelliteImage(sb, targetPolicyId, address);
         } catch (e) {
             logger.error('Enrichment', `Satellite error: ${e}`);
         }
@@ -429,7 +465,7 @@ export async function POST(request: NextRequest) {
         // 2.5 Assessor Data (ATTOM)
         t0 = Date.now();
         try {
-            results.assessor_data = await enrichAssessorData(sb, policy_id, address);
+            results.assessor_data = await enrichAssessorData(sb, targetPolicyId, address);
         } catch (e) {
             logger.error('Enrichment', `Assessor Data error: ${e}`);
         }
@@ -439,7 +475,7 @@ export async function POST(request: NextRequest) {
         t0 = Date.now();
         let coords: { lat: number; lng: number } | null = null;
         try {
-            coords = await enrichCoordinates(sb, policy_id, address);
+            coords = await enrichCoordinates(sb, targetPolicyId, address);
             results.coordinates = coords !== null;
         } catch (e) {
             logger.error('Enrichment', `Geocoding error: ${e}`);
@@ -450,7 +486,7 @@ export async function POST(request: NextRequest) {
         if (coords) {
             t0 = Date.now();
             try {
-                results.fire_risk = await enrichFireRisk(sb, policy_id, address, coords);
+                results.fire_risk = await enrichFireRisk(sb, targetPolicyId, address, coords);
             } catch (e) {
                 logger.error('Enrichment', `Fire risk error: ${e}`);
             }
@@ -458,7 +494,7 @@ export async function POST(request: NextRequest) {
 
             t0 = Date.now();
             try {
-                results.street_view_image = await enrichStreetViewImage(sb, policy_id, coords);
+                results.street_view_image = await enrichStreetViewImage(sb, targetPolicyId, coords);
             } catch (e) {
                 logger.error('Enrichment', `Street View error: ${e}`);
             }
@@ -473,7 +509,7 @@ export async function POST(request: NextRequest) {
                 const visionRes = await fetch(`${origin}/api/enrichment/vision-analyze`, {
                     method: 'POST',
                     headers: fwdHeaders,
-                    body: JSON.stringify({ policy_id }),
+                    body: JSON.stringify({ policy_id: targetPolicyId }),
                 });
                 if (visionRes.ok) {
                     const visionData = await visionRes.json();
@@ -495,7 +531,7 @@ export async function POST(request: NextRequest) {
                 const streetVisionRes = await fetch(`${origin}/api/enrichment/street-vision-analyze`, {
                     method: 'POST',
                     headers: fwdHeaders,
-                    body: JSON.stringify({ policy_id }),
+                    body: JSON.stringify({ policy_id: targetPolicyId }),
                 });
                 if (streetVisionRes.ok) {
                     const streetVisionData = await streetVisionRes.json();
@@ -517,7 +553,7 @@ export async function POST(request: NextRequest) {
             const reportRes = await fetch(`${origin}/api/reports/generate`, {
                 method: 'POST',
                 headers: fwdHeaders,
-                body: JSON.stringify({ policyId: policy_id }),
+                body: JSON.stringify({ policyId: targetPolicyId }),
             });
             if (reportRes.ok) {
                 reportGenerated = true;
@@ -533,7 +569,7 @@ export async function POST(request: NextRequest) {
         timings.total_ms = Date.now() - pipelineStart;
 
         // Log per-step timing summary
-        logger.info('Enrichment', `Pipeline timings for policy ${policy_id}: ${JSON.stringify(timings)}`);
+        logger.info('Enrichment', `Pipeline timings for policy ${targetPolicyId}: ${JSON.stringify(timings)}`);
 
         // 8. Activity event: enrichment complete
         try {
@@ -541,7 +577,7 @@ export async function POST(request: NextRequest) {
                 event_type: 'enrichment.completed',
                 title: 'Property data enriched',
                 detail: `Satellite: ${results.satellite_image ? '✓' : '✗'}, Street View: ${results.street_view_image ? '✓' : '✗'}, Fire Risk: ${results.fire_risk ? '✓' : '✗'}, AI Vision: ${results.vision_analysis ? '✓' : '✗'}, Report: ${reportGenerated ? '✓' : '✗'}`,
-                policy_id: policy_id,
+                policy_id: targetPolicyId,
                 meta: { results, timings },
             });
         } catch (e) {

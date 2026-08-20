@@ -15,7 +15,7 @@ import { logger } from '@/lib/logger';
 export async function POST(request: NextRequest) {
     try {
         // 1. Authenticate user
-        const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+        const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service', 'agent'] });
         if (isAuthError(auth)) return auth;
 
         // 2. Parse body

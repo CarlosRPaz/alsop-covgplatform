@@ -13,7 +13,7 @@ import { logger } from '@/lib/logger';
  * Body: { reportId: string, ai_insights: object }
  */
 export async function PATCH(req: NextRequest) {
-    const auth = await authenticateRequest(req, { requiredRole: ['admin', 'service'] });
+    const auth = await authenticateRequest(req, { requiredRole: ['admin', 'service', 'agent'] });
     if (isAuthError(auth)) return auth;
 
     try {

@@ -86,7 +86,7 @@ type ColumnDef = { key: keyof DashboardPolicy; label: string; width?: string };
 const INITIAL_COLUMNS: ColumnDef[] = [
     { key: 'policy_number', label: 'Policy #' },
     { key: 'flag_count', label: 'Flags' },
-    { key: 'is_enriched', label: 'Enriched' },
+    { key: 'is_enriched', label: 'Property Data' },
     { key: 'has_dec_page', label: 'Dec Page' },
     { key: 'has_rce', label: 'RCE' },
     { key: 'has_dic', label: 'DIC' },
@@ -1116,6 +1116,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                     {/* Enrichment Filter Pill */}
                     <div style={{ position: 'relative' }} ref={enrichmentMenuRef}>
                         <button
+                            type="button"
                             onClick={() => setIsEnrichmentMenuOpen(prev => !prev)}
                             className={clsx(
                                 styles.pillButton,
@@ -1123,7 +1124,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                             )}
                         >
                             <Satellite size={16} />
-                            <span>Enriched</span>
+                            <span>Property Data</span>
                             {enrichmentFilter !== 'all' && (
                                 <span className={styles.pillBadge}>1</span>
                             )}
@@ -1131,14 +1132,14 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                         </button>
 
                         {isEnrichmentMenuOpen && (
-                            <div className={styles.dropdownMenu} style={{ minWidth: '180px' }}>
+                            <div className={styles.dropdownMenu} style={{ minWidth: '190px' }}>
                                 <div className={styles.dropdownHeader}>
-                                    <span>Enrichment</span>
+                                    <span>Property Data</span>
                                 </div>
                                 {[
                                     { value: 'all' as const, label: 'All Policies' },
-                                    { value: 'enriched' as const, label: 'Enriched Only' },
-                                    { value: 'not_enriched' as const, label: 'Not Enriched' },
+                                    { value: 'enriched' as const, label: 'Has Property Data' },
+                                    { value: 'not_enriched' as const, label: 'Missing Property Data' },
                                 ].map(opt => (
                                     <button
                                         key={opt.value}
@@ -1475,7 +1476,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                         {/* Enrichment chip */}
                         {enrichmentFilter !== 'all' && (
                             <span className={styles.filterChip}>
-                                {enrichmentFilter === 'enriched' ? 'Enriched Only' : 'Not Enriched'}
+                                {enrichmentFilter === 'enriched' ? 'Has Property Data' : 'Missing Property Data'}
                                 <button onClick={() => setEnrichmentFilter('all')} className={styles.filterChipX}><X size={11} /></button>
                             </span>
                         )}
@@ -1617,7 +1618,7 @@ export function DataTable({ initialSearch, initialExpirationFilter, initialStatu
                                 const tooltipParts = [];
                                 if (row.annual_premium) tooltipParts.push(`Premium: $${Number(row.annual_premium).toLocaleString()}`);
                                 if (row.flag_count > 0) tooltipParts.push(`${row.flag_count} flag${row.flag_count > 1 ? 's' : ''}`);
-                                tooltipParts.push(row.is_enriched ? 'Enriched ✓' : 'Not enriched');
+                                tooltipParts.push(row.is_enriched ? 'Property Data Checked ✓' : 'Missing Property Data');
                                 if (row.expiration_date) {
                                     const d = new Date(row.expiration_date);
                                     const mm = String(d.getMonth() + 1).padStart(2, '0');

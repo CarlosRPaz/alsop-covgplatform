@@ -265,7 +265,7 @@ async function analyzeWithGPT4o(imageBase64: string): Promise<VisionResponse | n
 // ---------------------------------------------------------------------------
 
 export async function POST(request: NextRequest) {
-    const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+    const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service', 'agent'] });
     if (isAuthError(auth)) return auth;
 
     try {

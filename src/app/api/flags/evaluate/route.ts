@@ -499,7 +499,7 @@ async function detectSchema(sb: ReturnType<typeof getSupabaseAdmin>): Promise<bo
 // ── Main handler ─────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
-    const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+    const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service', 'agent'] });
     if (isAuthError(auth)) return auth;
 
     const errors: string[] = [];

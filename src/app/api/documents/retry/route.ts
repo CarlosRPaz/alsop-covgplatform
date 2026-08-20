@@ -10,7 +10,7 @@ import { authenticateRequest, isAuthError } from '@/lib/apiAuth';
  * Resets a stuck/failed/stalled document and re-queues it for processing.
  */
 export async function POST(request: NextRequest) {
-    const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service'] });
+    const auth = await authenticateRequest(request, { requiredRole: ['admin', 'service', 'agent'] });
     if (isAuthError(auth)) return auth;
 
     try {

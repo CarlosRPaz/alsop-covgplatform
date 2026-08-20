@@ -24,7 +24,7 @@ import { logger } from '@/lib/logger';
  * Body: { policy_id: string, manual_sqft?: number }
  */
 export async function POST(req: NextRequest) {
-    const auth = await authenticateRequest(req, { requiredRole: ['admin', 'service'] });
+    const auth = await authenticateRequest(req, { requiredRole: ['admin', 'service', 'agent'] });
     if (isAuthError(auth)) return auth;
 
     try {

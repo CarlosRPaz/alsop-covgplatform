@@ -48,7 +48,7 @@ export function AgentDashboardStats() {
             action: '/dashboard?flag=OTHER_STRUCTURES_ZERO',
         },
         {
-            title: 'Not Enriched',
+            title: 'Missing Property Data',
             value: stats.unenriched,
             sublabel: 'Missing property insights',
             color: '#3b82f6',

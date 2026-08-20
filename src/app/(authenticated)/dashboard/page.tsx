@@ -108,7 +108,7 @@ function DashboardContent() {
         }
         if (statusFilter === 'pending_review') return 'Pending review';
         if (statusFilter) return `Status: ${statusFilter}`;
-        if (enrichmentFilter === 'not_enriched') return 'Not enriched';
+        if (enrichmentFilter === 'not_enriched') return 'Missing Property Data';
         return '';
     }, [expirationFrom, expirationTo, statusFilter, renewalWindow, enrichmentFilter, flagFilter]);
 
@@ -156,7 +156,7 @@ function DashboardContent() {
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => setIsEnrichModalOpen(true)} style={{ color: 'var(--text-muted)' }}>
                             <Zap style={{ width: 13, height: 13, marginRight: 5 }} />
-                            Enrich &amp; Analyze
+                            Fetch Property Data &amp; Analyze
                         </Button>
                     </div>
                 </header>
