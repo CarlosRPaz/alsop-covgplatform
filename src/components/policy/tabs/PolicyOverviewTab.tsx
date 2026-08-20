@@ -123,11 +123,6 @@ export function PolicyOverviewTab({ declaration, policyDetail, enrichments = [],
 
     const hasDic = Boolean(declaration.dic_exists || declaration.dic_limit_dwelling);
 
-    // Calculated metrics for Hero Bar
-    const cfpPremiumNum = parseNum(policyDetail?.annual_premium || declaration.total_annual_premium);
-    const dicPremiumNum = parseNum(declaration.dic_annual_premium_raw);
-    const totalCombinedPremium = (cfpPremiumNum || 0) + (dicPremiumNum || 0);
-
     const dwellingVal = getVal('limit_dwelling', declaration.limit_dwelling);
     const otherStructVal = getVal('limit_other_structures', declaration.limit_other_structures);
     const personalPropVal = getVal('limit_personal_property', declaration.limit_personal_property);
@@ -193,47 +188,20 @@ export function PolicyOverviewTab({ declaration, policyDetail, enrichments = [],
             </div>
 
             {/* ═══════════════════════════════════════════════════════════════ */}
-            {/* Hero Executive KPI Strip                                       */}
+            {/* Hero Dec Page Annual Premium Bar                                */}
             {/* ═══════════════════════════════════════════════════════════════ */}
             <div className={styles.hero}>
                 <div className={styles.heroMain}>
-                    <span className={styles.heroLabel}>
-                        {hasDic && dicPremiumNum ? 'Combined Annual Premium' : 'Total Annual Premium'}
-                    </span>
+                    <span className={styles.heroLabel}>Annual Premium</span>
                     <span className={styles.heroCost}>
-                        {totalCombinedPremium > 0
-                            ? fmtCurrency(totalCombinedPremium)
-                            : (policyDetail?.annual_premium || declaration.total_annual_premium || '—')}
+                        {policyDetail?.annual_premium || declaration.total_annual_premium || '—'}
                     </span>
                     <span className={styles.heroSubtext}>
-                        {hasDic && dicPremiumNum ? (
-                            <>CFP: {fmtCurrency(cfpPremiumNum)} · DIC: {fmtCurrency(dicPremiumNum)}</>
-                        ) : (
-                            <>Policy #{declaration.policy_number || '—'}</>
-                        )}
+                        Policy #{declaration.policy_number || '—'}
                         {daysRemaining != null && (
                             <> · {daysRemaining > 0 ? `${daysRemaining} days active` : 'Expired'}</>
                         )}
                     </span>
-                </div>
-
-                <div className={styles.heroMeta}>
-                    <div className={styles.heroStat}>
-                        <span className={styles.heroStatLabel}>Dwelling (Cov A)</span>
-                        <span className={styles.heroStatValue}>{fmtCurrency(dwellingVal)}</span>
-                    </div>
-                    <div className={styles.heroStat}>
-                        <span className={styles.heroStatLabel}>Other Struct (B)</span>
-                        <span className={styles.heroStatValue}>{fmtCurrency(otherStructVal)}</span>
-                    </div>
-                    <div className={styles.heroStat}>
-                        <span className={styles.heroStatLabel}>Personal Prop (C)</span>
-                        <span className={styles.heroStatValue}>{fmtCurrency(personalPropVal)}</span>
-                    </div>
-                    <div className={styles.heroStat}>
-                        <span className={styles.heroStatLabel}>Deductible</span>
-                        <span className={styles.heroStatValue}>{fmtCurrency(deductibleVal)}</span>
-                    </div>
                 </div>
             </div>
 

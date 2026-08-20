@@ -104,45 +104,6 @@
     white-space: nowrap;
 }
 
-.heroMeta {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 0.75rem 1.5rem;
-    margin-left: auto;
-    padding-left: 1.75rem;
-    border-left: 1px solid var(--border-default);
-    min-width: 0;
-    align-content: center;
-}
-
-.heroStat {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-}
-
-.heroStatLabel {
-    font-size: 0.68rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.heroStatValue {
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--text-high);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-variant-numeric: tabular-nums;
-    margin-top: 0.1rem;
-}
-
 /* ═══ Cards ═══ */
 .card {
     border: 1px solid var(--border-default);
