@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
 import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload, ShieldCheck, MapPin, Phone, RotateCcw, ShieldAlert } from 'lucide-react';
 import { PropertyBanner } from '@/components/policy/PropertyBanner';
-import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, fetchPlatformDocumentsByPolicyId, getPlatformDocDownloadUrl, fetchRceDocDataByPolicyId, RceDocData, fetchDicDocDataByPolicyId, DicDocData, generatePolicyReport, fetchRenewalEmailLog, RenewalEmailLogEntry } from '@/lib/api';
+import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, fetchPlatformDocumentsByPolicyId, getPlatformDocDownloadUrl, fetchRceDocDataByPolicyId, RceDocData, fetchDicDocDataByPolicyId, DicDocData, generatePolicyReport, fetchRenewalEmailLog, RenewalEmailLogEntry, getLatestReportConfigVersion } from '@/lib/api';
 import { PolicyStatusBar } from '@/components/policy/PolicyStatusBar';
 import { PolicyOverviewTab } from '@/components/policy/tabs/PolicyOverviewTab';
 import { PolicyCfpDetailsTab } from '@/components/policy/tabs/PolicyCfpDetailsTab';
@@ -86,6 +86,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     const [bgProcessingStep, setBgProcessingStep] = useState<string | null>(null);
     const [rceDocData, setRceDocData] = useState<RceDocData[]>([]);
     const [dicDocData, setDicDocData] = useState<DicDocData[]>([]);
+    const [latestConfigVersion, setLatestConfigVersion] = useState<{ version_number: number; changed_at: string } | null>(null);
 
     // Detect user role for client vs agent view
     useEffect(() => {
@@ -93,10 +94,60 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             setUserRole(p?.role || null);
             setRoleLoading(false);
         });
+        getLatestReportConfigVersion().then(setLatestConfigVersion);
     }, []);
 
     // Client-view flag — checked AFTER all hooks (React rules of hooks)
     const isCustomer = !roleLoading && userRole === 'customer';
+
+    // Compute whether the generated report is stale
+    const isReportStale = useMemo(() => {
+        if (!reportRow?.created_at) return false;
+        const reportTime = new Date(reportRow.created_at).getTime();
+
+        // 1. Report config changed after report creation
+        if (latestConfigVersion?.changed_at && reportTime < new Date(latestConfigVersion.changed_at).getTime()) {
+            return true;
+        }
+        // 2. Policy updated after report creation
+        if (policyDetailRaw?.updated_at && reportTime < new Date(policyDetailRaw.updated_at).getTime()) {
+            return true;
+        }
+        // 3. Property data updated after report creation
+        if (enrichments.length > 0) {
+            const latestEnrichTime = Math.max(...enrichments.map(e => e.created_at ? new Date(e.created_at).getTime() : 0));
+            if (latestEnrichTime > 0 && reportTime < latestEnrichTime) {
+                return true;
+            }
+        }
+        // 4. Flags updated after report creation
+        if (allFlags.length > 0) {
+            const latestFlagTime = Math.max(...allFlags.map(f => f.created_at ? new Date(f.created_at).getTime() : 0));
+            if (latestFlagTime > 0 && reportTime < latestFlagTime) {
+                return true;
+            }
+        }
+        return false;
+    }, [reportRow?.created_at, latestConfigVersion, policyDetailRaw?.updated_at, enrichments, allFlags]);
+
+    // Handle Report Generation & Regeneration
+    const handleGenerateReport = useCallback(async () => {
+        setIsGeneratingReport(true);
+        try {
+            const result = await generatePolicyReport(id);
+            if (result.report) {
+                setReportRow(result.report as PolicyReportRow);
+                getLatestReportConfigVersion().then(setLatestConfigVersion);
+            } else {
+                alert(result.error || 'Failed to generate report — please try again.');
+            }
+        } catch (e) {
+            logger.error('page', 'Report generation failed:', { error: e instanceof Error ? e.message : String(e) });
+            alert('Error generating report. Check the console for details.');
+        } finally {
+            setIsGeneratingReport(false);
+        }
+    }, [id]);
 
     // Derive enriched property image
     const propertyImageEnrichment = enrichments.find(e => e.field_key === 'property_image');
@@ -637,7 +688,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                             Dashboard
                         </button>
                     </Link>
-                    <div style={{ transform: 'scale(0.9)', transformOrigin: 'right center' }}>
+                    <div style={{ flex: 1, maxWidth: '860px', marginLeft: 'auto' }}>
                         <PolicyStatusBar
                             isEnriched={isEnriched}
                             enrichmentCount={enrichments.length}
@@ -651,6 +702,11 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                             onRunFlagCheck={handleFlagCheck}
                             flagCheckRunning={flagCheckRunning}
                             enrichments={enrichments}
+                            reportRow={reportRow}
+                            isReportGenerating={isGeneratingReport}
+                            isReportStale={isReportStale}
+                            onGenerateReport={handleGenerateReport}
+                            onViewReport={() => reportRow && router.push(`/report/${reportRow.id}`)}
                         />
                     </div>
                 </div>
@@ -774,53 +830,12 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                                 variant="primary"
                                 size="sm"
                                 onClick={() => router.push(`/report/${reportRow.id}`)}
-                                title={`View coverage review report${reportRow.created_at ? ` — Generated ${new Date(reportRow.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}`}
+                                title={`View coverage comparison report${reportRow.created_at ? ` — Generated ${new Date(reportRow.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}`}
                             >
                                 <ExternalLink size={14} />
                                 View Report
                             </Button>
                         )}
-
-                        <Button
-                            variant={reportRow ? 'outline' : 'primary'}
-                            size="sm"
-                            disabled={isGeneratingReport}
-                            title={reportRow ? 'Regenerate report with latest data & rules' : 'Generate coverage review report'}
-                            onClick={async () => {
-                                setIsGeneratingReport(true);
-                                try {
-                                    const result = await generatePolicyReport(id);
-                                    if (result.report) {
-                                        setReportRow(result.report as PolicyReportRow);
-                                        router.push(`/report/${result.report.id}`);
-                                    } else {
-                                        alert(result.error || 'Failed to generate report — please try again.');
-                                    }
-                                } catch (e) {
-                                    logger.error('page', 'Report generation failed:', { error: e instanceof Error ? e.message : String(e) })
-                                    alert('Error generating report. Check the console for details.');
-                                } finally {
-                                    setIsGeneratingReport(false);
-                                }
-                            }}
-                        >
-                            {isGeneratingReport ? (
-                                <>
-                                    <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                                    Generating…
-                                </>
-                            ) : reportRow ? (
-                                <>
-                                    <RotateCcw size={14} />
-                                    Regenerate
-                                </>
-                            ) : (
-                                <>
-                                    <FileText size={14} />
-                                    Generate Report
-                                </>
-                            )}
-                        </Button>
                     </div>
                 </div>
 

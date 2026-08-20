@@ -79,6 +79,18 @@
     animation: pulseExecutive 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+.indicatorOutdated {
+    background: rgba(245, 158, 11, 0.12);
+    color: #d97706;
+    border: 1.5px solid rgba(245, 158, 11, 0.35);
+}
+
+.indicatorNeutral {
+    background: rgba(148, 163, 184, 0.12);
+    color: #64748b;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
 @keyframes pulseExecutive {
     0%, 100% { box-shadow: 0 0 0 0 rgba(191, 25, 50, 0); }
     50% { box-shadow: 0 0 0 4px rgba(191, 25, 50, 0.12); }
@@ -109,7 +121,7 @@
 }
 
 .segmentValue {
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     color: var(--text-high);
     line-height: 1.3;
     font-weight: 500;
@@ -123,7 +135,7 @@
 .pending {
     color: #e11d48;
     font-weight: 700;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     letter-spacing: -0.01em;
 }
 
@@ -132,31 +144,63 @@
     color: var(--text-muted);
 }
 
-/* ── Action buttons ── */
+/* ── Action buttons & button groups ── */
+.buttonGroup {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+
 .actionBtn {
     flex-shrink: 0;
     display: inline-flex !important;
     align-items: center !important;
-    gap: 0.4rem !important;
+    gap: 0.35rem !important;
     height: 32px !important;
     font-size: 0.75rem !important;
     font-weight: 600 !important;
-    padding: 0 0.85rem !important;
+    padding: 0 0.75rem !important;
     white-space: nowrap;
     border-radius: var(--radius-sm) !important;
 }
 
-/* Action button — urgent for pending states 
-   Vibrant red, clean modern button style */
+.iconBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface);
+    color: var(--text-mid);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+.iconBtn:hover {
+    color: var(--accent-primary);
+    border-color: var(--accent-primary);
+    background: var(--bg-surface-raised, rgba(0, 0, 0, 0.04));
+}
+
+.iconBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Action button — urgent for pending states */
 .actionBtnUrgent {
     flex-shrink: 0;
     display: inline-flex !important;
     align-items: center !important;
-    gap: 0.4rem !important;
+    gap: 0.35rem !important;
     height: 32px !important;
     font-size: 0.75rem !important;
     font-weight: 700 !important;
-    padding: 0 1rem !important;
+    padding: 0 0.85rem !important;
     white-space: nowrap;
     border-radius: var(--radius-sm) !important;
     background: #BF1932 !important;
@@ -175,6 +219,36 @@
 .actionBtnUrgent:active {
     transform: translateY(0) !important;
     box-shadow: 0 2px 6px rgba(191, 25, 50, 0.25) !important;
+}
+
+/* Action button — outdated warning / update report */
+.actionBtnOutdated {
+    flex-shrink: 0;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.35rem !important;
+    height: 32px !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    padding: 0 0.85rem !important;
+    white-space: nowrap;
+    border-radius: var(--radius-sm) !important;
+    background: #d97706 !important;
+    border: none !important;
+    color: #fff !important;
+    box-shadow: 0 3px 10px rgba(217, 119, 6, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.actionBtnOutdated:hover {
+    background: #b45309 !important;
+    box-shadow: 0 4px 14px rgba(217, 119, 6, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+    transform: translateY(-1px) !important;
+}
+
+.actionBtnOutdated:active {
+    transform: translateY(0) !important;
+    box-shadow: 0 2px 6px rgba(217, 119, 6, 0.25) !important;
 }
 
 .actionLabel {

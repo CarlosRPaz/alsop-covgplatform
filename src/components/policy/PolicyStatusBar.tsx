@@ -4,12 +4,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
     Satellite, Shield, CheckCircle2, XCircle,
     Loader2, AlertTriangle, Zap, ChevronDown, ChevronUp,
+    FileText, ExternalLink, RotateCcw, Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button/Button';
-import { PropertyEnrichment } from '@/lib/api';
+import { PropertyEnrichment, PolicyReportRow } from '@/lib/api';
 import styles from './PolicyStatusBar.module.css';
 
-// Expected enrichment fields — used to determine what's "missing"
+// Expected property data fields — used to determine what's "missing"
 const EXPECTED_ENRICHMENT_KEYS = [
     { key: 'year_built', label: 'Year Built' },
     { key: 'square_footage', label: 'Square Footage' },
@@ -41,20 +42,30 @@ const EXPECTED_ENRICHMENT_KEYS = [
     { key: 'front_elevation_analysis', label: 'Front Elevation Analysis' },
 ];
 
-interface PolicyStatusBarProps {
+export interface PolicyStatusBarProps {
+    // 1. Property Data (formerly Enrichment)
     isEnriched: boolean;
     enrichmentCount: number;
     lastEnrichedDate?: string | null;
+    enrichStep?: string | null;
+    onEnrich: () => void;
+    /** Actual enrichment data points for the dropdown */
+    enrichments?: PropertyEnrichment[];
+
+    // 2. Flag Check
     flagsChecked: boolean;
     openFlagCount: number;
     highestSeverity?: 'high' | 'medium' | 'low' | null;
     lastCheckedDate?: string | null;
-    enrichStep?: string | null;
-    onEnrich: () => void;
     onRunFlagCheck: () => void;
     flagCheckRunning?: boolean;
-    /** Actual enrichment data points for the dropdown */
-    enrichments?: PropertyEnrichment[];
+
+    // 3. Coverage Report
+    reportRow?: PolicyReportRow | null;
+    isReportGenerating?: boolean;
+    isReportStale?: boolean;
+    onGenerateReport?: () => void;
+    onViewReport?: () => void;
 }
 
 export function PolicyStatusBar({
@@ -70,6 +81,11 @@ export function PolicyStatusBar({
     onRunFlagCheck,
     flagCheckRunning = false,
     enrichments = [],
+    reportRow,
+    isReportGenerating = false,
+    isReportStale = false,
+    onGenerateReport,
+    onViewReport,
 }: PolicyStatusBarProps) {
     const enrichRunning = !!enrichStep && enrichStep !== '✓ Complete!' && enrichStep !== '✗ Failed — try again';
     const enrichDone = enrichStep === '✓ Complete!';
@@ -93,10 +109,9 @@ export function PolicyStatusBar({
     const foundKeys = new Set(enrichments.map(e => e.field_key));
     const foundItems = enrichments.filter(e => e.field_key !== 'property_image'); // skip image in list
     const missingItems = EXPECTED_ENRICHMENT_KEYS.filter(e => !foundKeys.has(e.key) && e.key !== 'property_image');
-    // Any enrichment keys found that aren't in our expected list
     const extraItems = enrichments.filter(e => !EXPECTED_ENRICHMENT_KEYS.some(ex => ex.key === e.field_key) && e.field_key !== 'property_image');
 
-    // Severity color
+    // Severity color for flags
     const severityColor = highestSeverity === 'high' ? '#ef4444'
         : highestSeverity === 'medium' ? '#f59e0b'
             : highestSeverity === 'low' ? '#3b82f6'
@@ -113,9 +128,15 @@ export function PolicyStatusBar({
         return <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: color, marginRight: '4px', flexShrink: 0 }} />;
     };
 
+    const reportFormattedDate = reportRow?.created_at
+        ? new Date(reportRow.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : null;
+
     return (
         <div className={styles.bar}>
-            {/* ── Enrichment Status ── */}
+            {/* ══════════════════════════════════════════════════════════
+               1. PROPERTY DATA (formerly Property Enrichment)
+               ══════════════════════════════════════════════════════════ */}
             <div className={`${styles.segment} ${!isEnriched ? styles.segmentPending : ''}`} style={{ position: 'relative' }} ref={dropdownRef}>
                 <div className={`${styles.indicator} ${isEnriched ? styles.indicatorDone : styles.indicatorPending}`}>
                     {isEnriched ? (
@@ -125,14 +146,14 @@ export function PolicyStatusBar({
                     )}
                 </div>
                 <div className={styles.segmentInfo}>
-                    <span className={styles.segmentLabel}>Property Enrichment</span>
+                    <span className={styles.segmentLabel}>Property Data</span>
                     <span className={styles.segmentValue}>
                         {isEnriched ? (
                             <>
                                 <button
                                     onClick={() => setShowDropdown(!showDropdown)}
                                     className={styles.dataPointsBtn}
-                                    title="Click to see data points"
+                                    title="Click to view gathered property details"
                                 >
                                     <span className={styles.done}>{enrichmentCount} data points</span>
                                     {showDropdown ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -142,7 +163,7 @@ export function PolicyStatusBar({
                                 )}
                             </>
                         ) : (
-                            <span className={styles.pending}>Not enriched — action required</span>
+                            <span className={styles.pending}>No data gathered</span>
                         )}
                     </span>
                 </div>
@@ -152,11 +173,12 @@ export function PolicyStatusBar({
                     disabled={enrichRunning}
                     onClick={onEnrich}
                     className={isEnriched ? styles.actionBtn : styles.actionBtnUrgent}
+                    title={isEnriched ? 'Re-scan satellite imagery & property records' : 'Fetch property data, assessor records, & imagery'}
                 >
                     {enrichRunning ? (
                         <>
                             <Loader2 size={13} className={styles.spin} />
-                            <span className={styles.actionLabel}>{enrichStep}</span>
+                            <span className={styles.actionLabel}>{enrichStep || 'Gathering…'}</span>
                         </>
                     ) : enrichDone ? (
                         <>
@@ -171,12 +193,12 @@ export function PolicyStatusBar({
                     ) : isEnriched ? (
                         <>
                             <Satellite size={13} />
-                            <span className={styles.actionLabel}>Re-Enrich</span>
+                            <span className={styles.actionLabel}>Refresh Data</span>
                         </>
                     ) : (
                         <>
                             <Satellite size={13} />
-                            <span className={styles.actionLabel}>Enrich Now</span>
+                            <span className={styles.actionLabel}>Gather Data</span>
                         </>
                     )}
                 </Button>
@@ -185,7 +207,7 @@ export function PolicyStatusBar({
                 {showDropdown && isEnriched && (
                     <div className={styles.dropdown}>
                         <div className={styles.dropdownHeader}>
-                            <span className={styles.dropdownTitle}>Enrichment Data Points</span>
+                            <span className={styles.dropdownTitle}>Property Data Points</span>
                             <span className={styles.dropdownCount}>
                                 <span style={{ color: '#10b981' }}>{foundItems.length + extraItems.length} found</span>
                                 {missingItems.length > 0 && (
@@ -195,17 +217,16 @@ export function PolicyStatusBar({
                         </div>
 
                         <div className={styles.dropdownBody}>
-                            {/* Found items grouped by source type */}
                             {(() => {
                                 const allFound = [...foundItems, ...extraItems];
                                 if (allFound.length === 0) return null;
 
                                 const groups = allFound.reduce((acc, e) => {
-                                    const title = e.source_type === 'api' ? 'Verified External Data (ATTOM)' :
-                                                  e.source_type === 'ai_interpretation' ? 'AI Image Vision & Inference' :
-                                                  e.source_type === 'parser' ? 'Extracted from Policy' :
-                                                  e.source_type === 'public_data' ? 'Public Records' :
-                                                  e.source_type === 'premium' ? 'Premium Data' : 'Other Sources';
+                                    const title = e.source_type === 'api' ? 'Verified County & Assessor Records' :
+                                                  e.source_type === 'ai_interpretation' ? 'Google Satellite & Street Vision' :
+                                                  e.source_type === 'parser' ? 'Extracted from Policy Documents' :
+                                                  e.source_type === 'public_data' ? 'Public Tax Records' :
+                                                  e.source_type === 'premium' ? 'Valuation & Replacement Cost Data' : 'Other Sources';
                                     if (!acc[title]) acc[title] = [];
                                     acc[title].push(e);
                                     return acc;
@@ -235,7 +256,6 @@ export function PolicyStatusBar({
                                 ));
                             })()}
 
-                            {/* Missing items */}
                             {missingItems.length > 0 && (
                                 <div className={styles.dropdownGroup}>
                                     <div className={styles.dropdownGroupLabel} style={{ color: '#94a3b8' }}>
@@ -258,9 +278,12 @@ export function PolicyStatusBar({
             {/* ── Divider ── */}
             <div className={styles.divider} />
 
-            {/* ── Flag Check Status ── */}
+            {/* ══════════════════════════════════════════════════════════
+               2. FLAG CHECK
+               ══════════════════════════════════════════════════════════ */}
             <div className={`${styles.segment} ${!flagsChecked ? styles.segmentPending : ''}`}>
-                <div className={`${styles.indicator} ${flagsChecked ? styles.indicatorDone : styles.indicatorPending}`}
+                <div
+                    className={`${styles.indicator} ${flagsChecked ? styles.indicatorDone : styles.indicatorPending}`}
                     style={flagsChecked && openFlagCount > 0 ? { background: `${severityColor}18`, color: severityColor, borderColor: `${severityColor}40`, animation: 'none' } : undefined}
                 >
                     {flagsChecked ? (
@@ -295,7 +318,7 @@ export function PolicyStatusBar({
                                 </>
                             )
                         ) : (
-                            <span className={styles.pending}>Not checked — action required</span>
+                            <span className={styles.pending}>Not checked</span>
                         )}
                     </span>
                 </div>
@@ -305,6 +328,7 @@ export function PolicyStatusBar({
                     disabled={flagCheckRunning}
                     onClick={onRunFlagCheck}
                     className={flagsChecked ? styles.actionBtn : styles.actionBtnUrgent}
+                    title={flagsChecked ? 'Re-evaluate policy rules & coverage gaps' : 'Run flag check against underwriting rules'}
                 >
                     {flagCheckRunning ? (
                         <>
@@ -314,10 +338,128 @@ export function PolicyStatusBar({
                     ) : (
                         <>
                             <Zap size={13} />
-                            <span className={styles.actionLabel}>{flagsChecked ? 'Re-Check Flags' : 'Check Now'}</span>
+                            <span className={styles.actionLabel}>{flagsChecked ? 'Re-Check Flags' : 'Check Flags'}</span>
                         </>
                     )}
                 </Button>
+            </div>
+
+            {/* ── Divider ── */}
+            <div className={styles.divider} />
+
+            {/* ══════════════════════════════════════════════════════════
+               3. COVERAGE REPORT (Generation & Freshness State)
+               ══════════════════════════════════════════════════════════ */}
+            <div className={`${styles.segment} ${!reportRow ? styles.segmentPending : ''}`}>
+                <div
+                    className={`${styles.indicator} ${
+                        isReportStale
+                            ? styles.indicatorOutdated
+                            : reportRow
+                                ? styles.indicatorDone
+                                : styles.indicatorPending
+                    }`}
+                >
+                    {isReportGenerating ? (
+                        <Loader2 size={15} className={styles.spin} />
+                    ) : isReportStale ? (
+                        <AlertTriangle size={15} />
+                    ) : reportRow ? (
+                        <CheckCircle2 size={15} />
+                    ) : (
+                        <FileText size={15} />
+                    )}
+                </div>
+                <div className={styles.segmentInfo}>
+                    <span className={styles.segmentLabel}>Coverage Report</span>
+                    <span className={styles.segmentValue}>
+                        {isReportGenerating ? (
+                            <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>Generating AI report…</span>
+                        ) : isReportStale ? (
+                            <>
+                                <span style={{ color: '#d97706', fontWeight: 600 }}>Outdated</span>
+                                {reportFormattedDate && (
+                                    <span className={styles.subtle}> · {reportFormattedDate}</span>
+                                )}
+                            </>
+                        ) : reportRow ? (
+                            <>
+                                <span className={styles.done}>Up to date</span>
+                                {reportFormattedDate && (
+                                    <span className={styles.subtle}> · {reportFormattedDate}</span>
+                                )}
+                            </>
+                        ) : (
+                            <span className={styles.pending}>Not generated</span>
+                        )}
+                    </span>
+                </div>
+
+                <div className={styles.buttonGroup}>
+                    {/* View Report Button (when generated) */}
+                    {reportRow && onViewReport && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={onViewReport}
+                            className={styles.actionBtn}
+                            title="Open coverage comparison report"
+                        >
+                            <ExternalLink size={13} />
+                            <span className={styles.actionLabel}>View</span>
+                        </Button>
+                    )}
+
+                    {/* Generate / Update / Regenerate Button */}
+                    {onGenerateReport && (
+                        reportRow && !isReportStale ? (
+                            <button
+                                className={styles.iconBtn}
+                                onClick={onGenerateReport}
+                                disabled={isReportGenerating}
+                                title="Regenerate report with latest data"
+                            >
+                                <RotateCcw size={13} className={isReportGenerating ? styles.spin : ''} />
+                            </button>
+                        ) : (
+                            <Button
+                                variant={isReportStale ? 'primary' : reportRow ? 'outline' : 'primary'}
+                                size="sm"
+                                disabled={isReportGenerating}
+                                onClick={onGenerateReport}
+                                className={
+                                    isReportStale
+                                        ? styles.actionBtnOutdated
+                                        : !reportRow
+                                            ? styles.actionBtnUrgent
+                                            : styles.actionBtn
+                                }
+                                title={
+                                    isReportStale
+                                        ? 'Data or configuration changed — click to update report'
+                                        : 'Synthesize AI coverage comparison report'
+                                }
+                            >
+                                {isReportGenerating ? (
+                                    <>
+                                        <Loader2 size={13} className={styles.spin} />
+                                        <span className={styles.actionLabel}>Generating…</span>
+                                    </>
+                                ) : isReportStale ? (
+                                    <>
+                                        <RotateCcw size={13} />
+                                        <span className={styles.actionLabel}>Update Report</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Sparkles size={13} />
+                                        <span className={styles.actionLabel}>Generate</span>
+                                    </>
+                                )}
+                            </Button>
+                        )
+                    )}
+                </div>
             </div>
         </div>
     );

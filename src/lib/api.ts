@@ -875,6 +875,7 @@ export interface PolicyDetail {
     carrier_name?: string;
     status: string;
     created_at?: string;
+    updated_at?: string;
     // Client (joined)
     client_id: string;
     named_insured: string;

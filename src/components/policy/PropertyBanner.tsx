@@ -229,7 +229,7 @@ export function PropertyBanner({
                             </p>
                         )}
                         <p className={styles.placeholderHint}>
-                            Run property enrichment to fetch satellite imagery, ATTOM property data, fire risk analysis, and more.
+                            Gather property intelligence to fetch satellite imagery, county assessor details, building records, and vision analysis.
                         </p>
                         <button
                             className={styles.enrichCta}
@@ -239,12 +239,12 @@ export function PropertyBanner({
                             {isEnriching ? (
                                 <>
                                     <Loader2 size={16} className={styles.spinning} />
-                                    Enriching…
+                                    Gathering Data…
                                 </>
                             ) : (
                                 <>
                                     <Zap size={16} />
-                                    Enrich Property Data
+                                    Gather Property Data
                                 </>
                             )}
                         </button>
