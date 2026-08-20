@@ -4035,3 +4035,151 @@ export async function getLatestReportConfigVersion(): Promise<{
         return null;
     }
 }
+
+export interface ReportSectionConfig {
+    id: string;
+    label: string;
+    description: string;
+    enabled: boolean;
+    order: number;
+}
+
+export interface ReportRulesConfig {
+    strict_non_adequacy: boolean;
+    exact_numerical_accuracy: boolean;
+    explicit_source_attribution: boolean;
+    property_noise_filter: boolean;
+    suppress_fire_risk: boolean;
+    suppress_image_quality_notes: boolean;
+    standardize_fair_rental_value: boolean;
+}
+
+export interface ReportBrandingConfig {
+    agency_name: string;
+    license_number: string;
+    phone: string;
+    header_badge: string;
+    disclaimer_text: string;
+}
+
+export type ReportTone = 'consultative_advisory' | 'educational_direct' | 'executive_analytical';
+
+export interface ReportTemplateConfig {
+    tone: ReportTone;
+    custom_prompt_directives: string;
+    sections: ReportSectionConfig[];
+    rules: ReportRulesConfig;
+    branding: ReportBrandingConfig;
+    version_number?: number;
+    updated_at?: string;
+}
+
+export const DEFAULT_REPORT_CONFIG: ReportTemplateConfig = {
+    tone: 'consultative_advisory',
+    custom_prompt_directives: 'Emphasize that the agency is conducting an annual policy review to ensure coverage limits keep pace with current construction costs and modern building codes.',
+    sections: [
+        {
+            id: 'executive_summary',
+            label: 'Executive Summary',
+            description: 'Concise 2-4 sentence overview of key findings and annual review purpose.',
+            enabled: true,
+            order: 0,
+        },
+        {
+            id: 'top_concerns',
+            label: 'Key Consultation Highlights',
+            description: 'Top 3-5 priority findings with headline, concise explanation, and evidence anchor.',
+            enabled: true,
+            order: 1,
+        },
+        {
+            id: 'coverage_review',
+            label: 'Coverage & Rebuild Benchmark Matrix',
+            description: 'Comparison table of coverage lines with current limits, discovery sources, and advisory recommendations.',
+            enabled: true,
+            order: 2,
+        },
+        {
+            id: 'property_observations',
+            label: 'Property & Aerial Observations',
+            description: 'High-value physical structures (swimming pools, solar panels, detached garages, outbuildings, fences).',
+            enabled: true,
+            order: 3,
+        },
+        {
+            id: 'dic_matrix',
+            label: 'Essential Companion Protection (DIC)',
+            description: 'Difference in Conditions matrix highlighting water, pipe burst, theft, and liability protections.',
+            enabled: true,
+            order: 4,
+        },
+        {
+            id: 'next_steps',
+            label: 'Consultation Agenda & Next Steps',
+            description: 'Prioritized checklist grouped by timeframe (Review Now, At Renewal, Confirm & Update).',
+            enabled: true,
+            order: 5,
+        },
+        {
+            id: 'sources',
+            label: 'Sources & Legal Notice',
+            description: 'Agency signature, named third-party data sources, and policyholder responsibility notice.',
+            enabled: true,
+            order: 6,
+        },
+    ],
+    rules: {
+        strict_non_adequacy: true,
+        exact_numerical_accuracy: true,
+        explicit_source_attribution: true,
+        property_noise_filter: true,
+        suppress_fire_risk: true,
+        suppress_image_quality_notes: true,
+        standardize_fair_rental_value: true,
+    },
+    branding: {
+        agency_name: 'John Alsop Insurance Agency',
+        license_number: 'CA Lic #0D12345',
+        phone: '(909) 626-5000',
+        header_badge: 'Annual Policy Review',
+        disclaimer_text: 'This report is provided for informational and comparative advisory purposes only based on policy documents and third-party data provided to our office. Final decisions regarding coverage limits, endorsements, and carrier selection remain solely with the policyholder.',
+    },
+};
+
+/**
+ * Fetch the active report template configuration from /api/reports/config
+ */
+export async function fetchReportTemplateConfig(): Promise<ReportTemplateConfig | null> {
+    try {
+        const res = await fetch('/api/reports/config');
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data.config || null;
+    } catch (err) {
+        logger.error('API', 'Failed to fetch report template config', { error: err instanceof Error ? err.message : String(err) });
+        return null;
+    }
+}
+
+/**
+ * Save report template configuration to /api/reports/config
+ */
+export async function saveReportTemplateConfig(config: ReportTemplateConfig): Promise<{ success: boolean; config?: ReportTemplateConfig; error?: string }> {
+    try {
+        const res = await fetch('/api/reports/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ config }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            return { success: false, error: data.error || 'Failed to save report configuration' };
+        }
+        return { success: true, config: data.config };
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error('API', 'Failed to save report template config', { error: msg });
+        return { success: false, error: msg };
+    }
+}
+

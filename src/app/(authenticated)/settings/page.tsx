@@ -13,6 +13,7 @@ import DataSourcesCatalog from '@/components/settings/DataSourcesCatalog';
 import { InviteUserModal } from '@/components/admin/InviteUserModal';
 import { StaffManagementTable } from '@/components/admin/StaffManagementTable';
 import { useTheme } from 'next-themes';
+import Link from 'next/link';
 
 type Section = 'account' | 'notifications' | 'display' | 'admin' | 'data_sources' | 'report_editor' | 'email_system' | 'user_management';
 
@@ -961,11 +962,26 @@ function ReportEditorSection() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <div>
                     <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-high)', marginBottom: '0.15rem' }}>Report Template Editor</h2>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Control which sections appear in client-facing reports. Drag to reorder.</p>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Control which sections appear in client-facing reports, tone, and flag rules.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    <button onClick={() => setSections(DEFAULT_REPORT_SECTIONS)} style={{ padding: '0.35rem 0.65rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer' }}>Reset</button>
-                    <button onClick={handleSave} style={{ padding: '0.35rem 0.75rem', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--accent-primary)', color: 'var(--text-inverse)', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>{saved ? '✓ Saved' : 'Save'}</button>
+                    <Link
+                        href="/settings/report-editor"
+                        style={{
+                            padding: '0.35rem 0.75rem',
+                            borderRadius: 'var(--radius-md)',
+                            background: 'var(--accent-primary)',
+                            color: '#fff',
+                            fontSize: '0.74rem',
+                            fontWeight: 600,
+                            textDecoration: 'none',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                        }}
+                    >
+                        Open Full Report Editor →
+                    </Link>
                 </div>
             </div>
 

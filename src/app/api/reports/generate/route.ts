@@ -150,13 +150,27 @@ export async function POST(req: NextRequest) {
             .eq('is_active', true);
         const flagDefs: Array<Pick<FlagDefinition, 'code' | 'label' | 'default_severity' | 'report_enabled' | 'report_prompt_hint'>> = flagDefsData || [];
 
-        // Fetch latest config version for stale detection
-        const { data: configVersion } = await supabase
+        // Fetch latest config version and active template config
+        const { data: configChangelog } = await supabase
             .from('report_config_changelog')
-            .select('version_number, changed_at')
-            .order('changed_at', { ascending: false })
+            .select('version_number, changed_at, changes')
+            .order('version_number', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
+
+        const activeTemplate = configChangelog?.changes?.template_config || {};
+        const selectedTone = activeTemplate.tone || 'consultative_advisory';
+        const customDirectives = activeTemplate.custom_prompt_directives || '';
+        const rules = {
+            strict_non_adequacy: true,
+            exact_numerical_accuracy: true,
+            explicit_source_attribution: true,
+            property_noise_filter: true,
+            suppress_fire_risk: true,
+            suppress_image_quality_notes: true,
+            standardize_fair_rental_value: true,
+            ...(activeTemplate.rules || {}),
+        };
 
         // Partition flags into mandatory (report_enabled) and suppressed
         const openFlagCodes = new Set(flags.filter(f => f.status === 'open').map(f => f.code));
@@ -197,8 +211,9 @@ export async function POST(req: NextRequest) {
                 source: e.source_name,
                 notes: e.notes
             })),
-            config_version: configVersion?.version_number || 1,
-            config_changed_at: configVersion?.changed_at || null,
+            config_version: configChangelog?.version_number || 1,
+            config_changed_at: configChangelog?.changed_at || null,
+            template_config: activeTemplate,
         };
 
         // 3. Prompt GPT-4o for Synthesis (Layer 2)
@@ -224,24 +239,36 @@ export async function POST(req: NextRequest) {
         const streetViewDate = streetViewDateEnrichment?.field_value || (streetViewEnrichment?.notes?.match(/Date:\s*([^)]+)/)?.[1] !== 'Unknown' ? streetViewEnrichment?.notes?.match(/Date:\s*([^)]+)/)?.[1] : null);
         const streetViewSourceLabel = streetViewDate ? `Google Street View (Photo Captured: ${streetViewDate})` : 'Google Street View';
 
+        const tonePrompt = selectedTone === 'executive_analytical'
+            ? 'TONE: Executive, concise, data-driven, and high-density. Focus heavily on numerical benchmarks, variances, and specific coverage differentials.'
+            : selectedTone === 'educational_direct'
+            ? 'TONE: Educational, direct, and empowering. Use accessible plain-language explanations to clearly illustrate why specific endorsements matter.'
+            : 'TONE: Consultative, advisory, proactive, and non-judgmental. Position all findings as collaborative discussion points for the policyholder and agent.';
+
+        const customDirectivesBlock = customDirectives.trim()
+            ? `\nCUSTOM BROKERAGE DIRECTIVES (APPLY THESE STRICTLY):\n${customDirectives.trim()}\n`
+            : '';
+
         const systemPrompt = `
 You are creating a COMPACT, CLIENT-FACING coverage comparison report for an insurance brokerage.
 This report will be shared with the client. It must be clear, professional, concise, and non-judgmental.
 
+${tonePrompt}
+${customDirectivesBlock}
 AUDIENCE: Homeowners and policyholders. Use plain language. No jargon.
 
 STRICT MANDATORY RULES:
-1. EVERYTHING MUST BE SOURCED & NAMED SPECIFICALLY:
+${rules.explicit_source_attribution ? `1. EVERYTHING MUST BE SOURCED & NAMED SPECIFICALLY:
    - Every top concern, coverage review item, property observation, and recommendation MUST explicitly specify its exact data source.
    - For Replacement Cost Estimates, ALWAYS state the specific provider company (e.g., "${rceData?.source_label || 'Bamboo RCE'}" or "360Value RCE", NEVER just generic "Replacement Cost Estimate (RCE)").
    - For Google Satellite & Aerial Imagery observations, ALWAYS cite the source as "Google Satellite Vision".
-   - For Google Street View observations, ALWAYS cite the source as "${streetViewSourceLabel}".
+   - For Google Street View observations, ALWAYS cite the source as "${streetViewSourceLabel}".` : ''}
 
-2. EXACT NUMERICAL ACCURACY (NEVER ROUND):
+${rules.exact_numerical_accuracy ? `2. EXACT NUMERICAL ACCURACY (NEVER ROUND):
    - NEVER round, estimate, or change any dollar amount.
-   - Use the EXACT figures provided in dataPayload (down to the penny or dollar). For example, if RCE replacement cost is ${rceData?.replacement_cost_exact || '$987,450'}, state '${rceData?.replacement_cost_exact || '$987,450'}' (NEVER round it to '$990,000' or '~1M').
+   - Use the EXACT figures provided in dataPayload (down to the penny or dollar). For example, if RCE replacement cost is ${rceData?.replacement_cost_exact || '$987,450'}, state '${rceData?.replacement_cost_exact || '$987,450'}' (NEVER round it to '$990,000' or '~1M').` : ''}
 
-3. DO NOT DETERMINE COVERAGE ADEQUACY: Never state, imply, or judge whether coverage is "adequate", "inadequate", "sufficient", or "deficient". Determining adequacy creates liability. Your job is ONLY to explain where we found coverage on their previous policy and point out differences or optional coverages that may be missing.
+${rules.strict_non_adequacy ? `3. DO NOT DETERMINE COVERAGE ADEQUACY: Never state, imply, or judge whether coverage is "adequate", "inadequate", "sufficient", or "deficient". Determining adequacy creates liability. Your job is ONLY to explain where we found coverage on their previous policy and point out differences or optional coverages that may be missing.` : ''}
 
 4. NEUTRAL & COMPARATIVE TONE: Frame findings neutrally: "On your previous policy, X limit was $Y. An option to adjust to $Z is available to evaluate." or "This endorsement was not present on your prior dec page."
 
@@ -251,15 +278,15 @@ STRICT MANDATORY RULES:
 
 7. BE CONCISE: Observations 10-15 words max.
 
-8. PROPERTY OBSERVATIONS & NOISE REDUCTION (ACTIONABLE COVERAGE GAPS ONLY):
+${rules.property_noise_filter ? `8. PROPERTY OBSERVATIONS & NOISE REDUCTION (ACTIONABLE COVERAGE GAPS ONLY):
    - DO NOT include generic, expected property attributes (e.g., "two-story home", "attached garage", "standard driveway", "tile roof") unless they directly reveal an under-coverage gap or unlisted risk.
    - ONLY report property observations that have direct coverage or limit implications, such as:
      * Other Structures Gaps (swimming pool, solar panels, detached garage, storage shed, outbuildings, perimeter fences, gazebo, guest house/ADU when Other Structures coverage is $0 or low).
      * High-Risk / Special Liability Features (trampoline, diving board, separate rental unit).
    - If an observation does NOT point to a potential coverage gap or necessary discussion point, OMIT IT ENTIRELY.
-   - For detected structures, use neutral phrasing: "We may have detected a [structure] based on Google Satellite Vision. Please confirm with your agent so we can ensure it is properly covered."
+   - For detected structures, use neutral phrasing: "We may have detected a [structure] based on Google Satellite Vision. Please confirm with your agent so we can ensure it is properly covered."` : ''}
 
-9. FAIR RENTAL VALUE: "Loss of Use" and "Fair Rental Value" are the exact same coverage. Always refer to it as "Fair Rental Value" and never say it is missing if "Fair Rental Value" is present.
+${rules.standardize_fair_rental_value ? `9. FAIR RENTAL VALUE: "Loss of Use" and "Fair Rental Value" are the exact same coverage. Always refer to it as "Fair Rental Value" and never say it is missing if "Fair Rental Value" is present.` : ''}
 
 10. EVIDENCE FORMATTING: Do NOT use literal system flag names (like "NO_DIC" or "MISSING_PERILS_INSURED") in the evidence or explanations. Use natural, human-readable language (e.g., "No DIC coverage on file").
 
@@ -274,8 +301,8 @@ STRICT MANDATORY RULES:
     - In top_concerns, 'explanation' must be a standalone, concise sentence with exact numbers and source. 'evidence' should be a short 3-5 word label (e.g. "${rceData?.source_label || 'Bamboo RCE'}").
 
 EXCLUSIONS AND GUARDRAILS:
-1. NO FIRE RISK: NEVER mention fire risk, fire scores, or wildfire scores in any section. Completely suppress these findings.
-2. NO IMAGERY NOTES: NEVER mention satellite image quality or photo limitations.
+${rules.suppress_fire_risk ? '1. NO FIRE RISK: NEVER mention fire risk, fire scores, or wildfire scores in any section. Completely suppress these findings.' : ''}
+${rules.suppress_image_quality_notes ? '2. NO IMAGERY NOTES: NEVER mention satellite image quality or photo limitations.' : ''}
 3. NO INSPECTION NOTES: NEVER recommend visual, property, or field inspections.
 4. NO "APPROVED VENDOR": DO NOT use the phrase "with an approved vendor". Simply state "Review replacement cost estimate".
 5. NO REASSURANCE: NEVER use words like "adequate", "inadequate", "sufficient", "properly covered", "looks good", or "coverage is good".
