@@ -90,6 +90,59 @@ export async function POST(req: NextRequest) {
 
         const enrichments = enrichmentsData || [];
 
+        // Fetch linked RCE documents and exact RCE calculations (doc_data_rce)
+        const { data: rceDocs } = await supabase
+            .from('platform_documents')
+            .select('id, file_name, extracted_owner_name, extracted_address, created_at')
+            .eq('policy_id', policyId)
+            .eq('doc_type', 'rce')
+            .not('parse_status', 'eq', 'failed')
+            .order('created_at', { ascending: false });
+
+        let rceData: any = null;
+        if (rceDocs && rceDocs.length > 0) {
+            const docIds = rceDocs.map(d => d.id);
+            const { data: rceRows } = await supabase
+                .from('doc_data_rce')
+                .select('*')
+                .in('document_id', docIds)
+                .order('created_at', { ascending: false });
+
+            if (rceRows && rceRows.length > 0) {
+                const latestRce = rceRows[0];
+                const matchingDoc = rceDocs.find(d => d.id === latestRce.document_id);
+                // Determine company/provider name
+                let providerName = latestRce.created_by?.trim() || '';
+                if (!providerName && matchingDoc?.file_name) {
+                    if (/bamboo/i.test(matchingDoc.file_name)) providerName = 'Bamboo Insurance';
+                    else if (/360value/i.test(matchingDoc.file_name)) providerName = '360Value';
+                    else if (/e2value/i.test(matchingDoc.file_name)) providerName = 'e2Value';
+                    else if (/corelogic/i.test(matchingDoc.file_name)) providerName = 'CoreLogic';
+                }
+                if (!providerName) providerName = 'Bamboo Insurance';
+
+                const formattedCost = latestRce.replacement_cost
+                    ? `$${Number(latestRce.replacement_cost).toLocaleString('en-US')}`
+                    : null;
+                const formattedCostPerSqft = latestRce.cost_per_sqft
+                    ? `$${Number(latestRce.cost_per_sqft).toLocaleString('en-US')}`
+                    : null;
+
+                rceData = {
+                    provider_name: providerName,
+                    source_label: `${providerName} RCE`,
+                    replacement_cost_exact: formattedCost,
+                    replacement_cost_numeric: latestRce.replacement_cost,
+                    cost_per_sqft: formattedCostPerSqft,
+                    sq_feet: latestRce.sq_feet,
+                    year_built: latestRce.year_built,
+                    quality_grade: latestRce.quality_grade,
+                    date_calculated: latestRce.date_calculated,
+                    valuation_id: latestRce.valuation_id,
+                };
+            }
+        }
+
         // Fetch flag definitions with report config (report_enabled, report_prompt_hint)
         const { data: flagDefsData } = await supabase
             .from('flag_definitions')
@@ -129,6 +182,7 @@ export async function POST(req: NextRequest) {
         // 2. Build deterministic JSON payload (Layer 1)
         const dataPayload = {
             policy,
+            rce_data: rceData,
             flags: flags.map(f => ({
                 code: f.code,
                 title: f.title,
@@ -172,15 +226,36 @@ This report will be shared with the client. It must be clear, professional, conc
 AUDIENCE: Homeowners and policyholders. Use plain language. No jargon.
 
 STRICT MANDATORY RULES:
-1. EVERYTHING MUST BE SOURCED: Every top concern, coverage review item, property observation, and recommendation MUST explicitly specify its source (e.g., "2026 Policy Declaration", "Replacement Cost Estimate (RCE)", "County Assessor Data").
-2. DO NOT DETERMINE COVERAGE ADEQUACY: Never state, imply, or judge whether coverage is "adequate", "inadequate", "sufficient", or "deficient". Determining adequacy creates liability. Your job is ONLY to explain where we found coverage on their previous policy and point out differences or optional coverages that may be missing.
-3. NEUTRAL & COMPARATIVE TONE: Frame findings neutrally: "On your previous policy, X limit was $Y. An option to adjust to $Z is available to evaluate." or "This endorsement was not present on your prior dec page."
-4. NO GUARANTEES: Never reassure the client that they are "fully protected" or "properly covered".
-5. CLIENT RESPONSIBILITY: Frame all recommendations as options for the client to review and decide upon.
-6. BE CONCISE: Observations 10-15 words max.
-7. STRUCTURE FINDINGS: For structural findings (e.g., pools, ADUs, solar, trampolines), do not state they exist definitively. Use language like: "We may have detected a [structure] based on Google imagery from [Date]. Please confirm with your agent so we can ensure it is properly covered." You MUST explicitly cite 'Google' as the source in your observation text. If the date is not available, just say "based on Google imagery".
-8. FAIR RENTAL VALUE: "Loss of Use" and "Fair Rental Value" are the exact same coverage. Always refer to it as "Fair Rental Value" and never say it is missing if "Fair Rental Value" is present.
-9. EVIDENCE FORMATTING: Do NOT use literal system flag names (like "NO_DIC" or "MISSING_PERILS_INSURED") in the evidence or explanations. Use natural, human-readable language (e.g., "No DIC coverage on file").
+1. EVERYTHING MUST BE SOURCED & NAMED SPECIFICALLY:
+   - Every top concern, coverage review item, property observation, and recommendation MUST explicitly specify its exact data source.
+   - For Replacement Cost Estimates, ALWAYS state the specific provider company (e.g., "${rceData?.source_label || 'Bamboo RCE'}" or "360Value RCE", NEVER just generic "Replacement Cost Estimate (RCE)").
+   - For Satellite & Aerial Imagery observations, ALWAYS cite the source as "Google Satellite Vision" or "Google Street View".
+
+2. EXACT NUMERICAL ACCURACY (NEVER ROUND):
+   - NEVER round, estimate, or change any dollar amount.
+   - Use the EXACT figures provided in dataPayload (down to the penny or dollar). For example, if RCE replacement cost is ${rceData?.replacement_cost_exact || '$987,450'}, state '${rceData?.replacement_cost_exact || '$987,450'}' (NEVER round it to '$990,000' or '~1M').
+
+3. DO NOT DETERMINE COVERAGE ADEQUACY: Never state, imply, or judge whether coverage is "adequate", "inadequate", "sufficient", or "deficient". Determining adequacy creates liability. Your job is ONLY to explain where we found coverage on their previous policy and point out differences or optional coverages that may be missing.
+
+4. NEUTRAL & COMPARATIVE TONE: Frame findings neutrally: "On your previous policy, X limit was $Y. An option to adjust to $Z is available to evaluate." or "This endorsement was not present on your prior dec page."
+
+5. NO GUARANTEES: Never reassure the client that they are "fully protected" or "properly covered".
+
+6. CLIENT RESPONSIBILITY: Frame all recommendations as options for the client to review and decide upon.
+
+7. BE CONCISE: Observations 10-15 words max.
+
+8. PROPERTY OBSERVATIONS & NOISE REDUCTION (ACTIONABLE COVERAGE GAPS ONLY):
+   - DO NOT include generic, expected property attributes (e.g., "two-story home", "attached garage", "standard driveway", "tile roof") unless they directly reveal an under-coverage gap or unlisted risk.
+   - ONLY report property observations that have direct coverage or limit implications, such as:
+     * Other Structures Gaps (swimming pool, solar panels, detached garage, storage shed, outbuildings, perimeter fences, gazebo, guest house/ADU when Other Structures coverage is $0 or low).
+     * High-Risk / Special Liability Features (trampoline, diving board, separate rental unit).
+   - If an observation does NOT point to a potential coverage gap or necessary discussion point, OMIT IT ENTIRELY.
+   - For detected structures, use neutral phrasing: "We may have detected a [structure] based on Google Satellite Vision. Please confirm with your agent so we can ensure it is properly covered."
+
+9. FAIR RENTAL VALUE: "Loss of Use" and "Fair Rental Value" are the exact same coverage. Always refer to it as "Fair Rental Value" and never say it is missing if "Fair Rental Value" is present.
+
+10. EVIDENCE FORMATTING: Do NOT use literal system flag names (like "NO_DIC" or "MISSING_PERILS_INSURED") in the evidence or explanations. Use natural, human-readable language (e.g., "No DIC coverage on file").
 
 EXCLUSIONS AND GUARDRAILS:
 1. NO FIRE RISK: NEVER mention fire risk, fire scores, or wildfire scores in any section. Completely suppress these findings.
@@ -190,14 +265,14 @@ EXCLUSIONS AND GUARDRAILS:
 5. NO REASSURANCE: NEVER use words like "adequate", "inadequate", "sufficient", "properly covered", "looks good", or "coverage is good".
 6. SOURCED COMPARISON ONLY: Every recommendation must cite what data source triggered the observation.
 
-VALUATION DATA GUIDANCE:
-- If replacement cost estimate is available, frame as: "Based on available RCE document, estimated replacement cost is $X. You may review this estimate."
+VALUATION & RCE DATA GUIDANCE:
+- If replacement cost estimate is available in dataPayload.rce_data, state: "Estimated replacement cost is ${rceData?.replacement_cost_exact || '$X'}." and set source to "${rceData?.source_label || 'Bamboo RCE'}".
 - NEVER present estimates as authoritative.
 
 COVERAGE REVIEW STRUCTURE:
 - Do NOT include per-row "Source:" text in coverage_review items since coverage data obviously comes from the policy declaration page.
-- For each coverage line, if there are related findings from flags, enrichments, or observations (e.g., pool detected but Other Structures is $0), include them as "related_findings" on that coverage_review item.
-- related_findings should be brief supporting data points that help the reader immediately see WHY this coverage line is notable.
+- For each coverage line, if there are related findings from flags, enrichments, or observations (e.g., pool detected but Other Structures is $0, or RCE replacement cost differs from Dwelling limit), include them as "related_findings" on that coverage_review item.
+- related_findings should be brief supporting data points (1 sentence) with specific source (e.g. source: "${rceData?.source_label || 'Bamboo RCE'}" or source: "Google Satellite Vision").
 ${flagInstructions}
 Data Context:
 ${JSON.stringify(dataPayload, null, 2)}

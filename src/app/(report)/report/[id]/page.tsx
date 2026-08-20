@@ -272,6 +272,7 @@ export default function ReportPage() {
                                                     {relatedFindings.map((rf, j) => (
                                                         <div key={j} className={styles.relatedFinding}>
                                                             <span className={styles.relatedFindingText}>{rf.text}</span>
+                                                            <span className={styles.relatedFindingDot}>•</span>
                                                             <span className={styles.relatedFindingSource}>Source: {rf.source}</span>
                                                         </div>
                                                     ))}
@@ -289,11 +290,12 @@ export default function ReportPage() {
                 {(ai?.property_observations && ai.property_observations.length > 0) && (
                     <section className={styles.section}>
                         <div className={styles.sectionLabel}>Property Observations</div>
-                        <div className={styles.findingsGrid}>
+                        <div className={styles.obsList}>
                             {ai.property_observations.map((o: any, i: number) => (
-                                <div key={i} className={styles.finding}>
-                                    <p className={styles.findingBody}>{o.observation}</p>
-                                    <p className={styles.findingEvidence}>Source: {o.source}</p>
+                                <div key={i} className={styles.obsItem}>
+                                    <span className={styles.obsBody}>{o.observation}</span>
+                                    <span className={styles.obsDot}>•</span>
+                                    <span className={styles.obsSource}>Source: {o.source}</span>
                                 </div>
                             ))}
                         </div>

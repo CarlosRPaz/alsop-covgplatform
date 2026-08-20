@@ -36,21 +36,127 @@
 .field {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    gap: 0.75rem;
     font-size: 0.875rem;
 }
 
 .field label {
     color: var(--text-mid);
     font-weight: 500;
+    flex-shrink: 0;
 }
 
 .field span {
     font-weight: 600;
     text-align: right;
-    max-width: 60%;
     color: var(--text-high);
-    white-space: nowrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+}
+
+/* ── Mortgagee Rich Card ── */
+.mortgageeBlock {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.75rem 0.85rem;
+    background: var(--bg-surface-raised, rgba(0, 0, 0, 0.02));
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+}
+
+.mortgageeBlockSecond {
+    margin-top: 0.65rem;
+}
+
+.mortgageeHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.mortgageeBadge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    background: rgba(99, 102, 241, 0.12);
+    color: #6366f1;
+}
+
+.mortgageeBadgeSecond {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    background: rgba(245, 158, 11, 0.12);
+    color: #d97706;
+}
+
+.loanBadge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    font-family: monospace;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    color: var(--text-mid);
+}
+
+.mortgageeName {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-high);
+    line-height: 1.35;
+    word-break: break-word;
+}
+
+.mortgageeAddress {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    color: var(--text-mid);
+    line-height: 1.35;
+    word-break: break-word;
+}
+
+.mortgageeIcon {
+    flex-shrink: 0;
+    margin-top: 0.15rem;
+    color: var(--text-muted);
+}
+
+.mortgageeMeta {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.72rem;
+    margin-top: 0.1rem;
+}
+
+.metaKey {
+    color: var(--text-muted);
+}
+
+.metaVal {
+    color: var(--text-high);
+    font-weight: 600;
 }
 
 .row {

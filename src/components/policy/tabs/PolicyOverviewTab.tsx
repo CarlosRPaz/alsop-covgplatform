@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Declaration, PolicyDetail, PropertyEnrichment, getLatestReportForPolicy, PolicyReportRow, getManualOverridesForPolicy, upsertManualOverride, generatePolicyReport } from '@/lib/api';
 import { EditableValue } from '@/components/ui/EditableValue';
-import { RefreshCw, ShieldCheck, Home } from 'lucide-react';
+import { RefreshCw, ShieldCheck, Home, MapPin } from 'lucide-react';
 import { Card } from '@/components/ui/Card/Card';
 import { Button } from '@/components/ui/Button/Button';
 import styles from '../PolicyDashboard.module.css';
@@ -261,26 +261,59 @@ export function PolicyOverviewTab({ declaration, policyDetail, enrichments = [] 
                 {/* Mortgagee Info */}
                 {(declaration.mortgagee_1_name || declaration.mortgagee_2_name) && (
                     <Card className={styles.card}>
-                        <h3>Mortgagees</h3>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-default)', paddingBottom: '0.5rem', marginBottom: '0.75rem' }}>
+                            <h3 style={{ margin: 0, border: 'none', padding: 0 }}>Mortgagees</h3>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                                {declaration.mortgagee_2_name ? '2 Lenders on File' : '1 Lender on File'}
+                            </span>
+                        </div>
+
                         {declaration.mortgagee_1_name && (
-                            <>
-                                <div className={styles.field}><label>1st Mortgagee:</label><span>{declaration.mortgagee_1_name}</span></div>
-                                <div className={styles.field}><label>Address:</label><span>{declaration.mortgagee_1_address || '—'}</span></div>
-                                {declaration.mortgagee_1_loan_number && (
-                                    <div className={styles.field}><label>Loan #:</label><span>{declaration.mortgagee_1_loan_number}</span></div>
-                                )}
-                            </>
-                        )}
-                        {declaration.mortgagee_2_name && (
-                            <>
-                                <div className={styles.field} style={{ marginTop: '0.5rem', borderTop: '1px solid var(--border-default)', paddingTop: '0.5rem' }}>
-                                    <label>2nd Mortgagee:</label><span>{declaration.mortgagee_2_name}</span>
+                            <div className={styles.mortgageeBlock}>
+                                <div className={styles.mortgageeHeader}>
+                                    <span className={styles.mortgageeBadge}>1st Mortgagee</span>
+                                    {declaration.mortgagee_1_loan_number && (
+                                        <span className={styles.loanBadge}>Loan #{declaration.mortgagee_1_loan_number}</span>
+                                    )}
                                 </div>
-                                <div className={styles.field}><label>Address:</label><span>{declaration.mortgagee_2_address || '—'}</span></div>
-                                {declaration.mortgagee_2_loan_number && (
-                                    <div className={styles.field}><label>Loan #:</label><span>{declaration.mortgagee_2_loan_number}</span></div>
+                                <div className={styles.mortgageeName}>{declaration.mortgagee_1_name}</div>
+                                {declaration.mortgagee_1_address && (
+                                    <div className={styles.mortgageeAddress}>
+                                        <MapPin size={13} className={styles.mortgageeIcon} />
+                                        <span>{declaration.mortgagee_1_address}</span>
+                                    </div>
                                 )}
-                            </>
+                                {declaration.mortgagee_1_code && (
+                                    <div className={styles.mortgageeMeta}>
+                                        <span className={styles.metaKey}>Carrier Code:</span>
+                                        <span className={styles.metaVal}>{declaration.mortgagee_1_code}</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {declaration.mortgagee_2_name && (
+                            <div className={`${styles.mortgageeBlock} ${styles.mortgageeBlockSecond}`}>
+                                <div className={styles.mortgageeHeader}>
+                                    <span className={styles.mortgageeBadgeSecond}>2nd Mortgagee</span>
+                                    {declaration.mortgagee_2_loan_number && (
+                                        <span className={styles.loanBadge}>Loan #{declaration.mortgagee_2_loan_number}</span>
+                                    )}
+                                </div>
+                                <div className={styles.mortgageeName}>{declaration.mortgagee_2_name}</div>
+                                {declaration.mortgagee_2_address && (
+                                    <div className={styles.mortgageeAddress}>
+                                        <MapPin size={13} className={styles.mortgageeIcon} />
+                                        <span>{declaration.mortgagee_2_address}</span>
+                                    </div>
+                                )}
+                                {declaration.mortgagee_2_code && (
+                                    <div className={styles.mortgageeMeta}>
+                                        <span className={styles.metaKey}>Carrier Code:</span>
+                                        <span className={styles.metaVal}>{declaration.mortgagee_2_code}</span>
+                                    </div>
+                                )}
+                            </div>
                         )}
                     </Card>
                 )}
