@@ -160,8 +160,33 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
         confidence: propertyImageEnrichment.confidence,
     } : null;
 
-    // Derive street view image
+    // Helper to format Google capture date (YYYY-MM to "August 2023")
+    const formatCaptureDate = (dateStr?: string | null) => {
+        if (!dateStr) return null;
+        try {
+            const parts = dateStr.split('-');
+            if (parts.length === 2) {
+                const [year, month] = parts;
+                const d = new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1);
+                return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            } else if (parts.length === 3) {
+                const [year, month, day] = parts;
+                const d = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10));
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            }
+            return dateStr;
+        } catch {
+            return dateStr;
+        }
+    };
+
+    // Derive street view image & capture date
     const streetViewEnrichment = enrichments.find(e => e.field_key === 'street_view_image');
+    const streetViewCaptureDateEnrichment = enrichments.find(e => e.field_key === 'street_view_capture_date');
+    const rawDateFromNotes = streetViewEnrichment?.notes?.match(/Date:\s*([^)]+)/)?.[1];
+    const streetViewCaptureDate = streetViewCaptureDateEnrichment?.field_value
+        || (rawDateFromNotes && rawDateFromNotes !== 'Unknown' ? formatCaptureDate(rawDateFromNotes) : null);
+
     const streetViewSrc = streetViewEnrichment?.field_value || null;
     const streetViewSource = streetViewEnrichment ? {
         name: streetViewEnrichment.source_name,
@@ -169,6 +194,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
         url: streetViewEnrichment.source_url,
         fetchedAt: streetViewEnrichment.fetched_at,
         confidence: streetViewEnrichment.confidence,
+        captureDate: streetViewCaptureDate,
     } : null;
 
     // Derive fire risk data
@@ -680,35 +706,37 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             {/* Unified Policy Hero Card                                      */}
             {/* ═══════════════════════════════════════════════════════════════ */}
             <div className={styles.heroCard}>
-                {/* ── Top Nav & Status ── */}
-                <div className={styles.heroTop}>
+                {/* ── Top Nav Row (Row 1) ── */}
+                <div className={styles.heroNavRow}>
                     <Link href="/dashboard" style={{ textDecoration: 'none' }}>
                         <button className={styles.backButton}>
                             <ArrowLeft size={14} />
                             Dashboard
                         </button>
                     </Link>
-                    <div style={{ flex: 1, maxWidth: '860px', marginLeft: 'auto' }}>
-                        <PolicyStatusBar
-                            isEnriched={isEnriched}
-                            enrichmentCount={enrichments.length}
-                            lastEnrichedDate={lastEnrichedDate}
-                            flagsChecked={flagsChecked}
-                            lastCheckedDate={lastCheckedDate}
-                            openFlagCount={flagSummary.total}
-                            highestSeverity={flagSummary.high > 0 ? 'high' : flagSummary.medium > 0 ? 'medium' : flagSummary.low > 0 ? 'low' : null}
-                            enrichStep={enrichStep}
-                            onEnrich={handleEnrich}
-                            onRunFlagCheck={handleFlagCheck}
-                            flagCheckRunning={flagCheckRunning}
-                            enrichments={enrichments}
-                            reportRow={reportRow}
-                            isReportGenerating={isGeneratingReport}
-                            isReportStale={isReportStale}
-                            onGenerateReport={handleGenerateReport}
-                            onViewReport={() => reportRow && router.push(`/report/${reportRow.id}`)}
-                        />
-                    </div>
+                </div>
+
+                {/* ── Status Bar Row (Row 2 — Full Width across card) ── */}
+                <div className={styles.heroStatusBarRow}>
+                    <PolicyStatusBar
+                        isEnriched={isEnriched}
+                        enrichmentCount={enrichments.length}
+                        lastEnrichedDate={lastEnrichedDate}
+                        flagsChecked={flagsChecked}
+                        lastCheckedDate={lastCheckedDate}
+                        openFlagCount={flagSummary.total}
+                        highestSeverity={flagSummary.high > 0 ? 'high' : flagSummary.medium > 0 ? 'medium' : flagSummary.low > 0 ? 'low' : null}
+                        enrichStep={enrichStep}
+                        onEnrich={handleEnrich}
+                        onRunFlagCheck={handleFlagCheck}
+                        flagCheckRunning={flagCheckRunning}
+                        enrichments={enrichments}
+                        reportRow={reportRow}
+                        isReportGenerating={isGeneratingReport}
+                        isReportStale={isReportStale}
+                        onGenerateReport={handleGenerateReport}
+                        onViewReport={() => reportRow && router.push(`/report/${reportRow.id}`)}
+                    />
                 </div>
 
                 {/* ── Main Identity & Primary Actions ── */}

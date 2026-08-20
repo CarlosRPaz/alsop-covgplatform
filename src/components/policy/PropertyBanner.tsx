@@ -12,6 +12,7 @@ interface ImageSource {
     url: string | null;
     fetchedAt: string;
     confidence: string;
+    captureDate?: string | null;
 }
 
 interface CarouselSlide {
@@ -336,7 +337,19 @@ export function PropertyBanner({
                                 <div>
                                     <h2 className={styles.bannerTitle}>Property Analysis</h2>
                                     <p className={styles.bannerSubtitle}>
-                                        Source: {currentSlide?.source?.name || 'Unknown'} · Fetched {currentSlide?.source ? new Date(currentSlide.source.fetchedAt).toLocaleDateString() : 'N/A'}
+                                        {currentSlide?.source?.captureDate ? (
+                                            <>
+                                                Source: {currentSlide.source.name} · <span style={{ color: '#38bdf8', fontWeight: 600 }}>Photo Taken: {currentSlide.source.captureDate}</span>
+                                            </>
+                                        ) : currentSlide?.label === 'Satellite View' ? (
+                                            <>
+                                                Source: Google Satellite Vision · Aerial Imagery © Google
+                                            </>
+                                        ) : (
+                                            <>
+                                                Source: {currentSlide?.source?.name || 'Unknown'} · Fetched {currentSlide?.source ? new Date(currentSlide.source.fetchedAt).toLocaleDateString() : 'N/A'}
+                                            </>
+                                        )}
                                     </p>
                                 </div>
                                 <div className={styles.bannerActions}>
@@ -443,6 +456,12 @@ export function PropertyBanner({
                                     <span className={styles.modalMetaLabel}>Source</span>
                                     <span>{currentSlide.source.name}</span>
                                 </div>
+                                {currentSlide.source.captureDate && (
+                                    <div className={styles.modalMetaItem}>
+                                        <span className={styles.modalMetaLabel}>Photo Captured</span>
+                                        <span style={{ color: '#38bdf8', fontWeight: 600 }}>{currentSlide.source.captureDate}</span>
+                                    </div>
+                                )}
                                 <div className={styles.modalMetaItem}>
                                     <span className={styles.modalMetaLabel}>Type</span>
                                     <span style={{ textTransform: 'capitalize' }}>{(currentSlide.source.type || 'unknown').replace('_', ' ')}</span>

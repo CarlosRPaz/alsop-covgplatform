@@ -119,6 +119,25 @@ async function enrichSatelliteImage(
     return true;
 }
 
+function formatGoogleCaptureDate(dateStr?: string | null): string | null {
+    if (!dateStr) return null;
+    try {
+        const parts = dateStr.split('-');
+        if (parts.length === 2) {
+            const [year, month] = parts;
+            const d = new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1);
+            return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        } else if (parts.length === 3) {
+            const [year, month, day] = parts;
+            const d = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10));
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+        return dateStr;
+    } catch {
+        return dateStr;
+    }
+}
+
 async function enrichStreetViewImage(
     sb: ReturnType<typeof getSupabaseAdmin>,
     policyId: string,
@@ -141,18 +160,33 @@ async function enrichStreetViewImage(
 
         // 2. Build the proxy image URL
         const imageUrl = `${IMAGE_PROXY_BASE}?type=streetview&lat=${coords.lat}&lng=${coords.lng}`;
+        const captureDateFormatted = formatGoogleCaptureDate(metaData.date);
         
-        // 3. Store the URL in enrichments
+        // 3. Store the URL in enrichments with formatted capture date
         await upsertEnrichment(sb, {
             policy_id: policyId,
             field_key: 'street_view_image',
             field_value: imageUrl,
-            source_name: 'Google Street View',
+            source_name: captureDateFormatted ? `Google Street View (Captured: ${captureDateFormatted})` : 'Google Street View',
             source_type: 'api',
             source_url: `https://maps.google.com/?q=${coords.lat},${coords.lng}&layer=c`,
             confidence: 'high',
-            notes: `Street View image for coordinates: ${coords.lat}, ${coords.lng} (Date: ${metaData.date || 'Unknown'})`,
+            notes: `Street View image for coordinates: ${coords.lat}, ${coords.lng}${captureDateFormatted ? ` (Photo Captured: ${captureDateFormatted})` : ''}`,
         });
+
+        // 4. Store dedicated street view capture date
+        if (captureDateFormatted) {
+            await upsertEnrichment(sb, {
+                policy_id: policyId,
+                field_key: 'street_view_capture_date',
+                field_value: captureDateFormatted,
+                source_name: 'Google Street View Metadata',
+                source_type: 'api',
+                source_url: `https://maps.google.com/?q=${coords.lat},${coords.lng}&layer=c`,
+                confidence: 'high',
+                notes: `Original photograph date returned by Google Street View vehicle: ${metaData.date}`,
+            });
+        }
         
         return true;
     } catch (e) {

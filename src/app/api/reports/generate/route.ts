@@ -219,6 +219,11 @@ export async function POST(req: NextRequest) {
             });
         }
 
+        const streetViewDateEnrichment = enrichments.find((e: any) => e.field_key === 'street_view_capture_date');
+        const streetViewEnrichment = enrichments.find((e: any) => e.field_key === 'street_view_image');
+        const streetViewDate = streetViewDateEnrichment?.field_value || (streetViewEnrichment?.notes?.match(/Date:\s*([^)]+)/)?.[1] !== 'Unknown' ? streetViewEnrichment?.notes?.match(/Date:\s*([^)]+)/)?.[1] : null);
+        const streetViewSourceLabel = streetViewDate ? `Google Street View (Photo Captured: ${streetViewDate})` : 'Google Street View';
+
         const systemPrompt = `
 You are creating a COMPACT, CLIENT-FACING coverage comparison report for an insurance brokerage.
 This report will be shared with the client. It must be clear, professional, concise, and non-judgmental.
@@ -229,7 +234,8 @@ STRICT MANDATORY RULES:
 1. EVERYTHING MUST BE SOURCED & NAMED SPECIFICALLY:
    - Every top concern, coverage review item, property observation, and recommendation MUST explicitly specify its exact data source.
    - For Replacement Cost Estimates, ALWAYS state the specific provider company (e.g., "${rceData?.source_label || 'Bamboo RCE'}" or "360Value RCE", NEVER just generic "Replacement Cost Estimate (RCE)").
-   - For Satellite & Aerial Imagery observations, ALWAYS cite the source as "Google Satellite Vision" or "Google Street View".
+   - For Google Satellite & Aerial Imagery observations, ALWAYS cite the source as "Google Satellite Vision".
+   - For Google Street View observations, ALWAYS cite the source as "${streetViewSourceLabel}".
 
 2. EXACT NUMERICAL ACCURACY (NEVER ROUND):
    - NEVER round, estimate, or change any dollar amount.
