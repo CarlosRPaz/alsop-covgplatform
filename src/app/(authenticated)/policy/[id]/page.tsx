@@ -848,218 +848,267 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                     </div>
 
                     <div className={styles.heroActions}>
-                        <Button variant="outline" size="sm" onClick={() => setIsEditOpen(true)} title="Edit Policy">
+                        <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleComposeEmail()}
+                            title="Compose email to client"
+                        >
+                            <Mail size={14} />
+                            Compose Email
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsWorkupOpen(true)}
+                            title="Run full policy analysis"
+                        >
+                            <Zap size={14} />
+                            Full Analysis
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsEditOpen(true)}
+                            title="Edit Policy"
+                        >
                             <Pencil size={14} />
                             Edit Policy
                         </Button>
                     </div>
                 </div>
 
-                {/* ── Contextual Tools & Documents ── */}
+                {/* ── Dedicated Policy Documents Tray ── */}
                 <div className={styles.heroFooter}>
-                    <div className={styles.contextGroupWrapper}>
-                        <span className={styles.contextLabel}>Documents</span>
-                        <div className={styles.contextGroup}>
-                            {!decPageStoragePath ? (
-                                <>
-                                    <input
-                                        type="file"
-                                        accept="application/pdf"
-                                        ref={fileInputRef}
-                                        style={{ display: 'none' }}
-                                        onChange={async (e) => {
-                                            const file = e.target.files?.[0];
-                                            if (!file) return;
-                                            setDecPageLoading(true);
-                                            try {
-                                                const { supabase } = await import('@/lib/supabaseClient');
-                                                const { data: { session } } = await supabase.auth.getSession();
-                                                if (!session?.access_token) {
-                                                    toast.error('Session expired. Please refresh and sign in again.');
-                                                    return;
-                                                }
-
-                                                const formData = new FormData();
-                                                formData.set('file', file);
-
-                                                const res = await fetch('/api/upload', {
-                                                    method: 'POST',
-                                                    headers: { 'Authorization': `Bearer ${session.access_token}` },
-                                                    body: formData,
-                                                });
-
-                                                const json = await res.json();
-
-                                                if (res.ok && json.success) {
-                                                    const submissionId = json.data?.submissionId;
-                                                    toast.success(`Declaration uploaded: ${json.data?.fileName || file.name}`);
-
-                                                    if (submissionId) {
-                                                        try {
-                                                            const key = 'cfp_pending_dec_uploads';
-                                                            const stored = sessionStorage.getItem(key);
-                                                            const pending = stored ? JSON.parse(stored) : [];
-                                                            if (!pending.includes(submissionId)) {
-                                                                pending.push(submissionId);
-                                                                sessionStorage.setItem(key, JSON.stringify(pending));
-                                                            }
-                                                        } catch { /* non-critical */ }
-
-                                                        window.dispatchEvent(new CustomEvent('decPageUploaded'));
-                                                        setBgProcessing(true);
-                                                        setBgProcessingStep('Queued for processing…');
-                                                    }
-                                                } else {
-                                                    toast.error(json.message || 'Upload failed. Please try again.');
-                                                }
-                                            } catch (err) {
-                                                logger.error('page', 'Error:', { error: err instanceof Error ? err.message : String(err) })
-                                                toast.error('Network error during upload. Please try again.');
-                                            } finally {
-                                                setDecPageLoading(false);
-                                                if (fileInputRef.current) fileInputRef.current.value = '';
-                                            }
-                                        }}
-                                    />
-                                    <span
-                                        className={styles.contextLink}
-                                        onClick={() => fileInputRef.current?.click()}
-                                        title="Upload Dec Page PDF"
-                                    >
-                                        <Upload size={14} />
-                                        {decPageLoading ? 'Uploading…' : 'Upload Dec Page'}
-                                    </span>
-                                </>
-                            ) : (
-                                <span
-                                    className={styles.contextLink}
-                                    onClick={async () => {
-                                        setDecPageLoading(true);
-                                        try {
-                                            const url = await getDecPageFileDownloadUrl(decPageStoragePath);
-                                            if (url) {
-                                                window.open(url, '_blank');
-                                            } else {
-                                                toast.error('Could not generate download link.');
-                                            }
-                                        } catch {
-                                            toast.error('Failed to open dec page file.');
-                                        } finally {
-                                            setDecPageLoading(false);
-                                        }
-                                    }}
-                                    title="Open Dec Page PDF"
-                                >
-                                    <FileDown size={14} />
-                                    {decPageLoading ? 'Opening…' : 'View Dec Page'}
-                                </span>
-                            )}
-
-                            {!dicDocStoragePath ? (
-                                <>
-                                    <input
-                                        type="file"
-                                        accept="application/pdf"
-                                        ref={dicFileInputRef}
-                                        style={{ display: 'none' }}
-                                        onChange={async (e) => {
-                                            const file = e.target.files?.[0];
-                                            if (!file) return;
-                                            setDicDocLoading(true);
-                                            try {
-                                                const { supabase } = await import('@/lib/supabaseClient');
-                                                const { data: { session } } = await supabase.auth.getSession();
-                                                if (!session?.access_token) {
-                                                    toast.error('Session expired. Please refresh and sign in again.');
-                                                    return;
-                                                }
-
-                                                const formData = new FormData();
-                                                formData.set('file', file);
-                                                formData.set('doc_type', 'dic_dec_page');
-                                                formData.set('policy_id', id);
-
-                                                const res = await fetch('/api/documents/upload', {
-                                                    method: 'POST',
-                                                    headers: { 'Authorization': `Bearer ${session.access_token}` },
-                                                    body: formData,
-                                                });
-
-                                                const json = await res.json();
-
-                                                if (res.ok && json.success) {
-                                                    toast.success(`DIC uploaded: ${file.name}`);
-                                                    const docs = await fetchPlatformDocumentsByPolicyId(id);
-                                                    const dicDoc = docs.find(d => d.doc_type === 'dic_dec_page' && d.storage_path);
-                                                    if (dicDoc?.storage_path) setDicDocStoragePath(dicDoc.storage_path);
-                                                } else {
-                                                    toast.error(json.message || 'DIC upload failed.');
-                                                }
-                                            } catch (err) {
-                                                logger.error('page', 'Error:', { error: err instanceof Error ? err.message : String(err) })
-                                                toast.error('Network error during DIC upload.');
-                                            } finally {
-                                                setDicDocLoading(false);
-                                                if (dicFileInputRef.current) dicFileInputRef.current.value = '';
-                                            }
-                                        }}
-                                    />
-                                    <span
-                                        className={styles.contextLink}
-                                        onClick={() => dicFileInputRef.current?.click()}
-                                        title="Upload DIC PDF"
-                                    >
-                                        <Upload size={14} />
-                                        {dicDocLoading ? 'Uploading…' : 'Upload DIC'}
-                                    </span>
-                                </>
-                            ) : (
-                                <span
-                                    className={styles.contextLink}
-                                    onClick={async () => {
-                                        setDicDocLoading(true);
-                                        try {
-                                            const url = await getPlatformDocDownloadUrl(dicDocStoragePath!);
-                                            if (url) {
-                                                window.open(url, '_blank');
-                                            } else {
-                                                toast.error('Could not generate DIC download link.');
-                                            }
-                                        } catch {
-                                            toast.error('Failed to open DIC document.');
-                                        } finally {
-                                            setDicDocLoading(false);
-                                        }
-                                    }}
-                                    title="Open DIC Document"
-                                >
-                                    <ShieldCheck size={14} />
-                                    {dicDocLoading ? 'Opening…' : 'View DIC'}
-                                </span>
-                            )}
-                        </div>
+                    <div className={styles.docTrayHeader}>
+                        <FileText size={14} className={styles.docTrayIcon} />
+                        <span className={styles.docTrayLabel}>Documents</span>
                     </div>
 
-                    <div className={styles.contextGroupWrapper}>
-                        <span className={styles.contextLabel}>Tools</span>
-                        <div className={styles.contextGroup}>
-                            <span
-                                className={styles.contextLink}
-                                onClick={() => setIsWorkupOpen(true)}
-                                title="Run full analysis"
+                    <div className={styles.docTrayItems}>
+                        {/* Dec Page */}
+                        {!decPageStoragePath ? (
+                            <>
+                                <input
+                                    type="file"
+                                    accept="application/pdf"
+                                    ref={fileInputRef}
+                                    style={{ display: 'none' }}
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        setDecPageLoading(true);
+                                        try {
+                                            const { supabase } = await import('@/lib/supabaseClient');
+                                            const { data: { session } } = await supabase.auth.getSession();
+                                            if (!session?.access_token) {
+                                                toast.error('Session expired. Please refresh and sign in again.');
+                                                return;
+                                            }
+
+                                            const formData = new FormData();
+                                            formData.set('file', file);
+
+                                            const res = await fetch('/api/upload', {
+                                                method: 'POST',
+                                                headers: { 'Authorization': `Bearer ${session.access_token}` },
+                                                body: formData,
+                                            });
+
+                                            const json = await res.json();
+
+                                            if (res.ok && json.success) {
+                                                const submissionId = json.data?.submissionId;
+                                                toast.success(`Declaration uploaded: ${json.data?.fileName || file.name}`);
+
+                                                if (submissionId) {
+                                                    try {
+                                                        const key = 'cfp_pending_dec_uploads';
+                                                        const stored = sessionStorage.getItem(key);
+                                                        const pending = stored ? JSON.parse(stored) : [];
+                                                        if (!pending.includes(submissionId)) {
+                                                            pending.push(submissionId);
+                                                            sessionStorage.setItem(key, JSON.stringify(pending));
+                                                        }
+                                                    } catch { /* non-critical */ }
+
+                                                    window.dispatchEvent(new CustomEvent('decPageUploaded'));
+                                                    setBgProcessing(true);
+                                                    setBgProcessingStep('Queued for processing…');
+                                                }
+                                            } else {
+                                                toast.error(json.message || 'Upload failed. Please try again.');
+                                            }
+                                        } catch (err) {
+                                            logger.error('page', 'Error:', { error: err instanceof Error ? err.message : String(err) })
+                                            toast.error('Network error during upload. Please try again.');
+                                        } finally {
+                                            setDecPageLoading(false);
+                                            if (fileInputRef.current) fileInputRef.current.value = '';
+                                        }
+                                    }}
+                                />
+                                <button
+                                    type="button"
+                                    className={`${styles.docChip} ${styles.docChipEmpty}`}
+                                    onClick={() => fileInputRef.current?.click()}
+                                    title="Upload Dec Page PDF"
+                                    disabled={decPageLoading}
+                                >
+                                    {decPageLoading ? (
+                                        <>
+                                            <Loader2 size={13} className={styles.spin} />
+                                            <span>Uploading…</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Upload size={13} />
+                                            <span>Upload Dec Page</span>
+                                        </>
+                                    )}
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                type="button"
+                                className={styles.docChip}
+                                onClick={async () => {
+                                    setDecPageLoading(true);
+                                    try {
+                                        const url = await getDecPageFileDownloadUrl(decPageStoragePath);
+                                        if (url) {
+                                            window.open(url, '_blank');
+                                        } else {
+                                            toast.error('Could not generate download link.');
+                                        }
+                                    } catch {
+                                        toast.error('Failed to open dec page file.');
+                                    } finally {
+                                        setDecPageLoading(false);
+                                    }
+                                }}
+                                title="Open Dec Page PDF"
+                                disabled={decPageLoading}
                             >
-                                <Zap size={14} />
-                                Full Analysis
-                            </span>
-                            <span
-                                className={styles.contextLink}
-                                onClick={() => handleComposeEmail()}
-                                title="Compose email to client"
+                                {decPageLoading ? (
+                                    <>
+                                        <Loader2 size={13} className={styles.spin} />
+                                        <span>Opening…</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <FileDown size={13} style={{ color: '#6366f1' }} />
+                                        <span>View Dec Page</span>
+                                    </>
+                                )}
+                            </button>
+                        )}
+
+                        {/* DIC Document */}
+                        {!dicDocStoragePath ? (
+                            <>
+                                <input
+                                    type="file"
+                                    accept="application/pdf"
+                                    ref={dicFileInputRef}
+                                    style={{ display: 'none' }}
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        setDicDocLoading(true);
+                                        try {
+                                            const { supabase } = await import('@/lib/supabaseClient');
+                                            const { data: { session } } = await supabase.auth.getSession();
+                                            if (!session?.access_token) {
+                                                toast.error('Session expired. Please refresh and sign in again.');
+                                                return;
+                                            }
+
+                                            const formData = new FormData();
+                                            formData.set('file', file);
+                                            formData.set('doc_type', 'dic_dec_page');
+                                            formData.set('policy_id', id);
+
+                                            const res = await fetch('/api/documents/upload', {
+                                                method: 'POST',
+                                                headers: { 'Authorization': `Bearer ${session.access_token}` },
+                                                body: formData,
+                                            });
+
+                                            const json = await res.json();
+
+                                            if (res.ok && json.success) {
+                                                toast.success(`DIC uploaded: ${file.name}`);
+                                                const docs = await fetchPlatformDocumentsByPolicyId(id);
+                                                const dicDoc = docs.find(d => d.doc_type === 'dic_dec_page' && d.storage_path);
+                                                if (dicDoc?.storage_path) setDicDocStoragePath(dicDoc.storage_path);
+                                            } else {
+                                                toast.error(json.message || 'DIC upload failed.');
+                                            }
+                                        } catch (err) {
+                                            logger.error('page', 'Error:', { error: err instanceof Error ? err.message : String(err) })
+                                            toast.error('Network error during DIC upload.');
+                                        } finally {
+                                            setDicDocLoading(false);
+                                            if (dicFileInputRef.current) dicFileInputRef.current.value = '';
+                                        }
+                                    }}
+                                />
+                                <button
+                                    type="button"
+                                    className={`${styles.docChip} ${styles.docChipEmpty}`}
+                                    onClick={() => dicFileInputRef.current?.click()}
+                                    title="Upload Companion DIC PDF"
+                                    disabled={dicDocLoading}
+                                >
+                                    {dicDocLoading ? (
+                                        <>
+                                            <Loader2 size={13} className={styles.spin} />
+                                            <span>Uploading…</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Upload size={13} />
+                                            <span>Upload DIC</span>
+                                        </>
+                                    )}
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                type="button"
+                                className={styles.docChip}
+                                onClick={async () => {
+                                    setDicDocLoading(true);
+                                    try {
+                                        const url = await getPlatformDocDownloadUrl(dicDocStoragePath!);
+                                        if (url) {
+                                            window.open(url, '_blank');
+                                        } else {
+                                            toast.error('Could not generate DIC download link.');
+                                        }
+                                    } catch {
+                                        toast.error('Failed to open DIC document.');
+                                    } finally {
+                                        setDicDocLoading(false);
+                                    }
+                                }}
+                                title="Open DIC Document"
+                                disabled={dicDocLoading}
                             >
-                                <Mail size={14} />
-                                Compose Email
-                            </span>
-                        </div>
+                                {dicDocLoading ? (
+                                    <>
+                                        <Loader2 size={13} className={styles.spin} />
+                                        <span>Opening…</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <ShieldCheck size={13} style={{ color: '#10b981' }} />
+                                        <span>View DIC</span>
+                                    </>
+                                )}
+                            </button>
+                        )}
                     </div>
                 </div>
 
