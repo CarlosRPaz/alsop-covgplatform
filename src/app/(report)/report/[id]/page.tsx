@@ -221,9 +221,9 @@ export default function ReportPage() {
                         <div className={styles.findingsGrid}>
                             {ai.top_concerns.map((c: any, i: number) => (
                                 <div key={i} className={styles.finding}>
-                                    <p className={styles.findingBody}>{c.explanation}</p>
-                                    {c.evidence && (
-                                        <p className={styles.findingEvidence}>{c.evidence}</p>
+                                    <span className={styles.findingBody}>{c.explanation}</span>
+                                    {c.source && (
+                                        <span className={styles.findingSource}>Source: {c.source}</span>
                                     )}
                                 </div>
                             ))}

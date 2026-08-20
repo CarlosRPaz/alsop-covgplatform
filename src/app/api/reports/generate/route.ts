@@ -263,6 +263,16 @@ STRICT MANDATORY RULES:
 
 10. EVIDENCE FORMATTING: Do NOT use literal system flag names (like "NO_DIC" or "MISSING_PERILS_INSURED") in the evidence or explanations. Use natural, human-readable language (e.g., "No DIC coverage on file").
 
+11. NO CROSS-SECTION DUPLICATION (CRITICAL):
+    - KEY FINDINGS (top_concerns) are STRICTLY reserved for 2-3 major policy-level findings:
+      * Core Valuation differences (e.g. "${rceData?.source_label || 'Bamboo RCE'}" estimated replacement cost of ${rceData?.replacement_cost_exact || '$X'} vs current Dwelling limit of $Y).
+      * Missing major coverage lines (e.g. "$0 limit on Other Structures coverage").
+      * Missing DIC policy (e.g. "No DIC (Difference in Conditions) policy on file for earthquake or flood").
+      * Policy deductible or endorsement differences.
+    - NEVER put physical imagery observations (e.g., "pool detected", "solar panels detected", "detached shed", "fence") into KEY FINDINGS (top_concerns).
+    - Physical imagery detections belong EXCLUSIVELY in 'property_observations' and attached as 'related_findings' on the relevant coverage row in 'coverage_review'.
+    - In top_concerns, 'explanation' must be a standalone, concise sentence with exact numbers and source. 'evidence' should be a short 3-5 word label (e.g. "${rceData?.source_label || 'Bamboo RCE'}").
+
 EXCLUSIONS AND GUARDRAILS:
 1. NO FIRE RISK: NEVER mention fire risk, fire scores, or wildfire scores in any section. Completely suppress these findings.
 2. NO IMAGERY NOTES: NEVER mention satellite image quality or photo limitations.
@@ -271,14 +281,26 @@ EXCLUSIONS AND GUARDRAILS:
 5. NO REASSURANCE: NEVER use words like "adequate", "inadequate", "sufficient", "properly covered", "looks good", or "coverage is good".
 6. SOURCED COMPARISON ONLY: Every recommendation must cite what data source triggered the observation.
 
-VALUATION & RCE DATA GUIDANCE:
-- If replacement cost estimate is available in dataPayload.rce_data, state: "Estimated replacement cost is ${rceData?.replacement_cost_exact || '$X'}." and set source to "${rceData?.source_label || 'Bamboo RCE'}".
+${rceData ? `
+VALUATION & RCE DATA GUIDANCE (RCE DOCUMENT ON FILE):
+- Verified RCE calculation available in dataPayload.rce_data:
+  * Provider / Source Label: "${rceData.source_label}"
+  * Exact Estimated Replacement Cost: ${rceData.replacement_cost_exact}
+  * Cost Per Sq Ft: ${rceData.cost_per_sqft || 'N/A'}
+- In coverage_review (Dwelling) and Key Findings, reference this exact figure (${rceData.replacement_cost_exact}) citing source "${rceData.source_label}".
 - NEVER present estimates as authoritative.
+` : `
+VALUATION & RCE DATA GUIDANCE (NO RCE DOCUMENT ON FILE):
+- NO Replacement Cost Estimate (RCE) document has been uploaded for this policy (dataPayload.rce_data is null).
+- NEVER invent an RCE estimate or cite "Source: Replacement Cost Estimate (RCE)".
+- DO NOT mistake Companion DIC limits (e.g., dic_limit_dwelling) for an RCE estimate.
+- If companion DIC coverage is present on file, accurately refer to it as "Companion DIC Policy" (e.g. "Companion DIC policy has a dwelling limit of $X" with source "Companion DIC Policy").
+`}
 
 COVERAGE REVIEW STRUCTURE:
 - Do NOT include per-row "Source:" text in coverage_review items since coverage data obviously comes from the policy declaration page.
 - For each coverage line, if there are related findings from flags, enrichments, or observations (e.g., pool detected but Other Structures is $0, or RCE replacement cost differs from Dwelling limit), include them as "related_findings" on that coverage_review item.
-- related_findings should be brief supporting data points (1 sentence) with specific source (e.g. source: "${rceData?.source_label || 'Bamboo RCE'}" or source: "Google Satellite Vision").
+- related_findings should be brief supporting data points (1 sentence) with specific source (e.g. source: "${rceData?.source_label || 'Companion DIC Policy'}" or source: "Google Satellite Vision").
 ${flagInstructions}
 Data Context:
 ${JSON.stringify(dataPayload, null, 2)}
