@@ -735,7 +735,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                         isReportGenerating={isGeneratingReport}
                         isReportStale={isReportStale}
                         onGenerateReport={handleGenerateReport}
-                        onViewReport={() => reportRow && router.push(`/report/${reportRow.id}`)}
+                        onViewReport={() => reportRow && window.open(`/report/${reportRow.id}`, '_blank')}
                     />
                 </div>
 

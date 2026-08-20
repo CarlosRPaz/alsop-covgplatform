@@ -241,7 +241,7 @@ export function PolicyDashboard({ declaration, enrichments = [], policyDetail }:
                     {report ? (
                         <>
                             <button
-                                onClick={() => router.push(`/report/${report.id}`)}
+                                onClick={() => window.open(`/report/${report.id}`, '_blank')}
                                 style={{ background: 'var(--accent-primary)', color: 'var(--text-inverse)', border: 'none', padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 600 }}
                             >
                                 View Latest Report
