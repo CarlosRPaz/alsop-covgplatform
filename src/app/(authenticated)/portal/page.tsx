@@ -211,6 +211,21 @@ export default function ClientPortalPage() {
                 <StatCard icon={DollarSign} label="Total Premium" value={`$${totalPremium.toLocaleString()}`} color="#6366f1" />
             </div>
 
+            {/* Policy Review in Progress Banner */}
+            {policies.length > 0 && !recentDocs.some(d => d.type === 'report') && (
+                <div className={styles.reviewBanner}>
+                    <div className={styles.reviewBannerIcon}>
+                        <Clock size={20} />
+                    </div>
+                    <div className={styles.reviewBannerContent}>
+                        <h3 className={styles.reviewBannerTitle}>Coverage Review in Progress</h3>
+                        <p className={styles.reviewBannerText}>
+                            Your policy declaration has been received! Our licensed insurance team is currently gathering verified property records, calculating your Replacement Cost Estimate (RCE), and cross-referencing your coverage against California wildfire and companion policy benchmarks. Your advisor will notify you as soon as your personalized report is ready to review together.
+                        </p>
+                    </div>
+                </div>
+            )}
+
             <div className={styles.mainGrid}>
                 {/* My Policies */}
                 <div style={{

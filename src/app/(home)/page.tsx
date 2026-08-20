@@ -55,8 +55,8 @@ const steps = [
   {
     num: '03',
     icon: FileCheck,
-    title: 'Get Your Coverage Report',
-    desc: 'Receive a clear, actionable report with coverage recommendations, risk insights, and next steps.',
+    title: 'Agent-Guided Coverage Review',
+    desc: 'Our team cross-references your policy against replacement cost benchmarks and companion coverage to prepare a tailored report for your review.',
   },
 ];
 
@@ -104,7 +104,7 @@ const faqs = [
   { q: 'Is it free?', a: 'Yes. CoverageCheckNow is completely free to use. There are no hidden fees.' },
   { q: 'What do you need from me?', a: 'Just your insurance declarations page — the summary page from your policy documents. It\'s usually 1–3 pages.' },
   { q: 'Do I need an account?', a: 'Yes, a free account is required so your documents and reports stay secure and accessible only to you.' },
-  { q: 'How long does the analysis take?', a: 'Most reports are generated within minutes of uploading your declarations page.' },
+  { q: 'How does the review process work?', a: 'Once you upload your declarations page, our team pulls property records, calculates replacement cost estimates, and prepares a comprehensive report for you and your agent to review together.' },
   { q: 'Is my data safe?', a: 'Yes. All data is encrypted in transit (TLS) and at rest. We enforce role-based access control, row-level security, and never sell your personal data.' },
   { q: 'What file types are supported?', a: 'We accept PDF files up to 10MB.' },
   { q: 'Does this replace my agent?', a: 'No. CoverageCheckNow helps you and your agent make more informed decisions. We recommend reviewing results with a licensed professional.' },
@@ -377,6 +377,20 @@ export default function Home() {
           </div>
         </section>
 
+        {/* ─── READY TO CHECK CTA ─── */}
+        <section className={styles.finalCta}>
+          <div className={styles.contain}>
+            <h2>Ready to check your coverage?</h2>
+            <p>Upload your policy declarations to start your comprehensive review with a licensed agent. No credit card. No obligation.</p>
+            <Link href="/submit">
+              <Button size="lg" className={styles.primaryCta}>
+                Check My Coverage
+                <ArrowRight size={18} />
+              </Button>
+            </Link>
+          </div>
+        </section>
+
         {/* ─── FAQ ─── */}
         <section className={styles.sectionLight}>
           <div className={styles.contain}>
@@ -393,20 +407,6 @@ export default function Home() {
                 </details>
               ))}
             </AnimatedStagger>
-          </div>
-        </section>
-
-        {/* ─── FINAL CTA ─── */}
-        <section className={styles.finalCta}>
-          <div className={styles.contain}>
-            <h2>Ready to check your coverage?</h2>
-            <p>Upload your policy and get your free report in minutes. No credit card. No obligation.</p>
-            <Link href="/submit">
-              <Button size="lg" className={styles.primaryCta}>
-                Check My Coverage
-                <ArrowRight size={18} />
-              </Button>
-            </Link>
           </div>
         </section>
       </main>

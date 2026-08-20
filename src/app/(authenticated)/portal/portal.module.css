@@ -115,3 +115,41 @@
         align-items: flex-start;
     }
 }
+
+/* ── Review in Progress Banner ── */
+.reviewBanner {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-left: 4px solid #16a34a;
+    border-radius: var(--radius-lg, 8px);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+}
+
+.reviewBannerIcon {
+    color: #16a34a;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.reviewBannerContent {
+    flex: 1;
+}
+
+.reviewBannerTitle {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #14532d;
+    margin: 0 0 0.25rem 0;
+}
+
+.reviewBannerText {
+    font-size: 0.78rem;
+    color: #166534;
+    line-height: 1.45;
+    margin: 0;
+}
+
