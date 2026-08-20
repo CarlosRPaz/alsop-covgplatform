@@ -97,7 +97,7 @@ export function Sidebar({ userRole }: SidebarProps) {
                         {collapsed && !isMobile ? (
                             <BrandEmblem size={24} />
                         ) : (
-                            <BrandLogo variant="horizontal" size="sm" iconSize={24} />
+                            <BrandLogo variant="horizontal" size="xs" iconSize={22} fontSize="1.08rem" />
                         )}
                     </Link>
                     {isMobile ? (

@@ -52,19 +52,18 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 0.875rem;
+    padding: 0 0.75rem 0 0.875rem;
     border-bottom: 1px solid var(--border-default);
     flex-shrink: 0;
     gap: 0.5rem;
+    position: relative;
 
     .collapsed & {
         justify-content: center;
-        padding: 0 0.5rem;
+        padding: 0.65rem 0.5rem;
         flex-direction: column;
-        gap: 0.25rem;
+        gap: 0.5rem;
         height: auto;
-        padding-top: 0.75rem;
-        padding-bottom: 0.5rem;
     }
 
     .mobile & {
@@ -79,7 +78,7 @@
     display: flex;
     align-items: center;
     min-width: 0;
-    flex: 1;
+    flex-shrink: 1;
 }
 
 .brandText {
@@ -87,22 +86,29 @@
 }
 
 .collapseBtn {
-    background: none;
-    border: 1px solid var(--border-default);
+    background: var(--bg-surface, #ffffff);
+    border: 1px solid var(--border-default, #e2e8f0);
     border-radius: 6px;
-    color: var(--text-muted);
+    color: var(--text-muted, #64748b);
     cursor: pointer;
-    padding: 0.25rem;
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.15s ease;
     flex-shrink: 0;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 
     &:hover {
-        color: var(--text-high);
-        background: var(--bg-surface-raised);
-        border-color: var(--text-muted);
+        color: var(--accent-primary, #2563eb);
+        background: var(--bg-surface-raised, #f8fafc);
+        border-color: var(--border-strong, #cbd5e1);
+        transform: scale(1.04);
+    }
+
+    &:active {
+        transform: scale(0.96);
     }
 }
 

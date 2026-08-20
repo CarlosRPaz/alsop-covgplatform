@@ -7,6 +7,8 @@ export interface BrandLogoProps {
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
     /** Custom pixel height for the icon */
     iconSize?: number;
+    /** Custom font size for the wordmark text */
+    fontSize?: string;
     /** Hide the wordmark text */
     hideText?: boolean;
     /** Extra CSS class */
@@ -86,12 +88,14 @@ export function BrandLogo({
     variant = 'horizontal',
     size = 'md',
     iconSize,
+    fontSize,
     hideText = false,
     className = '',
     mode = 'auto',
 }: BrandLogoProps) {
     const config = SIZES[size] || SIZES.md;
     const finalIconSize = iconSize || config.icon;
+    const finalFontSize = fontSize || config.fontSize;
 
     if (variant === 'icon' || hideText) {
         return <BrandEmblem size={finalIconSize} className={className} mode={mode} />;
@@ -124,7 +128,7 @@ export function BrandLogo({
             <BrandEmblem size={finalIconSize} mode={mode} />
             <span
                 style={{
-                    fontSize: config.fontSize,
+                    fontSize: finalFontSize,
                     fontWeight: 900,
                     letterSpacing: '-0.03em',
                     color: mainTextColor,
