@@ -401,6 +401,36 @@
     color: var(--accent-primary, #6366f1);
 }
 
+.uploadDocBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--accent-primary, #2563eb);
+    background: rgba(37, 99, 235, 0.06);
+    border: 1px solid rgba(37, 99, 235, 0.25);
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    outline: none;
+    margin-left: 0.25rem;
+}
+
+.uploadDocBtn:hover {
+    background: rgba(37, 99, 235, 0.12);
+    border-color: var(--accent-primary, #2563eb);
+    color: var(--accent-primary, #2563eb);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(37, 99, 235, 0.15);
+}
+
+.uploadDocBtn:active {
+    transform: translateY(0);
+}
+
 .heroTitle {
     font-size: 1.75rem;
     font-weight: 700;

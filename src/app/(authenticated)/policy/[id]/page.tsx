@@ -6,7 +6,7 @@ import Link from 'next/link';
 import styles from './page.module.css';
 import { Button } from '@/components/ui/Button/Button';
 import { Tabs } from '@/components/ui/Tabs/Tabs';
-import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload, ShieldCheck, MapPin, Phone, RotateCcw, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Mail, FileDown, Download, X, Maximize2, Copy, Check, Pencil, Flag, AlertTriangle, AlertCircle, Info, Satellite, Loader2, Settings, FileText, ExternalLink, Zap, Upload, ShieldCheck, MapPin, Phone, RotateCcw, ShieldAlert, FolderUp } from 'lucide-react';
 import { PropertyBanner } from '@/components/policy/PropertyBanner';
 import { getPolicyDetailById, mapPolicyDetailToDeclaration, Declaration, PolicyDetail, fetchFlagsByPolicyId, PolicyFlagRow, getPropertyEnrichments, PropertyEnrichment, runPropertyEnrichment, runFlagCheck, getLatestReportForPolicy, PolicyReportRow, fetchDecPageFilesByPolicyId, getDecPageFileDownloadUrl, fetchPlatformDocumentsByPolicyId, getPlatformDocDownloadUrl, fetchRceDocDataByPolicyId, RceDocData, fetchDicDocDataByPolicyId, DicDocData, generatePolicyReport, fetchRenewalEmailLog, RenewalEmailLogEntry, getLatestReportConfigVersion } from '@/lib/api';
 import { PolicyStatusBar } from '@/components/policy/PolicyStatusBar';
@@ -74,6 +74,9 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
     const [decPageStoragePath, setDecPageStoragePath] = useState<string | null>(null);
     const [decPageLoading, setDecPageLoading] = useState(false);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const rceFileInputRef = React.useRef<HTMLInputElement>(null);
+    const [rceDocStoragePath, setRceDocStoragePath] = useState<string | null>(null);
+    const [rceDocLoading, setRceDocLoading] = useState(false);
     const dicFileInputRef = React.useRef<HTMLInputElement>(null);
     const [dicDocStoragePath, setDicDocStoragePath] = useState<string | null>(null);
     const [dicDocLoading, setDicDocLoading] = useState(false);
@@ -332,11 +335,15 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             }
         });
 
-        // Fetch DIC document for the DIC button
+        // Fetch DIC and RCE documents for header document buttons
         fetchPlatformDocumentsByPolicyId(id).then(docs => {
             const dicDoc = docs.find(d => d.doc_type === 'dic_dec_page' && d.storage_path);
             if (dicDoc?.storage_path) {
                 setDicDocStoragePath(dicDoc.storage_path);
+            }
+            const rceDoc = docs.find(d => d.doc_type === 'rce' && d.storage_path);
+            if (rceDoc?.storage_path) {
+                setRceDocStoragePath(rceDoc.storage_path);
             }
         });
 
@@ -372,6 +379,17 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             fetchDecPageFilesByPolicyId(id).then(files => {
                 if (files.length > 0 && files[0].storage_path) {
                     setDecPageStoragePath(files[0].storage_path);
+                }
+            });
+            // Also refresh DIC and RCE documents
+            fetchPlatformDocumentsByPolicyId(id).then(docs => {
+                const dicDoc = docs.find(d => d.doc_type === 'dic_dec_page' && d.storage_path);
+                if (dicDoc?.storage_path) {
+                    setDicDocStoragePath(dicDoc.storage_path);
+                }
+                const rceDoc = docs.find(d => d.doc_type === 'rce' && d.storage_path);
+                if (rceDoc?.storage_path) {
+                    setRceDocStoragePath(rceDoc.storage_path);
                 }
             });
         } catch (e) {
@@ -1004,6 +1022,113 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                             </button>
                         )}
 
+                        {/* RCE Document */}
+                        {!rceDocStoragePath ? (
+                            <>
+                                <input
+                                    type="file"
+                                    accept="application/pdf"
+                                    ref={rceFileInputRef}
+                                    style={{ display: 'none' }}
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        setRceDocLoading(true);
+                                        try {
+                                            const { supabase } = await import('@/lib/supabaseClient');
+                                            const { data: { session } } = await supabase.auth.getSession();
+                                            if (!session?.access_token) {
+                                                toast.error('Session expired. Please refresh and sign in again.');
+                                                return;
+                                            }
+
+                                            const formData = new FormData();
+                                            formData.set('file', file);
+                                            formData.set('doc_type', 'rce');
+                                            formData.set('policy_id', id);
+
+                                            const res = await fetch('/api/documents/upload', {
+                                                method: 'POST',
+                                                headers: { 'Authorization': `Bearer ${session.access_token}` },
+                                                body: formData,
+                                            });
+
+                                            const json = await res.json();
+
+                                            if (res.ok && json.success) {
+                                                toast.success(`RCE uploaded: ${file.name}`);
+                                                const docs = await fetchPlatformDocumentsByPolicyId(id);
+                                                const rceDoc = docs.find(d => d.doc_type === 'rce' && d.storage_path);
+                                                if (rceDoc?.storage_path) setRceDocStoragePath(rceDoc.storage_path);
+                                                fetchRceDocDataByPolicyId(id).then(setRceDocData);
+                                            } else {
+                                                toast.error(json.message || 'RCE upload failed.');
+                                            }
+                                        } catch (err) {
+                                            logger.error('page', 'Error:', { error: err instanceof Error ? err.message : String(err) });
+                                            toast.error('Network error during RCE upload.');
+                                        } finally {
+                                            setRceDocLoading(false);
+                                            if (rceFileInputRef.current) rceFileInputRef.current.value = '';
+                                        }
+                                    }}
+                                />
+                                <button
+                                    type="button"
+                                    className={`${styles.docChip} ${styles.docChipEmpty}`}
+                                    onClick={() => rceFileInputRef.current?.click()}
+                                    title="Upload RCE (Replacement Cost Estimate) PDF"
+                                    disabled={rceDocLoading}
+                                >
+                                    {rceDocLoading ? (
+                                        <>
+                                            <Loader2 size={13} className={styles.spin} />
+                                            <span>Uploading…</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Upload size={13} />
+                                            <span>Upload RCE</span>
+                                        </>
+                                    )}
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                type="button"
+                                className={styles.docChip}
+                                onClick={async () => {
+                                    setRceDocLoading(true);
+                                    try {
+                                        const url = await getPlatformDocDownloadUrl(rceDocStoragePath!);
+                                        if (url) {
+                                            window.open(url, '_blank');
+                                        } else {
+                                            toast.error('Could not generate RCE download link.');
+                                        }
+                                    } catch {
+                                        toast.error('Failed to open RCE document.');
+                                    } finally {
+                                        setRceDocLoading(false);
+                                    }
+                                }}
+                                title="Open Replacement Cost Estimate (RCE)"
+                                disabled={rceDocLoading}
+                            >
+                                {rceDocLoading ? (
+                                    <>
+                                        <Loader2 size={13} className={styles.spin} />
+                                        <span>Opening…</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <FileText size={13} style={{ color: '#f59e0b' }} />
+                                        <span>View RCE</span>
+                                    </>
+                                )}
+                            </button>
+                        )}
+
                         {/* DIC Document */}
                         {!dicDocStoragePath ? (
                             <>
@@ -1109,6 +1234,20 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                                 )}
                             </button>
                         )}
+
+                        {/* Upload Document Button — Navigates to Files Tab */}
+                        <button
+                            type="button"
+                            className={styles.uploadDocBtn}
+                            onClick={() => {
+                                setActiveTab('files');
+                                document.getElementById('policy-tabs-section')?.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                            title="Go to Files section to upload documents"
+                        >
+                            <FolderUp size={13} />
+                            <span>Upload Document</span>
+                        </button>
                     </div>
                 </div>
 
@@ -1152,7 +1291,7 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             )}
 
             {/* Tab Navigation */}
-            <div className={styles.tabsWrapper}>
+            <div id="policy-tabs-section" className={styles.tabsWrapper}>
                 <Tabs tabs={policyTabs} defaultTab="overview" activeTab={activeTab} onChange={setActiveTab} />
             </div>
 
