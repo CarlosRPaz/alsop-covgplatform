@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     X, Mail, Check, Sparkles, FileText, ExternalLink,
     Copy, Sliders, CheckCircle2, AlertTriangle, ShieldCheck, Loader2, Send,
-    Calendar, RefreshCw, ChevronDown, ChevronUp, User, Hash, DollarSign
+    Calendar, RefreshCw, ChevronDown, ChevronUp, User, Hash, DollarSign, Save
 } from 'lucide-react';
 import {
     SystemEmailTemplate,
@@ -23,6 +23,26 @@ export type { RenewalEmailLogEntry };
 
 // Stable empty array to avoid re-render loops when no emailLog is passed
 const EMPTY_LOG: RenewalEmailLogEntry[] = [];
+
+// Default Calendly booking URL
+const DEFAULT_CALENDLY_URL = 'https://calendly.com/coveragechecknow-scheduling/15min';
+
+/**
+ * Retrieve saved Calendly URL with automatic migration away from legacy/deprecated URLs.
+ */
+function getStoredCalendlyUrl(): string {
+    if (typeof window === 'undefined') return DEFAULT_CALENDLY_URL;
+    try {
+        const stored = localStorage.getItem('ccn_calendly_url');
+        if (!stored || stored === 'https://calendly.com/alsopagency' || stored === 'https://calendly.com/your-name/policy-review') {
+            localStorage.setItem('ccn_calendly_url', DEFAULT_CALENDLY_URL);
+            return DEFAULT_CALENDLY_URL;
+        }
+        return stored;
+    } catch {
+        return DEFAULT_CALENDLY_URL;
+    }
+}
 
 export interface PolicyEmailComposerProps {
     isOpen: boolean;
@@ -87,12 +107,8 @@ export function PolicyEmailComposer({
     const [editablePropertyAddress, setEditablePropertyAddress] = useState(safePropertyAddress);
     const [editableExpirationDate, setEditableExpirationDate] = useState('07/27/2026');
     const [editableAnnualPremium, setEditableAnnualPremium] = useState('$1,850.00');
-    const [editableMeetingUrl, setEditableMeetingUrl] = useState(() => {
-        if (typeof window !== 'undefined') {
-            return localStorage.getItem('ccn_calendly_url') || 'https://calendly.com/alsopagency';
-        }
-        return 'https://calendly.com/alsopagency';
-    });
+    const [editableMeetingUrl, setEditableMeetingUrl] = useState(() => getStoredCalendlyUrl());
+    const [calendlySaved, setCalendlySaved] = useState(false);
 
     // Reset / sync local fields when props change or modal opens
     useEffect(() => {
@@ -100,19 +116,36 @@ export function PolicyEmailComposer({
             setEditableClientName(safeClientName);
             setEditablePolicyNumber(safePolicyNumber);
             setEditablePropertyAddress(safePropertyAddress);
-            if (typeof window !== 'undefined') {
-                const savedMeeting = localStorage.getItem('ccn_calendly_url');
-                if (savedMeeting) setEditableMeetingUrl(savedMeeting);
-            }
+            setEditableMeetingUrl(getStoredCalendlyUrl());
         }
     }, [isOpen, safeClientName, safePolicyNumber, safePropertyAddress]);
 
     // Handle Calendly URL change & auto-persist
     const handleMeetingUrlChange = (val: string) => {
         setEditableMeetingUrl(val);
+        setCalendlySaved(false);
         if (typeof window !== 'undefined') {
-            localStorage.setItem('ccn_calendly_url', val);
+            try {
+                localStorage.setItem('ccn_calendly_url', val);
+            } catch {
+                // ignore
+            }
         }
+    };
+
+    // Explicit Save Default handler with visual confirmation
+    const handleSaveCalendlyDefault = () => {
+        const urlToSave = editableMeetingUrl.trim() || DEFAULT_CALENDLY_URL;
+        setEditableMeetingUrl(urlToSave);
+        if (typeof window !== 'undefined') {
+            try {
+                localStorage.setItem('ccn_calendly_url', urlToSave);
+            } catch {
+                // ignore
+            }
+        }
+        setCalendlySaved(true);
+        setTimeout(() => setCalendlySaved(false), 2500);
     };
 
     // Reset variables to detected policy defaults
@@ -330,7 +363,7 @@ export function PolicyEmailComposer({
                     }}>
                         {/* Top Line: Calendly input + Quick Expand Button */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flex: '1 1 320px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flex: '1 1 360px' }}>
                                 <span style={{
                                     display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
                                     fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-primary)',
@@ -342,7 +375,7 @@ export function PolicyEmailComposer({
                                     type="text"
                                     value={editableMeetingUrl}
                                     onChange={e => handleMeetingUrlChange(e.target.value)}
-                                    placeholder="https://calendly.com/your-name/policy-review"
+                                    placeholder="https://calendly.com/coveragechecknow-scheduling/15min"
                                     style={{
                                         flex: 1,
                                         padding: '0.45rem 0.65rem',
@@ -353,6 +386,29 @@ export function PolicyEmailComposer({
                                         color: 'var(--text-high)',
                                     }}
                                 />
+                                <button
+                                    type="button"
+                                    onClick={handleSaveCalendlyDefault}
+                                    title="Save this Calendly link as default for all future emails"
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.3rem',
+                                        padding: '0.45rem 0.65rem',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 600,
+                                        borderRadius: '6px',
+                                        border: `1px solid ${calendlySaved ? 'var(--semantic-success)' : 'var(--border-default)'}`,
+                                        background: calendlySaved ? 'rgba(34,197,94,0.15)' : 'var(--bg-surface)',
+                                        color: calendlySaved ? 'var(--semantic-success)' : 'var(--text-high)',
+                                        cursor: 'pointer',
+                                        whiteSpace: 'nowrap',
+                                        transition: 'all 0.2s ease',
+                                    }}
+                                >
+                                    {calendlySaved ? <Check size={13} style={{ color: 'var(--semantic-success)' }} /> : <Save size={13} />}
+                                    <span>{calendlySaved ? 'Saved!' : 'Save Default'}</span>
+                                </button>
                             </div>
 
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
