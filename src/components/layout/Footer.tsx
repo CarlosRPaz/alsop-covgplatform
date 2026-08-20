@@ -53,7 +53,7 @@ export function Footer() {
                             <BrandLogo variant="horizontal" size="sm" iconSize={24} />
                         </div>
                         <p className={styles.description}>
-                            Streamlining policy review, RCE validation, and coverage analysis for Alsop and Associates Insurance Agency.
+                            Streamlining policy review, RCE validation, and coverage analysis for Alsop & Associates Insurance Agency.
                         </p>
                     </div>
 
@@ -110,7 +110,7 @@ export function Footer() {
                 {/* Bottom Bar */}
                 <div className={styles.bottomBar}>
                     <p className={styles.copyright}>
-                        © {currentYear} CoverageCheckNow. All rights reserved.
+                        © {currentYear} CoverageCheckNow. A service of Alsop & Associates Insurance Agency. All rights reserved.
                     </p>
                     <div className={styles.legalLinks}>
                         <Link href="/legal/privacy" className={styles.legalLink}>
