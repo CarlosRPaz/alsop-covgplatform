@@ -852,18 +852,6 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
                             <Pencil size={14} />
                             Edit Policy
                         </Button>
-
-                        {reportRow && (
-                            <Button
-                                variant="primary"
-                                size="sm"
-                                onClick={() => router.push(`/report/${reportRow.id}`)}
-                                title={`View coverage comparison report${reportRow.created_at ? ` — Generated ${new Date(reportRow.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}`}
-                            >
-                                <ExternalLink size={14} />
-                                View Report
-                            </Button>
-                        )}
                     </div>
                 </div>
 

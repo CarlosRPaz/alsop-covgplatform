@@ -297,10 +297,18 @@ VALUATION & RCE DATA GUIDANCE (NO RCE DOCUMENT ON FILE):
 - If companion DIC coverage is present on file, accurately refer to it as "Companion DIC Policy" (e.g. "Companion DIC policy has a dwelling limit of $X" with source "Companion DIC Policy").
 `}
 
-COVERAGE REVIEW STRUCTURE:
+COVERAGE REVIEW STRUCTURE & OTHER STRUCTURES ATTACHMENTS (MANDATORY):
 - Do NOT include per-row "Source:" text in coverage_review items since coverage data obviously comes from the policy declaration page.
-- For each coverage line, if there are related findings from flags, enrichments, or observations (e.g., pool detected but Other Structures is $0, or RCE replacement cost differs from Dwelling limit), include them as "related_findings" on that coverage_review item.
-- related_findings should be brief supporting data points (1 sentence) with specific source (e.g. source: "${rceData?.source_label || 'Companion DIC Policy'}" or source: "Google Satellite Vision").
+- For "Other Structures (B)": You MUST inspect dataPayload.enrichments and attach ALL detected structures and physical features as separate items in "related_findings" (not just one!):
+  * Swimming pool: "Swimming pool detected on premises" (Source: "Google Satellite Vision")
+  * Rooftop solar panels: "Rooftop solar panels detected" (Source: "Google Satellite Vision")
+  * Perimeter fences: "Perimeter fencing detected" (Source: "Google Satellite Vision")
+  * Detached garage: "Detached garage detected" (Source: "Google Satellite Vision")
+  * Storage shed / outbuilding: "Outbuilding / storage shed detected" (Source: "Google Satellite Vision")
+  * Gazebo, deck/patio, carport, guest house / ADU: Add each detected item as its own related_finding.
+  * If multiple structures are detected in dataPayload.enrichments, include ALL of them as separate entries in related_findings.
+- For "Dwelling (A)": If an RCE estimate is available in dataPayload.rce_data, attach the RCE calculation difference as a related_finding citing "${rceData?.source_label}".
+- related_findings should be brief supporting data points (1 sentence) with specific source (e.g. source: "${rceData?.source_label || 'Companion DIC Policy'}" or source: "Google Satellite Vision" or source: "${streetViewSourceLabel}").
 ${flagInstructions}
 Data Context:
 ${JSON.stringify(dataPayload, null, 2)}

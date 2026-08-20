@@ -149,7 +149,7 @@ export function PolicyStatusBar({
                     <span className={styles.segmentLabel}>Property Data</span>
                     <span className={styles.segmentValue}>
                         {isEnriched ? (
-                            <>
+                            <span className={styles.valueRow}>
                                 <button
                                     onClick={() => setShowDropdown(!showDropdown)}
                                     className={styles.dataPointsBtn}
@@ -159,9 +159,9 @@ export function PolicyStatusBar({
                                     {showDropdown ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                                 </button>
                                 {lastEnrichedDate && (
-                                    <span className={styles.subtle}> · {lastEnrichedDate}</span>
+                                    <span className={styles.subtle}>· {lastEnrichedDate}</span>
                                 )}
-                            </>
+                            </span>
                         ) : (
                             <span className={styles.pending}>No data gathered</span>
                         )}
@@ -193,7 +193,7 @@ export function PolicyStatusBar({
                     ) : isEnriched ? (
                         <>
                             <Satellite size={13} />
-                            <span className={styles.actionLabel}>Refresh Data</span>
+                            <span className={styles.actionLabel}>Refresh</span>
                         </>
                     ) : (
                         <>
@@ -301,21 +301,21 @@ export function PolicyStatusBar({
                     <span className={styles.segmentValue}>
                         {flagsChecked ? (
                             openFlagCount > 0 ? (
-                                <>
+                                <span className={styles.valueRow}>
                                     <span style={{ color: severityColor, fontWeight: 600 }}>
                                         {openFlagCount} open flag{openFlagCount !== 1 ? 's' : ''}
                                     </span>
                                     {lastCheckedDate && (
-                                        <span className={styles.subtle}> · {lastCheckedDate}</span>
+                                        <span className={styles.subtle}>· {lastCheckedDate}</span>
                                     )}
-                                </>
+                                </span>
                             ) : (
-                                <>
-                                    <span className={styles.done}>All clear — no issues</span>
+                                <span className={styles.valueRow}>
+                                    <span className={styles.done}>All clear</span>
                                     {lastCheckedDate && (
-                                        <span className={styles.subtle}> · {lastCheckedDate}</span>
+                                        <span className={styles.subtle}>· {lastCheckedDate}</span>
                                     )}
-                                </>
+                                </span>
                             )
                         ) : (
                             <span className={styles.pending}>Not checked</span>
@@ -338,7 +338,7 @@ export function PolicyStatusBar({
                     ) : (
                         <>
                             <Zap size={13} />
-                            <span className={styles.actionLabel}>{flagsChecked ? 'Re-Check Flags' : 'Check Flags'}</span>
+                            <span className={styles.actionLabel}>{flagsChecked ? 'Re-Check' : 'Check'}</span>
                         </>
                     )}
                 </Button>
@@ -374,21 +374,21 @@ export function PolicyStatusBar({
                     <span className={styles.segmentLabel}>Coverage Report</span>
                     <span className={styles.segmentValue}>
                         {isReportGenerating ? (
-                            <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>Generating AI report…</span>
+                            <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>Generating…</span>
                         ) : isReportStale ? (
-                            <>
+                            <span className={styles.valueRow}>
                                 <span style={{ color: '#d97706', fontWeight: 600 }}>Outdated</span>
                                 {reportFormattedDate && (
-                                    <span className={styles.subtle}> · {reportFormattedDate}</span>
+                                    <span className={styles.subtle}>· {reportFormattedDate}</span>
                                 )}
-                            </>
+                            </span>
                         ) : reportRow ? (
-                            <>
+                            <span className={styles.valueRow}>
                                 <span className={styles.done}>Up to date</span>
                                 {reportFormattedDate && (
-                                    <span className={styles.subtle}> · {reportFormattedDate}</span>
+                                    <span className={styles.subtle}>· {reportFormattedDate}</span>
                                 )}
-                            </>
+                            </span>
                         ) : (
                             <span className={styles.pending}>Not generated</span>
                         )}
@@ -448,7 +448,7 @@ export function PolicyStatusBar({
                                 ) : isReportStale ? (
                                     <>
                                         <RotateCcw size={13} />
-                                        <span className={styles.actionLabel}>Update Report</span>
+                                        <span className={styles.actionLabel}>Update</span>
                                     </>
                                 ) : (
                                     <>
