@@ -111,15 +111,38 @@ export async function POST(req: NextRequest) {
             if (rceRows && rceRows.length > 0) {
                 const latestRce = rceRows[0];
                 const matchingDoc = rceDocs.find(d => d.id === latestRce.document_id);
-                // Determine company/provider name
-                let providerName = latestRce.created_by?.trim() || '';
-                if (!providerName && matchingDoc?.file_name) {
-                    if (/bamboo/i.test(matchingDoc.file_name)) providerName = 'Bamboo Insurance';
-                    else if (/360value/i.test(matchingDoc.file_name)) providerName = '360Value';
-                    else if (/e2value/i.test(matchingDoc.file_name)) providerName = 'e2Value';
-                    else if (/corelogic/i.test(matchingDoc.file_name)) providerName = 'CoreLogic';
+                // Determine clean carrier / provider name (e.g. "Bamboo", "360Value", "e2Value")
+                // Never use technical accounts, system emails, or "Web Services" / "Guidewire"
+                const rawCreatedBy = latestRce.created_by?.trim() || '';
+                const isTechnicalOrEmail = !rawCreatedBy ||
+                    /@/i.test(rawCreatedBy) ||
+                    /web\s*services|guidewire|system|admin|batch|api|user|service/i.test(rawCreatedBy);
+
+                let providerName = '';
+                if (!isTechnicalOrEmail) {
+                    if (/bamboo/i.test(rawCreatedBy)) providerName = 'Bamboo';
+                    else if (/360\s*value/i.test(rawCreatedBy)) providerName = '360Value';
+                    else if (/e2\s*value/i.test(rawCreatedBy)) providerName = 'e2Value';
+                    else if (/corelogic/i.test(rawCreatedBy)) providerName = 'CoreLogic';
+                    else if (/verisk/i.test(rawCreatedBy)) providerName = 'Verisk';
+                    else providerName = rawCreatedBy.replace(/\s+(insurance|services|group|corp)$/i, '');
                 }
-                if (!providerName) providerName = 'Bamboo Insurance';
+
+                if (!providerName && matchingDoc?.file_name) {
+                    if (/bamboo/i.test(matchingDoc.file_name)) providerName = 'Bamboo';
+                    else if (/360\s*value/i.test(matchingDoc.file_name)) providerName = '360Value';
+                    else if (/e2\s*value/i.test(matchingDoc.file_name)) providerName = 'e2Value';
+                    else if (/corelogic/i.test(matchingDoc.file_name)) providerName = 'CoreLogic';
+                    else if (/verisk/i.test(matchingDoc.file_name)) providerName = 'Verisk';
+                }
+
+                if (!providerName && policy.carrier_name && !/california\s*fair\s*plan|cfp/i.test(policy.carrier_name)) {
+                    providerName = policy.carrier_name.replace(/\s+(insurance|services|group|corp)$/i, '');
+                }
+
+                if (!providerName) {
+                    providerName = 'Bamboo';
+                }
 
                 const formattedCost = latestRce.replacement_cost
                     ? `$${Number(latestRce.replacement_cost).toLocaleString('en-US')}`
@@ -260,7 +283,7 @@ AUDIENCE: Homeowners and policyholders. Use plain language. No jargon.
 STRICT MANDATORY RULES:
 ${rules.explicit_source_attribution ? `1. EVERYTHING MUST BE SOURCED & NAMED SPECIFICALLY:
    - Every top concern, coverage review item, property observation, and recommendation MUST explicitly specify its exact data source.
-   - For Replacement Cost Estimates, ALWAYS state the specific provider company (e.g., "${rceData?.source_label || 'Bamboo RCE'}" or "360Value RCE", NEVER just generic "Replacement Cost Estimate (RCE)").
+   - For Replacement Cost Estimates, ALWAYS state the specific carrier/provider company cleanly (e.g., "${rceData?.source_label || 'Bamboo RCE'}" or "360Value RCE", NEVER "Web Services", NEVER email addresses or technical system usernames, and NEVER just generic "Replacement Cost Estimate (RCE)").
    - For Google Satellite & Aerial Imagery observations, ALWAYS cite the source as "Google Satellite Vision".
    - For Google Street View observations, ALWAYS cite the source as "${streetViewSourceLabel}".` : ''}
 
