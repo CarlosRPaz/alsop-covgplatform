@@ -26,6 +26,7 @@ import {
     Building,
     FileText,
     TrendingUp,
+    Pencil,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button/Button';
 import styles from './PolicyOverviewTab.module.css';
@@ -35,6 +36,7 @@ interface PolicyOverviewTabProps {
     declaration: Declaration;
     policyDetail?: PolicyDetail;
     enrichments?: PropertyEnrichment[];
+    onEditPolicy?: () => void;
 }
 
 /* ── Formatters ──────────────────────────────────────────────── */
@@ -73,7 +75,7 @@ function toDisplay(value: unknown): string {
 
 /* ── Main Component ──────────────────────────────────────────── */
 
-export function PolicyOverviewTab({ declaration, policyDetail, enrichments = [] }: PolicyOverviewTabProps) {
+export function PolicyOverviewTab({ declaration, policyDetail, enrichments = [], onEditPolicy }: PolicyOverviewTabProps) {
     const router = useRouter();
     const [report, setReport] = useState<PolicyReportRow | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -243,31 +245,39 @@ export function PolicyOverviewTab({ declaration, policyDetail, enrichments = [] 
                 <div className={styles.card}>
                     <div className={styles.cardHeader}>
                         <div className={styles.cardHeaderLeft}>
-                            <Flame size={15} style={{ color: '#6366f1' }} />
+                            <Flame size={16} style={{ color: '#6366f1' }} />
                             <h3>Coverage Limits</h3>
                         </div>
-                        <span className={styles.planChip}>FAIR PLAN</span>
+                        <div className={styles.cardHeaderRight}>
+                            {onEditPolicy && (
+                                <button
+                                    type="button"
+                                    className={styles.editBtn}
+                                    onClick={onEditPolicy}
+                                    title="Edit Coverage Limits"
+                                >
+                                    <Pencil size={11} />
+                                    <span>Edit Limits</span>
+                                </button>
+                            )}
+                            <span className={styles.planChip}>FAIR PLAN</span>
+                        </div>
                     </div>
                     <div className={styles.cardBody}>
                         {[
-                            { label: 'Dwelling (Cov A)', field: 'limit_dwelling', val: declaration.limit_dwelling },
-                            { label: 'Other Structures (Cov B)', field: 'limit_other_structures', val: declaration.limit_other_structures },
-                            { label: 'Personal Property (Cov C)', field: 'limit_personal_property', val: declaration.limit_personal_property },
-                            { label: 'Fair Rental Value (Cov D)', field: 'limit_fair_rental_value', val: declaration.limit_fair_rental_value },
-                            { label: 'Ordinance or Law', field: 'limit_ordinance_or_law', val: declaration.limit_ordinance_or_law },
-                            { label: 'Debris Removal', field: 'limit_debris_removal', val: declaration.limit_debris_removal },
-                            { label: 'Deductible', field: 'deductible', val: declaration.deductible },
-                        ].map(item => (
-                            <div key={item.field} className={styles.field}>
+                            { label: 'Dwelling (Cov A)', val: dwellingVal },
+                            { label: 'Other Structures (Cov B)', val: otherStructVal },
+                            { label: 'Personal Property (Cov C)', val: personalPropVal },
+                            { label: 'Fair Rental Value (Cov D)', val: getVal('limit_fair_rental_value', declaration.limit_fair_rental_value) },
+                            { label: 'Ordinance or Law', val: getVal('limit_ordinance_or_law', declaration.limit_ordinance_or_law) },
+                            { label: 'Debris Removal', val: getVal('limit_debris_removal', declaration.limit_debris_removal) },
+                            { label: 'Deductible', val: deductibleVal },
+                        ].map((item, idx) => (
+                            <div key={idx} className={styles.field}>
                                 <span className={styles.fieldLabel}>{item.label}</span>
-                                <div className={styles.fieldValue}>
-                                    <EditableValue
-                                        value={getVal(item.field, item.val)}
-                                        originalValue={item.val}
-                                        onSave={(v) => handleOverrideSave(item.field, v, item.val || '')}
-                                        label={item.label}
-                                    />
-                                </div>
+                                <span className={`${styles.fieldValue} ${styles.mono}`}>
+                                    {fmtCurrency(item.val)}
+                                </span>
                             </div>
                         ))}
 

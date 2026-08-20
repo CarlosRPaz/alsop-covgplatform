@@ -582,7 +582,12 @@ export default function PolicyReviewPage({ params }: { params: Promise<{ id: str
             case 'overview':
                 return (
                     <div className={styles.content}>
-                        <PolicyOverviewTab declaration={declaration!} policyDetail={policyDetailRaw || undefined} enrichments={enrichments} />
+                        <PolicyOverviewTab
+                            declaration={declaration!}
+                            policyDetail={policyDetailRaw || undefined}
+                            enrichments={enrichments}
+                            onEditPolicy={() => setIsEditOpen(true)}
+                        />
                         <AgentReviewPanel
                             reportRow={reportRow}
                             reportLink={reportRow ? `/report/${reportRow.id}` : undefined}
